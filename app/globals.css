@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Brand Colors */
+  --color-brand-dark: #2c2c2c;
+  --color-brand-light-gray: #f5f2ed;
+  --color-brand-yellow: #dcb070;
+  --color-brand-red: #e37e63;
+  --color-brand-green: #bfc46c;
+  --color-brand-blue: #78a7af;
+  --color-brand-purple: #b690d9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: #ffffff;
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  overflow-x: hidden;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+html {
+  scroll-behavior: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@keyframes jiggle {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.02); }
+  60% { transform: scale(0.99); }
+  80% { transform: scale(1.01); }
+  100% { transform: scale(1); }
+}
+
+.jiggle {
+  animation: jiggle 0.4s ease-out;
+}
