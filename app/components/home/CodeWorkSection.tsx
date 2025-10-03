@@ -1,115 +1,73 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef } from "react";
+import { ChevronRight } from "lucide-react";
+import { useState } from "react";
 import { codeProjects } from "@/lib/data";
+import { CodeProject } from "@/lib/types";
 import CodeProjectCard from "../ui/CodeProjectCard";
+import CodeProjectModal from "../ui/CodeProjectModal";
 
 export default function CodeWorkSection() {
-  const codeRef = useRef<HTMLDivElement>(null);
+  const [selectedProject, setSelectedProject] = useState<CodeProject | null>(
+    null
+  );
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleProjectClick = (project: CodeProject) => {
+    setSelectedProject(project);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setTimeout(() => setSelectedProject(null), 300);
+  };
 
   return (
     <div
       id="projects"
-      className="pt-20 px-8"
+      className="px-8 pt-20"
       style={{
         scrollMarginTop: "45px",
       }}
     >
-      <div className="max-w-7xl mx-auto">
+      <div className="mx-auto max-w-7xl">
         <motion.h2
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-5xl md:text-7xl font-black text-[#2c2c2c]"
+          className="text-5xl font-black text-[#2c2c2c] md:text-7xl"
         >
           CODE
         </motion.h2>
       </div>
 
-      {/* Code Work Carousel */}
-      <div className="max-w-7xl mx-auto relative">
+      <div className="mx-auto max-w-7xl">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="pl-10 pr-3  sm:pr-5 lg:pl-20 lg:pr-19"
+          className="grid grid-cols-1 md:grid-cols-2 gap-12 py-8"
         >
-          <div
-            className="overflow-hidden"
-            style={{
-              scrollbarWidth: "none",
-              scrollSnapType: "x mandatory",
-              msOverflowStyle: "none",
-              padding: "2rem 2rem",
-            }}
-          >
-            <div
-              ref={codeRef}
-              className="overflow-x-auto overflow-y-hidden scroll-smooth"
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-                scrollSnapType: "x mandatory",
-                margin: "-2rem -2rem",
-              }}
-            >
-              <style jsx>{`
-                div::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
-              <div className="flex gap-12" style={{ padding: "2rem 2rem 2rem 2rem" }}>
-                {codeProjects.map((project, i) => (
-                  <CodeProjectCard key={i} project={project} index={i} />
-                ))}
-                {/* Spacer: width of one visible box so last pair aligns like all others */}
-                <div
-                  className="flex-shrink-0 w-full md:w-[calc(50%-24px)]"
-                  style={{ scrollSnapAlign: "none" }}
-                />
-              </div>
-            </div>
-          </div>
+          {codeProjects.map((project, i) => (
+            <CodeProjectCard
+              key={i}
+              project={project}
+              index={i}
+              onClick={() => handleProjectClick(project)}
+            />
+          ))}
         </motion.div>
-
-        {/* Navigation Arrows */}
-        <motion.button
-          onClick={() => {
-            if (codeRef.current) {
-              const boxWidth =
-                codeRef.current.querySelector(".border-3")?.clientWidth || 400;
-              codeRef.current.scrollBy({
-                left: -(boxWidth + 24),
-                behavior: "smooth",
-              });
-            }
-          }}
-          whileTap={{ scale: 0.9 }}
-          className="absolute left-0 top-1/2 -translate-y-1/2 bg-[#2c2c2c] text-white w-[30px] h-[30px] lg:w-12 lg:h-12 rounded-full flex items-center justify-center z-10"
-        >
-          <ChevronLeft className="w-5 h-5 lg:w-8 lg:h-8" strokeWidth={3} />
-        </motion.button>
-        <motion.button
-          onClick={() => {
-            if (codeRef.current) {
-              const boxWidth =
-                codeRef.current.querySelector(".border-3")?.clientWidth || 400;
-              codeRef.current.scrollBy({
-                left: boxWidth + 24,
-                behavior: "smooth",
-              });
-            }
-          }}
-          whileTap={{ scale: 0.9 }}
-          className="absolute right-0 top-1/2 -translate-y-1/2 bg-[#2c2c2c] text-white w-[30px] h-[30px] lg:w-12 lg:h-12 rounded-full flex items-center justify-center z-10"
-        >
-          <ChevronRight className="w-5 h-5 lg:w-8 lg:h-8" strokeWidth={3} />
-        </motion.button>
       </div>
 
-      <div className="max-w-7xl mx-auto">
+      <CodeProjectModal
+        project={selectedProject}
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+      />
+
+      <div className="mx-auto max-w-7xl">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -136,9 +94,9 @@ export default function CodeWorkSection() {
                 boxShadow: "3px 3px 0px #2c2c2c",
                 transition: { duration: 0.1 },
               }}
-              className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-12 py-6 text-2xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-2xl inline-flex items-center gap-2 whitespace-nowrap"
+              className="inline-flex items-center gap-2 rounded-2xl border-3 border-[#2c2c2c] bg-[#2c2c2c] px-12 py-6 text-2xl font-black whitespace-nowrap text-white transition-colors hover:bg-white hover:text-[#2c2c2c]"
             >
-              VIEW ALL CODE <ChevronRight className="w-6 h-6" strokeWidth={3} />
+              VIEW ALL CODE <ChevronRight className="h-6 w-6" strokeWidth={3} />
             </motion.button>
           </a>
         </motion.div>

@@ -1,13 +1,55 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
 import { skillCategories } from "@/lib/data";
 import SkillCategoryCard from "../ui/SkillCategoryCard";
 
 export default function SkillsSection() {
-  const skillsRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [key, setKey] = useState(0);
+
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev + 1) % skillCategories.length);
+  };
+
+  const handlePrev = () => {
+    setCurrentIndex(
+      (prev) => (prev - 1 + skillCategories.length) % skillCategories.length
+    );
+  };
+
+  const handleResume = () => {
+    setIsPaused(false);
+    setKey((prev) => prev + 1); // Force reset the interval
+  };
+
+  // Auto-rotate carousel
+  useEffect(() => {
+    if (isPaused) return;
+
+    const interval = setInterval(() => {
+      handleNext();
+    }, 3000); // Rotate every 3 seconds
+
+    return () => clearInterval(interval);
+  }, [isPaused, key]);
+
+  const getCardPosition = (index: number) => {
+    const diff = index - currentIndex;
+    const total = skillCategories.length;
+
+    // Normalize difference to be between -total/2 and total/2
+    let normalizedDiff = diff;
+    if (diff > total / 2) {
+      normalizedDiff = diff - total;
+    } else if (diff < -total / 2) {
+      normalizedDiff = diff + total;
+    }
+
+    return normalizedDiff;
+  };
 
   return (
     <div
@@ -28,90 +70,66 @@ export default function SkillsSection() {
         </motion.h2>
       </div>
 
-      {/* Horizontal Scrolling Skills */}
-      <div className="max-w-7xl mx-auto relative">
+      {/* 3D Carousel */}
+      <div
+        className="relative max-w-7xl mx-auto h-[350px] md:h-[450px] flex items-center justify-center"
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={handleResume}
+      >
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="pl-10 pr-8 lg:pl-20 lg:pr-15"
-        >
-          <div
-            className="overflow-hidden"
-            style={{
-              scrollbarWidth: "none",
-              scrollSnapType: "x mandatory",
-              msOverflowStyle: "none",
-              padding: "2rem 2rem",
-            }}
-          >
-            <div
-              ref={skillsRef}
-              className="overflow-x-auto overflow-y-hidden scroll-smooth"
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-                scrollSnapType: "x mandatory",
-                margin: "-2rem -2rem",
-              }}
-            >
-              <style jsx>{`
-                div::-webkit-scrollbar {
-                  display: none;
-                }
-              `}</style>
-              <div
-                className="flex gap-12"
-                style={{ padding: "2rem 2rem 2rem 2rem" }}
-              >
-                {skillCategories.map((category, i) => (
-                  <SkillCategoryCard key={i} category={category} index={i} />
-                ))}
-                {/* Spacer: width of one visible box so last pair aligns like all others */}
-                <div
-                  className="flex-shrink-0 w-full md:w-[calc(50%-24px)]"
-                  style={{ scrollSnapAlign: "none" }}
-                />
-              </div>
-            </div>
-          </div>
-        </motion.div>
+          className="relative w-full h-full flex items-center justify-center perspective-1000 cursor-grab active:cursor-grabbing"
+          style={{ touchAction: "none" }}
+          drag="x"
+          dragConstraints={{ left: 0, right: 0 }}
+          dragElastic={0.2}
+          dragMomentum={false}
+          onDragStart={() => setIsPaused(true)}
+          onDragEnd={(e, { offset, velocity }) => {
+            const swipe = Math.abs(offset.x) * velocity.x;
 
-        {/* Navigation Arrows */}
-        <motion.button
-          onClick={() => {
-            if (skillsRef.current) {
-              const boxWidth =
-                skillsRef.current.querySelector(".border-3")?.clientWidth ||
-                400;
-              skillsRef.current.scrollBy({
-                left: -(boxWidth + 24),
-                behavior: "smooth",
-              });
+            if (swipe < -500 || offset.x < -50) {
+              handleNext();
+            } else if (swipe > 500 || offset.x > 50) {
+              handlePrev();
             }
+
+            // Resume after a brief delay
+            setTimeout(() => handleResume(), 1000);
           }}
-          whileTap={{ scale: 0.9 }}
-          className="absolute left-0 top-1/2 -translate-y-1/2 bg-[#2c2c2c] text-white w-[30px] h-[30px] lg:w-12 lg:h-12 rounded-full flex items-center justify-center z-10"
         >
-          <ChevronLeft className="w-5 h-5 lg:w-8 lg:h-8" strokeWidth={3} />
-        </motion.button>
-        <motion.button
-          onClick={() => {
-            if (skillsRef.current) {
-              const boxWidth =
-                skillsRef.current.querySelector(".border-3")?.clientWidth ||
-                400;
-              skillsRef.current.scrollBy({
-                left: boxWidth + 24,
-                behavior: "smooth",
-              });
-            }
-          }}
-          whileTap={{ scale: 0.9 }}
-          className="absolute right-0 top-1/2 -translate-y-1/2 bg-[#2c2c2c] text-white w-[30px] h-[30px] lg:w-12 lg:h-12 rounded-full flex items-center justify-center z-10"
-        >
-          <ChevronRight className="w-5 h-5 lg:w-8 lg:h-8" strokeWidth={3} />
-        </motion.button>
+          <AnimatePresence initial={false}>
+            {skillCategories.map((category, index) => {
+              const position = getCardPosition(index);
+              const isCenter = position === 0;
+              const absPosition = Math.abs(position);
+
+              return (
+                <motion.div
+                  key={index}
+                  initial={false}
+                  animate={{
+                    x: position === 0 ? 0 : position * 80 + (position > 0 ? 40 : -40),
+                    scale: isCenter ? 1 : Math.max(0.7 - absPosition * 0.1, 0.5),
+                    z: isCenter ? 0 : -absPosition * 100,
+                    opacity: absPosition > 2 ? 0 : 1,
+                    zIndex: isCenter ? 10 : 10 - absPosition,
+                  }}
+                  transition={{
+                    duration: 0.5,
+                    ease: "easeInOut",
+                  }}
+                  className="absolute pointer-events-none"
+                >
+                  <SkillCategoryCard
+                    category={category}
+                    index={index}
+                    isCenter={isCenter}
+                  />
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </motion.div>
       </div>
     </div>
   );

@@ -88,7 +88,7 @@ export default function DesignWorkSection() {
             }
           }}
           whileTap={{ scale: 0.9 }}
-          className="absolute left-0 top-1/2 -translate-y-1/2 bg-[#2c2c2c] text-white w-[30px] h-[30px] lg:w-12 lg:h-12 rounded-full flex items-center justify-center z-10"
+          className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 bg-[#2c2c2c] text-white w-[30px] h-[30px] lg:w-12 lg:h-12 rounded-full items-center justify-center z-10"
         >
           <ChevronLeft className="w-5 h-5 lg:w-8 lg:h-8" strokeWidth={3} />
         </motion.button>
@@ -105,7 +105,7 @@ export default function DesignWorkSection() {
             }
           }}
           whileTap={{ scale: 0.9 }}
-          className="absolute right-0 top-1/2 -translate-y-1/2 bg-[#2c2c2c] text-white w-[30px] h-[30px] lg:w-12 lg:h-12 rounded-full flex items-center justify-center z-10"
+          className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 bg-[#2c2c2c] text-white w-[30px] h-[30px] lg:w-12 lg:h-12 rounded-full items-center justify-center z-10"
         >
           <ChevronRight className="w-5 h-5 lg:w-8 lg:h-8" strokeWidth={3} />
         </motion.button>

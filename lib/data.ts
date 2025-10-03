@@ -17,20 +17,6 @@ export const codeProjects: CodeProject[] = [
     link: "https://tripforge-110a0edcf1cc.herokuapp.com/",
     github: "https://github.com/williamjaysmith/TripForge",
   },
-  {
-    title: "Wildernests",
-    description: "Hospitality booking platform",
-    tech: ["JavaScript", "React", "Next.js"],
-    link: "https://odd-bird-website.vercel.app",
-    github: "https://github.com/williamjaysmith/Wildernests",
-  },
-  {
-    title: "WJS-Distortion",
-    description: "Web Audio API manipulation & visualization",
-    tech: ["JavaScript", "Web Audio API"],
-    link: "https://github.com/williamjaysmith/WJS-Distortion",
-    github: "https://github.com/williamjaysmith/WJS-Distortion",
-  },
 ];
 
 export const designProjects: DesignProject[] = [

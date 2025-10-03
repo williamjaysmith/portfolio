@@ -1,9 +1,27 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useAnimation } from "framer-motion";
 import { ChevronRight } from "lucide-react";
+import { useEffect } from "react";
 
 export default function HeroSection() {
+  const controls = useAnimation();
+
+  useEffect(() => {
+    const wiggle = async () => {
+      await controls.start({
+        rotate: [0, -5, 5, -5, 5, 0],
+        transition: { duration: 0.5 },
+      });
+    };
+
+    const interval = setInterval(() => {
+      wiggle();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [controls]);
+
   return (
     <div
       id="home"
@@ -113,6 +131,7 @@ export default function HeroSection() {
               }, 600);
             }}
             initial={{ boxShadow: "0px 0px 0px #2c2c2c" }}
+            animate={controls}
             whileHover={{
               y: -6,
               rotate: -2,

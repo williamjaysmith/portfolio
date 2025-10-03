@@ -1,21 +1,22 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronRight } from "lucide-react";
 import { CodeProject } from "@/lib/types";
-import TechBadge from "./TechBadge";
 
 interface CodeProjectCardProps {
   project: CodeProject;
   index: number;
+  onClick: () => void;
 }
 
 export default function CodeProjectCard({
   project,
   index,
+  onClick,
 }: CodeProjectCardProps) {
   return (
     <motion.div
+      onClick={onClick}
       initial={{
         opacity: 0,
         rotate: index % 2 === 0 ? -3 : 3,
@@ -25,60 +26,53 @@ export default function CodeProjectCard({
         opacity: 1,
         rotate: index % 2 === 0 ? -3 : 3,
         y: 0,
-        boxShadow: "8px 8px 0px #2c2c2c",
+        boxShadow:
+          index % 2 === 0 ? "8px 8px 0px #2c2c2c" : "-8px 8px 0px #2c2c2c",
       }}
-      viewport={{ once: false, margin: "0px", amount: 0.3 }}
+      viewport={{ once: true }}
       transition={{
+        delay: index * 0.1,
         duration: 0.5,
         type: "spring",
         stiffness: 200,
         damping: 15,
       }}
       whileHover={{
-        scale: 1.03,
+        scale: 1.05,
         rotate: 0,
         boxShadow: "0px 8px 0px #2c2c2c",
         transition: { duration: 0.2 },
       }}
-      className="border-3 border-[#2c2c2c] p-8 bg-white group cursor-pointer rounded-2xl flex-shrink-0 w-full md:w-[calc((100%-48px)/2)]"
+      whileTap={{
+        y: 4,
+        boxShadow: "0px 4px 0px #2c2c2c",
+        transition: { duration: 0.1 },
+      }}
+      className="relative group cursor-pointer rounded-2xl border-3 border-[#2c2c2c] bg-white overflow-hidden"
       style={{
         borderRadius: "1rem",
-        scrollSnapAlign: "start",
+        aspectRatio: "4/3",
       }}
     >
-      <h4 className="text-3xl font-black mb-3 text-[#2c2c2c]">
-        {project.title}
-      </h4>
-      {project.image && (
+      {project.image ? (
         <img
           src={project.image}
           alt={project.title}
-          className="w-full h-auto mb-4 rounded-lg border-2 border-[#2c2c2c]"
+          className="w-full h-full object-cover"
         />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-gray-100">
+          <h4 className="text-2xl md:text-3xl font-black text-[#2c2c2c] px-4 text-center">
+            {project.title}
+          </h4>
+        </div>
       )}
-      <p className="text-lg mb-4 text-[#2c2c2c]">{project.description}</p>
-      <div className="flex flex-wrap gap-2 mb-6">
-        {project.tech.map((tech, j) => (
-          <TechBadge key={j} tech={tech} />
-        ))}
-      </div>
-      <div className="flex gap-4">
-        <a
-          href={project.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-black hover:underline text-[#2c2c2c] inline-flex items-center gap-1"
-        >
-          VIEW LIVE <ChevronRight className="w-4 h-4" strokeWidth={3} />
-        </a>
-        <a
-          href={project.github}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-black hover:underline text-[#2c2c2c] inline-flex items-center gap-1"
-        >
-          GITHUB <ChevronRight className="w-4 h-4" strokeWidth={3} />
-        </a>
+
+      {/* Overlay on hover */}
+      <div className="absolute inset-0 bg-[#2c2c2c]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+        <p className="text-white text-xl md:text-2xl font-black px-6 text-center">
+          VIEW PROJECT
+        </p>
       </div>
     </motion.div>
   );

@@ -43,14 +43,14 @@ export default function ContactCard({ contact, index }: ContactCardProps) {
         boxShadow: "0px 4px 0px #2c2c2c",
         transition: { duration: 0.1 },
       }}
-      className="border-3 border-[#2c2c2c] p-4 md:p-6 lg:p-8 text-center group bg-white cursor-pointer rounded-2xl"
-      style={{ borderRadius: "1rem" }}
+      className="border-3 border-[#2c2c2c] p-4 md:p-6 lg:p-8 text-center group bg-white cursor-pointer rounded-2xl flex flex-col items-center justify-center"
+      style={{ borderRadius: "1rem", aspectRatio: "4/3" }}
     >
       <Icon
-        className="w-6 h-6 md:w-10 md:h-10 lg:w-12 lg:h-12 mx-auto md:mb-3 lg:mb-4 text-[#2c2c2c]"
+        className="w-8 h-8 md:w-10 md:h-10 lg:w-12 lg:h-12 text-[#2c2c2c]"
         strokeWidth={2}
       />
-      <div className="hidden md:block text-base lg:text-xl font-black text-[#2c2c2c]">
+      <div className="hidden md:block text-base lg:text-xl font-black text-[#2c2c2c] mt-2 md:mt-3 lg:mt-4">
         {contact.name}
       </div>
     </motion.a>

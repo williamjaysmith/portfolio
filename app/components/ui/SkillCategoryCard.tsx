@@ -6,45 +6,36 @@ import { SkillCategory } from "@/lib/types";
 interface SkillCategoryCardProps {
   category: SkillCategory;
   index: number;
+  isCenter?: boolean;
 }
 
 export default function SkillCategoryCard({
   category,
   index,
+  isCenter = false,
 }: SkillCategoryCardProps) {
   return (
     <motion.div
-      initial={{
-        opacity: 0,
-        rotate: index % 2 === 0 ? -3 : 3,
-        y: 50,
-      }}
-      whileInView={{
-        opacity: 1,
-        rotate: index % 2 === 0 ? -3 : 3,
-        y: 0,
-        boxShadow: "8px 8px 0px #2c2c2c",
-      }}
-      viewport={{ once: false, margin: "0px", amount: 0.3 }}
-      transition={{
-        duration: 0.5,
-        type: "spring",
-        stiffness: 200,
-        damping: 15,
-      }}
-      whileHover={{
-        scale: 1.03,
-        rotate: 0,
-        boxShadow: "0px 8px 0px #2c2c2c",
-        transition: { duration: 0.2 },
-      }}
-      className="border-3 border-[#2c2c2c] p-8 bg-white cursor-pointer rounded-2xl flex-shrink-0 w-full md:w-[calc((100%-48px)/2)]"
+      whileHover={
+        isCenter
+          ? {
+              rotate: 0,
+              boxShadow: "0px 12px 0px #2c2c2c",
+              y: -4,
+              transition: { duration: 0.2 },
+            }
+          : {}
+      }
+      className={`border-3 border-[#2c2c2c] p-8 bg-white rounded-2xl w-[300px] md:w-[400px] aspect-square ${
+        isCenter ? "cursor-pointer" : ""
+      }`}
       style={{
         borderRadius: "1rem",
-        scrollSnapAlign: "start",
+        boxShadow: isCenter ? "8px 8px 0px #2c2c2c" : "4px 4px 0px #2c2c2c",
+        transform: isCenter ? "rotate(-2deg)" : "rotate(0deg)",
       }}
     >
-      <h3 className="font-black text-3xl mb-6 text-[#2c2c2c]">
+      <h3 className="font-black text-2xl md:text-3xl mb-6 text-[#2c2c2c]">
         {category.category}
       </h3>
       <ul className="space-y-3">
@@ -52,12 +43,11 @@ export default function SkillCategoryCard({
           <motion.li
             key={j}
             initial={{ opacity: 0, x: -20 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: j * 0.05 }}
-            className="text-lg flex items-center text-[#2c2c2c]"
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: isCenter ? j * 0.05 : 0 }}
+            className="text-base md:text-lg flex items-center text-[#2c2c2c]"
           >
-            <span className="w-2 h-2 bg-[#2c2c2c] mr-3 block" />
+            <span className="w-2 h-2 bg-[#2c2c2c] mr-3 block flex-shrink-0" />
             {skill}
           </motion.li>
         ))}
