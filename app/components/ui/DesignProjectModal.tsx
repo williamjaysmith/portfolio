@@ -1,0 +1,104 @@
+"use client";
+
+import { motion, AnimatePresence } from "framer-motion";
+import { X, ChevronRight } from "lucide-react";
+import { DesignProject } from "@/lib/types";
+import TechBadge from "./TechBadge";
+
+interface DesignProjectModalProps {
+  project: DesignProject | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function DesignProjectModal({
+  project,
+  isOpen,
+  onClose,
+}: DesignProjectModalProps) {
+  if (!project) return null;
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/50 z-40"
+          />
+
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[90%] max-w-3xl max-h-[90vh] overflow-y-auto bg-white border-3 border-[#2c2c2c] rounded-2xl p-6 md:p-8"
+          >
+            {/* Close Button */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X className="w-6 h-6 text-[#2c2c2c]" strokeWidth={3} />
+            </button>
+
+            {/* Content */}
+            <h2 className="text-4xl md:text-5xl font-black text-[#2c2c2c] mb-6 pr-12">
+              {project.title}
+            </h2>
+
+            {(project.modalImage || project.image) && (
+              <img
+                src={project.modalImage || project.image}
+                alt={project.title}
+                className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
+              />
+            )}
+
+            <p className="text-lg md:text-xl text-[#2c2c2c] mb-6">
+              {project.description}
+            </p>
+
+            <div className="mb-8">
+              <h3 className="text-xl font-black text-[#2c2c2c] mb-3">
+                TECHNOLOGIES
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {project.tech.map((tech, i) => (
+                  <TechBadge key={i} tech={tech} />
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4">
+              <a
+                href={project.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <motion.button
+                  whileHover={{
+                    y: -4,
+                    boxShadow: "4px 4px 0px #2c2c2c",
+                  }}
+                  whileTap={{
+                    y: 0,
+                    boxShadow: "2px 2px 0px #2c2c2c",
+                  }}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#2c2c2c] text-white font-black rounded-xl border-3 border-[#2c2c2c] hover:bg-white hover:text-[#2c2c2c] transition-colors"
+                >
+                  VIEW PROJECT <ChevronRight className="w-4 h-4" strokeWidth={3} />
+                </motion.button>
+              </a>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}

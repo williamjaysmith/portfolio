@@ -118,7 +118,7 @@ export default function SkillsSection() {
                     duration: 0.5,
                     ease: "easeInOut",
                   }}
-                  className="absolute pointer-events-none"
+                  className={`absolute pointer-events-none ${!isCenter ? 'hidden sm:block' : ''}`}
                 >
                   <SkillCategoryCard
                     category={category}
@@ -130,6 +130,25 @@ export default function SkillsSection() {
             })}
           </AnimatePresence>
         </motion.div>
+
+        {/* Dot Indicators */}
+        <div className="absolute bottom-[-30px] left-1/2 -translate-x-1/2 flex gap-2 z-20">
+          {skillCategories.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => {
+                setCurrentIndex(index);
+                setIsPaused(true);
+                setTimeout(() => handleResume(), 2000);
+              }}
+              className={`w-2 h-2 rounded-full transition-all ${
+                index === currentIndex
+                  ? "bg-[#2c2c2c] w-6"
+                  : "bg-[#2c2c2c]/30"
+              }`}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

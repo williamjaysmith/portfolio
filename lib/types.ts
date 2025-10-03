@@ -15,6 +15,8 @@ export interface DesignProject {
   tech: string[];
   link: string;
   github: string;
+  image?: string;
+  modalImage?: string;
 }
 
 export interface SkillCategory {

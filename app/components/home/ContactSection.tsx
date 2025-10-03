@@ -21,7 +21,7 @@ export default function ContactSection() {
           viewport={{ once: true }}
           className="text-5xl md:text-7xl font-black mb-16 text-[#2c2c2c]"
         >
-          LET&apos;S CONNECT
+          LET&apos;S CONNECT!
         </motion.h2>
 
         <div className="grid grid-cols-4 gap-6 max-md:gap-3">

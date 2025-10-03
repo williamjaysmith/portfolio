@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { codeProjects } from "@/lib/data";
 import { CodeProject } from "@/lib/types";
@@ -13,6 +13,7 @@ export default function CodeWorkSection() {
     null
   );
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   const handleProjectClick = (project: CodeProject) => {
     setSelectedProject(project);
@@ -24,12 +25,22 @@ export default function CodeWorkSection() {
     setTimeout(() => setSelectedProject(null), 300);
   };
 
+  const handleNext = () => {
+    setCurrentIndex((prev) => (prev + 1) % codeProjects.length);
+  };
+
+  const handlePrev = () => {
+    setCurrentIndex(
+      (prev) => (prev - 1 + codeProjects.length) % codeProjects.length
+    );
+  };
+
   return (
     <div
       id="projects"
       className="px-8 pt-20"
       style={{
-        scrollMarginTop: "45px",
+        scrollMarginTop: "25px",
       }}
     >
       <div className="mx-auto max-w-7xl">
@@ -43,22 +54,119 @@ export default function CodeWorkSection() {
         </motion.h2>
       </div>
 
-      <div className="mx-auto max-w-7xl">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="grid grid-cols-1 md:grid-cols-2 gap-12 py-8"
-        >
-          {codeProjects.map((project, i) => (
-            <CodeProjectCard
-              key={i}
-              project={project}
-              index={i}
-              onClick={() => handleProjectClick(project)}
-            />
-          ))}
-        </motion.div>
+      {/* Code Work Carousel */}
+      <div className="max-w-7xl mx-auto relative py-8">
+        {/* Mobile: Single card */}
+        <div className="md:hidden overflow-visible px-4 flex justify-center">
+          <div className="relative h-[320px] flex items-center justify-center w-full max-w-[350px]">
+            {codeProjects.map((project, i) => (
+              <motion.div
+                key={i}
+                initial={false}
+                animate={{
+                  x: `${(i - currentIndex) * 100}%`,
+                  opacity: i === currentIndex ? 1 : 0,
+                }}
+                transition={{
+                  duration: 0.5,
+                  ease: "easeInOut",
+                }}
+                className="absolute w-full min-w-[280px]"
+                style={{ pointerEvents: i === currentIndex ? "auto" : "none" }}
+              >
+                <CodeProjectCard
+                  project={project}
+                  index={i}
+                  onClick={() => handleProjectClick(project)}
+                />
+              </motion.div>
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop: Two cards with sliding */}
+        <div className="hidden md:block overflow-visible px-4">
+          <div className="relative h-[375px] flex items-center justify-center max-w-7xl mx-auto">
+            <div className="relative flex items-center justify-center w-full max-w-[900px]">
+              {codeProjects.map((project, i) => {
+                // Calculate position relative to current index
+                const diff = i - currentIndex;
+                const total = codeProjects.length;
+
+                let position = diff;
+                if (diff > total / 2) position = diff - total;
+                else if (diff < -total / 2) position = diff + total;
+
+                // Show current and next card
+                const isVisible = position === 0 || position === 1;
+
+                // Position cards side by side with gap using percentage
+                const xOffset = position === 0 ? '-54%' : position === 1 ? '54%' : `${position * 220}%`;
+
+                return (
+                  <motion.div
+                    key={i}
+                    initial={false}
+                    animate={{
+                      x: xOffset,
+                      opacity: isVisible ? 1 : 0,
+                    }}
+                    transition={{
+                      duration: 0.5,
+                      ease: "easeInOut",
+                    }}
+                    className="absolute w-[45%] max-w-[400px] min-w-[280px]"
+                    style={{
+                      pointerEvents: isVisible ? "auto" : "none",
+                    }}
+                  >
+                    <CodeProjectCard
+                      project={project}
+                      index={i}
+                      onClick={() => handleProjectClick(project)}
+                    />
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Dot Indicators with Arrow Navigation */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center gap-4 z-20">
+          {/* Left Arrow */}
+          <motion.button
+            onClick={handlePrev}
+            whileTap={{ scale: 0.9 }}
+            className="bg-[#2c2c2c] text-white w-10 h-10 md:w-8 md:h-8 rounded-full flex items-center justify-center"
+          >
+            <ChevronLeft className="w-5 h-5 md:w-4 md:h-4" strokeWidth={3} />
+          </motion.button>
+
+          {/* Dots */}
+          <div className="flex gap-2">
+            {codeProjects.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentIndex(index)}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  index === currentIndex
+                    ? "bg-[#2c2c2c] w-6"
+                    : "bg-[#2c2c2c]/30"
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Right Arrow */}
+          <motion.button
+            onClick={handleNext}
+            whileTap={{ scale: 0.9 }}
+            className="bg-[#2c2c2c] text-white w-10 h-10 md:w-8 md:h-8 rounded-full flex items-center justify-center"
+          >
+            <ChevronRight className="w-5 h-5 md:w-4 md:h-4" strokeWidth={3} />
+          </motion.button>
+        </div>
       </div>
 
       <CodeProjectModal
@@ -94,7 +202,7 @@ export default function CodeWorkSection() {
                 boxShadow: "3px 3px 0px #2c2c2c",
                 transition: { duration: 0.1 },
               }}
-              className="inline-flex items-center gap-2 rounded-2xl border-3 border-[#2c2c2c] bg-[#2c2c2c] px-12 py-6 text-2xl font-black whitespace-nowrap text-white transition-colors hover:bg-white hover:text-[#2c2c2c]"
+              className="inline-flex items-center gap-2 rounded-2xl border-3 border-[#2c2c2c] bg-[#2c2c2c] px-6 py-4 md:px-12 md:py-6 text-lg md:text-2xl font-black whitespace-nowrap text-white transition-colors hover:bg-white hover:text-[#2c2c2c]"
             >
               VIEW ALL CODE <ChevronRight className="h-6 w-6" strokeWidth={3} />
             </motion.button>

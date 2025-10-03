@@ -55,11 +55,22 @@ export default function CodeProjectCard({
       }}
     >
       {project.image ? (
-        <img
-          src={project.image}
-          alt={project.title}
-          className="w-full h-full object-cover"
-        />
+        project.image.endsWith('.mp4') ? (
+          <video
+            src={project.image}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <img
+            src={project.image}
+            alt={project.title}
+            className="w-full h-full object-cover"
+          />
+        )
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-gray-100">
           <h4 className="text-2xl md:text-3xl font-black text-[#2c2c2c] px-4 text-center">

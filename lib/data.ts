@@ -3,12 +3,20 @@ import { CodeProject, DesignProject, SkillCategory, Contact } from "./types";
 
 export const codeProjects: CodeProject[] = [
   {
+    title: "Strangebad Effects",
+    description: "Full-stack e-commerce website for audio effects pedals",
+    tech: ["TypeScript", "React", "Next.js", "Tailwind", "Appwrite"],
+    link: "https://strangebadeffects.com",
+    github: "https://github.com/williamjaysmith",
+    image: "/Images/Code/StrangebadEffectsWebsite.mp4",
+  },
+  {
     title: "FriendlyReminder",
     description: "TypeScript-based reminder application ",
     tech: ["TypeScript", "React", "Next.js"],
     link: "https://friendly-reminder-sage.vercel.app",
     github: "https://github.com/williamjaysmith/FriendlyReminder",
-    image: "/Images/friendlyreminderimage.png",
+    image: "/Images/Code/friendlyreminderimage.png",
   },
   {
     title: "TripForge",
@@ -16,37 +24,35 @@ export const codeProjects: CodeProject[] = [
     tech: ["Node.js", "Express", "MongoDB", "Stripe"],
     link: "https://tripforge-110a0edcf1cc.herokuapp.com/",
     github: "https://github.com/williamjaysmith/TripForge",
+    image: "/Images/Code/tripforge.gif",
+  },
+  {
+    title: "Oddbird Portal",
+    description: "Interactive portal application",
+    tech: ["React", "TypeScript", "Next.js"],
+    link: "#",
+    github: "https://github.com/williamjaysmith",
+    image: "/Images/Code/OddbirdPortal.gif",
   },
 ];
 
 export const designProjects: DesignProject[] = [
   {
-    title: "Brand Identity System",
-    description: "Complete visual identity for tech startup",
-    tech: ["Figma", "Illustrator", "Photoshop"],
+    title: "Portfolio",
+    description: "My original portfolio design",
+    tech: ["Procreate", "True Grit"],
     link: "#",
     github: "#",
+    image: "/Images/Design/background.jpg",
   },
   {
-    title: "UI/UX Portfolio",
-    description: "Modern interface designs and prototypes",
-    tech: ["Figma", "Sketch", "Prototyping"],
+    title: "Plugin",
+    description: "Complete UI/UX design for audio plugin interface, including custom buttons, knobs, sliders, and visual assets",
+    tech: ["Photoshop", "True Grit"],
     link: "#",
     github: "#",
-  },
-  {
-    title: "Digital Art Collection",
-    description: "Abstract and generative art pieces",
-    tech: ["Procreate", "Blender", "Processing"],
-    link: "#",
-    github: "#",
-  },
-  {
-    title: "Motion Graphics",
-    description: "Animated logos and video content",
-    tech: ["After Effects", "Cinema 4D"],
-    link: "#",
-    github: "#",
+    image: "/Images/Design/SuperDopePluginSquare.png",
+    modalImage: "/Images/Design/fuzzpedal.png",
   },
 ];
 

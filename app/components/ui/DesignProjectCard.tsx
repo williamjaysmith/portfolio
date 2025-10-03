@@ -1,21 +1,22 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ChevronRight } from "lucide-react";
 import { DesignProject } from "@/lib/types";
-import TechBadge from "./TechBadge";
 
 interface DesignProjectCardProps {
   project: DesignProject;
   index: number;
+  onClick: () => void;
 }
 
 export default function DesignProjectCard({
   project,
   index,
+  onClick,
 }: DesignProjectCardProps) {
   return (
-    <motion.div
+    <motion.button
+      onClick={onClick}
       initial={{
         opacity: 0,
         rotate: index % 2 === 0 ? -3 : 3,
@@ -25,7 +26,8 @@ export default function DesignProjectCard({
         opacity: 1,
         rotate: index % 2 === 0 ? -3 : 3,
         y: 0,
-        boxShadow: "8px 8px 0px #2c2c2c",
+        boxShadow:
+          index % 2 === 0 ? "8px 8px 0px #2c2c2c" : "-8px 8px 0px #2c2c2c",
       }}
       viewport={{ once: false, margin: "0px", amount: 0.3 }}
       transition={{
@@ -35,36 +37,35 @@ export default function DesignProjectCard({
         damping: 15,
       }}
       whileHover={{
-        scale: 1.03,
+        scale: 1.05,
         rotate: 0,
         boxShadow: "0px 8px 0px #2c2c2c",
         transition: { duration: 0.2 },
       }}
-      className="border-3 border-[#2c2c2c] p-8 bg-white group cursor-pointer rounded-2xl flex-shrink-0 w-full md:w-[calc((100%-48px)/2)]"
+      whileTap={{
+        y: 4,
+        boxShadow: "0px 4px 0px #2c2c2c",
+        transition: { duration: 0.1 },
+      }}
+      className="border-3 border-[#2c2c2c] bg-white cursor-pointer rounded-2xl flex-shrink-0 w-full aspect-square overflow-hidden group relative"
       style={{
         borderRadius: "1rem",
-        scrollSnapAlign: "start",
       }}
     >
-      <h4 className="text-3xl font-black mb-3 text-[#2c2c2c]">
-        {project.title}
-      </h4>
-      <p className="text-lg mb-4 text-[#2c2c2c]">{project.description}</p>
-      <div className="flex flex-wrap gap-2 mb-6">
-        {project.tech.map((tech, j) => (
-          <TechBadge key={j} tech={tech} />
-        ))}
-      </div>
-      <div className="flex gap-4">
-        <a
-          href={project.link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-black hover:underline text-[#2c2c2c] inline-flex items-center gap-1"
-        >
-          VIEW <ChevronRight className="w-4 h-4" strokeWidth={3} />
-        </a>
-      </div>
-    </motion.div>
+      {project.image && (
+        <>
+          <img
+            src={project.image}
+            alt={project.title}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-[#2c2c2c]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+            <span className="text-white font-black text-2xl md:text-3xl">
+              VIEW PROJECT
+            </span>
+          </div>
+        </>
+      )}
+    </motion.button>
   );
 }

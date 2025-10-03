@@ -52,11 +52,22 @@ export default function CodeProjectModal({
             </h2>
 
             {project.image && (
-              <img
-                src={project.image}
-                alt={project.title}
-                className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
-              />
+              project.image.endsWith('.mp4') ? (
+                <video
+                  src={project.image}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
+                />
+              ) : (
+                <img
+                  src={project.image}
+                  alt={project.title}
+                  className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
+                />
+              )
             )}
 
             <p className="text-lg md:text-xl text-[#2c2c2c] mb-6">
