@@ -60,7 +60,7 @@ export default function DesignProjectCard({
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-[#2c2c2c]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-            <span className="text-white font-black text-2xl md:text-3xl">
+            <span className="text-white text-3xl md:text-4xl" style={{ fontFamily: 'PortfolioFont1, sans-serif', letterSpacing: '0.2em' }}>
               VIEW PROJECT
             </span>
           </div>

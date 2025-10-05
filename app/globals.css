@@ -6,6 +6,18 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'PortfolioFont1';
+  src: url('/fonts/PortfolioFont1.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'PortfolioFont2';
+  src: url('/fonts/PortfolioFont2.woff2') format('woff2');
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -157,3 +169,89 @@ html {
   z-index: -1;
   pointer-events: none;
 }
+
+@keyframes marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.section-header {
+  font-family: 'PortfolioFont1', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 0;
+  padding-top: 0.4em;
+}
+
+.button-text {
+  font-family: 'PortfolioFont1', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.1em;
+}
+
+.button-text-alt {
+  font-family: 'PortfolioFont2', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.1em;
+}
+
+/* CODE Section Heading - Perfect scaling from 3.75rem (mobile) to 6rem (desktop) */
+.code-section-heading {
+  --code-heading-size: 3.75rem; /* text-6xl equivalent: 60px */
+}
+
+@media (min-width: 601px) and (max-width: 768px) {
+  .code-section-heading {
+    --code-heading-size: 4.5rem; /* 3.75 + (6-3.75) * 0.333 */
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .code-section-heading {
+    --code-heading-size: 5.25rem; /* 3.75 + (6-3.75) * 0.667 */
+  }
+}
+
+@media (min-width: 1025px) {
+  .code-section-heading {
+    --code-heading-size: 6rem; /* text-8xl equivalent: 96px */
+  }
+}
+
+/* VIEW ALL CODE Button - Perfect scaling */
+.code-view-button {
+  --button-font-size: 1.5rem; /* text-2xl: 24px */
+  --button-px: 1.25rem; /* px-5: 20px */
+  --button-py: 0.5rem; /* py-2: 8px */
+}
+
+@media (min-width: 601px) and (max-width: 768px) {
+  .code-view-button {
+    --button-font-size: 2rem; /* 1.5 + (2.25-1.5) * 0.667 */
+    --button-px: 2.083rem; /* 1.25 + (2.5-1.25) * 0.667 */
+    --button-py: 0.833rem; /* 0.5 + (1-0.5) * 0.667 */
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .code-view-button {
+    --button-font-size: 2.125rem; /* 1.5 + (2.25-1.5) * 0.833 */
+    --button-px: 2.292rem; /* 1.25 + (2.5-1.25) * 0.833 */
+    --button-py: 0.917rem; /* 0.5 + (1-0.5) * 0.833 */
+  }
+}
+
+@media (min-width: 1025px) {
+  .code-view-button {
+    --button-font-size: 2.25rem; /* text-4xl: 36px */
+    --button-px: 2.5rem; /* px-10: 40px */
+    --button-py: 1rem; /* py-4: 16px */
+  }
+}
+

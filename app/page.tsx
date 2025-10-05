@@ -1,6 +1,5 @@
 import Nav from "./components/Nav";
 import HeroSection from "./components/home/HeroSection";
-import SkillsSection from "./components/home/SkillsSection";
 import CodeWorkSection from "./components/home/CodeWorkSection";
 import DesignWorkSection from "./components/home/DesignWorkSection";
 import ContactSection from "./components/home/ContactSection";
@@ -17,7 +16,6 @@ export default function Home() {
     >
       <Nav />
       <HeroSection />
-      <SkillsSection />
       <CodeWorkSection />
       <DesignWorkSection />
       <ContactSection />

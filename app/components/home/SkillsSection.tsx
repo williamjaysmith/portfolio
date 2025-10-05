@@ -1,155 +1,82 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
-import { skillCategories } from "@/lib/data";
-import SkillCategoryCard from "../ui/SkillCategoryCard";
+import { motion } from "framer-motion";
+import {
+  SiJavascript,
+  SiTypescript,
+  SiReact,
+  SiNextdotjs,
+  SiExpress,
+  SiNodedotjs,
+  SiTailwindcss,
+  SiMongodb,
+  SiHtml5,
+  SiCss3,
+  SiRedux,
+  SiFramer,
+  SiFigma,
+  SiAdobephotoshop,
+} from "react-icons/si";
+import { TbApi } from "react-icons/tb";
+
+const skills = [
+  { name: "JavaScript", icon: SiJavascript, color: "#F7DF1E" },
+  { name: "TypeScript", icon: SiTypescript, color: "#3178C6" },
+  { name: "React", icon: SiReact, color: "#61DAFB" },
+  { name: "Next.js", icon: SiNextdotjs, color: "#000000" },
+  { name: "Express", icon: SiExpress, color: "#000000" },
+  { name: "Node.js", icon: SiNodedotjs, color: "#339933" },
+  { name: "Tailwind", icon: SiTailwindcss, color: "#06B6D4" },
+  { name: "MongoDB", icon: SiMongodb, color: "#47A248" },
+  { name: "HTML5", icon: SiHtml5, color: "#E34F26" },
+  { name: "CSS3", icon: SiCss3, color: "#1572B6" },
+  { name: "Redux", icon: SiRedux, color: "#764ABC" },
+  { name: "Framer", icon: SiFramer, color: "#0055FF" },
+  { name: "Figma", icon: SiFigma, color: "#F24E1E" },
+  { name: "Photoshop", icon: SiAdobephotoshop, color: "#31A8FF" },
+  { name: "REST API", icon: TbApi, color: "#FF6B6B" },
+];
 
 export default function SkillsSection() {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [key, setKey] = useState(0);
-
-  const handleNext = () => {
-    setCurrentIndex((prev) => (prev + 1) % skillCategories.length);
-  };
-
-  const handlePrev = () => {
-    setCurrentIndex(
-      (prev) => (prev - 1 + skillCategories.length) % skillCategories.length
-    );
-  };
-
-  const handleResume = () => {
-    setIsPaused(false);
-    setKey((prev) => prev + 1); // Force reset the interval
-  };
-
-  // Auto-rotate carousel
-  useEffect(() => {
-    if (isPaused) return;
-
-    const interval = setInterval(() => {
-      handleNext();
-    }, 3000); // Rotate every 3 seconds
-
-    return () => clearInterval(interval);
-  }, [isPaused, key]);
-
-  const getCardPosition = (index: number) => {
-    const diff = index - currentIndex;
-    const total = skillCategories.length;
-
-    // Normalize difference to be between -total/2 and total/2
-    let normalizedDiff = diff;
-    if (diff > total / 2) {
-      normalizedDiff = diff - total;
-    } else if (diff < -total / 2) {
-      normalizedDiff = diff + total;
-    }
-
-    return normalizedDiff;
-  };
-
   return (
-    <div
+    <motion.div
       id="skills"
-      className="pt-20 px-8"
+      initial={{ opacity: 0 }}
+      whileInView={{ opacity: 1 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.5 }}
+      className="relative overflow-hidden bg-[#2c2c2c] py-8 my-12"
       style={{
         scrollMarginTop: "45px",
       }}
     >
-      <div className="max-w-7xl mx-auto">
-        <motion.h2
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="text-5xl md:text-7xl font-black text-[#2c2c2c]"
-        >
-          SKILLS
-        </motion.h2>
-      </div>
-
-      {/* 3D Carousel */}
-      <div
-        className="relative max-w-7xl mx-auto h-[350px] md:h-[450px] flex items-center justify-center"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={handleResume}
+      <motion.div
+        className="flex gap-16 whitespace-nowrap"
+        animate={{
+          x: [0, -1920],
+        }}
+        transition={{
+          duration: 30,
+          repeat: Infinity,
+          ease: "linear",
+        }}
       >
-        <motion.div
-          className="relative w-full h-full flex items-center justify-center perspective-1000 cursor-grab active:cursor-grabbing"
-          style={{ touchAction: "none" }}
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.2}
-          dragMomentum={false}
-          onDragStart={() => setIsPaused(true)}
-          onDragEnd={(e, { offset, velocity }) => {
-            const swipe = Math.abs(offset.x) * velocity.x;
-
-            if (swipe < -500 || offset.x < -50) {
-              handleNext();
-            } else if (swipe > 500 || offset.x > 50) {
-              handlePrev();
-            }
-
-            // Resume after a brief delay
-            setTimeout(() => handleResume(), 1000);
-          }}
-        >
-          <AnimatePresence initial={false}>
-            {skillCategories.map((category, index) => {
-              const position = getCardPosition(index);
-              const isCenter = position === 0;
-              const absPosition = Math.abs(position);
-
-              return (
-                <motion.div
-                  key={index}
-                  initial={false}
-                  animate={{
-                    x: position === 0 ? 0 : position * 80 + (position > 0 ? 40 : -40),
-                    scale: isCenter ? 1 : Math.max(0.7 - absPosition * 0.1, 0.5),
-                    z: isCenter ? 0 : -absPosition * 100,
-                    opacity: absPosition > 2 ? 0 : 1,
-                    zIndex: isCenter ? 10 : 10 - absPosition,
-                  }}
-                  transition={{
-                    duration: 0.5,
-                    ease: "easeInOut",
-                  }}
-                  className={`absolute pointer-events-none ${!isCenter ? 'hidden sm:block' : ''}`}
-                >
-                  <SkillCategoryCard
-                    category={category}
-                    index={index}
-                    isCenter={isCenter}
-                  />
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* Dot Indicators */}
-        <div className="absolute bottom-[-30px] left-1/2 -translate-x-1/2 flex gap-2 z-20">
-          {skillCategories.map((_, index) => (
-            <button
+        {/* Duplicate the skills array for seamless loop */}
+        {[...skills, ...skills, ...skills].map((skill, index) => {
+          const Icon = skill.icon;
+          return (
+            <div
               key={index}
-              onClick={() => {
-                setCurrentIndex(index);
-                setIsPaused(true);
-                setTimeout(() => handleResume(), 2000);
-              }}
-              className={`w-2 h-2 rounded-full transition-all ${
-                index === currentIndex
-                  ? "bg-[#2c2c2c] w-6"
-                  : "bg-[#2c2c2c]/30"
-              }`}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+              className="flex items-center gap-4 flex-shrink-0"
+            >
+              <Icon className="w-12 h-12 text-white" />
+              <span className="text-white text-2xl font-bold">
+                {skill.name}
+              </span>
+            </div>
+          );
+        })}
+      </motion.div>
+    </motion.div>
   );
 }

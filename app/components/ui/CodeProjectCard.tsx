@@ -81,7 +81,7 @@ export default function CodeProjectCard({
 
       {/* Overlay on hover */}
       <div className="absolute inset-0 bg-[#2c2c2c]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-        <p className="text-white text-xl md:text-2xl font-black px-6 text-center">
+        <p className="text-white text-3xl md:text-4xl px-6 text-center" style={{ fontFamily: 'PortfolioFont1, sans-serif', letterSpacing: '0.2em' }}>
           VIEW PROJECT
         </p>
       </div>

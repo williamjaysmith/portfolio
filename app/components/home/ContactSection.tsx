@@ -36,7 +36,8 @@ export default function ContactSection() {
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-5xl md:text-7xl font-black mb-16 text-[#2c2c2c]"
+          className="section-header code-section-heading mb-16 text-[#2c2c2c]"
+          style={{ fontSize: 'var(--code-heading-size)' }}
         >
           LET&apos;S CONNECT!
         </motion.h2>
@@ -73,7 +74,14 @@ export default function ContactSection() {
               boxShadow: "3px 3px 0px #2c2c2c",
               transition: { duration: 0.1 },
             }}
-            className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-12 py-6 text-2xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-2xl inline-flex items-center gap-2 whitespace-nowrap"
+            className="inline-flex items-center gap-2 rounded-2xl border-3 border-[#2c2c2c] bg-[#2c2c2c] button-text code-view-button whitespace-nowrap text-white transition-colors hover:bg-white hover:text-[#2c2c2c]"
+            style={{
+              fontSize: 'var(--button-font-size)',
+              paddingLeft: 'var(--button-px)',
+              paddingRight: 'var(--button-px)',
+              paddingTop: 'var(--button-py)',
+              paddingBottom: 'var(--button-py)',
+            }}
           >
             GET IN TOUCH <ChevronRight className="w-6 h-6" strokeWidth={3} />
           </motion.a>

@@ -48,7 +48,8 @@ export default function DesignWorkSection() {
           initial={{ opacity: 0, y: 50 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-5xl md:text-7xl font-black text-[#2c2c2c]"
+          className="section-header code-section-heading text-[#2c2c2c]"
+          style={{ fontSize: 'var(--code-heading-size)' }}
         >
           DESIGN
         </motion.h2>
@@ -198,7 +199,14 @@ export default function DesignWorkSection() {
                 boxShadow: "3px 3px 0px #2c2c2c",
                 transition: { duration: 0.1 },
               }}
-              className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-6 py-4 md:px-12 md:py-6 text-lg md:text-2xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-2xl inline-flex items-center gap-2 whitespace-nowrap"
+              className="inline-flex items-center gap-2 rounded-2xl border-3 border-[#2c2c2c] bg-[#2c2c2c] button-text code-view-button whitespace-nowrap text-white transition-colors hover:bg-white hover:text-[#2c2c2c]"
+              style={{
+                fontSize: 'var(--button-font-size)',
+                paddingLeft: 'var(--button-px)',
+                paddingRight: 'var(--button-px)',
+                paddingTop: 'var(--button-py)',
+                paddingBottom: 'var(--button-py)',
+              }}
             >
               VIEW ALL DESIGN <ChevronRight className="w-6 h-6" strokeWidth={3} />
             </motion.button>
