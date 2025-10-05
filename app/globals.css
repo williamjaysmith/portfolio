@@ -68,6 +68,49 @@ html {
 }
 
 /* Custom name styling */
+.name-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-left: -1.5%; /* Optical centering adjustment */
+  width: 100%;
+  --font-size: 9rem;
+  --smith-margin-top: -120px;
+  --smith-margin-left: 70px;
+}
+
+@media (max-width: 600px) {
+  .name-container {
+    --font-size: 5rem;
+    --smith-margin-top: -66.67px; /* -120px * (5/9) */
+    --smith-margin-left: 38.89px; /* 70px * (5/9) */
+  }
+}
+
+@media (min-width: 601px) and (max-width: 768px) {
+  .name-container {
+    --font-size: 6.33rem; /* 5 + (9-5) * 0.333 */
+    --smith-margin-top: -84.4px; /* -120px * (6.33/9) */
+    --smith-margin-left: 49.26px; /* 70px * (6.33/9) */
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .name-container {
+    --font-size: 7.67rem; /* 5 + (9-5) * 0.667 */
+    --smith-margin-top: -102.27px; /* -120px * (7.67/9) */
+    --smith-margin-left: 59.63px; /* 70px * (7.67/9) */
+  }
+}
+
+@media (min-width: 1025px) {
+  .name-container {
+    --font-size: 9rem;
+    --smith-margin-top: -120px;
+    --smith-margin-left: 70px;
+  }
+}
+
 .name-william {
   font-family: 'PortfolioNameFont', sans-serif;
   letter-spacing: 0.05em; /* Adjust spacing between letters */
@@ -82,6 +125,6 @@ html {
   font-weight: normal; /* Override font-black */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  margin-top: -50px; /* Move up closer to William - adjust as needed */
-  margin-left: 70px; /* Move right slightly - adjust as needed */
+  margin-top: var(--smith-margin-top); /* Scales with screen size */
+  margin-left: var(--smith-margin-left); /* Scales with screen size */
 }

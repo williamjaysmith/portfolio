@@ -4,6 +4,26 @@ import { motion, useAnimation } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import { useEffect } from "react";
 
+// Helper function to generate random starting position
+const getRandomStart = () => {
+  const directions = [
+    { x: -800, y: -600 }, // top-left
+    { x: -400, y: -700 }, // top-left-center
+    { x: 0, y: -800 },    // top
+    { x: 400, y: -700 },  // top-right-center
+    { x: 800, y: -600 },  // top-right
+  ];
+  return directions[Math.floor(Math.random() * directions.length)];
+};
+
+// Helper function to generate random delay
+const getRandomDelay = (index: number, totalLetters: number) => {
+  // Create array of random delays for all letters
+  const delays = Array.from({ length: totalLetters }, (_, i) => i * 0.15);
+  // Shuffle the delays
+  return delays.sort(() => Math.random() - 0.5)[index];
+};
+
 export default function HeroSection() {
   const controls = useAnimation();
 
@@ -25,40 +45,92 @@ export default function HeroSection() {
   return (
     <div
       id="home"
-      className="min-h-screen flex items-center px-8 overflow-hidden"
+      className="min-h-screen flex items-center pt-20 px-8 overflow-hidden"
       style={{
         scrollMarginTop: "45px",
       }}
     >
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
+        <div className="mb-8 name-container">
           {/* WILLIAM */}
           <div className="flex mb-4 name-william">
-            {["W", "i", "l", "L", "i", "a", "M"].map((letter, i) => (
-              <span
-                key={i}
-                className="text-7xl md:text-9xl text-[#2c2c2c] inline-block max-md:text-6xl"
-                style={{
-                  fontFeatureSettings: (i === 0 || i === 6) ? "'salt' 1" : "normal"
-                }}
-              >
-                {letter}
-              </span>
-            ))}
+            {["W", "i", "l", "L", "i", "a", "M"].map((letter, i) => {
+              const randomStart = getRandomStart();
+              const randomDelay = getRandomDelay(i, 12); // 12 total letters in William Smith
+
+              return (
+                <motion.span
+                  key={i}
+                  initial={{
+                    x: randomStart.x,
+                    y: randomStart.y,
+                    opacity: 0,
+                    rotate: Math.random() * 360 - 180
+                  }}
+                  animate={{
+                    x: 0,
+                    y: 0,
+                    opacity: 1,
+                    rotate: 0
+                  }}
+                  transition={{
+                    delay: randomDelay,
+                    type: "spring",
+                    stiffness: 200,
+                    damping: 12,
+                    mass: 0.8,
+                    velocity: 1
+                  }}
+                  className="text-[#2c2c2c] inline-block"
+                  style={{
+                    fontSize: 'var(--font-size)',
+                    fontFeatureSettings: (i === 0 || i === 6) ? "'salt' 1" : "normal"
+                  }}
+                >
+                  {letter}
+                </motion.span>
+              );
+            })}
           </div>
           {/* SMITH */}
           <div className="flex name-smith">
-            {["S", "m", "i", "t", "h"].map((letter, i) => (
-              <span
-                key={i}
-                className="text-7xl md:text-9xl text-[#2c2c2c] inline-block max-md:text-6xl"
-                style={{
-                  fontFeatureSettings: (i === 1 || i === 4) ? "'salt' 1" : "normal"
-                }}
-              >
-                {letter}
-              </span>
-            ))}
+            {["S", "m", "i", "t", "h"].map((letter, i) => {
+              const randomStart = getRandomStart();
+              const randomDelay = getRandomDelay(i + 7, 12); // offset by 7 for William's letters
+
+              return (
+                <motion.span
+                  key={i}
+                  initial={{
+                    x: randomStart.x,
+                    y: randomStart.y,
+                    opacity: 0,
+                    rotate: Math.random() * 360 - 180
+                  }}
+                  animate={{
+                    x: 0,
+                    y: 0,
+                    opacity: 1,
+                    rotate: 0
+                  }}
+                  transition={{
+                    delay: randomDelay,
+                    type: "spring",
+                    stiffness: 200,
+                    damping: 12,
+                    mass: 0.8,
+                    velocity: 1
+                  }}
+                  className="text-[#2c2c2c] inline-block"
+                  style={{
+                    fontSize: 'var(--font-size)',
+                    fontFeatureSettings: (i === 1 || i === 4) ? "'salt' 1" : "normal"
+                  }}
+                >
+                  {letter}
+                </motion.span>
+              );
+            })}
           </div>
         </div>
 
