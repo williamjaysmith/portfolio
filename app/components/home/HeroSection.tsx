@@ -51,7 +51,7 @@ export default function HeroSection() {
       }}
     >
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8 name-container">
+        <div className="mb-8 name-container relative z-20" style={{ transform: 'rotate(-3deg)' }}>
           {/* WILLIAM */}
           <div className="flex mb-4 name-william">
             {["W", "i", "l", "L", "i", "a", "M"].map((letter, i) => {
@@ -135,8 +135,8 @@ export default function HeroSection() {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 30, rotate: 0 }}
+          animate={{ opacity: 1, y: 0, rotate: 1.5 }}
           transition={{
             delay: 0.4,
             duration: 0.4,
