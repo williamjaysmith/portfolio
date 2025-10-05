@@ -67,6 +67,15 @@ html {
   animation: jiggle 0.4s ease-out;
 }
 
+@keyframes breathe {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
 /* Custom name styling */
 .name-container {
   display: flex;
@@ -117,6 +126,8 @@ html {
   font-weight: normal; /* Override font-black */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  animation: breathe 4s ease-in-out infinite;
+  transform-origin: center;
 }
 
 .name-smith {
@@ -127,4 +138,22 @@ html {
   -moz-osx-font-smoothing: grayscale;
   margin-top: var(--smith-margin-top); /* Scales with screen size */
   margin-left: var(--smith-margin-left); /* Scales with screen size */
+  animation: breathe 4s ease-in-out infinite;
+  animation-delay: 2s; /* Half cycle delay - opposite rhythm */
+  transform-origin: center;
+}
+
+.blur-text-bg {
+  position: relative;
+  isolation: isolate; /* Creates new stacking context */
+}
+
+.blur-text-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.8) 60%, transparent 100%);
+  border-radius: 1rem;
+  z-index: -1;
+  pointer-events: none;
 }

@@ -134,7 +134,7 @@ export default function HeroSection() {
           </div>
         </div>
 
-        <motion.p
+        <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{
@@ -144,11 +144,12 @@ export default function HeroSection() {
             stiffness: 300,
             damping: 10,
           }}
-          className="text-2xl md:text-3xl font-bold max-w-3xl mb-8 text-[#2c2c2c]"
+          className="max-w-3xl mb-8 relative blur-text-bg"
         >
-          Full-stack developer crafting beautiful, performant web experiences
-          with modern technologies.
-        </motion.p>
+          <p className="text-2xl md:text-3xl font-bold text-[#2c2c2c] text-center relative z-10 py-6">
+            Full-stack developer crafting beautiful, performant web experiences with modern technologies.
+          </p>
+        </motion.div>
 
         {/* Hire Me Button */}
         <motion.div
