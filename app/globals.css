@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'PortfolioNameFont';
+  src: url('/fonts/PortfolioNameFont.woff2') format('woff2');
+  font-display: swap;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -59,4 +65,23 @@ html {
 
 .jiggle {
   animation: jiggle 0.4s ease-out;
+}
+
+/* Custom name styling */
+.name-william {
+  font-family: 'PortfolioNameFont', sans-serif;
+  letter-spacing: 0.05em; /* Adjust spacing between letters */
+  font-weight: normal; /* Override font-black */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.name-smith {
+  font-family: 'PortfolioNameFont', sans-serif;
+  letter-spacing: 0.05em; /* Adjust spacing between letters */
+  font-weight: normal; /* Override font-black */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin-top: -50px; /* Move up closer to William - adjust as needed */
+  margin-left: 70px; /* Move right slightly - adjust as needed */
 }

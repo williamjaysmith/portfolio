@@ -1,11 +1,28 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useAnimation } from "framer-motion";
 import { ChevronRight } from "lucide-react";
+import { useEffect } from "react";
 import { contacts } from "@/lib/data";
 import ContactCard from "../ui/ContactCard";
 
 export default function ContactSection() {
+  const controls = useAnimation();
+
+  useEffect(() => {
+    const wiggle = async () => {
+      await controls.start({
+        rotate: [0, -5, 5, -5, 5, 0],
+        transition: { duration: 0.5 },
+      });
+    };
+
+    const interval = setInterval(() => {
+      wiggle();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [controls]);
   return (
     <div
       id="contact"
@@ -41,6 +58,7 @@ export default function ContactSection() {
           </p>
           <motion.a
             href="mailto:williamjaysmith@example.com"
+            animate={controls}
             initial={{ boxShadow: "0px 0px 0px #2c2c2c" }}
             whileHover={{
               y: -6,

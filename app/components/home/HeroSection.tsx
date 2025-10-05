@@ -33,57 +33,31 @@ export default function HeroSection() {
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           {/* WILLIAM */}
-          <div className="flex mb-4">
-            {["W", "I", "L", "L", "I", "A", "M"].map((letter, i) => (
-              <motion.span
+          <div className="flex mb-4 name-william">
+            {["W", "i", "l", "L", "i", "a", "M"].map((letter, i) => (
+              <span
                 key={i}
-                initial={{ opacity: 0, y: 50, scale: 0.5 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{
-                  delay: i * 0.03,
-                  duration: 0.4,
-                  type: "spring",
-                  stiffness: 300,
-                  damping: 10,
+                className="text-7xl md:text-9xl text-[#2c2c2c] inline-block max-md:text-6xl"
+                style={{
+                  fontFeatureSettings: (i === 0 || i === 6) ? "'salt' 1" : "normal"
                 }}
-                whileHover={{
-                  y: -10,
-                  scale: 1.1,
-                  rotate: Math.random() * 10 - 5,
-                  transition: { duration: 0.2 },
-                }}
-                className="text-7xl md:text-9xl font-black text-[#2c2c2c] inline-block cursor-pointer max-md:text-6xl"
-                style={{ transformStyle: "preserve-3d" }}
               >
                 {letter}
-              </motion.span>
+              </span>
             ))}
           </div>
           {/* SMITH */}
-          <div className="flex">
-            {["S", "M", "I", "T", "H"].map((letter, i) => (
-              <motion.span
+          <div className="flex name-smith">
+            {["S", "m", "i", "t", "h"].map((letter, i) => (
+              <span
                 key={i}
-                initial={{ opacity: 0, y: 50, scale: 0.5 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{
-                  delay: 0.21 + i * 0.03,
-                  duration: 0.4,
-                  type: "spring",
-                  stiffness: 300,
-                  damping: 10,
+                className="text-7xl md:text-9xl text-[#2c2c2c] inline-block max-md:text-6xl"
+                style={{
+                  fontFeatureSettings: (i === 1 || i === 4) ? "'salt' 1" : "normal"
                 }}
-                whileHover={{
-                  y: -10,
-                  scale: 1.1,
-                  rotate: Math.random() * 10 - 5,
-                  transition: { duration: 0.2 },
-                }}
-                className="text-7xl md:text-9xl font-black text-[#2c2c2c] inline-block cursor-pointer max-md:text-6xl"
-                style={{ transformStyle: "preserve-3d" }}
               >
                 {letter}
-              </motion.span>
+              </span>
             ))}
           </div>
         </div>
