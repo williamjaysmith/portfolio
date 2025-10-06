@@ -54,9 +54,11 @@ export default function ContactSection() {
           viewport={{ once: true }}
           className="mt-20 text-center"
         >
-          <p className="text-2xl font-bold mb-8 text-[#2c2c2c]">
-            Available for freelance projects and full-time opportunities
-          </p>
+          <div className="mb-8">
+            <p className="text-2xl font-bold text-[#2c2c2c] blur-text-bg-inline">
+              Available for freelance projects and full-time opportunities
+            </p>
+          </div>
           <motion.a
             href="mailto:williamjaysmith@example.com"
             animate={controls}
