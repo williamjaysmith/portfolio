@@ -62,27 +62,36 @@ const skills = [
 export default function HeroSection() {
   const controls = useAnimation();
   const [mounted, setMounted] = useState(false);
-  const [fontLoaded, setFontLoaded] = useState(false);
 
-  // Wait for custom font to load before triggering animations
   useEffect(() => {
+    let isMounted = true;
+
     const loadFont = async () => {
       try {
         // Wait for the PortfolioNameFont to load
         await document.fonts.load('normal 1em PortfolioNameFont');
-        setFontLoaded(true);
-        setMounted(true);
-      } catch (error) {
-        // Fallback: if font fails to load, proceed anyway after a delay
-        console.warn('Font loading failed or timed out:', error);
-        setTimeout(() => {
-          setFontLoaded(true);
+
+        // Ensure all fonts are ready
+        await document.fonts.ready;
+
+        // Only update state if component is still mounted
+        if (isMounted) {
           setMounted(true);
-        }, 500);
+        }
+      } catch (error) {
+        // Fallback: if font fails to load, proceed anyway
+        console.warn('Font loading failed:', error);
+        if (isMounted) {
+          setMounted(true);
+        }
       }
     };
 
     loadFont();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -99,6 +108,24 @@ export default function HeroSection() {
 
     return () => clearInterval(interval);
   }, [controls]);
+
+  // Show loading state while fonts load
+  if (!mounted) {
+    return (
+      <div
+        id="home"
+        className="min-h-screen pt-20 overflow-hidden flex items-center justify-center"
+        style={{
+          scrollMarginTop: "45px",
+        }}
+      >
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-[#2c2c2c] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-[#2c2c2c] text-lg font-semibold">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -117,16 +144,16 @@ export default function HeroSection() {
               const startPosition = getStartPosition(i);
               const delay = getDelay(i);
               const rotateValues = [120, -45, 85, -160, 30, 95, -110];
-              const initialRotate = mounted ? rotateValues[i] : 0;
+              const initialRotate = rotateValues[i];
 
               return (
                 <motion.span
                   key={i}
                   initial={{
-                    x: fontLoaded ? startPosition.x : 0,
-                    y: fontLoaded ? startPosition.y : 0,
-                    opacity: fontLoaded ? 0 : 1,
-                    rotate: fontLoaded && mounted ? initialRotate : 0
+                    x: startPosition.x,
+                    y: startPosition.y,
+                    opacity: 0,
+                    rotate: initialRotate
                   }}
                   animate={{
                     x: 0,
@@ -134,15 +161,13 @@ export default function HeroSection() {
                     opacity: 1,
                     rotate: 0
                   }}
-                  transition={fontLoaded ? {
+                  transition={{
                     delay: delay,
                     type: "spring",
                     stiffness: 200,
                     damping: 12,
                     mass: 0.8,
                     velocity: 1
-                  } : {
-                    duration: 0
                   }}
                   className="text-[#2c2c2c] inline-block"
                   style={{
@@ -161,16 +186,16 @@ export default function HeroSection() {
               const startPosition = getStartPosition(i + 7);
               const delay = getDelay(i + 7);
               const rotateValues = [75, -135, 50, -90, 145];
-              const initialRotate = mounted ? rotateValues[i] : 0;
+              const initialRotate = rotateValues[i];
 
               return (
                 <motion.span
                   key={i}
                   initial={{
-                    x: fontLoaded ? startPosition.x : 0,
-                    y: fontLoaded ? startPosition.y : 0,
-                    opacity: fontLoaded ? 0 : 1,
-                    rotate: fontLoaded && mounted ? initialRotate : 0
+                    x: startPosition.x,
+                    y: startPosition.y,
+                    opacity: 0,
+                    rotate: initialRotate
                   }}
                   animate={{
                     x: 0,
@@ -178,15 +203,13 @@ export default function HeroSection() {
                     opacity: 1,
                     rotate: 0
                   }}
-                  transition={fontLoaded ? {
+                  transition={{
                     delay: delay,
                     type: "spring",
                     stiffness: 200,
                     damping: 12,
                     mass: 0.8,
                     velocity: 1
-                  } : {
-                    duration: 0
                   }}
                   className="text-[#2c2c2c] inline-block"
                   style={{
