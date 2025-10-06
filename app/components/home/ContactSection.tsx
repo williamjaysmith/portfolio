@@ -54,13 +54,8 @@ export default function ContactSection() {
           viewport={{ once: true }}
           className="mt-20 text-center"
         >
-          <div className="mb-8">
-            <p className="text-2xl font-bold text-[#2c2c2c] blur-text-bg-inline">
-              Available for freelance projects and full-time opportunities
-            </p>
-          </div>
           <motion.a
-            href="mailto:williamjaysmith@example.com"
+            href="mailto:williamjaysmith@gmail.com"
             animate={controls}
             initial={{ boxShadow: "0px 0px 0px #2c2c2c" }}
             whileHover={{

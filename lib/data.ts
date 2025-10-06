@@ -88,7 +88,7 @@ export const skillCategories: SkillCategory[] = [
 export const contacts: Contact[] = [
   {
     name: "EMAIL",
-    link: "mailto:williamjaysmith@example.com",
+    link: "mailto:williamjaysmith@gmail.com",
     icon: Mail,
   },
   {
@@ -103,7 +103,7 @@ export const contacts: Contact[] = [
   },
   {
     name: "INSTAGRAM",
-    link: "https://instagram.com/williamjaysmith",
+    link: "https://www.instagram.com/strangebad_official/",
     icon: Instagram,
   },
 ];
