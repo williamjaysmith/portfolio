@@ -34,15 +34,25 @@ export default function ContactSection() {
   }, [mounted]);
 
   useEffect(() => {
-    const wiggle = async () => {
+    const wiggleAndJump = async () => {
+      // Wiggle
       await controls.start({
-        rotate: [0, -5, 5, -5, 5, 0],
-        transition: { duration: 0.5 },
+        rotate: [-3, -8, -3, -8, -3, -8, -3],
+        transition: { duration: 1 },
+      });
+
+      // Small pause
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Jump
+      await controls.start({
+        y: [0, -8, 0],
+        transition: { duration: 0.4 },
       });
     };
 
     const interval = setInterval(() => {
-      wiggle();
+      wiggleAndJump();
     }, 3000);
 
     return () => clearInterval(interval);
@@ -98,6 +108,7 @@ export default function ContactSection() {
                 </span>
                 <motion.a
                   href="mailto:williamjaysmith@gmail.com"
+                  animate={controls}
                   initial={{
                     rotate: -3,
                     boxShadow: "4px 4px 0px #ffffff"
