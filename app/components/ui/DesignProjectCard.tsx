@@ -54,11 +54,22 @@ export default function DesignProjectCard({
     >
       {project.image && (
         <>
-          <img
-            src={project.image}
-            alt={project.title}
-            className="w-full h-full object-cover"
-          />
+          {project.image.endsWith('.mp4') ? (
+            <video
+              src={project.image}
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <img
+              src={project.image}
+              alt={project.title}
+              className="w-full h-full object-cover"
+            />
+          )}
           <div className="absolute inset-0 bg-[#2c2c2c]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
             <span className="text-white text-3xl md:text-4xl" style={{ fontFamily: 'PortfolioFont1, sans-serif', letterSpacing: '0.2em' }}>
               VIEW PROJECT

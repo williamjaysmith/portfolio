@@ -52,11 +52,25 @@ export default function DesignProjectModal({
             </h2>
 
             {(project.modalImage || project.image) && (
-              <img
-                src={project.modalImage || project.image}
-                alt={project.title}
-                className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
-              />
+              (() => {
+                const src = project.modalImage || project.image || '';
+                return src.endsWith('.mp4') ? (
+                  <video
+                    src={src}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
+                  />
+                ) : (
+                  <img
+                    src={src}
+                    alt={project.title}
+                    className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
+                  />
+                );
+              })()
             )}
 
             <p className="text-lg md:text-xl text-[#2c2c2c] mb-6">
@@ -92,7 +106,7 @@ export default function DesignProjectModal({
                   }}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-[#2c2c2c] text-white font-black rounded-xl border-3 border-[#2c2c2c] hover:bg-white hover:text-[#2c2c2c] transition-colors"
                 >
-                  VIEW PROJECT <ChevronRight className="w-4 h-4" strokeWidth={3} />
+                  VIEW MORE <ChevronRight className="w-4 h-4" strokeWidth={3} />
                 </motion.button>
               </a>
             </div>

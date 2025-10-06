@@ -4,19 +4,19 @@ import { CodeProject, DesignProject, SkillCategory, Contact } from "./types";
 export const codeProjects: CodeProject[] = [
   {
     title: "Strangebad Effects",
-    description: "Full-stack e-commerce website for audio effects pedals",
-    tech: ["TypeScript", "React", "Next.js", "Tailwind", "Appwrite"],
+    description: "This is my current work in progress. A custom e-commerce shop for distributing audio tools. Actively designing and chipping away at development feature by feature. Integrating a device fingerprinting and licensing system to mitigate piracy.",
+    tech: ["TypeScript", "React", "Next.js", "Tailwind", "Appwrite", "Stripe", "Photoshop", "Procreate"],
     link: "https://strangebadeffects.com",
-    github: "https://github.com/williamjaysmith",
+    github: "#",
     image: "/Images/Code/StrangebadEffectsWebsite.mp4",
   },
   {
     title: "FriendlyReminder",
-    description: "TypeScript-based reminder application ",
-    tech: ["TypeScript", "React", "Next.js"],
+    description: "Friendly Reminder is a contact management app. Users can schedule personalized reminders and receive notifications when it's time to reach out to their contacts. A built in GUEST MODE makes it easy to explore the app - Just click <strong>Sign In</strong> and select <strong>\"Login as Guest\"</strong> to try it without creating an account.",
+    tech: ["TypeScript", "React", "Next.js", "Tailwind", "Appwrite", "Resend"],
     link: "https://friendly-reminder-sage.vercel.app",
     github: "https://github.com/williamjaysmith/FriendlyReminder",
-    image: "/Images/Code/friendlyreminderimage.png",
+    image: "/Images/Code/friendlyremindervideo.mp4",
   },
   {
     title: "TripForge",
@@ -38,12 +38,12 @@ export const codeProjects: CodeProject[] = [
 
 export const designProjects: DesignProject[] = [
   {
-    title: "Portfolio",
-    description: "My original portfolio design",
+    title: "Textured Illustrations",
+    description: "A playful, hand-drawn portfolio. Less conventional in usability and approachability, but full of character. It was a fun opportunity to turn my textured illustration aesthetic into a functioning website.",
     tech: ["Procreate", "True Grit"],
-    link: "#",
+    link: "https://www.instagram.com/strangebad_official/",
     github: "#",
-    image: "/Images/Design/background.jpg",
+    image: "/Images/Design/portfoliodesign.mp4",
   },
   {
     title: "Plugin",

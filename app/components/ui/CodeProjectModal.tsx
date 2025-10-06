@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronRight } from "lucide-react";
 import { CodeProject } from "@/lib/types";
 import TechBadge from "./TechBadge";
+import { useState, useRef, useEffect } from "react";
 
 interface CodeProjectModalProps {
   project: CodeProject | null;
@@ -16,6 +17,16 @@ export default function CodeProjectModal({
   isOpen,
   onClose,
 }: CodeProjectModalProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showToggle, setShowToggle] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (textRef.current) {
+      setShowToggle(textRef.current.scrollHeight > textRef.current.clientHeight);
+    }
+  }, [project]);
+
   if (!project) return null;
 
   return (
@@ -47,7 +58,7 @@ export default function CodeProjectModal({
             </button>
 
             {/* Content */}
-            <h2 className="text-4xl md:text-5xl font-black text-[#2c2c2c] mb-6 pr-12">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-[#2c2c2c] mb-6 pr-12">
               {project.title}
             </h2>
 
@@ -70,9 +81,21 @@ export default function CodeProjectModal({
               )
             )}
 
-            <p className="text-lg md:text-xl text-[#2c2c2c] mb-6">
-              {project.description}
-            </p>
+            <div className="mb-6">
+              <p
+                ref={textRef}
+                className={`text-lg md:text-xl text-[#2c2c2c] ${!isExpanded ? 'line-clamp-2' : ''}`}
+                dangerouslySetInnerHTML={{ __html: project.description }}
+              />
+              {showToggle && (
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="text-[#2c2c2c] font-bold mt-2 hover:underline"
+                >
+                  {isExpanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
 
             <div className="mb-8">
               <h3 className="text-xl font-black text-[#2c2c2c] mb-3">
@@ -103,29 +126,40 @@ export default function CodeProjectModal({
                   }}
                   className="inline-flex items-center gap-2 px-6 py-3 bg-[#2c2c2c] text-white font-black rounded-xl border-3 border-[#2c2c2c] hover:bg-white hover:text-[#2c2c2c] transition-colors"
                 >
-                  VIEW LIVE <ChevronRight className="w-4 h-4" strokeWidth={3} />
+                  <span className="sm:hidden">VIEW</span>
+                  <span className="hidden sm:inline">VIEW LIVE</span>
+                  <ChevronRight className="w-4 h-4" strokeWidth={3} />
                 </motion.button>
               </a>
-              <a
-                href={project.github}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <motion.button
-                  whileHover={{
-                    y: -4,
-                    boxShadow: "4px 4px 0px #2c2c2c",
-                  }}
-                  whileTap={{
-                    y: 0,
-                    boxShadow: "2px 2px 0px #2c2c2c",
-                  }}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[#2c2c2c] font-black rounded-xl border-3 border-[#2c2c2c] hover:bg-[#2c2c2c] hover:text-white transition-colors"
+              {project.github !== "#" ? (
+                <a
+                  href={project.github}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  GITHUB <ChevronRight className="w-4 h-4" strokeWidth={3} />
+                  <motion.button
+                    whileHover={{
+                      y: -4,
+                      boxShadow: "4px 4px 0px #2c2c2c",
+                    }}
+                    whileTap={{
+                      y: 0,
+                      boxShadow: "2px 2px 0px #2c2c2c",
+                    }}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-white text-[#2c2c2c] font-black rounded-xl border-3 border-[#2c2c2c] hover:bg-[#2c2c2c] hover:text-white transition-colors"
+                  >
+                    GITHUB <ChevronRight className="w-4 h-4" strokeWidth={3} />
+                  </motion.button>
+                </a>
+              ) : (
+                <motion.button
+                  disabled
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-gray-200 text-gray-500 font-black rounded-xl border-3 border-gray-300 cursor-not-allowed opacity-60"
+                >
+                  HIDDEN
                 </motion.button>
-              </a>
+              )}
             </div>
           </motion.div>
         </>

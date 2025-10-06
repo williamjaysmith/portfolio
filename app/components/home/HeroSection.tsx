@@ -417,9 +417,13 @@ export default function HeroSection() {
             initial={{ opacity: 0, rotate: -5, y: 50 }}
             animate={{
               opacity: 1,
-              rotate: -3,
+              rotate: [-3, 3, -3],
               y: 0,
-              boxShadow: "8px 8px 0px #2c2c2c",
+              boxShadow: [
+                "8px 8px 0px #2c2c2c",
+                "-8px 8px 0px #2c2c2c",
+                "8px 8px 0px #2c2c2c",
+              ],
             }}
             transition={{
               delay: 0.1,
@@ -427,6 +431,20 @@ export default function HeroSection() {
               type: "spring",
               stiffness: 200,
               damping: 15,
+              rotate: {
+                delay: 0.6,
+                duration: 8,
+                repeat: Infinity,
+                ease: "easeInOut",
+                repeatType: "reverse",
+              },
+              boxShadow: {
+                delay: 0.6,
+                duration: 8,
+                repeat: Infinity,
+                ease: "easeInOut",
+                repeatType: "reverse",
+              },
             }}
             whileHover={{
               rotate: 0,
@@ -435,7 +453,9 @@ export default function HeroSection() {
               transition: { duration: 0.2 },
             }}
             className="border-3 border-[#2c2c2c] p-8 bg-white transform origin-center rounded-2xl flex flex-col mb-[25px]"
-            style={{ borderRadius: "1rem" }}
+            style={{
+              borderRadius: "1rem",
+            }}
           >
             <h2 className="text-4xl md:text-[2.5rem] lg:text-5xl xl:text-[3.5rem] 2xl:text-6xl section-header mb-8 text-[#2c2c2c]">CODE</h2>
             <p className="text-lg mb-6 text-[#2c2c2c]">
@@ -478,9 +498,13 @@ export default function HeroSection() {
             initial={{ opacity: 0, rotate: 5, y: 50 }}
             animate={{
               opacity: 1,
-              rotate: 3,
+              rotate: [3, -3, 3],
               y: 0,
-              boxShadow: "-8px 8px 0px #2c2c2c",
+              boxShadow: [
+                "-8px 8px 0px #2c2c2c",
+                "8px 8px 0px #2c2c2c",
+                "-8px 8px 0px #2c2c2c",
+              ],
             }}
             transition={{
               delay: 0.2,
@@ -488,6 +512,20 @@ export default function HeroSection() {
               type: "spring",
               stiffness: 200,
               damping: 15,
+              rotate: {
+                delay: 0.7,
+                duration: 8,
+                repeat: Infinity,
+                ease: "easeInOut",
+                repeatType: "reverse",
+              },
+              boxShadow: {
+                delay: 0.7,
+                duration: 8,
+                repeat: Infinity,
+                ease: "easeInOut",
+                repeatType: "reverse",
+              },
             }}
             whileHover={{
               rotate: 0,
@@ -496,7 +534,9 @@ export default function HeroSection() {
               transition: { duration: 0.2 },
             }}
             className="border-3 border-[#2c2c2c] p-8 bg-white transform origin-center rounded-2xl flex flex-col mb-[25px]"
-            style={{ borderRadius: "1rem" }}
+            style={{
+              borderRadius: "1rem",
+            }}
           >
             <h2 className="text-4xl md:text-[2.5rem] lg:text-5xl xl:text-[3.5rem] 2xl:text-6xl section-header mb-8 text-[#2c2c2c]">DESIGN</h2>
             <p className="text-lg mb-6 text-[#2c2c2c]">
