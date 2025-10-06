@@ -93,7 +93,7 @@ export default function ContactSection() {
             x: [0, -835.53125]
           }}
           transition={{
-            duration: 30,
+            duration: 10,
             repeat: Infinity,
             ease: "linear",
             repeatType: "loop"
