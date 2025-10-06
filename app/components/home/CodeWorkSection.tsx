@@ -38,7 +38,7 @@ export default function CodeWorkSection() {
   return (
     <div
       id="projects"
-      className="px-8 pt-20"
+      className="px-5 xs:px-8 pt-20"
       style={{
         scrollMarginTop: "25px",
       }}

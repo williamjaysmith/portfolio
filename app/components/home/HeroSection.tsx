@@ -19,6 +19,7 @@ import {
   SiFramer,
   SiFigma,
   SiAdobephotoshop,
+  SiGit,
 } from "react-icons/si";
 import { TbApi } from "react-icons/tb";
 
@@ -41,6 +42,86 @@ const getDelay = (index: number) => {
   return delaySequence[index % delaySequence.length];
 };
 
+const ROLES_RAW = ["DEVELOPER", "DESIGNER"];
+
+// Pad all roles to be the same length, right-aligned
+const maxLength = Math.max(...ROLES_RAW.map(r => r.length));
+const ROLES = ROLES_RAW.map(role => {
+  const padding = maxLength - role.length;
+  return " ".repeat(padding) + role;
+});
+
+// Generate random delays for each letter position
+const generateRandomDelays = (length: number) => {
+  return Array.from({ length }, () => Math.random() * 0.6);
+};
+
+function SlotMachineText() {
+  const [currentRoleIndex, setCurrentRoleIndex] = useState(0);
+  const [delays, setDelays] = useState<number[]>([]);
+
+  useEffect(() => {
+    // Initialize delays on mount
+    setDelays(generateRandomDelays(maxLength));
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentRoleIndex((prev) => (prev + 1) % ROLES.length);
+      // Generate new random delays for each transition
+      setDelays(generateRandomDelays(maxLength));
+    }, 2000); // Change on both inhale and exhale (2s intervals)
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const currentRole = ROLES[currentRoleIndex];
+  const nextRole = ROLES[(currentRoleIndex + 1) % ROLES.length];
+
+  return (
+    <div className="flex justify-start w-full">
+      <div
+        className="flex slot-machine-container"
+        style={{
+          fontFamily: 'PortfolioFont1, sans-serif',
+        }}
+      >
+        {Array.from({ length: maxLength }).map((_, index) => {
+          const currentChar = currentRole[index];
+          const nextChar = nextRole[index];
+
+          return (
+            <div
+              key={index}
+              className="inline-block relative slot-machine-char"
+              style={{
+                height: "1.2em",
+                overflow: "hidden",
+                textAlign: "center",
+              }}
+            >
+              <motion.div
+                key={currentRoleIndex}
+                className="flex flex-col"
+                initial={{ y: "0%" }}
+                animate={{ y: "-50%" }}
+                transition={{
+                  duration: 0.3,
+                  delay: delays[index] || 0, // Start at 0s (WILLIAM breathing in phase)
+                  ease: "easeInOut",
+                }}
+              >
+                <span style={{ height: "1.2em", lineHeight: "1.2em", display: "block" }}>{currentChar}</span>
+                <span style={{ height: "1.2em", lineHeight: "1.2em", display: "block" }}>{nextChar}</span>
+              </motion.div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const skills = [
   { name: "JavaScript", icon: SiJavascript },
   { name: "TypeScript", icon: SiTypescript },
@@ -56,12 +137,33 @@ const skills = [
   { name: "Framer", icon: SiFramer },
   { name: "Figma", icon: SiFigma },
   { name: "Photoshop", icon: SiAdobephotoshop },
+  { name: "Git", icon: SiGit },
   { name: "REST API", icon: TbApi },
 ];
 
 export default function HeroSection() {
   const controls = useAnimation();
   const [mounted, setMounted] = useState(false);
+
+  // Calculate marquee width on mount
+  useEffect(() => {
+    const calculateMarqueeWidth = () => {
+      // Each skill has: icon (48px) + gap (16px) + text + px-8 (64px total padding)
+      // Approximate average text width: ~120px
+      const approximateItemWidth = 48 + 16 + 120 + 64; // ~248px per item
+      const totalWidth = skills.length * approximateItemWidth;
+      console.log('📊 MARQUEE CALCULATION:');
+      console.log(`Number of skills: ${skills.length}`);
+      console.log(`Approximate width per item: ${approximateItemWidth}px`);
+      console.log(`Total marquee width: ${totalWidth}px`);
+      console.log(`Current animation value: -3968px`);
+      console.log(`Suggested new value: -${totalWidth}px`);
+    };
+
+    if (mounted) {
+      calculateMarqueeWidth();
+    }
+  }, [mounted]);
 
   useEffect(() => {
     let isMounted = true;
@@ -135,9 +237,9 @@ export default function HeroSection() {
         scrollMarginTop: "45px",
       }}
     >
-      <div className="flex items-center px-8">
-        <div className="max-w-7xl mx-auto">
-        <div className="mb-8 name-container relative z-20" style={{ transform: 'rotate(-3deg)' }}>
+      <div className="flex items-center px-5 xs:px-8">
+        <div className="max-w-7xl mx-auto w-full">
+        <div className="mb-8 name-container relative z-20 pr-4" style={{ transform: 'rotate(-3deg)' }}>
           {/* WILLIAM */}
           <div className="flex mb-4 name-william">
             {["W", "i", "l", "L", "i", "a", "M"].map((letter, i) => {
@@ -148,7 +250,7 @@ export default function HeroSection() {
 
               return (
                 <motion.span
-                  key={i}
+                  key={`william-${letter}-${i}`}
                   initial={{
                     x: startPosition.x,
                     y: startPosition.y,
@@ -172,7 +274,19 @@ export default function HeroSection() {
                   className="text-[#2c2c2c] inline-block"
                   style={{
                     fontSize: 'var(--font-size)',
-                    fontFeatureSettings: (i === 0 || i === 6) ? "'salt' 1" : "normal"
+                    fontFeatureSettings: (i === 0 || i === 6) ? "'salt' 1" : "normal",
+                    // Safari fix - prevent glyph clipping
+                    padding: '0.3em 0.15em',
+                    margin: '-0.3em -0.15em',
+                    overflow: 'visible',
+                    // Safari fix: Prevent composite layer demotion (stops flickering)
+                    willChange: 'transform',
+                    transform: 'translateZ(0)',
+                    // Extra padding on last letter for breathe animation
+                    ...(i === 6 && {
+                      paddingRight: '0.5em',
+                      marginRight: '-0.5em'
+                    })
                   }}
                 >
                   {letter}
@@ -190,7 +304,7 @@ export default function HeroSection() {
 
               return (
                 <motion.span
-                  key={i}
+                  key={`smith-${letter}-${i}`}
                   initial={{
                     x: startPosition.x,
                     y: startPosition.y,
@@ -214,7 +328,14 @@ export default function HeroSection() {
                   className="text-[#2c2c2c] inline-block"
                   style={{
                     fontSize: 'var(--font-size)',
-                    fontFeatureSettings: (i === 1 || i === 4) ? "'salt' 1" : "normal"
+                    fontFeatureSettings: (i === 4) ? "'salt' 1" : "normal",
+                    // Safari fix - prevent glyph clipping
+                    padding: '0.3em 0.15em',
+                    margin: '-0.3em -0.15em',
+                    overflow: 'visible',
+                    // Safari fix: Prevent composite layer demotion (stops flickering)
+                    willChange: 'transform',
+                    transform: 'translateZ(0)'
                   }}
                 >
                   {letter}
@@ -222,24 +343,26 @@ export default function HeroSection() {
               );
             })}
           </div>
-        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 30, rotate: 0 }}
-          animate={{ opacity: 1, y: 0, rotate: 1.5 }}
-          transition={{
-            delay: 0.4,
-            duration: 0.4,
-            type: "spring",
-            stiffness: 300,
-            damping: 10,
-          }}
-          className="max-w-3xl mb-8"
-        >
-          <p className="text-2xl md:text-3xl font-bold text-[#2c2c2c] text-center blur-text-bg-inline">
-            Full-stack developer crafting beautiful, performant web experiences with modern technologies.
-          </p>
-        </motion.div>
+          {/* Staggered Role Text - Below SMITH */}
+          <motion.div
+            initial={{ opacity: 0, y: 30, rotate: 0 }}
+            animate={{ opacity: 1, y: 0, rotate: 1.5 }}
+            transition={{
+              delay: 0.4,
+              duration: 0.4,
+              type: "spring",
+              stiffness: 300,
+              damping: 10,
+            }}
+            className="relative"
+            style={{ left: 'var(--staggered-text-left)', top: 'var(--staggered-text-top)' }}
+          >
+            <div className="text-4xl xs:text-[2.5rem] sm:text-5xl md:text-6xl lg:text-6xl xl:text-7xl font-bold text-[#2c2c2c]">
+              <SlotMachineText />
+            </div>
+          </motion.div>
+        </div>
 
         {/* Hire Me Button */}
         <motion.div
@@ -316,8 +439,7 @@ export default function HeroSection() {
           >
             <h2 className="text-4xl md:text-[2.5rem] lg:text-5xl xl:text-[3.5rem] 2xl:text-6xl section-header mb-8 text-[#2c2c2c]">CODE</h2>
             <p className="text-lg mb-6 text-[#2c2c2c]">
-              Building robust, performant applications with modern tech stacks.
-              Clean code and best practices are non-negotiable.
+              Full-stack developer crafting beautiful, performant web experiences with modern technologies.
             </p>
             <div className="mt-auto flex justify-end">
               <motion.a
@@ -422,7 +544,7 @@ export default function HeroSection() {
         <motion.div
           className="flex"
           animate={{
-            x: [0, -3298.5]
+            x: [0, -3968]
           }}
           transition={{
             duration: 40,

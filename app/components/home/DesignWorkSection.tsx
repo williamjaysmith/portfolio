@@ -38,7 +38,7 @@ export default function DesignWorkSection() {
   return (
     <div
       id="design-work"
-      className="pt-20 px-8"
+      className="pt-20 px-5 xs:px-8"
       style={{
         scrollMarginTop: "45px",
       }}

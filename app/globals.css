@@ -23,7 +23,7 @@
   --foreground: #171717;
 }
 
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -37,6 +37,14 @@
   --color-brand-green: #bfc46c;
   --color-brand-blue: #78a7af;
   --color-brand-purple: #b690d9;
+
+  /* Custom Breakpoints */
+  --breakpoint-xs: 470px;
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1536px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -98,37 +106,73 @@ html {
   --font-size: 9rem;
   --smith-margin-top: -120px;
   --smith-margin-left: 70px;
+  --staggered-text-left: 10px;
+  --staggered-text-top: -55px;
 }
 
-@media (max-width: 600px) {
+/* Mobile first: default (< 470px) */
+@media (max-width: 469px) {
   .name-container {
     --font-size: 5rem;
     --smith-margin-top: -66.67px; /* -120px * (5/9) */
     --smith-margin-left: 38.89px; /* 70px * (5/9) */
+    --staggered-text-left: 10.56px; /* 5.56px + 5px */
+    --staggered-text-top: -30.56px; /* -55px * (5/9) */
   }
 }
 
-@media (min-width: 601px) and (max-width: 768px) {
+/* xs: 470px */
+@media (min-width: 470px) and (max-width: 639px) {
   .name-container {
-    --font-size: 6.33rem; /* 5 + (9-5) * 0.333 */
-    --smith-margin-top: -84.4px; /* -120px * (6.33/9) */
-    --smith-margin-left: 49.26px; /* 70px * (6.33/9) */
+    --font-size: 5.5rem; /* 5 + (9-5) * 0.125 */
+    --smith-margin-top: -73.33px; /* -120px * (5.5/9) */
+    --smith-margin-left: 42.78px; /* 70px * (5.5/9) */
+    --staggered-text-left: 11.11px; /* 6.11px + 5px */
+    --staggered-text-top: -33.61px; /* -55px * (5.5/9) */
   }
 }
 
-@media (min-width: 769px) and (max-width: 1024px) {
+/* sm: 640px */
+@media (min-width: 640px) and (max-width: 767px) {
   .name-container {
-    --font-size: 7.67rem; /* 5 + (9-5) * 0.667 */
-    --smith-margin-top: -102.27px; /* -120px * (7.67/9) */
-    --smith-margin-left: 59.63px; /* 70px * (7.67/9) */
+    --font-size: 6rem; /* 5 + (9-5) * 0.25 */
+    --smith-margin-top: -80px; /* -120px * (6/9) */
+    --smith-margin-left: 46.67px; /* 70px * (6/9) */
+    --staggered-text-left: 6.67px; /* 10px * (6/9) */
+    --staggered-text-top: -36.67px; /* -55px * (6/9) */
   }
 }
 
-@media (min-width: 1025px) {
+/* md: 768px */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .name-container {
+    --font-size: 7rem; /* 5 + (9-5) * 0.5 */
+    --smith-margin-top: -93.33px; /* -120px * (7/9) */
+    --smith-margin-left: 54.44px; /* 70px * (7/9) */
+    --staggered-text-left: -7.22px; /* 7.78px - 15px */
+    --staggered-text-top: -42.78px; /* -55px * (7/9) */
+  }
+}
+
+/* lg: 1024px */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .name-container {
+    --font-size: 8rem; /* 5 + (9-5) * 0.75 */
+    --smith-margin-top: -106.67px; /* -120px * (8/9) */
+    --smith-margin-left: 62.22px; /* 70px * (8/9) */
+    --staggered-text-left: 8.89px; /* 10px * (8/9) */
+    --staggered-text-top: -48.89px; /* -55px * (8/9) */
+  }
+}
+
+/* xl: 1280px and above */
+@media (min-width: 1280px) {
   .name-container {
     --font-size: 9rem;
     --smith-margin-top: -120px;
     --smith-margin-left: 70px;
+    --staggered-text-left: 10px;
+    --staggered-text-top: -55px;
   }
 }
 
@@ -140,6 +184,7 @@ html {
   -moz-osx-font-smoothing: grayscale;
   animation: breathe 4s ease-in-out infinite;
   transform-origin: center;
+  overflow: visible; /* Allow glyph overflow */
 }
 
 .name-smith {
@@ -153,7 +198,9 @@ html {
   animation: breathe 4s ease-in-out infinite;
   animation-delay: 2s; /* Half cycle delay - opposite rhythm */
   transform-origin: center;
+  overflow: visible; /* Allow glyph overflow */
 }
+
 
 .blur-text-bg {
   position: relative;
@@ -262,5 +309,10 @@ html {
     --button-px: 2.5rem; /* px-10: 40px */
     --button-py: 1rem; /* py-4: 16px */
   }
+}
+
+/* Slot Machine Text - Letter spacing (font size handled by Tailwind classes) */
+.slot-machine-char {
+  width: 0.58em; /* Letter spacing maintains ratio */
 }
 

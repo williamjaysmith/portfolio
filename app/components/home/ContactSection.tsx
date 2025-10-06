@@ -26,7 +26,7 @@ export default function ContactSection() {
   return (
     <div
       id="contact"
-      className="py-20 px-8"
+      className="py-20 px-5 xs:px-8"
       style={{
         scrollMarginTop: "45px",
       }}
