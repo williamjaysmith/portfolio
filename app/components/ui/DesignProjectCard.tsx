@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import { DesignProject } from "@/lib/types";
+import Image from "next/image";
+import { useLazyVideo } from "@/app/hooks/useLazyVideo";
 
 interface DesignProjectCardProps {
   project: DesignProject;
@@ -14,6 +16,8 @@ export default function DesignProjectCard({
   index,
   onClick,
 }: DesignProjectCardProps) {
+  const { videoRef, shouldLoad } = useLazyVideo();
+
   return (
     <motion.button
       onClick={onClick}
@@ -56,7 +60,8 @@ export default function DesignProjectCard({
         <>
           {project.image.endsWith('.mp4') ? (
             <video
-              src={project.image}
+              ref={videoRef}
+              src={shouldLoad ? project.image : undefined}
               autoPlay
               loop
               muted
@@ -64,30 +69,41 @@ export default function DesignProjectCard({
               className="w-full h-full object-cover"
             />
           ) : project.title === "Plugin UI/UX Design" ? (
-            <motion.img
-              src={project.image}
-              alt={project.title}
-              className="w-full h-auto absolute top-0 left-0"
-              style={{ minHeight: "100%" }}
+            <motion.div
+              className="absolute top-0 left-0"
+              style={{
+                width: "100%",
+                height: "auto",
+              }}
               animate={{
-                y: ["0%", "-31.6%", "0%"],
+                y: ["0%", "-33.33%", "0%"],
               }}
               transition={{
                 duration: 15,
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-            />
+            >
+              <Image
+                src={project.image}
+                alt={project.title}
+                width={1200}
+                height={1800}
+                loading="lazy"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="w-full h-auto"
+                style={{
+                  objectFit: "contain",
+                  maxHeight: "none",
+                }}
+              />
+            </motion.div>
           ) : project.title === "Brand Design" ? (
-            <motion.img
-              src={project.image}
-              alt={project.title}
+            <motion.div
               className="absolute top-0 left-0"
               style={{
                 height: "100%",
                 width: "auto",
-                objectFit: "contain",
-                maxWidth: "none",
               }}
               animate={{
                 x: ["0%", "-63%", "0%"],
@@ -97,12 +113,24 @@ export default function DesignProjectCard({
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-            />
+            >
+              <Image
+                src={project.image}
+                alt={project.title}
+                width={2000}
+                height={800}
+                loading="lazy"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="h-full w-auto"
+                style={{
+                  objectFit: "contain",
+                  maxWidth: "none",
+                }}
+              />
+            </motion.div>
           ) : project.title === "Merch Design" ? (
-            <motion.img
-              src={project.image}
-              alt={project.title}
-              className="w-full h-full object-cover"
+            <motion.div
+              className="relative w-full h-full"
               animate={{
                 scale: [1, 1.5, 1],
               }}
@@ -111,12 +139,24 @@ export default function DesignProjectCard({
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-            />
+            >
+              <Image
+                src={project.image}
+                alt={project.title}
+                fill
+                loading="lazy"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                className="object-cover"
+              />
+            </motion.div>
           ) : (
-            <img
+            <Image
               src={project.image}
               alt={project.title}
-              className="w-full h-full object-cover"
+              fill
+              loading="lazy"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              className="object-cover"
             />
           )}
           <div className="absolute inset-0 bg-[#2c2c2c]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">

@@ -2,6 +2,8 @@
 
 import { motion } from "framer-motion";
 import { CodeProject } from "@/lib/types";
+import Image from "next/image";
+import { useLazyVideo } from "@/app/hooks/useLazyVideo";
 
 interface CodeProjectCardProps {
   project: CodeProject;
@@ -14,6 +16,8 @@ export default function CodeProjectCard({
   index,
   onClick,
 }: CodeProjectCardProps) {
+  const { videoRef, shouldLoad } = useLazyVideo();
+
   return (
     <motion.div
       onClick={onClick}
@@ -57,7 +61,8 @@ export default function CodeProjectCard({
       {project.image ? (
         project.image.endsWith('.mp4') ? (
           <video
-            src={project.image}
+            ref={videoRef}
+            src={shouldLoad ? project.image : undefined}
             autoPlay
             loop
             muted
@@ -65,10 +70,13 @@ export default function CodeProjectCard({
             className="w-full h-full object-cover"
           />
         ) : (
-          <img
+          <Image
             src={project.image}
             alt={project.title}
-            className="w-full h-full object-cover"
+            fill
+            loading="lazy"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="object-cover"
           />
         )
       ) : (

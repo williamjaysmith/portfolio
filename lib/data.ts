@@ -24,7 +24,7 @@ export const codeProjects: CodeProject[] = [
     tech: ["Node.js", "Express", "MongoDB", "Stripe"],
     link: "https://tripforge-110a0edcf1cc.herokuapp.com/",
     github: "https://github.com/williamjaysmith/TripForge",
-    image: "/Images/Code/tripforge.gif",
+    image: "/Images/Code/tripforge.mp4",
   },
   {
     title: "Oddbird Portal",
@@ -32,7 +32,7 @@ export const codeProjects: CodeProject[] = [
     tech: ["React", "TypeScript", "Next.js"],
     link: "#",
     github: "https://github.com/williamjaysmith",
-    image: "/Images/Code/OddbirdPortal.gif",
+    image: "/Images/Code/OddbirdPortal.mp4",
   },
 ];
 
@@ -51,8 +51,8 @@ export const designProjects: DesignProject[] = [
     tech: ["Photoshop", "True Grit"],
     link: "https://strangebadeffects.com",
     github: "#",
-    image: "/Images/Design/fuzzpedal.png",
-    modalImage: "/Images/Design/fuzzpedal.png",
+    image: "/Images/Design/fuzzpedal.jpg",
+    modalImage: "/Images/Design/fuzzpedal.jpg",
   },
   {
     title: "Brand Design",

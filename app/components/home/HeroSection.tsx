@@ -4,24 +4,12 @@ import { motion, useAnimation } from "framer-motion";
 import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import React from "react";
-import {
-  SiJavascript,
-  SiTypescript,
-  SiReact,
-  SiNextdotjs,
-  SiExpress,
-  SiNodedotjs,
-  SiTailwindcss,
-  SiMongodb,
-  SiHtml5,
-  SiCss3,
-  SiRedux,
-  SiFramer,
-  SiFigma,
-  SiAdobephotoshop,
-  SiGit,
-} from "react-icons/si";
-import { TbApi } from "react-icons/tb";
+import dynamic from "next/dynamic";
+
+// Lazy load SkillsMarquee with all its icons
+const SkillsMarquee = dynamic(() => import("./SkillsMarquee"), {
+  ssr: true,
+});
 
 // Helper function to generate starting position based on index
 const getStartPosition = (index: number) => {
@@ -122,60 +110,30 @@ function SlotMachineText() {
   );
 }
 
-const skills = [
-  { name: "JavaScript", icon: SiJavascript },
-  { name: "TypeScript", icon: SiTypescript },
-  { name: "React", icon: SiReact },
-  { name: "Next.js", icon: SiNextdotjs },
-  { name: "Express", icon: SiExpress },
-  { name: "Node.js", icon: SiNodedotjs },
-  { name: "Tailwind", icon: SiTailwindcss },
-  { name: "MongoDB", icon: SiMongodb },
-  { name: "HTML5", icon: SiHtml5 },
-  { name: "CSS3", icon: SiCss3 },
-  { name: "Redux", icon: SiRedux },
-  { name: "Framer", icon: SiFramer },
-  { name: "Figma", icon: SiFigma },
-  { name: "Photoshop", icon: SiAdobephotoshop },
-  { name: "Git", icon: SiGit },
-  { name: "REST API", icon: TbApi },
-];
-
 export default function HeroSection() {
   const controls = useAnimation();
   const [mounted, setMounted] = useState(false);
 
-  // Calculate marquee width on mount
-  useEffect(() => {
-    const calculateMarqueeWidth = () => {
-      // Each skill has: icon (48px) + gap (16px) + text + px-8 (64px total padding)
-      // Approximate average text width: ~120px
-      const approximateItemWidth = 48 + 16 + 120 + 64; // ~248px per item
-      const totalWidth = skills.length * approximateItemWidth;
-    };
-
-    if (mounted) {
-      calculateMarqueeWidth();
-    }
-  }, [mounted]);
-
   useEffect(() => {
     let isMounted = true;
 
-    const loadFont = async () => {
+    const loadFonts = async () => {
       try {
-        // Wait for the PortfolioNameFont to load
-        await document.fonts.load('normal 1em PortfolioNameFont');
-
-        // Ensure all fonts are ready
-        await document.fonts.ready;
+        // Load critical fonts in parallel with a 2 second timeout safety net
+        await Promise.race([
+          Promise.all([
+            document.fonts.load('normal 1em PortfolioNameFont'),
+            document.fonts.load('normal 1em PortfolioFont1'),
+          ]),
+          new Promise(resolve => setTimeout(resolve, 2000))
+        ]);
 
         // Only update state if component is still mounted
         if (isMounted) {
           setMounted(true);
         }
       } catch (error) {
-        // Fallback: if font fails to load, proceed anyway
+        // Fallback: if fonts fail to load, proceed anyway
         console.warn('Font loading failed:', error);
         if (isMounted) {
           setMounted(true);
@@ -183,7 +141,7 @@ export default function HeroSection() {
       }
     };
 
-    loadFont();
+    loadFonts();
 
     return () => {
       isMounted = false;
@@ -574,54 +532,7 @@ export default function HeroSection() {
       </div>
 
       {/* Skills Marquee - Full Width, Edge to Edge */}
-      <div className="relative overflow-hidden bg-[#2c2c2c] py-8 w-full mt-8">
-        <motion.div
-          className="flex"
-          animate={{
-            x: [0, -3968]
-          }}
-          transition={{
-            duration: 40,
-            repeat: Infinity,
-            ease: "linear",
-            repeatType: "loop"
-          }}
-        >
-          <div className="flex shrink-0">
-            {skills.map((skill, index) => {
-              const Icon = skill.icon;
-              return (
-                <div
-                  key={index}
-                  className="flex items-center gap-4 px-8 shrink-0"
-                >
-                  <Icon className="w-12 h-12 text-white shrink-0" />
-                  <span className="text-white text-2xl font-bold whitespace-nowrap">
-                    {skill.name}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          {/* Exact duplicate for seamless loop */}
-          <div className="flex shrink-0">
-            {skills.map((skill, index) => {
-              const Icon = skill.icon;
-              return (
-                <div
-                  key={`dup-${index}`}
-                  className="flex items-center gap-4 px-8 shrink-0"
-                >
-                  <Icon className="w-12 h-12 text-white shrink-0" />
-                  <span className="text-white text-2xl font-bold whitespace-nowrap">
-                    {skill.name}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </motion.div>
-      </div>
+      <SkillsMarquee />
     </div>
   );
 }

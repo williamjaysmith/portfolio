@@ -5,6 +5,7 @@ import { X, ChevronRight } from "lucide-react";
 import { CodeProject } from "@/lib/types";
 import TechBadge from "./TechBadge";
 import { useState, useRef, useEffect } from "react";
+import Image from "next/image";
 
 interface CodeProjectModalProps {
   project: CodeProject | null;
@@ -82,16 +83,21 @@ export default function CodeProjectModal({
               project.image.endsWith('.mp4') ? (
                 <video
                   src={project.image}
-                  autoPlay
                   loop
                   muted
                   playsInline
+                  controls
+                  preload="metadata"
                   className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
                 />
               ) : (
-                <img
+                <Image
                   src={project.image}
                   alt={project.title}
+                  width={800}
+                  height={600}
+                  loading="lazy"
+                  sizes="(max-width: 768px) 90vw, 768px"
                   className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
                 />
               )
