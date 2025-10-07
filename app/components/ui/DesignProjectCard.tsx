@@ -69,7 +69,7 @@ export default function DesignProjectCard({
         </div>
       )}
       {project.image && (
-        <div className={showTitle ? 'relative w-full aspect-square' : 'relative w-full h-full'}>
+        <div className={showTitle ? 'relative w-full aspect-square overflow-hidden' : 'relative w-full h-full'}>
           {project.image.endsWith('.mp4') ? (
             <video
               ref={videoRef}
