@@ -63,6 +63,41 @@ export default function DesignProjectCard({
               playsInline
               className="w-full h-full object-cover"
             />
+          ) : project.title === "Plugin UI/UX Design" ? (
+            <motion.img
+              src={project.image}
+              alt={project.title}
+              className="w-full h-auto absolute top-0 left-0"
+              style={{ minHeight: "100%" }}
+              animate={{
+                y: ["0%", "-31.6%", "0%"],
+              }}
+              transition={{
+                duration: 15,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
+          ) : project.title === "Brand Design" ? (
+            <motion.img
+              src={project.image}
+              alt={project.title}
+              className="absolute top-0 left-0"
+              style={{
+                height: "100%",
+                width: "auto",
+                objectFit: "contain",
+                maxWidth: "none",
+              }}
+              animate={{
+                x: ["0%", "-63%", "0%"],
+              }}
+              transition={{
+                duration: 15,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
           ) : (
             <img
               src={project.image}

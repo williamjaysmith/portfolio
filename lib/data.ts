@@ -46,13 +46,29 @@ export const designProjects: DesignProject[] = [
     image: "/Images/Design/portfoliodesign.mp4",
   },
   {
-    title: "Plugin",
-    description: "Complete UI/UX design for audio plugin interface, including custom buttons, knobs, sliders, and visual assets",
+    title: "Plugin UI/UX Design",
+    description: "This is a complete skeuomorphic GUI/UX design for Strangebad Effects' DSP plugin, <em>Superdope Machine</em>, mimicking the look and feel of real-world hardware. I created custom interactive assets including buttons, knobs, sliders, switches, and LEDs - each responding dynamically to user input. The interface was designed with a strong focus on user simplicity and workflow efficiency within the DAW environment.",
     tech: ["Photoshop", "True Grit"],
+    link: "https://strangebadeffects.com",
+    github: "#",
+    image: "/Images/Design/fuzzpedal.png",
+    modalImage: "/Images/Design/fuzzpedal.png",
+  },
+  {
+    title: "Brand Design",
+    description: "This was a brand development project for OktavaMods, a company specializing in transforming affordable microphones into warm, articulate, and professional-grade recording tools. My goal was to create a visual identity that captures the character of their sound- which is rich, vintage warmth balanced with modern clarity.",
+    tech: ["Photoshop"],
     link: "#",
     github: "#",
-    image: "/Images/Design/SuperDopePluginSquare.png",
-    modalImage: "/Images/Design/fuzzpedal.png",
+    image: "/Images/Design/MJEMasthead copy.jpg",
+  },
+  {
+    title: "Merch Design",
+    description: "Having run a recording studio for years, I've had the privilege of working with many bands, not only as an audio engineer, but also as a designer creating merchandise such as T-shirts and album covers. This particular shirt design was hand-drawn, scanned and then digitally colored in Photoshop to create a two-tone print optimized for screen printing.",
+    tech: ["Photoshop"],
+    link: "#",
+    github: "#",
+    image: "/Images/Design/paigemarshalltshirt.png",
   },
 ];
 

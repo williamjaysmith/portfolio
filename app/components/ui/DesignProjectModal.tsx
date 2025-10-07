@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, ChevronRight } from "lucide-react";
 import { DesignProject } from "@/lib/types";
 import TechBadge from "./TechBadge";
+import { useState, useRef, useEffect } from "react";
 
 interface DesignProjectModalProps {
   project: DesignProject | null;
@@ -16,6 +17,16 @@ export default function DesignProjectModal({
   isOpen,
   onClose,
 }: DesignProjectModalProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showToggle, setShowToggle] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (textRef.current) {
+      setShowToggle(textRef.current.scrollHeight > textRef.current.clientHeight);
+    }
+  }, [project]);
+
   if (!project) return null;
 
   return (
@@ -73,9 +84,21 @@ export default function DesignProjectModal({
               })()
             )}
 
-            <p className="text-lg md:text-xl text-[#2c2c2c] mb-6">
-              {project.description}
-            </p>
+            <div className="mb-6">
+              <p
+                ref={textRef}
+                className={`text-lg md:text-xl text-[#2c2c2c] ${!isExpanded ? 'line-clamp-2' : ''}`}
+                dangerouslySetInnerHTML={{ __html: project.description }}
+              />
+              {showToggle && (
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="text-[#2c2c2c] font-bold mt-2 hover:underline"
+                >
+                  {isExpanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
 
             <div className="mb-8">
               <h3 className="text-xl font-black text-[#2c2c2c] mb-3">
@@ -88,28 +111,30 @@ export default function DesignProjectModal({
               </div>
             </div>
 
-            <div className="flex gap-4">
-              <a
-                href={project.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <motion.button
-                  whileHover={{
-                    y: -4,
-                    boxShadow: "4px 4px 0px #2c2c2c",
-                  }}
-                  whileTap={{
-                    y: 0,
-                    boxShadow: "2px 2px 0px #2c2c2c",
-                  }}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#2c2c2c] text-white font-black rounded-xl border-3 border-[#2c2c2c] hover:bg-white hover:text-[#2c2c2c] transition-colors"
+            {project.link !== "#" && (
+              <div className="flex gap-4">
+                <a
+                  href={project.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  VIEW MORE <ChevronRight className="w-4 h-4" strokeWidth={3} />
-                </motion.button>
-              </a>
-            </div>
+                  <motion.button
+                    whileHover={{
+                      y: -4,
+                      boxShadow: "4px 4px 0px #2c2c2c",
+                    }}
+                    whileTap={{
+                      y: 0,
+                      boxShadow: "2px 2px 0px #2c2c2c",
+                    }}
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-[#2c2c2c] text-white font-black rounded-xl border-3 border-[#2c2c2c] hover:bg-white hover:text-[#2c2c2c] transition-colors"
+                  >
+                    VIEW MORE <ChevronRight className="w-4 h-4" strokeWidth={3} />
+                  </motion.button>
+                </a>
+              </div>
+            )}
           </motion.div>
         </>
       )}
