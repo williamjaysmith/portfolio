@@ -12,27 +12,32 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "William Smith | Full-Stack Developer & Designer",
-  description: "Full-stack developer and designer specializing in React, Next.js, TypeScript, and UI/UX design. Building modern web applications and creative digital experiences.",
+  description: "Full-stack developer & designer building modern web apps with React, Next.js, TypeScript, and creative UI/UX design.",
   openGraph: {
     title: "William Smith | Full-Stack Developer & Designer",
-    description: "Full-stack developer and designer specializing in React, Next.js, TypeScript, and UI/UX design.",
+    description: "Full-stack developer & designer building modern web apps with React, Next.js, TypeScript, and creative UI/UX design.",
+    url: siteUrl,
+    siteName: "William Smith Portfolio",
+    locale: "en_US",
     type: "website",
-    url: "https://williamjaysmith.com",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "William Smith Portfolio",
+        alt: "William Smith - Full-Stack Developer & Designer Portfolio",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     title: "William Smith | Full-Stack Developer & Designer",
-    description: "Full-stack developer and designer specializing in React, Next.js, TypeScript, and UI/UX design.",
+    description: "Full-stack developer & designer building modern web apps with React, Next.js, TypeScript, and creative UI/UX design.",
     images: ["/og-image.png"],
   },
 };

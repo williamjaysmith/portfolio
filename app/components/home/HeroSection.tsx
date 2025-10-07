@@ -152,12 +152,6 @@ export default function HeroSection() {
       // Approximate average text width: ~120px
       const approximateItemWidth = 48 + 16 + 120 + 64; // ~248px per item
       const totalWidth = skills.length * approximateItemWidth;
-      console.log('📊 MARQUEE CALCULATION:');
-      console.log(`Number of skills: ${skills.length}`);
-      console.log(`Approximate width per item: ${approximateItemWidth}px`);
-      console.log(`Total marquee width: ${totalWidth}px`);
-      console.log(`Current animation value: -3968px`);
-      console.log(`Suggested new value: -${totalWidth}px`);
     };
 
     if (mounted) {

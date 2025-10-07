@@ -21,10 +21,6 @@ export default function ContactSection() {
         const firstChild = marqueeRef.current?.querySelector('.flex.shrink-0');
         if (firstChild) {
           const width = firstChild.getBoundingClientRect().width;
-          console.log('📊 FOOTER MARQUEE CALCULATION:');
-          console.log(`Actual width of one loop: ${width}px`);
-          console.log(`Current animation value: -1920px`);
-          console.log(`Suggested new value: -${width}px`);
         }
       };
 

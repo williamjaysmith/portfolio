@@ -21,11 +21,27 @@ export default function CodeProjectModal({
   const [showToggle, setShowToggle] = useState(false);
   const textRef = useRef<HTMLParagraphElement>(null);
 
+  // Reset state when modal closes
   useEffect(() => {
-    if (textRef.current) {
-      setShowToggle(textRef.current.scrollHeight > textRef.current.clientHeight);
+    if (!isOpen) {
+      setIsExpanded(false);
+      setShowToggle(false);
     }
-  }, [project]);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !project) return;
+
+    const checkOverflow = () => {
+      if (textRef.current) {
+        setShowToggle(textRef.current.scrollHeight > textRef.current.clientHeight);
+      }
+    };
+
+    // Delay check to ensure DOM is ready
+    const timer = setTimeout(checkOverflow, 100);
+    return () => clearTimeout(timer);
+  }, [isOpen, project?.description]);
 
   if (!project) return null;
 
