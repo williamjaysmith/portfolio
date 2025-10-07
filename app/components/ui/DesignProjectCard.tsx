@@ -98,6 +98,20 @@ export default function DesignProjectCard({
                 ease: "easeInOut",
               }}
             />
+          ) : project.title === "Merch Design" ? (
+            <motion.img
+              src={project.image}
+              alt={project.title}
+              className="w-full h-full object-cover"
+              animate={{
+                scale: [1, 1.5, 1],
+              }}
+              transition={{
+                duration: 15,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+            />
           ) : (
             <img
               src={project.image}
