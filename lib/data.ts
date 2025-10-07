@@ -38,7 +38,7 @@ export const codeProjects: CodeProject[] = [
 
 export const designProjects: DesignProject[] = [
   {
-    title: "Textured Illustrations",
+    title: "Illustration",
     description: "A playful, hand-drawn portfolio. Less conventional in usability and approachability, but full of character. It was a fun opportunity to turn my textured illustration aesthetic into a functioning website.",
     tech: ["Procreate", "True Grit"],
     link: "https://www.instagram.com/strangebad_official/",

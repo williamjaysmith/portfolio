@@ -11,6 +11,13 @@ interface ContactCardProps {
 export default function ContactCard({ contact, index }: ContactCardProps) {
   const Icon = contact.icon;
 
+  // Alternate rotation direction based on index
+  const isEven = index % 2 === 0;
+  const rotateValues = isEven ? [-3, 3, -3] : [3, -3, 3];
+  const boxShadowValues = isEven
+    ? ["8px 8px 0px #2c2c2c", "-8px 8px 0px #2c2c2c", "8px 8px 0px #2c2c2c"]
+    : ["-8px 8px 0px #2c2c2c", "8px 8px 0px #2c2c2c", "-8px 8px 0px #2c2c2c"];
+
   return (
     <motion.a
       href={contact.link}
@@ -19,10 +26,9 @@ export default function ContactCard({ contact, index }: ContactCardProps) {
       initial={{ opacity: 0, rotate: -5, y: 30 }}
       whileInView={{
         opacity: 1,
-        rotate: index % 2 === 0 ? -3 : 3,
+        rotate: rotateValues,
         y: 0,
-        boxShadow:
-          index % 2 === 0 ? "8px 8px 0px #2c2c2c" : "-8px 8px 0px #2c2c2c",
+        boxShadow: boxShadowValues,
       }}
       viewport={{ once: true }}
       transition={{
@@ -31,6 +37,20 @@ export default function ContactCard({ contact, index }: ContactCardProps) {
         type: "spring",
         stiffness: 200,
         damping: 15,
+        rotate: {
+          delay: 0.5 + index * 0.03,
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+          repeatType: "reverse",
+        },
+        boxShadow: {
+          delay: 0.5 + index * 0.03,
+          duration: 8,
+          repeat: Infinity,
+          ease: "easeInOut",
+          repeatType: "reverse",
+        },
       }}
       whileHover={{
         scale: 1.1,

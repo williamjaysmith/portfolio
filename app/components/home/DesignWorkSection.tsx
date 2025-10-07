@@ -183,7 +183,7 @@ export default function DesignWorkSection() {
           viewport={{ once: true }}
           className="mt-8 text-center"
         >
-          <a href="#" target="_blank" rel="noopener noreferrer">
+          <a href="/design">
             <motion.button
               initial={{ boxShadow: "0px 0px 0px #2c2c2c" }}
               whileHover={{

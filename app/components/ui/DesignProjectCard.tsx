@@ -9,12 +9,16 @@ interface DesignProjectCardProps {
   project: DesignProject;
   index: number;
   onClick: () => void;
+  noRotate?: boolean;
+  showTitle?: boolean;
 }
 
 export default function DesignProjectCard({
   project,
   index,
   onClick,
+  noRotate = false,
+  showTitle = false,
 }: DesignProjectCardProps) {
   const { videoRef, shouldLoad } = useLazyVideo();
 
@@ -23,15 +27,16 @@ export default function DesignProjectCard({
       onClick={onClick}
       initial={{
         opacity: 0,
-        rotate: index % 2 === 0 ? -3 : 3,
+        rotate: noRotate ? 0 : (index % 2 === 0 ? -3 : 3),
         y: 50,
       }}
       whileInView={{
         opacity: 1,
-        rotate: index % 2 === 0 ? -3 : 3,
+        rotate: noRotate ? 0 : (index % 2 === 0 ? -3 : 3),
         y: 0,
-        boxShadow:
-          index % 2 === 0 ? "8px 8px 0px #2c2c2c" : "-8px 8px 0px #2c2c2c",
+        boxShadow: noRotate
+          ? "8px 8px 0px #2c2c2c"
+          : (index % 2 === 0 ? "8px 8px 0px #2c2c2c" : "-8px 8px 0px #2c2c2c"),
       }}
       viewport={{ once: false, margin: "0px", amount: 0.3 }}
       transition={{
@@ -51,13 +56,20 @@ export default function DesignProjectCard({
         boxShadow: "0px 4px 0px #2c2c2c",
         transition: { duration: 0.1 },
       }}
-      className="border-3 border-[#2c2c2c] bg-white cursor-pointer rounded-2xl flex-shrink-0 w-full aspect-square overflow-hidden group relative"
+      className={`border-3 border-[#2c2c2c] bg-white cursor-pointer rounded-2xl flex-shrink-0 w-full overflow-hidden group relative ${showTitle ? 'flex flex-col' : 'aspect-square'}`}
       style={{
         borderRadius: "1rem",
       }}
     >
+      {showTitle && (
+        <div className="bg-[#2c2c2c] py-3 px-4 w-full flex-shrink-0">
+          <h3 className="text-lg md:text-xl font-bold text-white text-center">
+            {project.title}
+          </h3>
+        </div>
+      )}
       {project.image && (
-        <>
+        <div className={showTitle ? 'relative w-full aspect-square' : 'relative w-full h-full'}>
           {project.image.endsWith('.mp4') ? (
             <video
               ref={videoRef}
@@ -76,7 +88,7 @@ export default function DesignProjectCard({
                 height: "auto",
               }}
               animate={{
-                y: ["0%", "-33.33%", "0%"],
+                y: ["0%", "-31%", "0%"],
               }}
               transition={{
                 duration: 15,
@@ -164,7 +176,7 @@ export default function DesignProjectCard({
               VIEW PROJECT
             </span>
           </div>
-        </>
+        </div>
       )}
     </motion.button>
   );

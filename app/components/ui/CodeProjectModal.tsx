@@ -83,11 +83,11 @@ export default function CodeProjectModal({
               project.image.endsWith('.mp4') ? (
                 <video
                   src={project.image}
+                  autoPlay
                   loop
                   muted
                   playsInline
                   controls
-                  preload="metadata"
                   className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
                 />
               ) : (

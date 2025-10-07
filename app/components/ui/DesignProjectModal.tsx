@@ -85,11 +85,11 @@ export default function DesignProjectModal({
                 return src.endsWith('.mp4') ? (
                   <video
                     src={src}
+                    autoPlay
                     loop
                     muted
                     playsInline
                     controls
-                    preload="metadata"
                     className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
                   />
                 ) : (

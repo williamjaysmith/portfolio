@@ -150,13 +150,13 @@ export default function HeroSection() {
 
     const loadFonts = async () => {
       try {
-        // Load critical fonts in parallel with a 2 second timeout safety net
+        // Load critical fonts in parallel with a 5 second timeout safety net
         await Promise.race([
           Promise.all([
             document.fonts.load('normal 1em PortfolioNameFont'),
             document.fonts.load('normal 1em PortfolioFont1'),
           ]),
-          new Promise(resolve => setTimeout(resolve, 2000))
+          new Promise(resolve => setTimeout(resolve, 5000))
         ]);
 
         // Only update state if component is still mounted
@@ -222,7 +222,7 @@ export default function HeroSection() {
     >
       <div className="flex items-center px-5 xs:px-8">
         <div className="max-w-7xl mx-auto w-full">
-        <div className="mb-8 name-container relative z-20 pr-4" style={{ transform: 'rotate(-3deg)' }}>
+        <div className="mb-8 name-container relative z-20 pr-4" style={{ transform: 'rotate(-3deg)', marginLeft: '6px' }}>
           {/* WILLIAM */}
           <div className="flex mb-4 name-william">
             {["W", "i", "l", "L", "i", "a", "M"].map((letter, i) => {
@@ -567,7 +567,7 @@ export default function HeroSection() {
         <motion.div
           className="flex"
           animate={{
-            x: [0, -3968]
+            x: [0, -3460]
           }}
           transition={{
             duration: 40,
