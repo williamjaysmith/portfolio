@@ -470,7 +470,7 @@ export default function HeroSection() {
                 className={`text-lg text-[#2c2c2c] space-y-4 ${!isCodeExpanded ? 'line-clamp-3' : ''}`}
               >
                 <p>I started coding back in 2003, making MySpace layouts for local bands and small businesses. That early work led me to study web development and design - specializing in Flash at a local community college.</p>
-                <p>As Flash faded away, I shifted into audio engineering and spent years running a recording studio, mixing and mastering audio for the same creative community I started out coding for. These days, I'm back to writing code - building modern web experiences that help artists and businesses connect with people. Though my tech stack has changed, my drive to help my community through code hasn't.</p>
+                <p>As Flash faded away, I shifted into audio engineering and spent years running a recording studio, mixing and mastering audio for the same creative community I started out coding for. These days, I&apos;m back to writing code - building modern web experiences that help artists and businesses connect with people. Though my tech stack has changed, my drive to help my community through code hasn&apos;t.</p>
               </div>
               {showCodeToggle && (
                 <button
@@ -565,7 +565,7 @@ export default function HeroSection() {
                 className={`text-lg text-[#2c2c2c] space-y-4 ${!isDesignExpanded ? 'line-clamp-3' : ''}`}
               >
                 <p>I was drawn to illustration and design at a very young age. As far back as grade school, I studied typography, color theory, and composition, building a foundation for thinking about visuals strategically.</p>
-                <p>In my teens, I dove into Milwaukee's music scene, helping bands and rappers bring their ideas to life. I designed everything from websites and album covers to t-shirts, packaging, stickers, flyers, pins/buttons, and promotional graphics - always focused on serving the client's brand and making their message clear and impactful.</p>
+                <p>In my teens, I dove into Milwaukee&apos;s music scene, helping bands and rappers bring their ideas to life. I designed everything from websites and album covers to t-shirts, packaging, stickers, flyers, pins/buttons, and promotional graphics - always focused on serving the client&apos;s brand and making their message clear and impactful.</p>
               </div>
               {showDesignToggle && (
                 <button

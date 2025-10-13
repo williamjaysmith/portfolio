@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, useAnimation } from "framer-motion";
-import { ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { contacts } from "@/lib/data";
 import ContactCard from "../ui/ContactCard";
@@ -20,7 +19,7 @@ export default function ContactSection() {
       const calculateMarqueeWidth = () => {
         const firstChild = marqueeRef.current?.querySelector('.flex.shrink-0');
         if (firstChild) {
-          const width = firstChild.getBoundingClientRect().width;
+          firstChild.getBoundingClientRect().width;
         }
       };
 

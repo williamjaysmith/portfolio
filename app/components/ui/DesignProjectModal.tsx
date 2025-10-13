@@ -42,7 +42,7 @@ export default function DesignProjectModal({
     // Delay check to ensure DOM is ready
     const timer = setTimeout(checkOverflow, 100);
     return () => clearTimeout(timer);
-  }, [isOpen, project?.description]);
+  }, [isOpen, project]);
 
   if (!project) return null;
 

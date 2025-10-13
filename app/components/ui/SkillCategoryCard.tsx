@@ -5,13 +5,11 @@ import { SkillCategory } from "@/lib/types";
 
 interface SkillCategoryCardProps {
   category: SkillCategory;
-  index: number;
   isCenter?: boolean;
 }
 
 export default function SkillCategoryCard({
   category,
-  index,
   isCenter = false,
 }: SkillCategoryCardProps) {
   return (
