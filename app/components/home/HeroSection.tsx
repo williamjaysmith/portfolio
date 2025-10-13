@@ -2,7 +2,7 @@
 
 import { motion, useAnimation } from "framer-motion";
 import { ChevronRight } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import React from "react";
 import {
   SiJavascript,
@@ -144,6 +144,12 @@ const skills = [
 export default function HeroSection() {
   const controls = useAnimation();
   const [mounted, setMounted] = useState(false);
+  const [isCodeExpanded, setIsCodeExpanded] = useState(false);
+  const [showCodeToggle, setShowCodeToggle] = useState(false);
+  const codeTextRef = useRef<HTMLDivElement>(null);
+  const [isDesignExpanded, setIsDesignExpanded] = useState(false);
+  const [showDesignToggle, setShowDesignToggle] = useState(false);
+  const designTextRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -193,6 +199,23 @@ export default function HeroSection() {
 
     return () => clearInterval(interval);
   }, [controls]);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const checkOverflow = () => {
+      if (codeTextRef.current) {
+        setShowCodeToggle(codeTextRef.current.scrollHeight > codeTextRef.current.clientHeight);
+      }
+      if (designTextRef.current) {
+        setShowDesignToggle(designTextRef.current.scrollHeight > designTextRef.current.clientHeight);
+      }
+    };
+
+    // Delay check to ensure DOM is ready
+    const timer = setTimeout(checkOverflow, 100);
+    return () => clearTimeout(timer);
+  }, [mounted]);
 
   // Show loading state while fonts load
   if (!mounted) {
@@ -441,9 +464,23 @@ export default function HeroSection() {
             }}
           >
             <h2 className="text-4xl md:text-[2.5rem] lg:text-5xl xl:text-[3.5rem] 2xl:text-6xl section-header mb-8 text-[#2c2c2c]">CODE</h2>
-            <p className="text-lg mb-6 text-[#2c2c2c]">
-              Full-stack developer crafting beautiful, performant web experiences with modern technologies.
-            </p>
+            <div className="mb-6">
+              <div
+                ref={codeTextRef}
+                className={`text-lg text-[#2c2c2c] space-y-4 ${!isCodeExpanded ? 'line-clamp-3' : ''}`}
+              >
+                <p>I started coding back in 2003, making MySpace layouts for local bands and small businesses. That early work led me to study web development and design - specializing in Flash at a local community college.</p>
+                <p>As Flash faded away, I shifted into audio engineering and spent years running a recording studio, mixing and mastering audio for the same creative community I started out coding for. These days, I'm back to writing code - building modern web experiences that help artists and businesses connect with people. Though my tech stack has changed, my drive to help my community through code hasn't.</p>
+              </div>
+              {showCodeToggle && (
+                <button
+                  onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                  className="text-[#2c2c2c] font-bold mt-2 hover:underline"
+                >
+                  {isCodeExpanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
             <div className="mt-auto flex justify-end">
               <motion.a
                 href="#projects"
@@ -472,7 +509,7 @@ export default function HeroSection() {
                 }}
                 className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
               >
-                VIEW <ChevronRight className="w-5 h-5" strokeWidth={3} />
+                VIEW CODE <ChevronRight className="w-5 h-5" strokeWidth={3} />
               </motion.a>
             </div>
           </motion.div>
@@ -522,10 +559,23 @@ export default function HeroSection() {
             }}
           >
             <h2 className="text-4xl md:text-[2.5rem] lg:text-5xl xl:text-[3.5rem] 2xl:text-6xl section-header mb-8 text-[#2c2c2c]">DESIGN</h2>
-            <p className="text-lg mb-6 text-[#2c2c2c]">
-              Crafting beautiful, intuitive interfaces with attention to every
-              detail. User experience is at the heart of everything I create.
-            </p>
+            <div className="mb-6">
+              <div
+                ref={designTextRef}
+                className={`text-lg text-[#2c2c2c] space-y-4 ${!isDesignExpanded ? 'line-clamp-3' : ''}`}
+              >
+                <p>I was drawn to illustration and design at a very young age. As far back as grade school, I studied typography, color theory, and composition, building a foundation for thinking about visuals strategically.</p>
+                <p>In my teens, I dove into Milwaukee's music scene, helping bands and rappers bring their ideas to life. I designed everything from websites and album covers to t-shirts, packaging, stickers, flyers, pins/buttons, and promotional graphics - always focused on serving the client's brand and making their message clear and impactful.</p>
+              </div>
+              {showDesignToggle && (
+                <button
+                  onClick={() => setIsDesignExpanded(!isDesignExpanded)}
+                  className="text-[#2c2c2c] font-bold mt-2 hover:underline"
+                >
+                  {isDesignExpanded ? "Show less" : "Show more"}
+                </button>
+              )}
+            </div>
             <div className="mt-auto flex justify-end">
               <motion.a
                 href="#design-work"
@@ -554,7 +604,7 @@ export default function HeroSection() {
                 }}
                 className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
               >
-                VIEW <ChevronRight className="w-5 h-5" strokeWidth={3} />
+                VIEW DESIGN <ChevronRight className="w-5 h-5" strokeWidth={3} />
               </motion.a>
             </div>
           </motion.div>

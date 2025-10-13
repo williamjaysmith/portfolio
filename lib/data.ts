@@ -4,36 +4,38 @@ import { CodeProject, DesignProject, SkillCategory, Contact } from "./types";
 export const codeProjects: CodeProject[] = [
   {
     title: "Strangebad Effects",
-    description: "This is my current work in progress. A custom e-commerce shop for distributing audio tools. Actively designing and chipping away at development feature by feature. Integrating a device fingerprinting and licensing system to mitigate piracy.",
+    description: "This project may look like a standard e-commerce shop for distributing audio tools, but behind the scenes, I'm building a system to protect the client's digital products from piracy.<br><br>By integrating device fingerprinting (similar to Netflix's \"three devices per customer\") and a custom licensing workflow tied directly to each product's sign-in, I'm combining Shopify-style e-commerce functionality with iLok-style piracy protection.<br><br>The result is a platform that lets the client sell with confidence, ensuring only authorized users can access their products while keeping the experience seamless for customers.",
     tech: ["TypeScript", "React", "Next.js", "Tailwind", "Appwrite", "Stripe", "Photoshop", "Procreate"],
+    role: ["Frontend Development", "Backend Development", "UI/UX Design", "Data Modeling", "Brand Design and Development", "Custom E-commerce Integration", "Custom DRM Development", "Authentication", "Validation", "Email Integration", "Performance Optimization", "Responsiveness", "Accessibility"],
     link: "https://strangebadeffects.com",
     github: "#",
     image: "/Images/Code/StrangebadEffectsWebsite.mp4",
   },
   {
     title: "FriendlyReminder",
-    description: "Friendly Reminder is a contact management app. Users can schedule personalized reminders and receive notifications when it's time to reach out to their contacts. A built in GUEST MODE makes it easy to explore the app - Just click <strong>Sign In</strong> and select <strong>\"Login as Guest\"</strong> to try it without creating an account.",
+    description: "Friendly Reminder is more than a contact management app - it helps users stay consistent and intentional with their relationships.<br><br>Users can schedule personalized reminders and receive notifications when it's time to reach out - making it easy to maintain connections without letting anyone slip through the cracks.<br><br>A built-in Guest Mode lets anyone explore the app instantly - just click <strong>Sign In</strong> and select <strong>\"Login as Guest.\"</strong><br><br>Right now, the app prioritizes function over form - the interface is simple and utilitarian, designed to focus on solving the core problem efficiently.<br><br>While the design is minimal, every feature is built to help users manage their contacts and maintain meaningful connections.",
     tech: ["TypeScript", "React", "Next.js", "Tailwind", "Appwrite", "Resend"],
+    role: ["Frontend Development", "Backend Development", "UI/UX Design", "Data Modeling", "Authentication", "Validation", "Email Integration", "Performance Optimization", "Responsiveness", "Accessibility"],
     link: "https://friendly-reminder-sage.vercel.app",
     github: "https://github.com/williamjaysmith/FriendlyReminder",
     image: "/Images/Code/friendlyremindervideo.mp4",
   },
-  {
-    title: "TripForge",
-    description: "Full-stack tour booking with Stripe & Mapbox",
-    tech: ["Node.js", "Express", "MongoDB", "Stripe"],
-    link: "https://tripforge-110a0edcf1cc.herokuapp.com/",
-    github: "https://github.com/williamjaysmith/TripForge",
-    image: "/Images/Code/tripforge.mp4",
-  },
-  {
-    title: "Oddbird Portal",
-    description: "Interactive portal application",
-    tech: ["React", "TypeScript", "Next.js"],
-    link: "#",
-    github: "https://github.com/williamjaysmith",
-    image: "/Images/Code/OddbirdPortal.mp4",
-  },
+  // {
+  //   title: "TripForge",
+  //   description: "Full-stack tour booking with Stripe & Mapbox",
+  //   tech: ["Node.js", "Express", "MongoDB", "Stripe"],
+  //   link: "https://tripforge-110a0edcf1cc.herokuapp.com/",
+  //   github: "https://github.com/williamjaysmith/TripForge",
+  //   image: "/Images/Code/tripforge.mp4",
+  // },
+  // {
+  //   title: "Oddbird Portal",
+  //   description: "Interactive portal application",
+  //   tech: ["React", "TypeScript", "Next.js"],
+  //   link: "#",
+  //   github: "https://github.com/williamjaysmith",
+  //   image: "/Images/Code/OddbirdPortal.mp4",
+  // },
 ];
 
 export const designProjects: DesignProject[] = [
@@ -47,7 +49,7 @@ export const designProjects: DesignProject[] = [
   },
   {
     title: "Plugin UI/UX Design",
-    description: "This is a complete skeuomorphic GUI/UX design for Strangebad Effects' DSP plugin, <em>Superdope Machine</em>, mimicking the look and feel of real-world hardware. I created custom interactive assets including buttons, knobs, sliders, switches, and LEDs - each responding dynamically to user input. The interface was designed with a strong focus on user simplicity and workflow efficiency within the DAW environment.",
+    description: "This is a complete skeuomorphic GUI/UX design for Strangebad Effects' DSP plugin, Superdope Machine. Crafted to mimick the feel  real-world hardware. I created custom interactive assets including buttons, knobs, sliders, switches, and LEDs - each responding dynamically to user input, to make complex controls intuitive and predictable.<br><br>By mimicking familiar hardware, the interface reduces users cognitive load, streamlines workflow within the DAW, and helps musicians and producers focus on making music rather than learning new software controls.",
     tech: ["Photoshop", "True Grit"],
     link: "https://strangebadeffects.com",
     github: "#",
@@ -56,7 +58,7 @@ export const designProjects: DesignProject[] = [
   },
   {
     title: "Brand Design",
-    description: "This was a brand development project for OktavaMods, a company specializing in transforming affordable microphones into warm, articulate, and professional-grade recording tools. My goal was to create a visual identity that captures the character of their sound- which is rich, vintage warmth balanced with modern clarity.",
+    description: "This was a brand development project for Oktavamod (Michael Joly), a company specializing in transforming affordable microphones into professional-grade recording tools.<br><br>Oktavamod's original branding felt cold and digital, failing to capture the warm, rich character of their microphones. I developed a visual identity that reflects their sound - balancing vintage warmth with modern clarity. The result is a cohesive brand that helps Oktavamod connect with musicians and producers, making their affordable microphones feel like premium tools.",
     tech: ["Photoshop"],
     link: "#",
     github: "#",

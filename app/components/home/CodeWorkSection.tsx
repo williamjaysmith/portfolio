@@ -212,7 +212,7 @@ export default function CodeWorkSection() {
                 paddingBottom: 'var(--button-py)',
               }}
             >
-              VIEW ALL CODE <ChevronRight className="h-6 w-6" strokeWidth={3} />
+              VIEW CODE <ChevronRight className="h-6 w-6" strokeWidth={3} />
             </motion.button>
           </a>
         </motion.div>

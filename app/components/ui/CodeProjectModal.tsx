@@ -87,7 +87,6 @@ export default function CodeProjectModal({
                   loop
                   muted
                   playsInline
-                  controls
                   className="w-full h-auto rounded-xl mb-6 border-2 border-[#2c2c2c]"
                 />
               ) : (
@@ -118,6 +117,24 @@ export default function CodeProjectModal({
                 </button>
               )}
             </div>
+
+            {project.role && (
+              <div className="mb-8">
+                <h3 className="text-xl font-black text-[#2c2c2c] mb-3">
+                  MY ROLE
+                </h3>
+                <p className="text-lg md:text-xl text-[#2c2c2c] font-semibold mb-3">
+                  Built from scratch, handling:
+                </p>
+                <ul className="list-disc list-inside space-y-2">
+                  {project.role.map((role, i) => (
+                    <li key={i} className="text-lg md:text-xl text-[#2c2c2c]">
+                      {role}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="mb-8">
               <h3 className="text-xl font-black text-[#2c2c2c] mb-3">

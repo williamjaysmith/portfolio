@@ -208,7 +208,7 @@ export default function DesignWorkSection() {
                 paddingBottom: 'var(--button-py)',
               }}
             >
-              VIEW ALL DESIGN <ChevronRight className="w-6 h-6" strokeWidth={3} />
+              VIEW DESIGN <ChevronRight className="w-6 h-6" strokeWidth={3} />
             </motion.button>
           </a>
         </motion.div>

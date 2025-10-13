@@ -7,7 +7,6 @@ import { designProjects } from "@/lib/data";
 import { DesignProject } from "@/lib/types";
 import DesignProjectCard from "../components/ui/DesignProjectCard";
 import DesignProjectModal from "../components/ui/DesignProjectModal";
-import Nav from "../components/Nav";
 
 export default function DesignPage() {
   const [selectedProject, setSelectedProject] = useState<DesignProject | null>(
@@ -34,7 +33,6 @@ export default function DesignPage() {
         backgroundSize: "15px 15px",
       }}
     >
-      <Nav />
 
       <div className="pt-20 px-5 xs:px-8">
         <div className="max-w-7xl mx-auto">

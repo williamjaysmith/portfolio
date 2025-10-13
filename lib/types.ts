@@ -4,6 +4,7 @@ export interface CodeProject {
   title: string;
   description: string;
   tech: string[];
+  role?: string[];
   link: string;
   github: string;
   image?: string;
@@ -13,6 +14,7 @@ export interface DesignProject {
   title: string;
   description: string;
   tech: string[];
+  role?: string[];
   link: string;
   github: string;
   image?: string;
