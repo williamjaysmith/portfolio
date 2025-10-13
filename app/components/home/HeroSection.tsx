@@ -144,12 +144,9 @@ const skills = [
 export default function HeroSection() {
   const controls = useAnimation();
   const [mounted, setMounted] = useState(false);
-  const [isCodeExpanded, setIsCodeExpanded] = useState(false);
-  const [showCodeToggle, setShowCodeToggle] = useState(false);
-  const codeTextRef = useRef<HTMLDivElement>(null);
-  const [isDesignExpanded, setIsDesignExpanded] = useState(false);
-  const [showDesignToggle, setShowDesignToggle] = useState(false);
-  const designTextRef = useRef<HTMLDivElement>(null);
+  const [isAboutExpanded, setIsAboutExpanded] = useState(false);
+  const [showAboutToggle, setShowAboutToggle] = useState(false);
+  const aboutTextRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -204,11 +201,8 @@ export default function HeroSection() {
     if (!mounted) return;
 
     const checkOverflow = () => {
-      if (codeTextRef.current) {
-        setShowCodeToggle(codeTextRef.current.scrollHeight > codeTextRef.current.clientHeight);
-      }
-      if (designTextRef.current) {
-        setShowDesignToggle(designTextRef.current.scrollHeight > designTextRef.current.clientHeight);
+      if (aboutTextRef.current) {
+        setShowAboutToggle(aboutTextRef.current.scrollHeight > aboutTextRef.current.clientHeight);
       }
     };
 
@@ -417,13 +411,13 @@ export default function HeroSection() {
           </motion.a>
         </motion.div>
 
-        {/* Angled intro boxes */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* About Me Card */}
+        <div className="max-w-4xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, rotate: -5, y: 50 }}
+            initial={{ opacity: 0, rotate: -2, y: 50 }}
             animate={{
               opacity: 1,
-              rotate: [-3, 3, -3],
+              rotate: [-2, 2, -2],
               y: 0,
               boxShadow: [
                 "8px 8px 0px #2c2c2c",
@@ -463,25 +457,26 @@ export default function HeroSection() {
               borderRadius: "1rem",
             }}
           >
-            <h2 className="text-4xl md:text-[2.5rem] lg:text-5xl xl:text-[3.5rem] 2xl:text-6xl section-header mb-8 text-[#2c2c2c]">CODE</h2>
+            <h2 className="text-4xl md:text-[2.5rem] lg:text-5xl xl:text-[3.5rem] 2xl:text-6xl section-header mb-8 text-[#2c2c2c]">ABOUT ME</h2>
             <div className="mb-6">
               <div
-                ref={codeTextRef}
-                className={`text-lg text-[#2c2c2c] space-y-4 ${!isCodeExpanded ? 'line-clamp-3' : ''}`}
+                ref={aboutTextRef}
+                className={`text-lg text-[#2c2c2c] space-y-4 ${!isAboutExpanded ? 'line-clamp-3' : ''}`}
               >
-                <p>I started coding back in 2003, making MySpace layouts for local bands and small businesses. That early work led me to study web development and design - specializing in Flash at a local community college.</p>
-                <p>As Flash faded away, I shifted into audio engineering and spent years running a recording studio, mixing and mastering audio for the same creative community I started out coding for. These days, I&apos;m back to writing code - building modern web experiences that help artists and businesses connect with people. Though my tech stack has changed, my drive to help my community through code hasn&apos;t.</p>
+                <p>I was drawn to illustration and design at a young age. As far back as grade school, I was studying typography, color theory, and composition - building a foundation for thinking about visuals more strategically. In my teens, I dove into Milwaukee&apos;s music scene, helping bands and rappers bring their ideas to life. I designed album covers, t-shirts, packaging, stickers, flyers, pins, and promotional graphics- focused on helping artists grow their audience.</p>
+                <p>Around 2003, I started making custom MySpace layouts for those same artists and small businesses. That experience led me to study web development and design, specializing in Flash at a local community college. When Flash faded, I shifted gears toward audio engineering and opened a recording studio, where I continued to help those same creative communities develop their sound and package their ideas into something tangible, impactful and most of all appropriate for their identity as artists.</p>
+                <p>Though my tools and tastes in audio, design, and code have changed over the years, my purpose remains the same: to help my community by translating their vision into reality and continuing to learn and build cool stuff.</p>
               </div>
-              {showCodeToggle && (
+              {showAboutToggle && (
                 <button
-                  onClick={() => setIsCodeExpanded(!isCodeExpanded)}
+                  onClick={() => setIsAboutExpanded(!isAboutExpanded)}
                   className="text-[#2c2c2c] font-bold mt-2 hover:underline"
                 >
-                  {isCodeExpanded ? "Show less" : "Show more"}
+                  {isAboutExpanded ? "Show less" : "Show more"}
                 </button>
               )}
             </div>
-            <div className="mt-auto flex justify-end">
+            <div className="mt-auto flex flex-wrap gap-4 justify-end">
               <motion.a
                 href="#projects"
                 onClick={(e) => {
@@ -507,76 +502,10 @@ export default function HeroSection() {
                   boxShadow: "3px 3px 0px #2c2c2c",
                   transition: { duration: 0.1 },
                 }}
-                className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
+                className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-4 xs:px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-sm xs:text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
               >
-                VIEW CODE <ChevronRight className="w-5 h-5" strokeWidth={3} />
+                <span className="hidden sm:inline">VIEW </span>CODE <ChevronRight className="w-5 h-5" strokeWidth={3} />
               </motion.a>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, rotate: 5, y: 50 }}
-            animate={{
-              opacity: 1,
-              rotate: [3, -3, 3],
-              y: 0,
-              boxShadow: [
-                "-8px 8px 0px #2c2c2c",
-                "8px 8px 0px #2c2c2c",
-                "-8px 8px 0px #2c2c2c",
-              ],
-            }}
-            transition={{
-              delay: 0.2,
-              duration: 0.5,
-              type: "spring",
-              stiffness: 200,
-              damping: 15,
-              rotate: {
-                delay: 0.7,
-                duration: 8,
-                repeat: Infinity,
-                ease: "easeInOut",
-                repeatType: "reverse",
-              },
-              boxShadow: {
-                delay: 0.7,
-                duration: 8,
-                repeat: Infinity,
-                ease: "easeInOut",
-                repeatType: "reverse",
-              },
-            }}
-            whileHover={{
-              rotate: 0,
-              scale: 1.02,
-              boxShadow: "0px 8px 0px #2c2c2c",
-              transition: { duration: 0.2 },
-            }}
-            className="border-3 border-[#2c2c2c] p-8 bg-white transform origin-center rounded-2xl flex flex-col mb-[25px]"
-            style={{
-              borderRadius: "1rem",
-            }}
-          >
-            <h2 className="text-4xl md:text-[2.5rem] lg:text-5xl xl:text-[3.5rem] 2xl:text-6xl section-header mb-8 text-[#2c2c2c]">DESIGN</h2>
-            <div className="mb-6">
-              <div
-                ref={designTextRef}
-                className={`text-lg text-[#2c2c2c] space-y-4 ${!isDesignExpanded ? 'line-clamp-3' : ''}`}
-              >
-                <p>I was drawn to illustration and design at a very young age. As far back as grade school, I studied typography, color theory, and composition, building a foundation for thinking about visuals strategically.</p>
-                <p>In my teens, I dove into Milwaukee&apos;s music scene, helping bands and rappers bring their ideas to life. I designed everything from websites and album covers to t-shirts, packaging, stickers, flyers, pins/buttons, and promotional graphics - always focused on serving the client&apos;s brand and making their message clear and impactful.</p>
-              </div>
-              {showDesignToggle && (
-                <button
-                  onClick={() => setIsDesignExpanded(!isDesignExpanded)}
-                  className="text-[#2c2c2c] font-bold mt-2 hover:underline"
-                >
-                  {isDesignExpanded ? "Show less" : "Show more"}
-                </button>
-              )}
-            </div>
-            <div className="mt-auto flex justify-end">
               <motion.a
                 href="#design-work"
                 onClick={(e) => {
@@ -602,9 +531,9 @@ export default function HeroSection() {
                   boxShadow: "3px 3px 0px #2c2c2c",
                   transition: { duration: 0.1 },
                 }}
-                className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
+                className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-4 xs:px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-sm xs:text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
               >
-                VIEW DESIGN <ChevronRight className="w-5 h-5" strokeWidth={3} />
+                <span className="hidden sm:inline">VIEW </span>DESIGN <ChevronRight className="w-5 h-5" strokeWidth={3} />
               </motion.a>
             </div>
           </motion.div>
