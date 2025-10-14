@@ -23,25 +23,6 @@ import {
 } from "react-icons/si";
 import { TbApi } from "react-icons/tb";
 
-// Helper function to generate starting position based on index
-const getStartPosition = (index: number) => {
-  const directions = [
-    { x: -800, y: -600 }, // top-left
-    { x: -400, y: -700 }, // top-left-center
-    { x: 0, y: -800 },    // top
-    { x: 400, y: -700 },  // top-right-center
-    { x: 800, y: -600 },  // top-right
-  ];
-  return directions[index % directions.length];
-};
-
-// Helper function to generate delay based on index
-const getDelay = (index: number) => {
-  // Predefined shuffled sequence for 12 letters
-  const delaySequence = [0.6, 0.15, 1.2, 0.45, 0.9, 1.5, 0.3, 1.05, 0, 0.75, 1.35, 0.6];
-  return delaySequence[index % delaySequence.length];
-};
-
 const ROLES_RAW = ["DEVELOPER", "DESIGNER"];
 
 // Pad all roles to be the same length, right-aligned
@@ -239,38 +220,24 @@ export default function HeroSection() {
     >
       <div className="flex items-center px-5 xs:px-8">
         <div className="max-w-7xl mx-auto w-full">
-        <div className="mb-8 name-container relative z-20 pr-4" style={{ transform: 'rotate(-3deg)', marginLeft: '6px' }}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0, rotate: -180 }}
+          animate={{ opacity: 1, scale: 1, rotate: -3 }}
+          transition={{
+            type: "spring",
+            stiffness: 150,
+            damping: 10,
+            duration: 0.8
+          }}
+          className="mb-8 name-container relative z-20 pr-4"
+          style={{ marginLeft: '6px' }}
+        >
           {/* WILLIAM */}
           <div className="flex mb-4 name-william">
             {["W", "i", "l", "L", "i", "a", "M"].map((letter, i) => {
-              const startPosition = getStartPosition(i);
-              const delay = getDelay(i);
-              const rotateValues = [120, -45, 85, -160, 30, 95, -110];
-              const initialRotate = rotateValues[i];
-
               return (
-                <motion.span
+                <span
                   key={`william-${letter}-${i}`}
-                  initial={{
-                    x: startPosition.x,
-                    y: startPosition.y,
-                    opacity: 0,
-                    rotate: initialRotate
-                  }}
-                  animate={{
-                    x: 0,
-                    y: 0,
-                    opacity: 1,
-                    rotate: 0
-                  }}
-                  transition={{
-                    delay: delay,
-                    type: "spring",
-                    stiffness: 200,
-                    damping: 12,
-                    mass: 0.8,
-                    velocity: 1
-                  }}
                   className="text-[#2c2c2c] inline-block"
                   style={{
                     fontSize: 'var(--font-size)',
@@ -290,41 +257,16 @@ export default function HeroSection() {
                   }}
                 >
                   {letter}
-                </motion.span>
+                </span>
               );
             })}
           </div>
           {/* SMITH */}
           <div className="flex name-smith">
             {["S", "m", "i", "t", "h"].map((letter, i) => {
-              const startPosition = getStartPosition(i + 7);
-              const delay = getDelay(i + 7);
-              const rotateValues = [75, -135, 50, -90, 145];
-              const initialRotate = rotateValues[i];
-
               return (
-                <motion.span
+                <span
                   key={`smith-${letter}-${i}`}
-                  initial={{
-                    x: startPosition.x,
-                    y: startPosition.y,
-                    opacity: 0,
-                    rotate: initialRotate
-                  }}
-                  animate={{
-                    x: 0,
-                    y: 0,
-                    opacity: 1,
-                    rotate: 0
-                  }}
-                  transition={{
-                    delay: delay,
-                    type: "spring",
-                    stiffness: 200,
-                    damping: 12,
-                    mass: 0.8,
-                    velocity: 1
-                  }}
                   className="text-[#2c2c2c] inline-block"
                   style={{
                     fontSize: 'var(--font-size)',
@@ -339,30 +281,21 @@ export default function HeroSection() {
                   }}
                 >
                   {letter}
-                </motion.span>
+                </span>
               );
             })}
           </div>
 
           {/* Staggered Role Text - Below SMITH */}
-          <motion.div
-            initial={{ opacity: 0, y: 30, rotate: 0 }}
-            animate={{ opacity: 1, y: 0, rotate: 1.5 }}
-            transition={{
-              delay: 0.4,
-              duration: 0.4,
-              type: "spring",
-              stiffness: 300,
-              damping: 10,
-            }}
+          <div
             className="relative"
             style={{ left: 'var(--staggered-text-left)', top: 'var(--staggered-text-top)' }}
           >
             <div className="text-4xl xs:text-[2.5rem] sm:text-5xl md:text-6xl lg:text-6xl xl:text-7xl font-bold text-[#2c2c2c]">
               <SlotMachineText />
             </div>
-          </motion.div>
-        </div>
+          </div>
+        </motion.div>
 
         {/* Hire Me Button */}
         <motion.div
