@@ -38,7 +38,7 @@ export default function DesignProjectCard({
           ? "8px 8px 0px #2c2c2c"
           : (index % 2 === 0 ? "8px 8px 0px #2c2c2c" : "-8px 8px 0px #2c2c2c"),
       }}
-      viewport={{ once: false, margin: "0px", amount: 0.3 }}
+      viewport={{ once: true, margin: "0px", amount: 0.3 }}
       transition={{
         duration: 0.5,
         type: "spring",
