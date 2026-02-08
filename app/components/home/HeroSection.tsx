@@ -23,7 +23,7 @@ import {
 } from "react-icons/si";
 import { TbApi } from "react-icons/tb";
 
-const ROLES_RAW = ["DEVELOPER", "DESIGNER"];
+const ROLES_RAW = ["DEVELOPER", "DESIGNER", "ENGINEER"];
 
 // Pad all roles to be the same length, right-aligned
 const maxLength = Math.max(...ROLES_RAW.map(r => r.length));
@@ -397,7 +397,7 @@ export default function HeroSection() {
                 className={`text-lg text-[#2c2c2c] space-y-4 ${!isAboutExpanded ? 'line-clamp-3' : ''}`}
               >
                 <p>I was drawn to illustration and design at a young age. As far back as grade school, I was studying typography, color theory, and composition - building a foundation for thinking about visuals more strategically. In my teens, I dove into Milwaukee&apos;s music scene, helping bands and rappers bring their ideas to life. I designed album covers, t-shirts, packaging, stickers, flyers, pins, and promotional graphics- focused on helping artists grow their audience.</p>
-                <p>Around 2003, I started making custom MySpace layouts for those same artists and small businesses. That experience led me to study web development and design, specializing in Flash at a local community college. When Flash faded, I shifted gears toward audio engineering and opened a recording studio, where I continued to help those same creative communities develop their sound and package their ideas into something tangible and appropriate for their intent as artists.</p>
+                <p>Around 2003, I started making custom MySpace layouts for those same artists and small businesses. That experience led me to study web development and design, specializing in Flash at a local community college. When Flash faded, I shifted gears toward audio engineering and opened a recording studio on Milwaukees South Side, where I continued to help those same creative communities develop their sound and package their ideas into something tangible and appropriate for their intent as artists.</p>
                 <p>Though my tools and tastes in audio, design, and code have changed over the years, my purpose remains the same: to help my community by translating their vision into reality and continuing to learn and build cool stuff.</p>
               </div>
               {showAboutToggle && (
@@ -437,7 +437,7 @@ export default function HeroSection() {
                 }}
                 className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-4 xs:px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-sm xs:text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
               >
-                <span className="hidden sm:inline">VIEW </span>CODE <ChevronRight className="w-5 h-5" strokeWidth={3} />
+                CODE <ChevronRight className="w-5 h-5" strokeWidth={3} />
               </motion.a>
               <motion.a
                 href="#design-work"
@@ -466,7 +466,36 @@ export default function HeroSection() {
                 }}
                 className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-4 xs:px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-sm xs:text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
               >
-                <span className="hidden sm:inline">VIEW </span>DESIGN <ChevronRight className="w-5 h-5" strokeWidth={3} />
+                DESIGN <ChevronRight className="w-5 h-5" strokeWidth={3} />
+              </motion.a>
+              <motion.a
+                href="#audio-work"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document
+                    .getElementById("audio-work")
+                    ?.scrollIntoView({ behavior: "smooth" });
+                  setTimeout(() => {
+                    const el = document.getElementById("audio-work");
+                    el?.classList.add("jiggle");
+                    setTimeout(() => el?.classList.remove("jiggle"), 400);
+                  }, 600);
+                }}
+                initial={{ boxShadow: "0px 0px 0px #2c2c2c" }}
+                whileHover={{
+                  y: -6,
+                  boxShadow: "6px 6px 0px #2c2c2c",
+                  transition: { duration: 0.2 },
+                }}
+                whileTap={{
+                  x: 3,
+                  y: -3,
+                  boxShadow: "3px 3px 0px #2c2c2c",
+                  transition: { duration: 0.1 },
+                }}
+                className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-4 xs:px-6 py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-sm xs:text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-2 whitespace-nowrap"
+              >
+                AUDIO <ChevronRight className="w-5 h-5" strokeWidth={3} />
               </motion.a>
             </div>
           </motion.div>

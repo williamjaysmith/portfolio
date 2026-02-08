@@ -5,6 +5,7 @@ import Nav from "./components/Nav";
 import HeroSection from "./components/home/HeroSection";
 import CodeWorkSection from "./components/home/CodeWorkSection";
 import DesignWorkSection from "./components/home/DesignWorkSection";
+import AudioSection from "./components/home/AudioSection";
 import ContactSection from "./components/home/ContactSection";
 
 export default function Home() {
@@ -34,6 +35,7 @@ export default function Home() {
       <HeroSection />
       <CodeWorkSection />
       <DesignWorkSection />
+      <AudioSection />
       <ContactSection />
     </div>
   );

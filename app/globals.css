@@ -316,3 +316,87 @@ html {
   width: 0.58em; /* Letter spacing maintains ratio */
 }
 
+/* Marquee Animation for long text */
+.animate-marquee {
+  display: inline-block;
+  animation: marquee 10s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Range Slider Styling */
+input[type="range"].slider {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+input[type="range"].slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2c2c2c;
+  border: 3px solid #2c2c2c;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="range"].slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"].slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2c2c2c;
+  border: 3px solid #2c2c2c;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="range"].slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+
+/* White Range Slider Styling (for dark backgrounds) */
+input[type="range"].slider-white {
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+
+input[type="range"].slider-white::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="range"].slider-white::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+input[type="range"].slider-white::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+input[type="range"].slider-white::-moz-range-thumb:hover {
+  transform: scale(1.2);
+}
+

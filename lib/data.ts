@@ -1,5 +1,5 @@
 import { Mail, Github, Linkedin, Instagram } from "lucide-react";
-import { CodeProject, DesignProject, SkillCategory, Contact } from "./types";
+import { CodeProject, DesignProject, SkillCategory, Contact, AudioTrack } from "./types";
 
 export const codeProjects: CodeProject[] = [
   {
@@ -125,3 +125,82 @@ export const contacts: Contact[] = [
     icon: Instagram,
   },
 ];
+
+export const audioTracks: Record<string, AudioTrack[]> = {
+  "Rock": [
+     {
+      artist: "Go Crash Audio ",
+      genre: "Pop Rock",
+      provenance: [ "Engineering","Editing","Mixing", "Mastering"],
+      audioSrc: "/audio/rock/Go Crash Audio.mp3",
+    },
+    {
+      artist: "Andy Holley",
+      genre: "Blues Rock",
+      provenance: ["Engineering, Editing , Mixing, Mastering, Drums and Bass"],
+      audioSrc: "/audio/rock/Andy Holley.mp3",
+    },
+     {
+      artist: "Direct Hit",
+      genre: "Pop Rock",
+      provenance: ["Engineering, Mastering"],
+      audioSrc: "/audio/rock/Direct Hit.mp3",
+    },
+  
+  ],
+  "Rap/Pop": [
+    {
+      artist: "Charlie Goldplated",
+      genre: "Rnb/Pop",
+      provenance: ["Tracking","Mixing", "Mastering"],
+      audioSrc: "/audio/rap/Charlie Goldplated.mp3",
+    },
+    {
+      artist: "Big Caption",
+      genre: "Hip Hop",
+      provenance: ["Engineering", "Mixing", "Mastering"],
+      audioSrc: "/audio/rap/Big Caption.mp3",
+    },
+   
+  ],
+  "Punk/Metal": [
+    {
+      artist: "Skyhammer",
+      genre: "Metal",
+      provenance: ["Engineering", "Editing", "Mixing", "Mastering"],
+      audioSrc: "/audio/punk/Skyhammer.mp3",
+    },
+    {
+      artist: "Steel Iron",
+      genre: "Speed Metal",
+      provenance: ["Editing", "Mastering"],
+      audioSrc: "/audio/punk/Steel Iron.mp3",
+    },
+    {
+      artist: "Lowlives",
+      genre: "Punk",
+      provenance: ["Engineering", "Editing", "Mixing","Mastering"],
+      audioSrc: "/audio/punk/Lowlives.mp3",
+    },
+  ],
+  "Acoustic": [
+    {
+      artist: "Kevn Kinney",
+      genre: "Acoustic",
+      provenance: ["Tracking","Mixing", "Mastering"],
+      audioSrc: "/audio/acoustic/Kevn Kinney.mp3",
+    },
+     {
+      artist: "The Scarring Party",
+      genre: "Steampunk",
+      provenance: ["Tracking","Editing", "Mixing","Mastering"],
+      audioSrc: "/audio/acoustic/Scarring Party.mp3",
+    },
+    {
+      artist: "Patty Kinney",
+      genre: "Worship",
+      provenance: ["Engineering", "Mixing", "Mastering", "Cello"],
+      audioSrc: "/audio/acoustic/Patty Kinney.mp3",
+    },
+  ],
+};

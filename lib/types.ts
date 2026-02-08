@@ -31,3 +31,10 @@ export interface Contact {
   link: string;
   icon: LucideIcon;
 }
+
+export interface AudioTrack {
+  artist: string;
+  genre: string;
+  provenance: string[];
+  audioSrc: string;
+}
