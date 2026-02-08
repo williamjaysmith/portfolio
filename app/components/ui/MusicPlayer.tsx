@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Play, Pause, Square, ChevronRight, Volume2 } from "lucide-react";
 import { audioTracks } from "@/lib/data";
-import { AudioTrack } from "@/lib/types";
 
 const genres = ["Rock", "Rap/Pop", "Punk/Metal", "Acoustic"];
 
@@ -84,13 +83,6 @@ export default function MusicPlayer() {
     }
   };
 
-  // Handle previous track
-  const handlePrev = () => {
-    setCurrentTrackIndex((prev) =>
-      prev === 0 ? currentPlaylist.length - 1 : prev - 1
-    );
-  };
-
   // Handle time update
   const handleTimeUpdate = () => {
     if (audioRef.current) {
@@ -128,14 +120,6 @@ export default function MusicPlayer() {
     setSelectedGenre(genre);
     setCurrentTrackIndex(0);
     setIsPlaying(false);
-  };
-
-  // Format time (seconds to mm:ss)
-  const formatTime = (time: number) => {
-    if (isNaN(time)) return "0:00";
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   // Handle track end
