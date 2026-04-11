@@ -77,7 +77,7 @@ function SortableTrackItem({
       >
         <span
           className={`text-[#2c2c2c] flex-1 ${
-            isCurrentTrack ? "font-bold" : ""
+            isCurrentTrack ? "font-extrabold" : "font-semibold"
           }`}
         >
           {track.title}
@@ -255,12 +255,12 @@ export default function Skyhammer() {
   };
 
   // Calculate gradient position accounting for thumb width and slider dimensions
-  const getGradientPosition = (value: number, max: number, sliderRef: React.RefObject<HTMLInputElement>) => {
+  const getGradientPosition = (value: number, max: number, sliderRef: React.RefObject<HTMLInputElement | null>) => {
     if (!max || !sliderRef.current) {
       return (value / (max || 1)) * 100;
     }
 
-    const thumbWidth = 32;
+    const thumbWidth = 40;
     const sliderWidth = sliderRef.current.offsetWidth;
     const percentage = value / max;
 
@@ -295,9 +295,9 @@ export default function Skyhammer() {
         input[type="range"].slider-pink::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 32px;
-          height: 32px;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+          width: 40px;
+          height: 40px;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
@@ -306,15 +306,27 @@ export default function Skyhammer() {
         }
 
         input[type="range"].slider-pink::-moz-range-thumb {
-          width: 32px;
-          height: 32px;
+          width: 40px;
+          height: 40px;
           border: none;
           border-radius: 0;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
           cursor: pointer;
+        }
+
+        input[type="range"].slider-volume::-webkit-slider-thumb {
+          width: 30px;
+          height: 30px;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+        }
+
+        input[type="range"].slider-volume::-moz-range-thumb {
+          width: 30px;
+          height: 30px;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
         }
       `}</style>
       <div
@@ -391,7 +403,7 @@ export default function Skyhammer() {
                   >
                     <span
                       className={`text-[#2c2c2c] flex-1 ${
-                        currentTrackIndex === index ? "font-bold" : ""
+                        currentTrackIndex === index ? "font-extrabold" : "font-semibold"
                       }`}
                     >
                       {track.title}
@@ -403,7 +415,7 @@ export default function Skyhammer() {
           )}
 
           {/* Progress Bar */}
-          <div className="mb-6 overflow-hidden px-4 -mx-4">
+          <div className="mb-6">
             <input
               ref={progressRef}
               type="range"
@@ -413,7 +425,7 @@ export default function Skyhammer() {
               onChange={handleSeek}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer slider-pink"
               style={{
-                background: `linear-gradient(to right, #2c2c2c 0%, #2c2c2c ${
+                background: `linear-gradient(to right, #4a4a4a 0%, #4a4a4a ${
                   getGradientPosition(currentTime, duration, progressRef)
                 }%, #e5e5e5 ${getGradientPosition(currentTime, duration, progressRef)}%, #e5e5e5 100%)`,
               }}
@@ -432,16 +444,16 @@ export default function Skyhammer() {
                 onClick={handlePrevious}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                className="text-[#2c2c2c]"
+                className="text-[#4a4a4a]"
               >
-                <SkipBack className="w-7 h-7" strokeWidth={2} fill="#2c2c2c" />
+                <SkipBack className="w-7 h-7" strokeWidth={2} fill="#4a4a4a" />
               </motion.button>
 
               <motion.button
                 onClick={handlePlayPause}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                className="w-14 h-14 rounded-full border-2 border-[#2c2c2c] bg-[#2c2c2c] text-white flex items-center justify-center transition-colors"
+                className="w-14 h-14 rounded-full border-2 border-[#4a4a4a] bg-[#4a4a4a] text-white flex items-center justify-center transition-colors"
               >
                 {isPlaying ? (
                   <Pause className="w-7 h-7" strokeWidth={2} />
@@ -454,32 +466,30 @@ export default function Skyhammer() {
                 onClick={handleNext}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.9 }}
-                className="text-[#2c2c2c]"
+                className="text-[#4a4a4a]"
               >
-                <SkipForward className="w-7 h-7" strokeWidth={2} fill="#2c2c2c" />
+                <SkipForward className="w-7 h-7" strokeWidth={2} fill="#4a4a4a" />
               </motion.button>
             </div>
 
             {/* Volume Control - Right Aligned - Hidden on Mobile */}
             <div className="hidden sm:flex items-center justify-end gap-3">
               <Volume2 className="w-5 h-5 text-[#2c2c2c]" strokeWidth={2.5} />
-              <div className="overflow-hidden px-4 -mx-4">
-                <input
-                  ref={volumeRef}
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={volume}
-                  onChange={handleVolumeChange}
-                  className="w-24 h-1 rounded-lg appearance-none cursor-pointer slider-pink"
-                  style={{
-                    background: `linear-gradient(to right, #2c2c2c 0%, #2c2c2c ${
-                      getGradientPosition(volume, 1, volumeRef)
-                    }%, #e5e5e5 ${getGradientPosition(volume, 1, volumeRef)}%, #e5e5e5 100%)`,
-                  }}
-                />
-              </div>
+              <input
+                ref={volumeRef}
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={handleVolumeChange}
+                className="w-24 h-1 rounded-lg appearance-none cursor-pointer slider-pink slider-volume"
+                style={{
+                  background: `linear-gradient(to right, #4a4a4a 0%, #4a4a4a ${
+                    getGradientPosition(volume, 1, volumeRef)
+                  }%, #e5e5e5 ${getGradientPosition(volume, 1, volumeRef)}%, #e5e5e5 100%)`,
+                }}
+              />
             </div>
           </div>
 
