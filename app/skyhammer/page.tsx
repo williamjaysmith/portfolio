@@ -284,7 +284,7 @@ export default function Skyhammer() {
           backgroundRepeat: "no-repeat",
         }}
       >
-        <div className="w-full max-w-2xl">
+        <div className="w-full max-w-2xl pb-16">
         {/* Logo Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
