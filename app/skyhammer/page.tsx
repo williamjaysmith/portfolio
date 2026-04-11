@@ -70,7 +70,11 @@ function SortableTrackItem({
         {...listeners}
         onContextMenu={(e) => e.preventDefault()}
         className="cursor-grab active:cursor-grabbing text-[#2c2c2c]/50 hover:text-[#2c2c2c] flex items-center justify-center py-4 pl-4 pr-2 min-w-[80px] select-none"
-        style={{ touchAction: 'none' }}
+        style={{
+          touchAction: 'none',
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+        }}
       >
         <GripVertical className="w-5 h-5" />
       </div>
@@ -151,6 +155,7 @@ export default function Skyhammer() {
         delay: 250,
         tolerance: 5,
       },
+      onActivation: (event) => event.event.preventDefault(),
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
