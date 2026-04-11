@@ -35,7 +35,7 @@ export default function Home() {
       <HeroSection />
       <CodeWorkSection />
       <DesignWorkSection />
-      <AudioSection />
+      {/* <AudioSection /> */}
       <ContactSection />
     </div>
   );

@@ -468,7 +468,7 @@ export default function HeroSection() {
               >
                 DESIGN <ChevronRight className="w-4 h-4 xs:w-4 xs:h-4 sm:w-5 sm:h-5" strokeWidth={3} />
               </motion.a>
-              <motion.a
+              {/* <motion.a
                 href="#audio-work"
                 onClick={(e) => {
                   e.preventDefault();
@@ -496,7 +496,7 @@ export default function HeroSection() {
                 className="border-3 border-[#2c2c2c] bg-[#2c2c2c] text-white px-2.5 xs:px-4 sm:px-6 py-1.5 xs:py-1.5 sm:py-2 md:px-[1.625rem] md:py-[0.5625rem] lg:px-7 lg:py-2.5 xl:px-[1.875rem] xl:py-[0.6875rem] 2xl:px-8 2xl:py-3 text-xs xs:text-sm sm:text-base md:text-[1.0625rem] lg:text-lg xl:text-[1.1875rem] 2xl:text-xl font-black hover:bg-white hover:text-[#2c2c2c] transition-colors rounded-xl inline-flex items-center gap-1 xs:gap-1.5 sm:gap-2 whitespace-nowrap"
               >
                 AUDIO <ChevronRight className="w-4 h-4 xs:w-4 xs:h-4 sm:w-5 sm:h-5" strokeWidth={3} />
-              </motion.a>
+              </motion.a> */}
             </div>
           </motion.div>
         </div>
