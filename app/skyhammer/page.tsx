@@ -299,7 +299,7 @@ export default function Skyhammer() {
           width: 40px;
           height: 40px;
           background-color: transparent;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23f3e1b7' stroke='%232c2c2c' stroke-width='0.9' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
@@ -316,7 +316,7 @@ export default function Skyhammer() {
           border: none;
           border-radius: 0;
           background-color: transparent;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23f3e1b7' stroke='%232c2c2c' stroke-width='0.9' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
@@ -328,7 +328,7 @@ export default function Skyhammer() {
           width: 30px;
           height: 30px;
           background-color: transparent;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23f3e1b7' stroke='%232c2c2c' stroke-width='0.9' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
@@ -341,7 +341,7 @@ export default function Skyhammer() {
           width: 30px;
           height: 30px;
           background-color: transparent;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23f3e1b7' stroke='%232c2c2c' stroke-width='0.9' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
@@ -359,7 +359,7 @@ export default function Skyhammer() {
           backgroundRepeat: "no-repeat",
         }}
       >
-        <div className="w-full max-w-2xl pb-16">
+        <div className="w-full max-w-md pb-16">
         {/* Logo Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -372,7 +372,7 @@ export default function Skyhammer() {
             alt="Skyhammer"
             width={448}
             height={200}
-            className="w-full max-w-md"
+            className="w-full"
             priority
           />
         </motion.div>
