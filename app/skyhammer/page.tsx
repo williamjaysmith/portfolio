@@ -403,7 +403,7 @@ export default function Skyhammer() {
           )}
 
           {/* Progress Bar */}
-          <div className="mb-6">
+          <div className="mb-6 overflow-hidden px-4 -mx-4">
             <input
               ref={progressRef}
               type="range"
@@ -463,21 +463,23 @@ export default function Skyhammer() {
             {/* Volume Control - Right Aligned - Hidden on Mobile */}
             <div className="hidden sm:flex items-center justify-end gap-3">
               <Volume2 className="w-5 h-5 text-[#2c2c2c]" strokeWidth={2.5} />
-              <input
-                ref={volumeRef}
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={volume}
-                onChange={handleVolumeChange}
-                className="w-24 h-1 rounded-lg appearance-none cursor-pointer slider-pink"
-                style={{
-                  background: `linear-gradient(to right, #2c2c2c 0%, #2c2c2c ${
-                    getGradientPosition(volume, 1, volumeRef)
-                  }%, #e5e5e5 ${getGradientPosition(volume, 1, volumeRef)}%, #e5e5e5 100%)`,
-                }}
-              />
+              <div className="overflow-hidden px-4 -mx-4">
+                <input
+                  ref={volumeRef}
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
+                  onChange={handleVolumeChange}
+                  className="w-24 h-1 rounded-lg appearance-none cursor-pointer slider-pink"
+                  style={{
+                    background: `linear-gradient(to right, #2c2c2c 0%, #2c2c2c ${
+                      getGradientPosition(volume, 1, volumeRef)
+                    }%, #e5e5e5 ${getGradientPosition(volume, 1, volumeRef)}%, #e5e5e5 100%)`,
+                  }}
+                />
+              </div>
             </div>
           </div>
 
