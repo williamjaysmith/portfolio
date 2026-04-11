@@ -119,11 +119,11 @@ function SortableTrackItem({
 export default function Skyhammer() {
   // Album tracks
   const initialTracks: Track[] = [
-    { id: "1", title: "Bad Blood", audioSrc: "/audio/skyhammer/Bad Blood R05.mp3" },
-    { id: "2", title: "Fire It Up", audioSrc: "/audio/skyhammer/Fire It Up R05 (1).mp3" },
+    { id: "1", title: "Fire It Up", audioSrc: "/audio/skyhammer/Fire It Up.mp3" },
+    { id: "2", title: "Runnin' Wild", audioSrc: "/audio/skyhammer/Runnin' Wild.mp3" },
     { id: "3", title: "Give 'Em Hell", audioSrc: "/audio/skyhammer/Give 'Em Hell R05.mp3" },
-    { id: "4", title: "Hell Yeah", audioSrc: "/audio/skyhammer/Hell Yeah R05.mp3" },
-    { id: "5", title: "Runnin' Wild", audioSrc: "/audio/skyhammer/Runnin' Wild R05.mp3" },
+    { id: "4", title: "Bad Blood", audioSrc: "/audio/skyhammer/Bad Blood.mp3" },
+    { id: "5", title: "Hell Yeah", audioSrc: "/audio/skyhammer/Hell Yeah.mp3" },
   ];
 
   const [tracks, setTracks] = useState<Track[]>(initialTracks);
