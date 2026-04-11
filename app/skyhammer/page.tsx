@@ -124,6 +124,8 @@ export default function Skyhammer() {
   const [volume, setVolume] = useState(1);
   const [mounted, setMounted] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const progressRef = useRef<HTMLInputElement>(null);
+  const volumeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -252,26 +254,66 @@ export default function Skyhammer() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
+  // Calculate gradient position accounting for thumb width and slider dimensions
+  const getGradientPosition = (value: number, max: number, sliderRef: React.RefObject<HTMLInputElement>) => {
+    if (!max || !sliderRef.current) {
+      return (value / (max || 1)) * 100;
+    }
+
+    const thumbWidth = 32;
+    const sliderWidth = sliderRef.current.offsetWidth;
+    const percentage = value / max;
+
+    // The thumb center travels from (thumbWidth/2) to (sliderWidth - thumbWidth/2)
+    // Calculate where the thumb center actually is as a percentage of the total slider width
+    const thumbCenterPixels = (thumbWidth / 2) + percentage * (sliderWidth - thumbWidth);
+    const gradientPercent = (thumbCenterPixels / sliderWidth) * 100;
+
+    return gradientPercent;
+  };
+
   return (
     <>
       <style jsx>{`
+        input[type="range"].slider-pink {
+          -webkit-appearance: none;
+          appearance: none;
+        }
+
+        input[type="range"].slider-pink::-webkit-slider-track {
+          -webkit-appearance: none;
+          appearance: none;
+          background: transparent;
+          border: none;
+        }
+
+        input[type="range"].slider-pink::-moz-range-track {
+          background: transparent;
+          border: none;
+        }
+
         input[type="range"].slider-pink::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: #bc6b84;
-          border: 2px solid #2c2c2c;
+          width: 32px;
+          height: 32px;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+          background-size: contain;
+          background-repeat: no-repeat;
+          background-position: center;
           cursor: pointer;
+          margin-top: 0px;
         }
 
         input[type="range"].slider-pink::-moz-range-thumb {
-          width: 16px;
-          height: 16px;
-          border-radius: 50%;
-          background: #bc6b84;
-          border: 2px solid #2c2c2c;
+          width: 32px;
+          height: 32px;
+          border: none;
+          border-radius: 0;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'%3E%3Cpath d='M13 2L3 14h8l-1 8 10-12h-8l1-8z' fill='%23e6c888' stroke='%232c2c2c' stroke-width='1.2' stroke-linejoin='round' transform='rotate(15 12 12)'/%3E%3C/svg%3E");
+          background-size: contain;
+          background-repeat: no-repeat;
+          background-position: center;
           cursor: pointer;
         }
       `}</style>
@@ -363,6 +405,7 @@ export default function Skyhammer() {
           {/* Progress Bar */}
           <div className="mb-6">
             <input
+              ref={progressRef}
               type="range"
               min="0"
               max={duration || 0}
@@ -371,8 +414,8 @@ export default function Skyhammer() {
               className="w-full h-2 rounded-lg appearance-none cursor-pointer slider-pink"
               style={{
                 background: `linear-gradient(to right, #2c2c2c 0%, #2c2c2c ${
-                  duration ? (currentTime / duration) * 100 : 0
-                }%, #e5e5e5 ${duration ? (currentTime / duration) * 100 : 0}%, #e5e5e5 100%)`,
+                  getGradientPosition(currentTime, duration, progressRef)
+                }%, #e5e5e5 ${getGradientPosition(currentTime, duration, progressRef)}%, #e5e5e5 100%)`,
               }}
             />
             <div className="flex justify-between text-sm text-[#2c2c2c] mt-2">
@@ -421,6 +464,7 @@ export default function Skyhammer() {
             <div className="hidden sm:flex items-center justify-end gap-3">
               <Volume2 className="w-5 h-5 text-[#2c2c2c]" strokeWidth={2.5} />
               <input
+                ref={volumeRef}
                 type="range"
                 min="0"
                 max="1"
@@ -430,8 +474,8 @@ export default function Skyhammer() {
                 className="w-24 h-1 rounded-lg appearance-none cursor-pointer slider-pink"
                 style={{
                   background: `linear-gradient(to right, #2c2c2c 0%, #2c2c2c ${
-                    volume * 100
-                  }%, #e5e5e5 ${volume * 100}%, #e5e5e5 100%)`,
+                    getGradientPosition(volume, 1, volumeRef)
+                  }%, #e5e5e5 ${getGradientPosition(volume, 1, volumeRef)}%, #e5e5e5 100%)`,
                 }}
               />
             </div>
