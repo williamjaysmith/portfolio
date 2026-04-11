@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Play, Pause, Volume2, SkipForward, SkipBack, GripVertical } from "lucide-react";
+import Image from "next/image";
 import {
   DndContext,
   closestCenter,
@@ -304,6 +305,9 @@ export default function Skyhammer() {
           background-position: center;
           cursor: pointer;
           margin-top: 0px;
+          border: none;
+          box-shadow: none;
+          -webkit-box-shadow: none;
         }
 
         input[type="range"].slider-pink::-moz-range-thumb {
@@ -317,6 +321,7 @@ export default function Skyhammer() {
           background-repeat: no-repeat;
           background-position: center;
           cursor: pointer;
+          box-shadow: none;
         }
 
         input[type="range"].slider-volume::-webkit-slider-thumb {
@@ -327,6 +332,9 @@ export default function Skyhammer() {
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
+          border: none;
+          box-shadow: none;
+          -webkit-box-shadow: none;
         }
 
         input[type="range"].slider-volume::-moz-range-thumb {
@@ -337,11 +345,14 @@ export default function Skyhammer() {
           background-size: contain;
           background-repeat: no-repeat;
           background-position: center;
+          border: none;
+          box-shadow: none;
         }
       `}</style>
       <div
-        className="min-h-screen bg-white flex items-center justify-center px-5"
+        className="min-h-screen flex items-center justify-center px-5"
         style={{
+          backgroundColor: "#fbf8f0",
           backgroundImage: "url('/Images/Skyhammer/skyhammerplayerbackground.png')",
           backgroundSize: "cover",
           backgroundPosition: "center",
@@ -356,10 +367,13 @@ export default function Skyhammer() {
           transition={{ duration: 0.6 }}
           className="flex justify-center mb-4"
         >
-          <img
+          <Image
             src="/Images/Skyhammer/skyhammerlogo.png"
             alt="Skyhammer"
+            width={448}
+            height={200}
             className="w-full max-w-md"
+            priority
           />
         </motion.div>
 
