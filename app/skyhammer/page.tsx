@@ -278,7 +278,7 @@ export default function Skyhammer() {
       <div
         className="min-h-screen bg-white flex items-center justify-center px-5"
         style={{
-          backgroundImage: "url('/images/Skyhammer/skyhammerplayerbackground.png')",
+          backgroundImage: "url('/Images/Skyhammer/skyhammerplayerbackground.png')",
           backgroundSize: "cover",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
@@ -293,7 +293,7 @@ export default function Skyhammer() {
           className="flex justify-center mb-4"
         >
           <img
-            src="/images/Skyhammer/skyhammerlogo.png"
+            src="/Images/Skyhammer/skyhammerlogo.png"
             alt="Skyhammer"
             className="w-full max-w-md"
           />
