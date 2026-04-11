@@ -68,7 +68,9 @@ function SortableTrackItem({
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing text-[#2c2c2c]/50 hover:text-[#2c2c2c] flex items-center justify-center py-4 pl-4 pr-2 min-w-[80px]"
+        onContextMenu={(e) => e.preventDefault()}
+        className="cursor-grab active:cursor-grabbing text-[#2c2c2c]/50 hover:text-[#2c2c2c] flex items-center justify-center py-4 pl-4 pr-2 min-w-[80px] select-none"
+        style={{ touchAction: 'none' }}
       >
         <GripVertical className="w-5 h-5" />
       </div>
