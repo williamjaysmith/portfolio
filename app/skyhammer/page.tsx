@@ -60,21 +60,24 @@ function SortableTrackItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`p-4 flex items-center gap-4 border-b border-[#2c2c2c]/20 ${
+      className={`flex items-center border-b border-[#2c2c2c]/20 ${
         isCurrentTrack ? "bg-[#2c2c2c]/10" : ""
       }`}
     >
+      {/* Left draggable area - about 1/4 of the row */}
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing text-[#2c2c2c]/50 hover:text-[#2c2c2c]"
+        className="cursor-grab active:cursor-grabbing text-[#2c2c2c]/50 hover:text-[#2c2c2c] flex items-center justify-center py-4 pl-4 pr-2 min-w-[80px]"
       >
         <GripVertical className="w-5 h-5" />
       </div>
+
+      {/* Right clickable area - plays the song */}
       <motion.div
         onClick={onTrackClick}
         whileHover={{ backgroundColor: "rgba(44, 44, 44, 0.05)" }}
-        className="flex-1 flex items-center gap-4 cursor-pointer rounded px-2 py-1"
+        className="flex-1 flex items-center gap-4 cursor-pointer rounded py-4 pr-4 pl-2"
       >
         <span
           className={`text-[#2c2c2c] flex-1 ${
@@ -143,7 +146,7 @@ export default function Skyhammer() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8,
+        distance: 3,
       },
     }),
     useSensor(KeyboardSensor, {
