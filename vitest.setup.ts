@@ -1,4 +1,14 @@
 import "@testing-library/jest-dom/vitest";
+import { afterEach } from "vitest";
+import { cleanup } from "@testing-library/react";
+
+// Vitest's `globals` option is off in this repo, so the global `afterEach`
+// that @testing-library/react's auto-cleanup relies on is never defined and
+// rendered DOM trees silently accumulate across tests in the same file.
+// Register cleanup explicitly so each test starts from an empty document.
+afterEach(() => {
+  cleanup();
+});
 
 // Node 22+ ships an experimental global `localStorage` that is unusable
 // without `--localstorage-file` (accessing it warns and returns undefined).
