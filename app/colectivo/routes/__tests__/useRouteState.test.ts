@@ -32,12 +32,4 @@ describe("useRouteState", () => {
     expect(result.current.notes[madison.stopIds[0]]).toBe("glass counter");
     expect(backend.loadNotes()[madison.stopIds[0]]).toBe("glass counter");
   });
-
-  it("exportNotes formats saved notes as text", () => {
-    const backend = createMemoryBackend();
-    const { result } = renderHook(() => useRouteState(madison, backend));
-    act(() => result.current.setNote("hilldale", "glass counter"));
-    expect(result.current.exportNotes()).toContain("Colectivo Hilldale");
-    expect(result.current.exportNotes()).toContain("glass counter");
-  });
 });

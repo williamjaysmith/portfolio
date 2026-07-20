@@ -48,16 +48,6 @@ export function StopList({ route, onBack, backend }: StopListProps) {
     }
   };
 
-  const handleExport = async () => {
-    const text = rs.exportNotes();
-    try {
-      await navigator.clipboard.writeText(text);
-      alert("Notes copied to clipboard.");
-    } catch {
-      alert(text);
-    }
-  };
-
   const handleReset = () => {
     if (window.confirm(`Reset ${route.label} to default? This clears your order and delivered marks. Your notes are kept.`)) {
       rs.reset();
@@ -136,13 +126,6 @@ export function StopList({ route, onBack, backend }: StopListProps) {
           className="px-3 py-2 border border-[#2c2c2c] text-[#2c2c2c] font-bold text-sm"
         >
           {showDelivered ? "Hide delivered" : `Show delivered (${deliveredCount})`}
-        </button>
-        <button
-          type="button"
-          onClick={handleExport}
-          className="px-3 py-2 border border-[#2c2c2c] text-[#2c2c2c] font-bold text-sm"
-        >
-          Export notes
         </button>
         <button
           type="button"

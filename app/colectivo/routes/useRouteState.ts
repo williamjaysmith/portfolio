@@ -26,7 +26,6 @@ export interface UseRouteState {
   toggleDelivered(stopId: string): void;
   reset(): void;
   setNote(stopId: string, text: string): void;
-  exportNotes(): string;
 }
 
 const EMPTY: RouteState = { order: [], delivered: [] };
@@ -68,9 +67,5 @@ export function useRouteState(route: RouteDef, backend?: RouteStorage): UseRoute
       setNotes(next);
       store.saveNotes(next);
     },
-    exportNotes: () =>
-      Object.entries(notes)
-        .map(([id, text]) => `${stops[id]?.name ?? id}\n${text}`)
-        .join("\n\n"),
   };
 }
