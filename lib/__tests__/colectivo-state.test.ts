@@ -28,15 +28,21 @@ describe("reconcile", () => {
   });
 
   it("drops saved ids that no longer exist in the stops map", () => {
-    const saved = { order: ["a", "gone", "b"], delivered: ["gone"] };
+    const saved = { order: ["a", "gone", "b", "c"], delivered: ["gone"] };
     const result = reconcile(route, stops, saved);
-    expect(result.order).toEqual(["a", "b"]);
+    expect(result.order).toEqual(["a", "b", "c"]);
     expect(result.delivered).toEqual([]);
   });
 
   it("appends newly-added native stops missing from the saved order", () => {
     const saved = { order: ["b", "a"], delivered: [] }; // "c" added to defaults since save
     expect(reconcile(route, stops, saved).order).toEqual(["b", "a", "c"]);
+  });
+
+  it("appends newly-added native stops even when a stale id was also dropped", () => {
+    const saved = { order: ["b", "gone"], delivered: [] }; // "gone" stale, "a" and "c" new natives
+    const result = reconcile(route, stops, saved);
+    expect(result.order).toEqual(["b", "a", "c"]);
   });
 
   it("keeps saved out-of-route (added) stops that still exist", () => {

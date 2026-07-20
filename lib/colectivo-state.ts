@@ -19,16 +19,10 @@ export function reconcile(
 
   // Keep saved order, drop stops that no longer exist.
   const order = saved.order.filter(exists);
-  const droppedStaleIds = order.length !== saved.order.length;
 
-  // Append native stops added to the route's defaults since the last save —
-  // but only when the saved order was already fully valid. If we just
-  // dropped stale references, treat this pass as a cleanup and let the next
-  // reconcile (against clean data) pick up any newly-added native stops.
-  if (!droppedStaleIds) {
-    for (const id of route.stopIds) {
-      if (exists(id) && !order.includes(id)) order.push(id);
-    }
+  // Append native stops added to the route's defaults since the last save.
+  for (const id of route.stopIds) {
+    if (exists(id) && !order.includes(id)) order.push(id);
   }
 
   const delivered = saved.delivered.filter((id) => order.includes(id));

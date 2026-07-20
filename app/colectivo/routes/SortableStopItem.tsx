@@ -92,7 +92,7 @@ export function SortableStopItem({
             type="button"
             onClick={() => setNotesOpen((v) => !v)}
             aria-label="Toggle notes"
-            className="mt-1 inline-flex items-center gap-1 text-xs text-[#2c2c2c]/60"
+            className="mt-1 inline-flex items-center gap-1 text-xs text-[#2c2c2c]/80"
           >
             <ChevronDown className={`w-4 h-4 transition-transform ${notesOpen ? "rotate-180" : ""}`} />
             Notes{note ? " •" : ""}
@@ -150,11 +150,11 @@ export function SortableStopItem({
             type="button"
             onClick={() => setShowInfo((v) => !v)}
             aria-label="About note storage"
-            className="mt-1 inline-flex items-center gap-1 text-xs text-[#2c2c2c]/50"
+            className="mt-1 inline-flex items-center gap-1 text-xs text-[#2c2c2c]/80"
           >
             <Info className="w-3 h-3" /> Where are notes saved?
           </button>
-          {showInfo && <p className="mt-1 text-xs italic text-[#2c2c2c]/60">{DISCLAIMER}</p>}
+          {showInfo && <p className="mt-1 text-xs italic text-[#2c2c2c]/80">{DISCLAIMER}</p>}
         </div>
       )}
     </div>
