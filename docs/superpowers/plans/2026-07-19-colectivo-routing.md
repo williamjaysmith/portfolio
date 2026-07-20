@@ -1635,6 +1635,20 @@ Expected: PASS — all suites green.
 Run: `npx tsc --noEmit && npm run lint`
 Expected: no type errors, no lint errors. Fix any that surface, then re-run.
 
+> **Verification status (2026-07-19):** `npx tsc --noEmit` passes with zero errors.
+> `npm run lint` is **blocked/unverified** — it crashes before evaluating any file
+> (`TypeError: Converting circular structure to JSON` inside `@eslint/eslintrc`'s
+> `FlatCompat`, thrown while resolving `eslint-config-next`'s flat `eslint-plugin-react`
+> config; reproduced on `eslint@9.36.0` / `eslint-config-next@16.1.6` /
+> `eslint-plugin-react@7.37.5`). This is a pre-existing repo-wide toolchain issue,
+> unrelated to the Colectivo diff — bumping the three packages to the newest versions
+> already permitted by `package.json`'s existing semver ranges (`eslint@9.39.5`,
+> `eslint-config-next@16.2.10`, `@eslint/eslintrc@3.3.6`) does **not** fix it, so
+> resolving it requires either a major `eslint`/`eslint-config-next` upgrade or
+> migrating `eslint.config.mjs` off `FlatCompat`'s `compat.extends()` — out of scope
+> for a Task 10 "small fix." Track separately. Until fixed, the "no lint errors" exit
+> condition is unverified, not satisfied.
+
 - [ ] **Step 3: Manual smoke test in the browser**
 
 Run: `npm run dev`, open `http://localhost:3000/colectivo/routes` (use device toolbar / a narrow viewport). Verify:
