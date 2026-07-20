@@ -10,13 +10,16 @@ import {
 } from "@/lib/colectivo";
 
 describe("colectivo data", () => {
-  it("defines exactly the four routes", () => {
+  it("defines exactly the three routes", () => {
     expect(routes.map((r) => r.id).sort()).toEqual([
       "chicago",
-      "kegs",
       "madison",
       "milwaukee",
     ]);
+  });
+
+  it("each route carries an abbreviated tab label", () => {
+    expect(routes.map((r) => r.short)).toEqual(["MIL", "MAD", "CHI"]);
   });
 
   it("every stopId in every route exists in the stops map", () => {

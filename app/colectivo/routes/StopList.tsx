@@ -15,7 +15,6 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { ChevronLeft } from "lucide-react";
 import { type RouteDef, stops, isNative, homeRoutes } from "@/lib/colectivo";
 import type { RouteStorage } from "@/lib/colectivo-storage";
 import { useRouteState } from "./useRouteState";
@@ -24,11 +23,10 @@ import { AddStopSheet } from "./AddStopSheet";
 
 export interface StopListProps {
   route: RouteDef;
-  onBack(): void;
   backend?: RouteStorage;
 }
 
-export function StopList({ route, onBack, backend }: StopListProps) {
+export function StopList({ route, backend }: StopListProps) {
   const rs = useRouteState(route, backend);
   const [showDelivered, setShowDelivered] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -66,24 +64,10 @@ export function StopList({ route, onBack, backend }: StopListProps) {
   const originFor = (id: string) => homeRoutes(id).find((r) => r.id !== route.id) ?? homeRoutes(id)[0];
 
   return (
-    <div className="w-full max-w-md mx-auto pb-24">
-      <div className="flex items-center justify-between p-4">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to routes"
-          className="flex items-center gap-1 text-[#2c2c2c] font-bold"
-        >
-          <ChevronLeft className="w-5 h-5" /> Routes
-        </button>
-        <h1 className="font-black text-[#2c2c2c]" style={{ color: route.color }}>
-          {route.label.toUpperCase()}
-        </h1>
-      </div>
-
+    <div className="pb-24">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
-          <div className="border-t border-[#2c2c2c]/20">
+          <div>
             {visibleIds.map((id) => {
               const stop = stops[id];
               if (!stop) return null;

@@ -1,4 +1,4 @@
-export type RouteId = "milwaukee" | "madison" | "chicago" | "kegs";
+export type RouteId = "milwaukee" | "madison" | "chicago";
 
 export interface Stop {
   id: string;
@@ -10,6 +10,7 @@ export interface Stop {
 export interface RouteDef {
   id: RouteId;
   label: string;
+  short: string; // abbreviated tab label, e.g. "MAD"
   color: string;
   stopIds: string[];
 }
@@ -27,11 +28,9 @@ export const stops: Record<string, Stop> = {
 };
 
 export const routes: RouteDef[] = [
-  { id: "milwaukee", label: "Milwaukee", color: "#2f5b8f", stopIds: ["prospect", "downer", "lincoln"] },
-  { id: "madison", label: "Madison", color: "#b5462e", stopIds: ["hilldale", "monroe", "capitol"] },
-  { id: "chicago", label: "Chicago", color: "#3f7d4e", stopIds: ["southport", "wicker"] },
-  // Kegs shares stops with the city routes — model the overlap by re-listing ids.
-  { id: "kegs", label: "Kegs", color: "#b4791f", stopIds: ["lincoln", "capitol", "wicker"] },
+  { id: "milwaukee", label: "Milwaukee", short: "MIL", color: "#2f5b8f", stopIds: ["prospect", "downer", "lincoln"] },
+  { id: "madison", label: "Madison", short: "MAD", color: "#b5462e", stopIds: ["hilldale", "monroe", "capitol"] },
+  { id: "chicago", label: "Chicago", short: "CHI", color: "#3f7d4e", stopIds: ["southport", "wicker"] },
 ];
 
 export function getRoute(id: RouteId): RouteDef | undefined {
