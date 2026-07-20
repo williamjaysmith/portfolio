@@ -46,7 +46,19 @@ export function homeRoutes(stopId: string): RouteDef[] {
   return routes.filter((r) => r.stopIds.includes(stopId));
 }
 
-export function directionsUrl(address: string): string {
+export type MapsPlatform = "ios" | "other";
+
+// Pick each platform's stock maps app so a user needn't have Google Maps installed:
+// iPhone/iPad/iPod -> Apple Maps; everything else (Android stock + desktop) -> Google Maps.
+export function detectMapsPlatform(userAgent: string): MapsPlatform {
+  return /iPhone|iPad|iPod/i.test(userAgent) ? "ios" : "other";
+}
+
+export function directionsUrl(address: string, platform: MapsPlatform = "other"): string {
   const destination = encodeURIComponent(address);
+  if (platform === "ios") {
+    // Apple Maps, directions mode (dirflg=d); no saddr -> from current location.
+    return `https://maps.apple.com/?daddr=${destination}&dirflg=d`;
+  }
   return `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
 }

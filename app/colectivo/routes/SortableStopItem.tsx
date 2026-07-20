@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Check, X, ChevronDown, Info } from "lucide-react";
 import { MdAssistantNavigation } from "react-icons/md";
-import { type Stop, directionsUrl } from "@/lib/colectivo";
+import { type Stop, type MapsPlatform, directionsUrl, detectMapsPlatform } from "@/lib/colectivo";
 
 const DISCLAIMER =
   "📝 Notes are saved on this device only — clearing your browser data or switching phones will erase them.";
@@ -38,6 +38,11 @@ export function SortableStopItem({
   });
   const [notesOpen, setNotesOpen] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  // Default to Google (web/Android/SSR); switch to Apple Maps on iOS after mount.
+  const [mapsPlatform, setMapsPlatform] = useState<MapsPlatform>("other");
+  useEffect(() => {
+    setMapsPlatform(detectMapsPlatform(navigator.userAgent));
+  }, []);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -58,7 +63,7 @@ export function SortableStopItem({
         {/* Directions — far left */}
         {hasAddress ? (
           <a
-            href={directionsUrl(stop.address)}
+            href={directionsUrl(stop.address, mapsPlatform)}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Directions to ${stop.name}`}

@@ -6,6 +6,7 @@ import {
   isNative,
   homeRoutes,
   directionsUrl,
+  detectMapsPlatform,
 } from "@/lib/colectivo";
 
 describe("colectivo data", () => {
@@ -52,5 +53,32 @@ describe("helpers", () => {
     expect(url).toBe(
       "https://www.google.com/maps/dir/?api=1&destination=702%20N%20Midvale%20Blvd%2C%20Madison%2C%20WI&travelmode=driving",
     );
+  });
+});
+
+describe("platform-aware directions", () => {
+  const address = "702 N Midvale Blvd, Madison, WI";
+  const encoded = "702%20N%20Midvale%20Blvd%2C%20Madison%2C%20WI";
+
+  it("defaults to Google Maps (web + Android stock)", () => {
+    const google = `https://www.google.com/maps/dir/?api=1&destination=${encoded}&travelmode=driving`;
+    expect(directionsUrl(address)).toBe(google);
+    expect(directionsUrl(address, "other")).toBe(google);
+  });
+
+  it("uses Apple Maps directions mode on iOS", () => {
+    expect(directionsUrl(address, "ios")).toBe(
+      `https://maps.apple.com/?daddr=${encoded}&dirflg=d`,
+    );
+  });
+
+  it("detectMapsPlatform returns ios for iPhone/iPad/iPod user agents", () => {
+    expect(detectMapsPlatform("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")).toBe("ios");
+    expect(detectMapsPlatform("Mozilla/5.0 (iPad; CPU OS 16_0 like Mac OS X)")).toBe("ios");
+  });
+
+  it("detectMapsPlatform returns other for Android and desktop user agents", () => {
+    expect(detectMapsPlatform("Mozilla/5.0 (Linux; Android 13; Pixel 7)")).toBe("other");
+    expect(detectMapsPlatform("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBe("other");
   });
 });
