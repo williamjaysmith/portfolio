@@ -30,13 +30,11 @@ interface Track {
 
 function SortableTrackItem({
   track,
-  index,
   isCurrentTrack,
   isPlaying,
   onTrackClick,
 }: {
   track: Track;
-  index: number;
   isCurrentTrack: boolean;
   isPlaying: boolean;
   onTrackClick: () => void;
@@ -411,7 +409,6 @@ export default function Skyhammer() {
                     <SortableTrackItem
                       key={track.id}
                       track={track}
-                      index={index}
                       isCurrentTrack={currentTrackIndex === index}
                       isPlaying={isPlaying}
                       onTrackClick={() => handleTrackClick(index)}

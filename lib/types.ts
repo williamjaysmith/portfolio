@@ -21,11 +21,6 @@ export interface DesignProject {
   modalImage?: string;
 }
 
-export interface SkillCategory {
-  category: string;
-  skills: string[];
-}
-
 export interface Contact {
   name: string;
   link: string;

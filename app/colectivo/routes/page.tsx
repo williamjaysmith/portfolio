@@ -11,11 +11,14 @@ export default function ColectivoRoutesPage() {
   const activeRoute = getRoute(activeId)!;
 
   return (
-    <main className="min-h-screen bg-[#fbf8f0]">
-      <div className="w-full max-w-md mx-auto px-3 pt-6">
-        <ColectivoLogo className="block mx-auto mb-5 w-56 text-[#2c2c2c]" />
+    <main className="h-dvh flex flex-col bg-[#fbf8f0]">
+      <div className="w-full max-w-md mx-auto px-3 py-6 flex flex-col flex-1 min-h-0">
+        <ColectivoLogo className="block mx-auto mb-5 w-56 text-[#2c2c2c] shrink-0" />
         <RouteTabs routes={routes} activeId={activeId} onSelect={setActiveId} />
-        <div className="border border-[#2c2c2c] bg-[#fbf8f0]">
+        {/* Card grows to fill the space but never taller than ~8 stops (max-h) nor
+            shorter than ~2 stops (min-h); between those it shrinks with the window so
+            the footer is never cut off. */}
+        <div className="border border-t-0 border-[#2c2c2c]/20 bg-white rounded-b-lg relative overflow-hidden flex-1 min-h-[14rem] max-h-[44rem]">
           <StopList route={activeRoute} />
         </div>
       </div>

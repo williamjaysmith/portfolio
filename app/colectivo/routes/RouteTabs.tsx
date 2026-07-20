@@ -10,7 +10,7 @@ export interface RouteTabsProps {
 
 // Folder tabs (Strangebad-style) mapped to Colectivo's charcoal/cream palette:
 // inactive = charcoal, active = cream so it merges flush into the content card below.
-const ACTIVE = "bg-[#fbf8f0] text-[#2c2c2c] border border-b-0 border-[#2c2c2c] -mb-px";
+const ACTIVE = "bg-white text-[#2c2c2c] border border-b-0 border-[#2c2c2c]/20 -mb-px";
 const INACTIVE = "bg-[#2c2c2c] text-[#fbf8f0] border border-transparent hover:brightness-150";
 
 export function RouteTabs({ routes, activeId, onSelect }: RouteTabsProps) {

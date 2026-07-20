@@ -1,5 +1,5 @@
 import { Mail, Github, Linkedin, Instagram } from "lucide-react";
-import { CodeProject, DesignProject, SkillCategory, Contact, AudioTrack } from "./types";
+import { CodeProject, DesignProject, Contact, AudioTrack } from "./types";
 
 export const codeProjects: CodeProject[] = [
   {
@@ -71,35 +71,6 @@ export const designProjects: DesignProject[] = [
     link: "#",
     github: "#",
     image: "/Images/Design/paigemarshalltshirt.png",
-  },
-];
-
-export const skillCategories: SkillCategory[] = [
-  {
-    category: "LANGUAGES",
-    skills: ["JavaScript", "TypeScript", "HTML", "CSS", "Python"],
-  },
-  {
-    category: "FRONTEND",
-    skills: ["React", "Next.js", "Tailwind CSS", "Framer Motion", "Redux"],
-  },
-  {
-    category: "BACKEND",
-    skills: ["Node.js", "Express", "MongoDB", "PostgreSQL", "REST APIs"],
-  },
-  {
-    category: "TOOLS",
-    skills: ["Git", "Docker", "Webpack", "VS Code", "Figma"],
-  },
-  {
-    category: "DESIGN",
-    skills: [
-      "UI/UX",
-      "Responsive Design",
-      "Typography",
-      "Color Theory",
-      "Prototyping",
-    ],
   },
 ];
 

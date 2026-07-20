@@ -3,18 +3,16 @@
 import { useEffect, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Check, X, ChevronDown, Info } from "lucide-react";
+import { GripVertical, Check, X, ChevronDown } from "lucide-react";
 import { MdAssistantNavigation } from "react-icons/md";
-import { type Stop, type MapsPlatform, directionsUrl, detectMapsPlatform } from "@/lib/colectivo";
+import { type Stop, type MapsPlatform, OUT_OF_ROUTE_COLOR, directionsUrl, detectMapsPlatform } from "@/lib/colectivo";
 
 const DISCLAIMER =
-  "📝 Notes are saved on this device only — clearing your browser data or switching phones will erase them.";
+  "* Notes are saved on this device only. Clearing your browser data or switching phones will erase them *";
 
 export interface SortableStopItemProps {
   stop: Stop;
   outOfRoute: boolean;
-  originLabel?: string;
-  originColor?: string;
   delivered: boolean;
   note: string;
   onToggleDelivered(): void;
@@ -25,8 +23,6 @@ export interface SortableStopItemProps {
 export function SortableStopItem({
   stop,
   outOfRoute,
-  originLabel,
-  originColor,
   delivered,
   note,
   onToggleDelivered,
@@ -37,7 +33,7 @@ export function SortableStopItem({
     id: stop.id,
   });
   const [notesOpen, setNotesOpen] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   // Default to Google (web/Android/SSR); switch to Apple Maps on iOS after mount.
   const [mapsPlatform, setMapsPlatform] = useState<MapsPlatform>("other");
   useEffect(() => {
@@ -48,7 +44,7 @@ export function SortableStopItem({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    borderLeft: outOfRoute && originColor ? `4px solid ${originColor}` : "4px solid transparent",
+    borderLeft: outOfRoute ? `4px solid ${OUT_OF_ROUTE_COLOR}` : "4px solid transparent",
   };
 
   const hasAddress = stop.address.trim().length > 0;
@@ -77,20 +73,10 @@ export function SortableStopItem({
           </span>
         )}
 
-        {/* Name + address + badge */}
+        {/* Name + address (out-of-route is signaled by the colored left stripe) */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-[#2c2c2c] ${delivered ? "line-through" : "font-semibold"}`}>
-              {stop.name}
-            </span>
-            {outOfRoute && originLabel && (
-              <span
-                className="text-xs font-bold px-2 py-0.5 rounded-full border"
-                style={{ color: originColor, borderColor: originColor }}
-              >
-                {originLabel}
-              </span>
-            )}
+          <div className={`text-[#2c2c2c] ${delivered ? "line-through" : "font-semibold"}`}>
+            {stop.name}
           </div>
           <div className="text-sm text-[#2c2c2c]/70 truncate">{stop.address}</div>
           <button
@@ -104,19 +90,8 @@ export function SortableStopItem({
           </button>
         </div>
 
-        {/* Done circle */}
-        <button
-          type="button"
-          onClick={onToggleDelivered}
-          aria-label={delivered ? "Mark not delivered" : "Mark delivered"}
-          className={`w-8 h-8 rounded-full border-2 border-[#2c2c2c] flex items-center justify-center shrink-0 ${
-            delivered ? "bg-[#2c2c2c] text-white" : "text-transparent"
-          }`}
-        >
-          <Check className="w-4 h-4" />
-        </button>
-
-        {/* Remove — added stops only */}
+        {/* Remove (added stops only) — sits left of the delivered control so the
+            delivered controls stay right-aligned across every row */}
         {onRemove && (
           <button
             type="button"
@@ -127,6 +102,18 @@ export function SortableStopItem({
             <X className="w-5 h-5" />
           </button>
         )}
+
+        {/* Delivered control — square checkbox; tapping (when not delivered) opens the confirm pop-up */}
+        <button
+          type="button"
+          onClick={() => (delivered ? onToggleDelivered() : setConfirming(true))}
+          aria-label={delivered ? `Mark ${stop.name} not delivered` : `Mark ${stop.name} delivered`}
+          className={`w-5 h-5 rounded-md border-2 border-[#2c2c2c] flex items-center justify-center shrink-0 ${
+            delivered ? "bg-[#2c2c2c] text-white" : ""
+          }`}
+        >
+          {delivered && <Check className="w-3.5 h-3.5" />}
+        </button>
 
         {/* Grip — far right, press-hold to drag */}
         <div
@@ -151,15 +138,43 @@ export function SortableStopItem({
             className="w-full text-sm border border-[#2c2c2c]/30 rounded p-2 bg-white/60"
             rows={2}
           />
-          <button
-            type="button"
-            onClick={() => setShowInfo((v) => !v)}
-            aria-label="About note storage"
-            className="mt-1 inline-flex items-center gap-1 text-xs text-[#2c2c2c]/80"
-          >
-            <Info className="w-3 h-3" /> Where are notes saved?
-          </button>
-          {showInfo && <p className="mt-1 text-xs italic text-[#2c2c2c]/80">{DISCLAIMER}</p>}
+          <p className="mt-1 text-xs italic text-[#2c2c2c]/80">{DISCLAIMER}</p>
+        </div>
+      )}
+
+      {/* Delivery confirmation pop-up */}
+      {confirming && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Confirm delivery to ${stop.name}`}
+        >
+          <div className="w-full max-w-xs bg-white border border-[#2c2c2c] rounded-lg p-5 text-center shadow-lg">
+            <p className="text-[#2c2c2c] mb-1">Did you deliver to</p>
+            <p className="text-[#2c2c2c] font-black text-lg mb-4">{stop.name}?</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirming(false);
+                  onToggleDelivered();
+                }}
+                aria-label={`Yes, delivered to ${stop.name}`}
+                className="flex-1 px-4 py-2 bg-[#2c2c2c] text-white font-bold rounded"
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                aria-label="Cancel"
+                className="flex-1 px-4 py-2 border border-[#2c2c2c] text-[#2c2c2c] font-bold rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

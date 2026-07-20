@@ -15,7 +15,7 @@ const stops: Record<string, Stop> = {
   x: { id: "x", name: "X", address: "9" }, // from another route
 };
 
-const route: RouteDef = { id: "madison", label: "Madison", short: "MAD", color: "#000", stopIds: ["a", "b", "c"] };
+const route: RouteDef = { id: "madison", label: "Madison", short: "MAD", stopIds: ["a", "b", "c"] };
 
 describe("reconcile", () => {
   it("uses the default order when nothing is saved", () => {

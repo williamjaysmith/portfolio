@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import MusicPlayer from "../ui/MusicPlayer";
 
+/** @expected-unused — parked; toggled on/off in app/page.tsx */
 export default function AudioSection() {
   return (
     <div

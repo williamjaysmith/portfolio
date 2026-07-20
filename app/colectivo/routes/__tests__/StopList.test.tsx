@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { getRoute } from "@/lib/colectivo";
 import { createMemoryBackend } from "@/lib/colectivo-storage";
 import { StopList } from "@/app/colectivo/routes/StopList";
@@ -13,18 +13,28 @@ describe("StopList", () => {
     expect(screen.getByText("Colectivo Monroe")).toBeInTheDocument();
   });
 
-  it("hides a stop from the active list once marked delivered", () => {
+  it("hides a stop from the active list once confirmed delivered", () => {
     render(<StopList route={madison} backend={createMemoryBackend()} />);
-    const row = screen.getByText("Colectivo Hilldale").closest("div")!;
-    fireEvent.click(within(row.parentElement!.parentElement!).getByRole("button", { name: /mark delivered/i }));
+    fireEvent.click(screen.getByRole("button", { name: /mark colectivo hilldale delivered/i }));
+    fireEvent.click(screen.getByRole("button", { name: /confirm colectivo hilldale delivered/i }));
     expect(screen.queryByText("Colectivo Hilldale")).toBeNull();
     expect(screen.getByRole("button", { name: /show delivered \(1\)/i })).toBeInTheDocument();
   });
 
+  it("does not deliver until the confirm is tapped", () => {
+    render(<StopList route={madison} backend={createMemoryBackend()} />);
+    fireEvent.click(screen.getByRole("button", { name: /mark colectivo hilldale delivered/i }));
+    // Still present — awaiting confirm.
+    expect(screen.getByText("Colectivo Hilldale")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^cancel$/i }));
+    expect(screen.getByText("Colectivo Hilldale")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show delivered \(0\)/i })).toBeInTheDocument();
+  });
+
   it("reveals delivered stops when Show delivered is toggled", () => {
     render(<StopList route={madison} backend={createMemoryBackend()} />);
-    const marks = screen.getAllByRole("button", { name: /mark delivered/i });
-    fireEvent.click(marks[0]);
+    fireEvent.click(screen.getByRole("button", { name: /mark colectivo hilldale delivered/i }));
+    fireEvent.click(screen.getByRole("button", { name: /confirm colectivo hilldale delivered/i }));
     fireEvent.click(screen.getByRole("button", { name: /show delivered/i }));
     expect(screen.getByText("Colectivo Hilldale")).toBeInTheDocument();
   });

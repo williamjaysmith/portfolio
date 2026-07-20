@@ -35,13 +35,24 @@ export function useRouteState(route: RouteDef, backend?: RouteStorage): UseRoute
   const [ready, setReady] = useState(false);
   const [state, setState] = useState<RouteState>(EMPTY);
   const [notes, setNotes] = useState<NotesMap>({});
+  const [loadedRoute, setLoadedRoute] = useState<string | null>(null);
 
-  // Load + reconcile after mount (avoids SSR/hydration mismatch).
+  // Initial client mount: read persisted state after paint (avoids SSR/hydration mismatch).
   useEffect(() => {
-    setState(reconcile(route, stops, store.loadRoute(route.id)));
     setNotes(store.loadNotes());
+    setState(reconcile(route, stops, store.loadRoute(route.id)));
+    setLoadedRoute(route.id);
     setReady(true);
-  }, [route, store]);
+    // Runs once on mount; later route switches reconcile synchronously below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Route switched after mount: reconcile during render so the previous route's
+  // stops never paint (they would briefly flash as out-of-route colored rows).
+  if (loadedRoute !== null && loadedRoute !== route.id) {
+    setLoadedRoute(route.id);
+    setState(reconcile(route, stops, store.loadRoute(route.id)));
+  }
 
   const commit = (next: RouteState) => {
     setState(next);

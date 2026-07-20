@@ -11,27 +11,49 @@ export interface RouteDef {
   id: RouteId;
   label: string;
   short: string; // abbreviated tab label, e.g. "MAD"
-  color: string;
   stopIds: string[];
 }
 
 // PLACEHOLDER seed data — replace addresses/ids with the real route lists.
 export const stops: Record<string, Stop> = {
-  hilldale: { id: "hilldale", name: "Colectivo Hilldale", address: "702 N Midvale Blvd, Madison, WI 53705" },
-  monroe: { id: "monroe", name: "Colectivo Monroe", address: "2301 Monroe St, Madison, WI 53711" },
-  capitol: { id: "capitol", name: "Colectivo Capitol Square", address: "16 W Mifflin St, Madison, WI 53703" },
-  prospect: { id: "prospect", name: "Colectivo Prospect", address: "2211 N Prospect Ave, Milwaukee, WI 53202" },
-  downer: { id: "downer", name: "Colectivo Downer", address: "2999 N Downer Ave, Milwaukee, WI 53211" },
-  lincoln: { id: "lincoln", name: "Colectivo Lincoln Warehouse", address: "320 E Buffalo St, Milwaukee, WI 53202" },
-  southport: { id: "southport", name: "Colectivo Southport", address: "3011 N Southport Ave, Chicago, IL 60657" },
-  wicker: { id: "wicker", name: "Colectivo Wicker Park", address: "1601 N Milwaukee Ave, Chicago, IL 60647" },
+  easttosa: { id: "easttosa", name: "East Tosa Cafe", address: "6745 W Wells St, Wauwatosa, WI 53213" },
+  willy: { id: "willy", name: "Willy Street Cafe", address: "836 Williamson St, Madison, WI 53703" },
+  tenney: { id: "tenney", name: "Tenney Cafe", address: "25 S Pinckney St, Madison, WI 53703" },
+  state: { id: "state", name: "State Street Cafe", address: "583 State St, Madison, WI 53703" },
+  bassett: { id: "bassett", name: "Bassett Street Brunch Club", address: "444 W Johnson St, Madison, WI 53716" },
+  monroe: { id: "monroe", name: "Monroe Cafe", address: "2530 Monroe St, Madison, WI 53711" },
+  westtosa: { id: "westtosa", name: "West Tosa Cafe", address: "9125 W North Ave, Wauwatosa, WI 53226" },
+  grafton: { id: "grafton", name: "Grafton Cafe", address: "1211 Washington St, Grafton, WI 53024" },
+  mequon: { id: "mequon", name: "Mequon Cafe", address: "11205 N Cedarburg Rd Mequon WI 53092" },
+  shorewood: { id: "shorewood", name: "Shorewood Cafe", address: "4500 N Oakland Ave, Shorewood, WI 53211" },
+  prospect: { id: "prospect", name: "Prospect Cafe", address: "2211 N Prospect Ave, Milwaukee, WI 53202" },
+  lakefront: { id: "lakefront", name: "Lakefront Cafe", address: "1701 N Lincoln Memorial Dr, Milwaukee, WI 53202" },
+  thirdward: { id: "thirdward", name: "Third Ward Cafe", address: "223 E St Paul Ave, Milwaukee, WI 53202" },
+  foundry: { id: "foundry", name: "Foundry Cafe", address: "170 S 1st St, Milwaukee, WI 53204" },
+  usbank: { id: "usbank", name: "US Bank Colectivo", address: "777 E Wisconsin Ave, Milwaukee, WI 53202" },
+  blum: { id: "blum", name: "Blum Coffee Garden", address: "4930 W. Loomis Road, Milwaukee, WI 53220" },
+  humbolt: { id: "humbolt", name: "Humbolt Cafe", address: "2999 N Humboldt Blvd, Milwaukee, WI 53212" },
+  bayview: { id: "bayview", name: "Bayview Cafe", address: "2301 S Kinnickinnic Ave, Milwaukee, WI 53207" },
+  evanston: { id: "evanston", name: "Evanston Cafe", address: "716 Church St, Evanston, IL 60201" },
+  andersonville: { id: "andersonville", name: "Andersonville Cafe", address: "5425 N Clark St, Chicago, IL 60640" },
+  ravenswood: { id: "ravenswood", name: "Ravenswood Cafe", address: "1831 W Lawrence Ave, Chicago, IL 60640" },
+  southport: { id: "southport", name: "Southport Cafe", address: "3258 N Southport Ave, Chicago, IL 60657" },
+  lincolnpark: { id: "lincolnpark", name: "Lincoln Park Cafe", address: "2530 N Clark St, Chicago, IL 60614" },
+  wickerpark: { id: "wickerpark", name: "Wicker Park Cafe", address: "1211 N Damen Ave, Chicago, IL 60622" },
+  logansquare: { id: "logansquare", name: "Logan Square Cafe", address: "2261 N Milwaukee Ave, Chicago, IL 60647" },
+  tradecraft: { id: "tradecraft", name: "Tradecraft", address: "940 Lively Blvd, Wood Dale, IL 60191" },
+  riverside: { id: "riverside", name: "Riverside Cafe", address: "401 N Riverside Dr, Ste 7, Gurnee, IL 60031" },
 };
 
 export const routes: RouteDef[] = [
-  { id: "milwaukee", label: "Milwaukee", short: "MIL", color: "#2f5b8f", stopIds: ["prospect", "downer", "lincoln"] },
-  { id: "madison", label: "Madison", short: "MAD", color: "#b5462e", stopIds: ["hilldale", "monroe", "capitol"] },
-  { id: "chicago", label: "Chicago", short: "CHI", color: "#3f7d4e", stopIds: ["southport", "wicker"] },
+  { id: "milwaukee", label: "Milwaukee", short: "MIL", stopIds: ["westtosa", "grafton", "mequon","shorewood","prospect","lakefront","thirdward","foundry","usbank","blum","humbolt","bayview"] },
+  { id: "madison", label: "Madison", short: "MAD", stopIds: ["easttosa", "willy", "tenney", "state","bassett","monroe"] },
+  { id: "chicago", label: "Chicago", short: "CHI", stopIds: ["evanston", "andersonville","ravenswood","southport","lincolnpark","wickerpark","logansquare","tradecraft","riverside"] },
 ];
+
+// One accent for any out-of-route stop (pulled in from another route's area).
+// The colored left stripe alone signals it; no per-city palette.
+export const OUT_OF_ROUTE_COLOR = "#59c8c7";
 
 export function getRoute(id: RouteId): RouteDef | undefined {
   return routes.find((r) => r.id === id);
