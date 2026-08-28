@@ -1,4 +1,134 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "ignoreDependencies": ["eslint-config-next", "tailwindcss"]
+
+  "ignorePatterns": [
+    "**/*.d.ts",
+    ".next/**",
+    ".specify/**",
+    "docs/**",
+    "graphify-out/**"
+  ],
+
+  "ignoreDependencies": [
+    "eslint-config-next",
+    "tailwindcss",
+    "@tailwindcss/postcss",
+    "react-dom",
+    "@types/node"
+  ],
+
+  "dynamicallyLoaded": [
+    "app/**/page.tsx",
+    "app/**/layout.tsx",
+    "app/**/loading.tsx",
+    "app/**/error.tsx",
+    "app/**/not-found.tsx",
+    "app/**/route.ts",
+    "app/**/route.tsx",
+    "app/**/template.tsx",
+    "app/**/default.tsx",
+    "app/**/opengraph-image.{ts,tsx}",
+    "app/**/twitter-image.{ts,tsx}",
+    "app/**/icon.{ts,tsx}",
+    "app/**/sitemap.ts",
+    "app/**/robots.ts",
+    "app/**/manifest.ts",
+    "middleware.ts",
+    "proxy.ts",
+    "instrumentation.ts",
+    "next.config.{ts,js,mjs}",
+    "vitest.config.ts",
+    "vitest.setup.ts"
+  ],
+
+  "boundaries": {
+    "zones": [
+      {
+        "name": "ui-pages",
+        "patterns": [
+          "app/**/page.tsx",
+          "app/**/layout.tsx",
+          "app/**/loading.tsx",
+          "app/**/error.tsx",
+          "app/**/not-found.tsx",
+          "app/**/template.tsx",
+          "app/**/default.tsx"
+        ]
+      },
+      { "name": "api-routes", "patterns": ["app/api/**/*"] },
+      { "name": "components", "patterns": ["app/components/**/*", "app/**/components/**/*"] },
+      { "name": "lib", "patterns": ["lib/**/*"] },
+      { "name": "tests", "patterns": ["**/__tests__/**/*", "**/*.test.{ts,tsx}"] },
+      {
+        "name": "config",
+        "patterns": [
+          "middleware.ts",
+          "proxy.ts",
+          "instrumentation.ts",
+          "next.config.{ts,js,mjs}",
+          "vitest.config.ts",
+          "vitest.setup.ts"
+        ]
+      }
+    ],
+    "rules": [
+      { "from": "lib", "allow": ["lib"] },
+      { "from": "components", "allow": ["components", "lib"] },
+      { "from": "ui-pages", "allow": ["ui-pages", "components", "lib"] },
+      { "from": "api-routes", "allow": ["api-routes", "lib"] },
+      { "from": "tests", "allow": ["tests", "ui-pages", "api-routes", "components", "lib", "config"] },
+      { "from": "config", "allow": ["config", "lib"] }
+    ]
+  },
+
+  "rules": {
+    "unused-files": "error",
+    "unused-exports": "warn",
+    "unused-types": "off",
+    "unused-dependencies": "warn",
+    "unresolved-import": "error",
+    "private-type-leaks": "warn",
+    "circular-dependency": "warn",
+    "duplicate-export": "warn"
+  },
+
+  "overrides": [
+    {
+      "files": ["**/*.test.{ts,tsx}", "**/__tests__/**/*"],
+      "rules": { "unused-files": "off", "unused-exports": "off" }
+    },
+    {
+      "files": [
+        "app/**/page.tsx",
+        "app/**/layout.tsx",
+        "app/**/loading.tsx",
+        "app/**/error.tsx",
+        "app/**/not-found.tsx",
+        "app/**/template.tsx",
+        "app/**/default.tsx",
+        "app/**/opengraph-image.{ts,tsx}",
+        "app/**/icon.{ts,tsx}",
+        "app/**/sitemap.ts",
+        "app/**/robots.ts",
+        "app/**/manifest.ts"
+      ],
+      "rules": { "unused-exports": "off" }
+    },
+    {
+      "files": ["app/api/**/route.ts"],
+      "rules": { "unused-exports": "off", "unused-files": "off" }
+    }
+  ],
+
+  "duplicates": {
+    "mode": "mild",
+    "minTokens": 50,
+    "minLines": 5,
+    "threshold": 10
+  },
+
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCognitive": 15
+  }
 }

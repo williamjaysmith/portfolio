@@ -39,3 +39,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# MCP server config — may carry tokens; keep local
+.mcp.json
+.mcp_config.json
+
+# fallow cache (regenerated); config + baselines ARE tracked
+.fallow/
+
+# graphify output — generated, rebuilt on demand.
+# The reproducible parts (.graphifyignore, the skill) ARE tracked.
+graphify-out/
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

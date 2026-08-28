@@ -1,8 +1,0 @@
-{
-  "enableAllProjectMcpServers": true,
-  "disabledMcpjsonServers": [],
-  "statusLine": {
-    "type": "command",
-    "command": "/Users/williamsmith/.claude/statusline/final.sh"
-  }
-}

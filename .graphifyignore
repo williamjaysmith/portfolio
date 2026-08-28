@@ -1,0 +1,30 @@
+# Graphify ignore rules — merged on top of .gitignore (graphify reads .gitignore
+# automatically; patterns here are evaluated last and can only exclude MORE).
+#
+# Goal: keep the knowledge graph pointed at product code, so `graphify query`
+# returns tight subgraphs and graph.html stays openable.
+
+# Graphify's own output — never index the graph itself
+graphify-out/
+
+# Static assets & binaries (no extractable structure)
+public/
+*.woff2
+*.woff
+*.avif
+*.mp3
+*.mp4
+*.png
+*.jpg
+*.jpeg
+*.svg
+
+# Generated / vendored
+next-env.d.ts
+*.tsbuildinfo
+.next/
+
+# Research dossiers + specs are prose, not code structure
+docs/research/
+.specify/
+.superpowers/
