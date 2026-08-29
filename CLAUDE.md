@@ -1,6 +1,17 @@
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+**Active feature**: `001-family-foundation` — Phase 1 of the `/family` Skylight Calendar clone.
+
+Read in this order before touching `/family` code:
+1. `specs/001-family-foundation/plan.md` — the implementation plan
+2. `specs/001-family-foundation/spec.md` — what must be true
+3. `specs/001-family-foundation/research.md` — the 12 technical decisions and why
+4. `specs/001-family-foundation/data-model.md` — schema, policies, constraints
+5. `specs/001-family-foundation/contracts/server-actions.md` — the action interfaces
+6. `specs/001-family-foundation/quickstart.md` — setup and how to verify each guarantee
+
+Product truth lives in `docs/research/skylight/00-master-map.md`.
+Note: this repo is Next 16 — request interception is `proxy.ts`, not `middleware.ts`,
+and it is NOT an authorization boundary. Every server action re-checks auth itself.
 <!-- SPECKIT END -->
 
 # Portfolio — willsmith.dev
