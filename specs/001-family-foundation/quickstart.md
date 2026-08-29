@@ -16,16 +16,16 @@ Already provisioned: project **`portfolio`**, ref **`zgmltllcyqylgtazunai`**, re
 cp .env.example .env.local
 ```
 
-Fill from **Project Settings → API**:
+Fill from **Project Settings → API Keys** (use the new-format keys — the legacy `anon`/`service_role` JWTs are deprecated by end of 2026):
 
 | Variable | Value | Secret? |
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | already filled | no — public in every request |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | "anon" / "publishable" | no — access is enforced by RLS |
-| `SUPABASE_SERVICE_ROLE_KEY` | "service_role" / "secret" | **yes — bypasses all RLS** |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | "publishable" (`sb_publishable_…`) | no — access is enforced by RLS |
+| `SUPABASE_SECRET_KEY` | "secret" (`sb_secret_…`) | **yes — bypasses all RLS** |
 | `FAMILY_ACTOR_SECRET` | `openssl rand -base64 32` | **yes — signs the actor cookie** |
 
-`.env.local` is gitignored. The service-role key must never reach a client component; `lib/family/supabase/admin.ts` carries `import 'server-only'` so an accidental client import fails the build.
+`.env.local` is gitignored. The secret key must never reach a client component; `lib/family/supabase/admin.ts` carries `import 'server-only'` so an accidental client import fails the build.
 
 Also export a personal access token so the Supabase CLI and MCP server can reach the project:
 
@@ -78,9 +78,9 @@ curl -s -i http://localhost:3000/family/calendar | head -20        # expect 307 
 # b) Signed in with a non-allowlisted Google account
 #    → lands on /family/not-authorized, session cleared
 
-# c) Direct data access with the public anon key and no session
+# c) Direct data access with the publishable key and no session
 curl -s "https://zgmltllcyqylgtazunai.supabase.co/rest/v1/categories" \
-     -H "apikey: $NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+     -H "apikey: $NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
      -H "Accept-Profile: family"
 # expect []  — RLS returns nothing, not an error
 ```
