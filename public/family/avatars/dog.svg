@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img">
+<title>Dog</title>
+<circle cx="48" cy="48" r="48" fill="#F9EBB8"/>
+<circle cx="48" cy="52" r="27" fill="#D9A66F"/>
+<ellipse cx="23.5" cy="47" rx="8.5" ry="17" transform="rotate(8 23.5 47)" fill="#B27F4C"/>
+<ellipse cx="72.5" cy="47" rx="8.5" ry="17" transform="rotate(-8 72.5 47)" fill="#B27F4C"/>
+<ellipse cx="57" cy="47.5" rx="7" ry="8" fill="#B27F4C"/>
+<ellipse cx="48" cy="61" rx="13" ry="9.5" fill="#F3DDBB"/>
+<circle cx="40" cy="48" r="3.2" fill="#2B2B2B"/>
+<circle cx="56" cy="48" r="3.2" fill="#2B2B2B"/>
+<path d="M40 46.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0zM56 46.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0z" fill="#FFFFFF"/>
+<ellipse cx="48" cy="56" rx="4" ry="3" fill="#3E2A22"/>
+<path d="M44.5 59.5C46.3 62.0 49.7 62.0 51.5 59.5C50 64.5 46 64.5 44.5 59.5z" fill="#3E2A22"/>
+<circle cx="32" cy="57" r="3.6" fill="#F58F8A" fill-opacity=".5"/>
+<circle cx="64" cy="57" r="3.6" fill="#F58F8A" fill-opacity=".5"/>
+</svg>

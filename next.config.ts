@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
   // Experimental optimizations
   experimental: {
     optimizePackageImports: ['framer-motion', 'lucide-react', 'react-icons'],
+    // /family avatar uploads: a ≤5 MB image plus multipart overhead (D16).
+    serverActions: { bodySizeLimit: "6mb" },
   },
 };
 

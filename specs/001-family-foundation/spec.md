@@ -234,6 +234,16 @@ Decisions made where the research was tagged `[I]` (inferred) or `[?]` (unknown)
 - **One household only.** Records carry a household reference so the model is correct, but no interface exists for creating a second household, and none is planned.
 - **Offline behaviour is out of scope for this phase.** The read-only cache is Phase 5; here, loss of connectivity produces clear failures rather than optimistic writes.
 
+Added after the adversarial design review (2026-08-31):
+
+- **Setting a PIN with nobody punched in is a deliberate, accepted risk.** FR-018 and SC-010 are implemented as specified: with nobody punched in, anyone at a signed-in device can set or reset any profile's PIN and then punch in as that profile. A member (child) who *is* punched in is refused (FR-015). Accepted for a household of three per FR-018/SC-010 rather than a lockout; tightening options, should they ever be wanted: parent-actor-only once a parent PIN exists, or a fresh Google re-authentication for actor-less PIN changes. `[OURS]`
+- **A fresh household bootstraps itself.** While the household has zero parent profiles, a signed-in member may create the first profile without an actor, and it is forced to be a parent. The path closes the moment a parent exists, and the data store refuses to delete or demote the last parent, so it cannot reopen. Without this an empty household would be a dead end. `[OURS]`
+- **Landscape-first is a layout guarantee, not an orientation lock, on iPadOS.** The manifest declares `orientation: landscape-primary` (honoured by Android); iPadOS ignores the member and follows the device, so rotating to portrait yields the bottom-bar layout rather than a failure of FR-041. `[I]` — platform behaviour, verified by install (SC-008).
+- **The manifest is served from a route handler**, `app/family/manifest.webmanifest/route.ts`, and linked from the `/family` layout. Next.js only recognises a `manifest` metadata file at the app root, and the portfolio must not carry `/family` as its site-wide manifest. `[OURS]`
+- **FR-004 is enforced at the Auth API, not only in the interface.** On the hosted project the Email provider and anonymous sign-ins are turned off and a Before-User-Created hook refuses account creation for any address not on the allowlist. Without those, Supabase Auth itself would mint a session for anyone with the publishable key. `[OURS]`
+- **A Label's emoji is optional.** The source says a Label *may* take an emoji ("optionally choose an Emoji") `[V]`; the earlier reading that Labels use an emoji *instead of* an avatar was an inference. Name and colour remain required.
+- **Idle punch-out range is 1–60 minutes**, wider than the reference product's parental-lock inactivity timeout of 1–10 minutes `[V]`. Recorded as a divergence: the range exists to let a parent keep the tablet unlocked through a long task session; the 3-minute default is unchanged.
+
 ## Dependencies
 
 - A provisioned Supabase project (`portfolio`, East US / Ohio) with the Data API enabled, automatic table exposure disabled, and automatic RLS enabled.

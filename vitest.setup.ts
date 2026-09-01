@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
 // Vitest's `globals` option is off in this repo, so the global `afterEach`
@@ -9,6 +9,12 @@ import { cleanup } from "@testing-library/react";
 afterEach(() => {
   cleanup();
 });
+
+// `server-only` throws the moment it is imported outside a React Server
+// Component graph. Component tests legitimately pull in modules that reach it
+// transitively (a client component importing a server action's module), so it
+// is made inert for tests rather than each file re-declaring the same mock.
+vi.mock("server-only", () => ({}));
 
 // Node 22+ ships an experimental global `localStorage` that is unusable
 // without `--localstorage-file` (accessing it warns and returns undefined).

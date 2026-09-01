@@ -12,6 +12,20 @@ Read in this order before touching `/family` code:
 Product truth lives in `docs/research/skylight/00-master-map.md`.
 Note: this repo is Next 16 — request interception is `proxy.ts`, not `middleware.ts`,
 and it is NOT an authorization boundary. Every server action re-checks auth itself.
+
+**Status**: implemented (60/65 tasks). What remains needs the operator's Supabase access or an
+iPad: `supabase db push` to the hosted project and the dashboard steps (Exposed schemas, Google
+provider, Email/anonymous sign-in off, the Before-User-Created hook), the hosted SC-001 run, and
+the home-screen install check — all listed in `quickstart.md` §"Operator steps".
+
+**Working locally**: `supabase start` (this repo's stack is on **553xx**, not the CLI defaults —
+another project already occupies 543xx), then `supabase db reset`, `npm run family:seed -- --local`,
+then `npm run dev:local` and sign in with the local-only dev form.
+
+**The gate needs coverage**: fallow scores untested branchy functions via CRAP, so
+`.fallowrc.json` points `health.coverage` at `coverage/coverage-final.json` and
+`npm run fallow:audit` regenerates it first. `coverage/` is gitignored, so run
+`npm run test:coverage` once before invoking `fallow` directly (the git pre-commit hook does).
 <!-- SPECKIT END -->
 
 # Portfolio — willsmith.dev
@@ -24,7 +38,7 @@ A Next.js 16 (App Router) portfolio on Vercel that also hosts self-contained sub
 | `/skyhammer`         | Music player                                  |
 | `/colectivo/routes`  | Delivery-routing tool (localStorage-backed)   |
 | `/design`            | Design work                                   |
-| `/family`            | **In development** — Skylight Calendar clone, family-only (Supabase) |
+| `/family`            | Skylight Calendar clone, family-only (Supabase). Phase 1 built; awaiting the operator's hosted setup |
 
 ## Stack
 
