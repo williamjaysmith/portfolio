@@ -112,6 +112,11 @@ function useAvatarUrls(householdId: string, profiles: Category[]): Record<string
     },
     enabled: photoIds.length > 0,
     staleTime: AVATAR_URL_STALE_MS,
+    // The wall tablet sits on the counter for days without a navigation, and a
+    // signed URL dies after an hour. `staleTime` alone only marks the data old;
+    // something has to actually ask again, or the family's faces quietly break.
+    refetchInterval: AVATAR_URL_STALE_MS,
+    refetchIntervalInBackground: true,
   });
 
   const data = query.data;

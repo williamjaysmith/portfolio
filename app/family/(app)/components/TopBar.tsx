@@ -15,7 +15,11 @@ export function TopBar() {
   const { household, settings } = useFamily();
   const now = useNow();
 
-  const heading = settings.showNameNotDate ? household.name : now ? formatDate(now) : " ";
+  // The clock has no server snapshot to agree with the client on, so the date
+  // is unknown for the first paint. The household's name is always known, so it
+  // stands in rather than leaving a screen reader an empty heading to announce.
+  const heading =
+    settings.showNameNotDate || !now ? household.name : formatDate(now);
 
   return (
     <header className="flex h-(--fam-topbar-h) shrink-0 items-center gap-4 px-(--fam-edge-inset)">

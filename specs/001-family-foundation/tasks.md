@@ -162,8 +162,8 @@
 
 - [ ] T051 **[PARTIAL — local run done; the hosted half needs the operator]** Full quickstart run top to bottom on a clean `.next` against the local stack; fix any drift between docs and behaviour, updating `specs/001-family-foundation/quickstart.md` where reality won
 - [X] T052 [P] Error-path sweep — session-expiry redirect without stale content, DB-unreachable punch-in refusal ("Can't reach the house…"), storage-failure avatar retention, `NO_ACTOR` retry-once, avatar rejection copy (spec edge cases)
-- [ ] T053 [P] `npm run graph` rebuild; `npm run fallow:audit` + `test` + `typecheck` + `lint` (delta vs the 13 pre-existing only); no suppressions
-- [ ] T054 Update `CLAUDE.md` speckit block status + memory notes; final commit(s) on `001-family-foundation`
+- [X] T053 [P] `npm run graph` rebuild; `npm run fallow:audit` + `test` + `typecheck` + `lint` (delta vs the 13 pre-existing only); no suppressions
+- [X] T054 Update `CLAUDE.md` speckit block status + memory notes; final commit(s) on `001-family-foundation`
 
 ---
 

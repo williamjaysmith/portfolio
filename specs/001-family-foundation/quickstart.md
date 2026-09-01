@@ -210,3 +210,31 @@ No suppressions: no `fallow-ignore`, `eslint-disable`, `@ts-ignore`, threshold l
 | `supabase start` fails with a port conflict | Another stack owns `54321–54329` | This repo's `config.toml` uses `553xx`; do not stop the other stack |
 | Build fails on a `server-only` import | A client component imported the admin client, `actor.ts` or `guards.ts` | Move the call into a server action — this guard is working |
 | Profile colours all look identical | `color-mix()` unsupported | Expected fallback on old browsers (research R8); check Safari ≥ 16.2 |
+
+---
+
+## Known gaps carried into Phase 2
+
+Real, recorded, and deliberately not fixed in Phase 1.
+
+- **A photo can only be added after a profile is saved.** US3-3 reads as though
+  the choice is offered while creating one; the avatar picker in the create form
+  offers the ten illustrations and "initials", and the photo control lives on the
+  saved row. Uploading needs an id to store against, so wiring it into creation
+  means a create-then-upload sequence with its own partial-failure story.
+- **`updateHouseholdSettings` and `reorderCategories` are not atomic.** Each
+  writes more than once without a transaction. Validation precedes every write,
+  so a rejected input writes nothing, but a database failure part-way through
+  leaves the rest unwritten. `reorderCategories` is self-healing (the order is
+  recomputed from scratch next time); the settings pair is not.
+- **`.fam-tint-20` has no consumer yet.** FR-036 specifies three strengths and
+  FR-037 says the token layer serves every later phase; the 20 % rung is the
+  Tasks/Rewards column header, which arrives in Phase 3. fallow reports it as
+  dead CSS surface (advisory) until then.
+- **Sizing literals sit beside the tokens that mean the same thing.** The 44 px
+  touch floor and the nav icon sizes are written as literals rather than read
+  from `--fam-touch` / `--fam-nav-icon`, because the floor must NOT scale with
+  the viewport — that is the point of a floor. fallow reports each as token
+  drift (advisory).
+- **`density` is stored and unused.** Nothing in the shell reads a spacing token
+  it could scale; every gap is a literal Tailwind class.
