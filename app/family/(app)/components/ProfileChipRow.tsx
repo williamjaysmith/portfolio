@@ -28,7 +28,15 @@ export function ProfileChipRow() {
   }
 
   return (
-    <div className="flex h-(--fam-chiprow-h) items-center gap-4 overflow-x-auto px-(--fam-edge-inset)">
+    // A scrolling region has to be focusable, or on a phone the people past
+    // the right edge cannot be reached from a keyboard at all — and a focus
+    // stop with no accessible name is announced as nothing (SC-009).
+    <div
+      role="group"
+      aria-label="Family"
+      tabIndex={0}
+      className="flex h-(--fam-chiprow-h) items-center gap-4 overflow-x-auto px-(--fam-edge-inset)"
+    >
       {visibleProfiles.map((profile) => (
         <ProfileChip key={profile.id} category={profile} photoUrl={avatarUrls[profile.id]} />
       ))}

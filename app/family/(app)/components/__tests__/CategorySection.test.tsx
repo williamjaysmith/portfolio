@@ -201,6 +201,31 @@ describe("CategorySection", () => {
     expect(role).toBeDisabled();
   });
 
+  /**
+   * The D6 bootstrap window only makes people. Before a parent exists, "Add a
+   * Label" would dead-end at a punch-in nobody can complete — and the action,
+   * reached directly, coerces the Label into a parent profile rather than
+   * writing an incoherent row. So the button waits.
+   */
+  it("waits for the first person before offering to add a label", () => {
+    const context = makeContext({ categories: [], actor: null });
+    render(withFamily(context, <CategorySection kind="label" />));
+
+    expect(screen.getByRole("button", { name: "Add a Label" })).toBeDisabled();
+    expect(screen.getByText("Add the first person before adding labels.")).toBeInTheDocument();
+  });
+
+  it("offers labels again as soon as the household has a parent", () => {
+    const parent = makeCategory({ id: "p1", label: "Alex", role: "parent" });
+    const context = makeContext({ categories: [parent], actor: null });
+    render(withFamily(context, <CategorySection kind="label" />));
+
+    expect(screen.getByRole("button", { name: "Add a Label" })).toBeEnabled();
+    expect(
+      screen.queryByText("Add the first person before adding labels."),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not claim a parent-less household when one already has a parent", () => {
     renderSection("profile");
     expect(screen.queryByText(/this person will be a parent/)).not.toBeInTheDocument();

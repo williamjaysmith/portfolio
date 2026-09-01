@@ -16,6 +16,7 @@
  * proved by handing a real, live id to an action and watching it refuse.
  */
 
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Pool } from "pg";
@@ -94,7 +95,7 @@ process.env.FAMILY_ACTOR_SECRET ??= "policy-suite-actor-secret-0123456789abcdef0
 // missing key at module-evaluation time.
 const { removeAvatar, signAvatarUrls, uploadAvatar } = await import("@/lib/family/actions/avatars");
 const { reorderCategories, updateCategory } = await import("@/lib/family/actions/categories");
-const { clearProfilePin } = await import("@/lib/family/actions/pins");
+const { clearProfilePin, setProfilePin } = await import("@/lib/family/actions/pins");
 const { punchIn, punchOut } = await import("@/lib/family/actions/punch-in");
 const { updateHouseholdSettings } = await import("@/lib/family/actions/settings");
 
@@ -563,6 +564,72 @@ describe("server actions: updates, reordering, settings and avatars", () => {
         updated_by: parentId,
       });
       expect(await bucketNames(householdId)).not.toContain(`${photoId}.png`);
+    });
+  });
+
+  describe("a profile id is not an oracle", () => {
+    /** A syntactically perfect id that names nothing, anywhere. */
+    const ghostId = randomUUID();
+
+    beforeAll(async () => {
+      expectOk(await punchOut());
+      await punchInAs(parentId, PARENT_PIN);
+      // The foreign profile really does have a PIN, so "the PIN survived" below
+      // is a fact about the row and not about an absent one.
+      await pool.query(
+        "insert into family.profile_pins (profile_id, pin_hash) values ($1, " +
+          "extensions.crypt('9876', extensions.gen_salt('bf', 10)))",
+        [foreignId],
+      );
+    });
+
+    it("setProfilePin answers the same for another household's real profile and for a ghost", async () => {
+      // Before: the real id came back FORBIDDEN (42501 from set_pin) and the
+      // ghost NOT_FOUND (P0002) — the difference alone confirms the row exists.
+      expectFailure(await setProfilePin(foreignId, "4321"), "NOT_FOUND");
+      expectFailure(await setProfilePin(ghostId, "4321"), "NOT_FOUND");
+      expect((await readCategory(foreignId)).has_pin).toBe(true);
+    });
+
+    it("clearProfilePin answers the same for both, and the foreign PIN survives", async () => {
+      expectFailure(await clearProfilePin(foreignId), "NOT_FOUND");
+      expectFailure(await clearProfilePin(ghostId), "NOT_FOUND");
+      expect((await readCategory(foreignId)).has_pin).toBe(true);
+    });
+  });
+
+  describe("setProfilePin keeps whoever is punched in punched in (FR-013)", () => {
+    /** Expiry (epoch seconds) of the actor cookie sitting in the jar right now. */
+    function actorExpiry(): number {
+      const token = state.cookies.get(ACTOR_COOKIE);
+      if (!token) throw new Error("no actor cookie");
+      const payload = token.split(".")[1];
+      if (!payload) throw new Error("the actor cookie is not a JWT");
+      const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+        exp: number;
+      };
+      return claims.exp;
+    }
+
+    async function setPunchOutMinutes(minutes: number): Promise<void> {
+      await pool.query(
+        "update family.household_settings set punch_out_minutes = $2 where household_id = $1",
+        [householdId, minutes],
+      );
+    }
+
+    it("re-mints the actor cookie after a successful set, so a run of PINs is one task", async () => {
+      // Punch in on a one-minute window, then widen it: the re-mint shows up as
+      // a jump in the cookie's own expiry — no waiting, no clock mocking.
+      await setPunchOutMinutes(1);
+      expectOk(await punchOut());
+      await punchInAs(parentId, PARENT_PIN);
+      const before = actorExpiry();
+
+      await setPunchOutMinutes(45);
+      expectOk(await setProfilePin(memberId, MEMBER_PIN));
+
+      expect(actorExpiry() - before).toBeGreaterThan(30 * 60);
     });
   });
 });

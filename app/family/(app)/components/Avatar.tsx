@@ -3,7 +3,7 @@
 import Image from "next/image";
 
 import { avatarSrc, isAvatarId } from "@/lib/family/avatars";
-import { initialsFor, profileVars } from "@/lib/family/colors";
+import { initialsFor, inkOn, profileVars } from "@/lib/family/colors";
 import type { Category } from "@/lib/family/types";
 
 /**
@@ -81,9 +81,13 @@ export function Avatar({
       style={{
         ...(sizeClassName ? {} : { width: size, height: size }),
         ...profileVars(category.color),
+        // The glyph sits on the full-strength accent (`fam-tint-100`), so the
+        // ink is chosen from that colour: white is 1.37:1 on Sunshine and
+        // 1.50:1 on Sprout, which is no fallback at all (FR-039).
+        color: inkOn(category.color),
         fontSize: Math.round(size * 0.4),
       }}
-      className={`fam-profile fam-tint-100 flex shrink-0 items-center justify-center rounded-full font-medium text-white${
+      className={`fam-profile fam-tint-100 flex shrink-0 items-center justify-center rounded-full font-medium${
         ring ? " fam-ring" : ""
       }${sizeClassName ? ` ${sizeClassName}` : ""}`}
     >

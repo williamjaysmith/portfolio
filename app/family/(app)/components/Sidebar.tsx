@@ -13,13 +13,16 @@ import { isActiveTab, NAV_TABS, SETTINGS_TAB, type NavTab } from "./nav";
  * viewport measurement to get wrong during hydration.
  */
 
+// The rail's width is fluid, so between the 1024px landscape breakpoint and the
+// point where the scale unit catches up a tab is under the 44px touch floor
+// unless the floor is stated outright, as the bottom bar states it (FR-035).
 function NavItem({ tab, active }: { tab: NavTab; active: boolean }) {
   const Icon = tab.icon;
   return (
     <Link
       href={tab.href}
       aria-current={active ? "page" : undefined}
-      className={`relative flex h-(--fam-nav-pitch) min-h-[44px] flex-col items-center justify-center gap-1 rounded-[14px] transition-colors ${
+      className={`relative flex h-(--fam-nav-pitch) min-h-[44px] min-w-[44px] flex-col items-center justify-center gap-1 rounded-[14px] transition-colors ${
         active ? "bg-(--fam-sidebar-active) text-(--fam-text-primary)" : "text-(--fam-text-muted)"
       }`}
     >
@@ -33,9 +36,11 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
+    // min-w-[56px] = a 44px tab plus the rail's 6px of padding either side: the
+    // rail has to be able to hold the touch target it contains (FR-035).
     <nav
       aria-label="Primary"
-      className="hidden w-(--fam-rail-w) shrink-0 flex-col bg-(--fam-sidebar-bg) p-1.5 lg:landscape:flex"
+      className="hidden w-(--fam-rail-w) min-w-[56px] shrink-0 flex-col bg-(--fam-sidebar-bg) p-1.5 lg:landscape:flex"
     >
       {/* Reserves the top-bar row so the first tab lines up with the content. */}
       <div className="flex h-(--fam-topbar-h) items-center justify-center">

@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { fail, ok } from "./action-result";
@@ -9,6 +11,18 @@ vi.mock("@/lib/family/actions/punch-in", () => ({
   punchIn: (...args: unknown[]) => punchIn(...args),
 }));
 
+const replace = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace,
+    push: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
+
 const { PunchInSheet } = await import("../PunchInSheet");
 
 /**
@@ -16,17 +30,34 @@ const { PunchInSheet } = await import("../PunchInSheet");
  * than it must.
  */
 describe("PunchInSheet", () => {
+  let queryClient: QueryClient;
+
   beforeEach(() => {
     stubDialog();
     punchIn.mockReset();
+    replace.mockReset();
+    queryClient = new QueryClient();
   });
 
   const parent = makeCategory({ id: "p1", label: "Alex", hasPin: true });
   const child = makeCategory({ id: "c1", label: "Kit", role: "member", hasPin: false });
 
   function renderSheet(profiles = [parent, child], onResolve = vi.fn()) {
-    render(<PunchInSheet open profiles={profiles} avatarUrls={{}} onResolve={onResolve} />);
+    render(<PunchInSheet open profiles={profiles} avatarUrls={{}} onResolve={onResolve} />, {
+      // The sheet runs inside the shell, which owns the household's cache.
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
     return onResolve;
+  }
+
+  /** Choose Alex and tap four digits — the pad submits on the fourth. */
+  function enterPin(digits = ["1", "2", "3", "4"]): void {
+    fireEvent.click(screen.getByRole("button", { name: /Alex/ }));
+    for (const digit of digits) {
+      fireEvent.click(screen.getByRole("button", { name: digit }));
+    }
   }
 
   it("asks who is here", () => {
@@ -63,10 +94,7 @@ describe("PunchInSheet", () => {
     punchIn.mockResolvedValue(ok(session));
     const onResolve = renderSheet();
 
-    fireEvent.click(screen.getByRole("button", { name: /Alex/ }));
-    for (const digit of ["1", "2", "3", "4"]) {
-      fireEvent.click(screen.getByRole("button", { name: digit }));
-    }
+    enterPin();
 
     await waitFor(() => expect(punchIn).toHaveBeenCalledWith("p1", "1234"));
     await waitFor(() => expect(onResolve).toHaveBeenCalledWith(session));
@@ -76,10 +104,7 @@ describe("PunchInSheet", () => {
     punchIn.mockResolvedValue(fail("BAD_PIN"));
     renderSheet();
 
-    fireEvent.click(screen.getByRole("button", { name: /Alex/ }));
-    for (const digit of ["0", "0", "0", "0"]) {
-      fireEvent.click(screen.getByRole("button", { name: digit }));
-    }
+    enterPin(["0", "0", "0", "0"]);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("That PIN isn't right.");
     expect(screen.getByRole("alert").textContent).not.toMatch(/attempt|remaining|close/i);
@@ -89,10 +114,7 @@ describe("PunchInSheet", () => {
     punchIn.mockResolvedValue(fail("PIN_LOCKED"));
     renderSheet();
 
-    fireEvent.click(screen.getByRole("button", { name: /Alex/ }));
-    for (const digit of ["0", "0", "0", "0"]) {
-      fireEvent.click(screen.getByRole("button", { name: digit }));
-    }
+    enterPin(["0", "0", "0", "0"]);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Too many tries.");
     expect(screen.getByRole("button", { name: "1" })).toBeDisabled();
@@ -101,6 +123,28 @@ describe("PunchInSheet", () => {
   it("resolves with nobody when cancelled", () => {
     const onResolve = renderSheet();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onResolve).toHaveBeenCalledWith(null);
+  });
+
+  // The offline edge case: the action does not answer at all. A greyed-out pad
+  // with no message can only be escaped by cancelling and starting again.
+  it("says it can't reach the house when the request fails outright", async () => {
+    punchIn.mockRejectedValue(new Error("Failed to fetch"));
+    renderSheet();
+
+    enterPin();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Can't reach the house right now.");
+    expect(screen.getByRole("button", { name: "1" })).toBeEnabled();
+  });
+
+  it("hands a signed-out session back to the shell instead of asking for a PIN", async () => {
+    punchIn.mockResolvedValue(fail("NOT_AUTHENTICATED"));
+    const onResolve = renderSheet();
+
+    enterPin();
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/family/sign-in"));
     expect(onResolve).toHaveBeenCalledWith(null);
   });
 });

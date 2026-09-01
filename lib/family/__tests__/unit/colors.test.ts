@@ -1,8 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  INK_DARK,
+  INK_LIGHT,
   PALETTE,
   PALETTE_NAMES,
+  contrastRatio,
   initialsFor,
+  inkOn,
   isPaletteColor,
   mixWithWhite,
   normalizeHex,
@@ -144,5 +148,48 @@ describe("initialsFor", () => {
 
   it("handles non-ASCII first letters", () => {
     expect(initialsFor("élodie durand")).toBe("ÉD");
+  });
+});
+
+describe("contrastRatio", () => {
+  it("is the WCAG 2.1 relative-luminance ratio, symmetric", () => {
+    expect(contrastRatio("#000000", "#FFFFFF")).toBeCloseTo(21, 5);
+    expect(contrastRatio("#FFFFFF", "#000000")).toBeCloseTo(21, 5);
+    expect(contrastRatio("#2178AF", "#2178AF")).toBeCloseTo(1, 5);
+  });
+
+  it("accepts unnormalised input", () => {
+    expect(contrastRatio(" #f66951 ", "FFFFFF")).toBeCloseTo(contrastRatio("#F66951", "#FFFFFF"), 10);
+  });
+
+  it("measures the two failures this guard exists for", () => {
+    // The raw coral as text on the white app background: 2.98:1, under AA's 4.5:1.
+    expect(contrastRatio("#F66951", "#FFFFFF")).toBeCloseTo(2.98, 2);
+    // White initials on Sprout — the avatar default was effectively invisible.
+    expect(contrastRatio("#B6E085", "#FFFFFF")).toBeCloseTo(1.5, 2);
+  });
+});
+
+describe("inkOn", () => {
+  it("gives every one of the 20 palette colours an ink that clears WCAG AA (FR-039)", () => {
+    for (const hex of PALETTE) {
+      expect(contrastRatio(hex, inkOn(hex))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("picks the darker ink where white would disappear", () => {
+    expect(inkOn("#B6E085")).toBe(INK_DARK); // Sprout — white is 1.50:1
+    expect(inkOn("#FBD97E")).toBe(INK_DARK); // Sunshine — white is 1.37:1
+    expect(inkOn("#DADADA")).toBe(INK_DARK); // Charcoal — white is 1.40:1
+  });
+
+  it("picks white where the dark ink would disappear", () => {
+    expect(inkOn("#00526D")).toBe(INK_LIGHT); // Deep River — dark ink is 2.01:1
+    expect(inkOn("#2178AF")).toBe(INK_LIGHT);
+    expect(inkOn("#915EA1")).toBe(INK_LIGHT);
+  });
+
+  it("normalises its input", () => {
+    expect(inkOn("#b6e085")).toBe(inkOn("#B6E085"));
   });
 });

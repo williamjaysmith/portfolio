@@ -1,12 +1,28 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { familyKeys } from "@/lib/family/queries";
 import type { ActionResult } from "@/lib/family/errors";
 import type { ActorSession } from "@/lib/family/types";
 
-import { usePunchInPrompt } from "../usePunchInPrompt";
 import { fail, ok } from "./action-result";
 import { makeActor } from "./family-test-utils";
+
+const replace = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace,
+    push: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+}));
+
+const { usePunchInPrompt } = await import("../usePunchInPrompt");
 
 /**
  * US2 and contracts → error-handling row 3 (D12): a control that wants to
@@ -32,13 +48,23 @@ function track<T>(promise: Promise<ActionResult<T>>): Pending<T> {
 function renderPrompt(actor: ActorSession | null = null) {
   const setActor = vi.fn();
   const onSuccess = vi.fn();
-  const { result } = renderHook(() => usePunchInPrompt({ actor, setActor, onSuccess }));
-  return { result, setActor, onSuccess };
+  // The shell runs inside the household's query cache; a lost session empties it.
+  const queryClient = new QueryClient();
+  queryClient.setQueryData(familyKeys.categories("household-1"), ["stale household data"]);
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => usePunchInPrompt({ actor, setActor, onSuccess }), { wrapper });
+  return { result, setActor, onSuccess, queryClient };
 }
 
 const saved = ok("saved");
 
 describe("usePunchInPrompt", () => {
+  beforeEach(() => {
+    replace.mockReset();
+  });
+
   it("holds the action open until somebody says who they are", async () => {
     const { result } = renderPrompt();
     const run = vi.fn(async () => saved);
@@ -187,5 +213,40 @@ describe("usePunchInPrompt", () => {
 
     expect(opened).toBe(session);
     expect(setActor).toHaveBeenCalledWith(session);
+  });
+
+  // Spec edge case: "a session expires while the app is open" — the person is
+  // returned to sign-in without a crash and without exposing stale data.
+  it("empties the cache and returns to sign-in when the session has expired", async () => {
+    const expired = fail("NOT_AUTHENTICATED");
+    const run = vi.fn(async (): Promise<ActionResult<string>> => expired);
+    const { result, queryClient, onSuccess } = renderPrompt(makeActor("parent"));
+    let pending!: Pending<string>;
+
+    await act(async () => {
+      pending = track(result.current.withActor(run));
+    });
+
+    expect(pending.value).toBe(expired);
+    expect(queryClient.getQueryData(familyKeys.categories("household-1"))).toBeUndefined();
+    expect(replace).toHaveBeenCalledWith("/family/sign-in");
+    expect(result.current.sheetOpen).toBe(false);
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
+  // The documented offline edge case: the action never answers at all.
+  it("turns an unreachable action into a refusal rather than a hang", async () => {
+    const run = vi.fn(() => Promise.reject(new Error("Failed to fetch")));
+    const { result, onSuccess } = renderPrompt(makeActor("parent"));
+    let pending!: Pending<string>;
+
+    await act(async () => {
+      pending = track(result.current.withActor(run));
+    });
+
+    expect(pending.settled).toBe(true);
+    expect(pending.value).toEqual(fail("UNAVAILABLE"));
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
   });
 });

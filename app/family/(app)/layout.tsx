@@ -94,15 +94,17 @@ function toActorSession(
 }
 
 /**
- * Which door a failed gate leads to: an account that is simply not on the
- * allowlist gets told so, everything else (no session, expired, unavailable)
- * gets the sign-in page.
+ * Which door a failed gate leads to. Only a genuine authentication problem
+ * sends someone to sign in: bouncing there for, say, a database outage would
+ * be a lie ("you are signed out") and a loop, because the sign-in page asks
+ * the same unavailable database whether they are already a member. An
+ * unexpected failure is re-thrown so the error boundary can say so honestly.
  */
 function redirectFor(error: unknown): GateResult {
-  if (error instanceof ActionFailure && error.code === "NOT_A_MEMBER") {
-    return { kind: "redirect", to: NOT_AUTHORIZED };
-  }
-  return { kind: "redirect", to: SIGN_IN };
+  if (!(error instanceof ActionFailure)) throw error;
+  if (error.code === "NOT_A_MEMBER") return { kind: "redirect", to: NOT_AUTHORIZED };
+  if (error.code === "NOT_AUTHENTICATED") return { kind: "redirect", to: SIGN_IN };
+  throw error;
 }
 
 async function loadShell(): Promise<GateResult> {

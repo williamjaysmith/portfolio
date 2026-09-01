@@ -45,6 +45,20 @@ describe("ProfileChipRow", () => {
     expect(screen.getByText("Kit")).toBeInTheDocument();
   });
 
+  /**
+   * SC-009: this is the one region in the shell that scrolls sideways. On a
+   * phone the people past the right edge can only be reached by scrolling it,
+   * so it has to be able to take focus — and to say what it is when it does.
+   */
+  it("is a named region the keyboard can reach and scroll", () => {
+    const context = makeContext({ categories: [alex, kit] });
+    render(withFamily(context, <ProfileChipRow />));
+
+    const scroller = screen.getByRole("group", { name: "Family" });
+    expect(scroller).toHaveAttribute("tabindex", "0");
+    expect(scroller.className).toContain("overflow-x-auto");
+  });
+
   it("leaves out profiles hidden on this device (FR-033)", () => {
     const context = makeContext({
       categories: [alex, kit],

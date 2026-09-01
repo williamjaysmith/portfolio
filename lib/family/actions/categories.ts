@@ -99,7 +99,13 @@ export async function createCategory(input: CategoryInput): Promise<ActionResult
     const parsed = parseOrThrow(categoryInputSchema, input);
 
     const existing = await loadHouseholdCategories(householdId);
-    const role = parsed.isProfile
+    // Bootstrap always creates a person: a Label cannot be the first parent.
+    // The kind is forced ONCE and everything else follows it — deriving the
+    // role from what the caller asked for instead would write
+    // `is_profile = true, role = 'member'`, leaving the household with no
+    // parent and the bootstrap door open for ever.
+    const isProfile = bootstrap || parsed.isProfile;
+    const role = isProfile
       ? bootstrapRole({ role: parsed.role }, { householdHasParent: !bootstrap })
       : "member";
 
@@ -107,17 +113,20 @@ export async function createCategory(input: CategoryInput): Promise<ActionResult
       household_id: householdId,
       label: parsed.label,
       color: parsed.color,
-      // Bootstrap always creates a person: a Label cannot be the first parent.
-      is_profile: bootstrap ? true : parsed.isProfile,
+      is_profile: isProfile,
       role,
       show_on_tasks: parsed.showOnTasks ?? true,
       sort_order: nextSortOrder(existing),
       created_by: actor?.profileId ?? null,
       updated_by: actor?.profileId ?? null,
-      ...avatarColumns(parsed.avatar ?? null),
-      emoji: parsed.emoji ?? null,
-      birthday: parsed.birthday ?? null,
-      dietary_prefs: parsed.dietaryPrefs ?? null,
+      // Person fields and a Label's emoji follow the FORCED kind: 003 rejects
+      // a row that mixes them (`profile_has_no_emoji`,
+      // `label_has_no_person_fields`), so a forced Profile drops the emoji
+      // the caller sent rather than failing the insert.
+      ...avatarColumns(isProfile ? (parsed.avatar ?? null) : null),
+      emoji: isProfile ? null : (parsed.emoji ?? null),
+      birthday: isProfile ? (parsed.birthday ?? null) : null,
+      dietary_prefs: isProfile ? (parsed.dietaryPrefs ?? null) : null,
     };
 
     const { data, error } = await adminFamily()

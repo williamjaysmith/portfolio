@@ -15,7 +15,7 @@ import { isActiveTab, NAV_TABS, SETTINGS_TAB } from "./nav";
  */
 export function Fab() {
   const pathname = usePathname();
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ path: string; text: string } | null>(null);
 
   const tab = NAV_TABS.find((entry) => isActiveTab(pathname, entry.href));
   // Settings has its own "Add a Profile" buttons; a floating + would be noise.
@@ -28,7 +28,12 @@ export function Fab() {
       <button
         type="button"
         aria-label={`Add ${singular.toLowerCase()}`}
-        onClick={() => setNotice(`Adding to ${tab.label} comes with the ${tab.label} phase.`)}
+        onClick={() =>
+          setNotice({
+            path: pathname,
+            text: `Adding to ${tab.label} comes with the ${tab.label} phase.`,
+          })
+        }
         className="absolute right-(--fam-fab-inset) bottom-(--fam-fab-inset) flex h-(--fam-fab-d) w-(--fam-fab-d) min-h-[56px] min-w-[56px] items-center justify-center rounded-full bg-(--fam-primary-blue) text-white shadow-md"
       >
         <Plus size={32} strokeWidth={2} aria-hidden="true" />
@@ -37,7 +42,9 @@ export function Fab() {
         role="status"
         className="pointer-events-none absolute right-(--fam-fab-inset) bottom-[calc(var(--fam-fab-d)+var(--fam-fab-inset)+0.5rem)] text-(length:--fam-fs-small) text-(--fam-text-secondary)"
       >
-        {notice}
+        {/* Tied to the tab it was raised on, so switching tabs clears it
+            rather than leaving a message naming the wrong screen. */}
+        {notice?.path === pathname ? notice.text : null}
       </p>
     </>
   );

@@ -21,12 +21,29 @@ const SIGN_IN = "/family/sign-in";
 const NOT_AUTHORIZED = "/family/not-authorized";
 const HOME = "/family/calendar";
 
-/** Behind a proxy the forwarded host is the one the browser actually used. */
+/**
+ * Behind a proxy the forwarded host is the one the browser actually used — but
+ * `x-forwarded-host` is attacker-controllable unless something in front is
+ * known to overwrite it, so it is only honoured when it matches the site we
+ * were deployed as. Otherwise an attacker could aim the post-sign-in redirect
+ * (and the session it carries) at a host of their choosing.
+ */
 function originOf(request: NextRequest): string {
   const forwardedHost = request.headers.get("x-forwarded-host");
-  return forwardedHost
-    ? `${request.nextUrl.protocol}//${forwardedHost}`
-    : request.nextUrl.origin;
+  if (!forwardedHost) return request.nextUrl.origin;
+
+  const configured = process.env.NEXT_PUBLIC_SITE_URL;
+  const allowed = new Set<string>([request.nextUrl.host]);
+  if (configured) {
+    try {
+      allowed.add(new URL(configured).host);
+    } catch {
+      // A malformed NEXT_PUBLIC_SITE_URL simply grants nothing extra.
+    }
+  }
+  if (!allowed.has(forwardedHost)) return request.nextUrl.origin;
+
+  return `${request.nextUrl.protocol}//${forwardedHost}`;
 }
 
 function destination(request: NextRequest, path: string): URL {

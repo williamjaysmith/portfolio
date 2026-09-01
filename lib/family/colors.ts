@@ -112,6 +112,58 @@ export function profileVars(hex: PaletteColor): { "--profile": string } {
   return { "--profile": hex };
 }
 
+/* ---------------------------------------------------------------------------
+ * Contrast (FR-039, SC-009 — WCAG 2.1 AA)
+ *
+ * A profile's colour is chosen by the family, not by us, and the palette spans
+ * Sunshine (#FBD97E, luminance 0.72) to Deep River (#00526D, 0.08). Anything
+ * that draws TEXT on one of them — the initials avatar above all, which is the
+ * default face for a profile with no picture — has to pick its ink from the
+ * colour rather than assume one. White initials are 1.50:1 on Sprout.
+ * ------------------------------------------------------------------------- */
+
+/** The two inks a profile-coloured surface may carry: `--fam-text-primary`, and white. */
+export const INK_DARK = "#1A1A1A";
+export const INK_LIGHT = "#FFFFFF";
+
+export type Ink = typeof INK_DARK | typeof INK_LIGHT;
+
+/** WCAG 2.1 sRGB channel linearisation (§ "relative luminance"). */
+function channelLuminance(channel: number): number {
+  const c = channel / 255;
+  return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+const LUMINANCE_WEIGHTS = [0.2126, 0.7152, 0.0722];
+
+function relativeLuminance(hex: string): number {
+  return parseHex(hex).reduce(
+    (total, channel, index) => total + LUMINANCE_WEIGHTS[index] * channelLuminance(channel),
+    0,
+  );
+}
+
+/**
+ * WCAG 2.1 contrast ratio between two opaque colours, 1 (identical) to 21
+ * (black on white). AA wants 4.5 for body text and 3 for the boundary of a
+ * control (1.4.3, 1.4.11).
+ */
+export function contrastRatio(a: string, b: string): number {
+  const first = relativeLuminance(a);
+  const second = relativeLuminance(b);
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05);
+}
+
+/**
+ * The legible ink for text drawn on `hex`: whichever of the two inks has the
+ * better ratio. Every palette colour clears 4.5:1 this way (the tightest is
+ * Deep Clementine at 4.54:1) — `colors.test.ts` holds that as a guard, so a
+ * palette change that breaks it fails the suite instead of the tablet.
+ */
+export function inkOn(hex: string): Ink {
+  return contrastRatio(hex, INK_DARK) >= contrastRatio(hex, INK_LIGHT) ? INK_DARK : INK_LIGHT;
+}
+
 /**
  * Default avatar text: first letter of the first two words, uppercased.
  * Uses code points (not UTF-16 units) so a name starting with an astral

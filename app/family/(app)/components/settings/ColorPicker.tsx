@@ -9,7 +9,20 @@ import type { Category } from "@/lib/family/types";
  *
  * Two people may share a colour, but they are warned first, because colour is
  * the primary way the family is told apart at a glance.
+ *
+ * It is a real radio group, so it is ONE tab stop with the arrows moving
+ * inside it (SC-009): twenty stops between the name field and Save is not a
+ * form anyone can fill in from a keyboard.
  */
+
+/** Where a key moves the selection, or null when the key is not part of the pattern. */
+function nextOption(key: string, from: number, count: number): number | null {
+  if (key === "ArrowRight" || key === "ArrowDown") return (from + 1) % count;
+  if (key === "ArrowLeft" || key === "ArrowUp") return (from - 1 + count) % count;
+  if (key === "Home") return 0;
+  if (key === "End") return count - 1;
+  return null;
+}
 
 export interface ColorPickerProps {
   value: PaletteColor;
@@ -24,11 +37,30 @@ export function ColorPicker({ value, onChange, usedBy, excludeId }: ColorPickerP
   const others = usedBy.filter((entry) => entry.id !== excludeId);
   const owner = (color: PaletteColor) => others.find((entry) => entry.color === color);
   const clash = owner(value);
+  // The one swatch in the tab order. A colour that has left the palette selects
+  // nothing, and the group would otherwise have no way in at all.
+  const tabStop = Math.max(PALETTE.indexOf(value), 0);
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    const target = nextOption(event.key, tabStop, PALETTE.length);
+    if (target === null) return;
+
+    event.preventDefault();
+    onChange(PALETTE[target]);
+    // Selection and focus move together; the swatch is already in the DOM, so
+    // only its `tabIndex` changes on the re-render this triggers.
+    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[target]?.focus();
+  }
 
   return (
     <div className="flex flex-col gap-2">
-      <div role="radiogroup" aria-label="Colour" className="flex flex-wrap gap-2">
-        {PALETTE.map((color) => {
+      <div
+        role="radiogroup"
+        aria-label="Colour"
+        onKeyDown={handleKeyDown}
+        className="flex flex-wrap gap-2"
+      >
+        {PALETTE.map((color, index) => {
           const used = owner(color);
           const selected = color === value;
           return (
@@ -38,6 +70,7 @@ export function ColorPicker({ value, onChange, usedBy, excludeId }: ColorPickerP
               role="radio"
               aria-checked={selected}
               aria-label={`${PALETTE_NAMES[color]}${used ? ` — already used by ${used.label}` : ""}`}
+              tabIndex={index === tabStop ? 0 : -1}
               onClick={() => onChange(color)}
               style={{ backgroundColor: color }}
               className={`relative flex h-[44px] w-[44px] items-center justify-center rounded-full text-xs font-medium text-white ${

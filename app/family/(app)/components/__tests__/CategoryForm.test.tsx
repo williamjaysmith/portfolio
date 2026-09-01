@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AVATAR_LABELS } from "@/lib/family/avatars";
@@ -372,6 +373,41 @@ describe("CategoryForm", () => {
       expect(onClose).toHaveBeenCalledTimes(1);
       expect(createCategory).not.toHaveBeenCalled();
       expect(updateCategory).not.toHaveBeenCalled();
+    });
+
+    /**
+     * SC-009: the form is unmounted rather than closed, so nothing hands the
+     * keyboard back by itself — focus lands on <body> and the next Tab restarts
+     * from the top of the document.
+     */
+    it("gives the keyboard back to the control that opened it", () => {
+      function Harness() {
+        const [open, setOpen] = useState(false);
+        return withFamily(
+          makeContext(),
+          <>
+            <button type="button" onClick={() => setOpen(true)}>
+              Add a Profile
+            </button>
+            {open ? (
+              <CategoryForm mode="create" kind="profile" onClose={() => setOpen(false)} />
+            ) : null}
+          </>,
+        );
+      }
+
+      render(<Harness />);
+      const opener = screen.getByRole("button", { name: "Add a Profile" });
+      opener.focus();
+      fireEvent.click(opener);
+
+      // Stand in for `showModal()`, which jsdom does not implement: in a browser
+      // opening the dialog is what takes the keyboard off the button.
+      screen.getByLabelText("Name").focus();
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(opener).toHaveFocus();
     });
 
     /** Escape closes the native dialog; the owner has to hear about it too. */

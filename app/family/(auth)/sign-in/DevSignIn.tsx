@@ -8,8 +8,10 @@ import { createClient } from "@/lib/family/supabase/client";
 /** The account `npm run family:seed -- --local` creates (D21). Not personal data. */
 const DEV_EMAIL = "dev@family.local";
 
+// A text input's outline is its only affordance, so it is a control boundary
+// (WCAG 1.4.11, 3:1) rather than a hairline divider.
 const FIELD =
-  "min-h-[44px] w-full rounded-xl border border-(--fam-hairline) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-body) text-(--fam-text-primary)";
+  "min-h-[44px] w-full rounded-xl border border-(--fam-control-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-body) text-(--fam-text-primary)";
 
 /**
  * Email + password form for the LOCAL Supabase stack only. The sign-in page

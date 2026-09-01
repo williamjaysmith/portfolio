@@ -68,10 +68,18 @@ export function useFamily(): FamilyContextValue {
  */
 let browserQueryClient: QueryClient | undefined;
 
-function getQueryClient(): QueryClient {
-  browserQueryClient ??= new QueryClient({
+function newQueryClient(): QueryClient {
+  return new QueryClient({
     defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
   });
+}
+
+function getQueryClient(): QueryClient {
+  // A module-level singleton is right in the browser and wrong on the server,
+  // where the module is shared by every request: one household's cache would
+  // be handed to the next render. On the server each request gets its own.
+  if (typeof window === "undefined") return newQueryClient();
+  browserQueryClient ??= newQueryClient();
   return browserQueryClient;
 }
 

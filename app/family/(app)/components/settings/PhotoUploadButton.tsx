@@ -42,7 +42,13 @@ export function PhotoUploadButton({ profile, disabled }: PhotoUploadButtonProps)
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <label className="flex min-h-[44px] cursor-pointer items-center text-(length:--fam-fs-small) text-(--fam-text-secondary)">
+      {/*
+        The focusable element is the file input, and it is `sr-only` — clipped
+        to a 1px box where no focus ring can be seen. The indicator belongs on
+        the visible label instead, or tabbing here shows nothing at all
+        (WCAG 2.4.7, SC-009).
+      */}
+      <label className="flex min-h-[44px] cursor-pointer items-center rounded-full px-1 text-(length:--fam-fs-small) text-(--fam-text-secondary) has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-(--fam-text-primary) has-[:focus-visible]:ring-offset-2">
         <span className="underline">{profile.avatarKind === "photo" ? "Replace photo" : "Upload photo"}</span>
         <input
           type="file"

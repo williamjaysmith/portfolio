@@ -312,3 +312,99 @@ describe.skipIf(actions === null)("server actions: punch-in, PINs and category r
     expectOk(await api.extendActor());
   });
 });
+
+/**
+ * D6 in its own right. The bootstrap window closes on the FIRST record a
+ * parent-less household creates, so each case needs a household of its own —
+ * and an account of its own, because the household comes from the caller's
+ * membership, not from an argument.
+ */
+describe.skipIf(actions === null)("bootstrap forces the first record to be a parent profile (D6)", () => {
+  const api = actions!;
+  const fx = fixtures();
+  const run = fx.run;
+
+  let pool: Pool;
+  let admin: SupabaseClient;
+  const users: FixtureUser[] = [];
+  const households: string[] = [];
+
+  /** A parent-less household with an allowlisted account, signed in and selected. */
+  async function freshHousehold(tag: string): Promise<string> {
+    const householdId = await insertHousehold(pool, `test-${run}-${tag}`);
+    households.push(householdId);
+    const email = testEmail(`actions-${tag}`, run);
+    await pool.query("insert into family.household_users (household_id, email) values ($1, $2)", [
+      householdId,
+      email,
+    ]);
+    const [created] = await createUsers(admin, [email]);
+    if (!created) throw new Error(`expected an account for ${tag}`);
+    users.push(created);
+    state.client = await userClient(created);
+    state.cookies.clear();
+    return householdId;
+  }
+
+  interface KindRow {
+    is_profile: boolean;
+    role: string;
+    emoji: string | null;
+  }
+
+  /** What the DATABASE holds — the action's return value is not the guarantee. */
+  async function readKind(id: string): Promise<KindRow> {
+    const { rows } = await pool.query<KindRow>(
+      "select is_profile, role, emoji from family.categories where id = $1",
+      [id],
+    );
+    const [row] = rows;
+    if (!row) throw new Error(`no category ${id}`);
+    return row;
+  }
+
+  beforeAll(() => {
+    pool = createPool();
+    admin = adminClient();
+  });
+
+  afterAll(async () => {
+    state.client = null;
+    state.cookies.clear();
+    for (const householdId of households) await deleteHousehold(pool, householdId);
+    await deleteUsers(admin, users.map((user) => user.id));
+    await pool.end();
+  });
+
+  it("a Label asked for with no parent yet is created as a PARENT profile, and the window shuts", async () => {
+    const householdId = await freshHousehold("bootstrap-label");
+
+    const created = expectOk(
+      await api.createCategory({ label: `Bin day ${run}`, color: "#FDC36D", isProfile: false }),
+    );
+    expect(created).toMatchObject({ householdId, isProfile: true, role: "parent" });
+    expect(await readKind(created.id)).toEqual({ is_profile: true, role: "parent", emoji: null });
+
+    // The whole point of deriving the role from the FORCED kind: the household
+    // now has a parent, so the actor-less door D6 opened is shut again.
+    expectFailure(
+      await api.createCategory({ label: `After ${run}`, color: "#2178AF", isProfile: true }),
+      "NO_ACTOR",
+    );
+  });
+
+  it("drops the emoji the Label carried instead of letting 003 reject the insert", async () => {
+    await freshHousehold("bootstrap-emoji");
+
+    const created = expectOk(
+      await api.createCategory({
+        label: `Holidays ${run}`,
+        color: "#FDC36D",
+        isProfile: false,
+        emoji: "🎉",
+      }),
+    );
+    expect(created).toMatchObject({ isProfile: true, role: "parent", emoji: null });
+    expect(await readKind(created.id)).toEqual({ is_profile: true, role: "parent", emoji: null });
+  });
+});

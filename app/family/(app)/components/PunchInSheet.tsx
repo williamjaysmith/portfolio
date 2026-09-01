@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { punchIn } from "@/lib/family/actions/punch-in";
-import type { ActionError } from "@/lib/family/errors";
+import type { ActionError, ActionResult } from "@/lib/family/errors";
 import type { ActorSession, Category } from "@/lib/family/types";
 
 import { Avatar } from "./Avatar";
 import { PinPad } from "./PinPad";
+import { callAction, useSessionRecovery } from "./action-client";
 import { useModalDialog } from "./useModalDialog";
 
 /**
@@ -27,6 +28,30 @@ const REASON_COPY: Partial<Record<ActionError, string>> = {
   UNAVAILABLE: "Can't reach the house right now.",
 };
 
+/** What one attempt leaves the sheet to do. */
+type PinAttempt =
+  | { status: "ok"; session: ActorSession }
+  | { status: "signed-out"; result: ActionResult<ActorSession> }
+  | { status: "refused"; message: string; locked: boolean };
+
+/**
+ * One attempt at the PIN, classified.
+ *
+ * `callAction` is what makes an unreachable house a refusal rather than a pad
+ * left greyed out for good: the spec's offline edge case asks for a message,
+ * not a sheet that has to be cancelled and reopened.
+ */
+async function attemptPunchIn(profileId: string, pin: string): Promise<PinAttempt> {
+  const result = await callAction(() => punchIn(profileId, pin));
+  if (result.ok) return { status: "ok", session: result.data };
+  if (result.error === "NOT_AUTHENTICATED") return { status: "signed-out", result };
+  return {
+    status: "refused",
+    message: REASON_COPY[result.error] ?? result.message,
+    locked: result.error === "PIN_LOCKED",
+  };
+}
+
 export interface PunchInSheetProps {
   open: boolean;
   profiles: Category[];
@@ -37,11 +62,7 @@ export interface PunchInSheetProps {
 export function PunchInSheet({ open, profiles, avatarUrls, onResolve }: PunchInSheetProps) {
   const dialogRef = useModalDialog(open);
   const [selected, setSelected] = useState<Category | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [resetKey, setResetKey] = useState(0);
-  const [locked, setLocked] = useState(false);
   const [wasOpen, setWasOpen] = useState(false);
 
   // Reset when the sheet is (re)opened, without an effect that would run a
@@ -49,10 +70,7 @@ export function PunchInSheet({ open, profiles, avatarUrls, onResolve }: PunchInS
   if (open && !wasOpen) {
     setWasOpen(true);
     setSelected(null);
-    setError(null);
     setNotice(null);
-    setPending(false);
-    setLocked(false);
   } else if (!open && wasOpen) {
     setWasOpen(false);
   }
@@ -61,22 +79,6 @@ export function PunchInSheet({ open, profiles, avatarUrls, onResolve }: PunchInS
 
   function cancel(): void {
     onResolve(null);
-  }
-
-  async function submit(pin: string): Promise<void> {
-    if (!selected) return;
-    setPending(true);
-    setError(null);
-    const result = await punchIn(selected.id, pin);
-    setPending(false);
-
-    if (result.ok) {
-      onResolve(result.data);
-      return;
-    }
-    setError(REASON_COPY[result.error] ?? result.message);
-    setLocked(result.error === "PIN_LOCKED");
-    setResetKey((key) => key + 1);
   }
 
   return (
@@ -100,15 +102,8 @@ export function PunchInSheet({ open, profiles, avatarUrls, onResolve }: PunchInS
         <PinStep
           profile={selected}
           photoUrl={avatarUrls[selected.id]}
-          disabled={pending || locked}
-          error={error}
-          resetKey={resetKey}
-          onComplete={submit}
-          onBack={() => {
-            setSelected(null);
-            setError(null);
-            setLocked(false);
-          }}
+          onResolve={onResolve}
+          onBack={() => setSelected(null)}
         />
       ) : (
         <PickerStep
@@ -117,11 +112,7 @@ export function PunchInSheet({ open, profiles, avatarUrls, onResolve }: PunchInS
           avatarUrls={avatarUrls}
           notice={notice}
           onNotice={setNotice}
-          onSelect={(profile) => {
-            setSelected(profile);
-            setError(null);
-            setResetKey((key) => key + 1);
-          }}
+          onSelect={setSelected}
           onCancel={cancel}
         />
       )}
@@ -132,19 +123,50 @@ export function PunchInSheet({ open, profiles, avatarUrls, onResolve }: PunchInS
 interface PinStepProps {
   profile: Category;
   photoUrl?: string;
-  disabled: boolean;
-  error: string | null;
-  resetKey: number;
-  onComplete: (pin: string) => void;
+  onResolve: (actor: ActorSession | null) => void;
   onBack: () => void;
 }
 
-/** Step two: the chosen person proves it is them. */
-function PinStep({ profile, photoUrl, disabled, error, resetKey, onComplete, onBack }: PinStepProps) {
+/**
+ * Step two: the chosen person proves it is them.
+ *
+ * The attempt lives here, not in the sheet, because this step is mounted
+ * fresh for each person — going back or choosing somebody else is what clears
+ * a wrong PIN, so there is no reset bookkeeping to keep in step.
+ */
+function PinStep({ profile, photoUrl, onResolve, onBack }: PinStepProps) {
+  const signedOut = useSessionRecovery();
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [resetKey, setResetKey] = useState(0);
+
+  async function submit(pin: string): Promise<void> {
+    setPending(true);
+    setError(null);
+    const attempt = await attemptPunchIn(profile.id, pin);
+    setPending(false);
+
+    if (attempt.status === "ok") {
+      onResolve(attempt.session);
+      return;
+    }
+    // No PIN can fix a signed-out session: the shell empties the cache and
+    // leaves for sign-in, so the sheet just gets out of the way.
+    if (attempt.status === "signed-out") {
+      signedOut(attempt.result);
+      onResolve(null);
+      return;
+    }
+    setError(attempt.message);
+    setLocked(attempt.locked);
+    setResetKey((key) => key + 1);
+  }
+
   return (
     <div className="mt-4 flex flex-col items-center gap-4">
       <Avatar category={profile} size={72} photoUrl={photoUrl} />
-      <PinPad disabled={disabled} onComplete={onComplete} resetKey={resetKey} />
+      <PinPad disabled={pending || locked} onComplete={submit} resetKey={resetKey} />
       <p role="alert" className="min-h-[1.5em] text-(length:--fam-fs-body)">
         {error}
       </p>

@@ -7,9 +7,16 @@
 -- family.hook_restrict_signup — only AFTER the allowlist rows exist (npm run family:seed).
 -- Locally the hook is not enabled; the dev account is created by the seed script.
 
+-- SECURITY DEFINER is load-bearing, not decoration. GoTrue calls this hook as
+-- `supabase_auth_admin`, and `family.household_users` has RLS enabled with a
+-- policy for `authenticated` only. As SECURITY INVOKER the allowlist lookup
+-- would return zero rows for that role no matter what it contains, so the hook
+-- would refuse EVERY sign-up — the allowlisted parents included, locking the
+-- household out of its own app. Running as the owner bypasses RLS; the grants
+-- below are what stop anyone else calling it.
 create or replace function family.hook_restrict_signup(event jsonb)
 returns jsonb
-language plpgsql set search_path = '' as $$
+language plpgsql security definer set search_path = '' as $$
 declare
   v_email text := lower(btrim(event -> 'user' ->> 'email'));
 begin

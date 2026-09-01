@@ -26,14 +26,23 @@ interface SectionHeaderProps {
   kind: "profile" | "label";
   disabled: boolean;
   bootstrap: boolean;
+  /** A household with no parent yet can only add people — see `waitingForParent`. */
+  waitingForParent: boolean;
   onAdd: () => void;
 }
 
-function SectionHeader({ kind, disabled, bootstrap, onAdd }: SectionHeaderProps) {
+function SectionHeader({
+  kind,
+  disabled,
+  bootstrap,
+  waitingForParent,
+  onAdd,
+}: SectionHeaderProps) {
   const isProfile = kind === "profile";
   const notes = [
     disabled ? "Parents only" : null,
     bootstrap ? "You’re the first — this person will be a parent." : null,
+    waitingForParent ? "Add the first person before adding labels." : null,
   ].filter((note): note is string => note !== null);
 
   return (
@@ -47,7 +56,7 @@ function SectionHeader({ kind, disabled, bootstrap, onAdd }: SectionHeaderProps)
         </h2>
         <button
           type="button"
-          disabled={disabled}
+          disabled={disabled || waitingForParent}
           onClick={onAdd}
           className="min-h-[44px] rounded-full bg-(--fam-primary-blue) px-5 text-(length:--fam-fs-small) font-medium text-white disabled:opacity-50"
         >
@@ -75,8 +84,13 @@ export function CategorySection({ kind }: CategorySectionProps) {
   const [deleting, setDeleting] = useState<Category | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
+  const householdHasParent = profiles.some((profile) => profile.role === "parent");
   // D6: with no parent yet, a signed-in member may create the first one.
-  const bootstrap = isProfile && !profiles.some((profile) => profile.role === "parent");
+  const bootstrap = isProfile && !householdHasParent;
+  // The bootstrap window only makes people. Offering "Add a Label" before a
+  // parent exists would either dead-end at a punch-in nobody can complete, or —
+  // if the action were reached directly — be coerced into a parent profile.
+  const waitingForParent = !isProfile && !householdHasParent;
 
   async function move(index: number, direction: -1 | 1): Promise<void> {
     const reordered = [...items];
@@ -97,6 +111,7 @@ export function CategorySection({ kind }: CategorySectionProps) {
         kind={kind}
         disabled={disabled}
         bootstrap={bootstrap}
+        waitingForParent={waitingForParent}
         onAdd={() => setCreating(true)}
       />
 

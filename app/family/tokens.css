@@ -43,7 +43,13 @@
   --fam-sidebar-active: #FFFFFF;   /* [SAMPLED] active nav item = white pill, no border, no shadow */
   --fam-pill-btn-bg: #F7F7F8;      /* [SAMPLED] top-bar pill buttons (Day / Filter / Today / ‹ ›) */
   --fam-btn-secondary-bg: #F9F9F9; /* [SAMPLED] modal secondary button */
-  --fam-hairline: #EDEDED;         /* [ESTIMATED] grid / divider hairlines — sub-pixel in every photo */
+  --fam-hairline: #EDEDED;         /* [ESTIMATED] grid / divider hairlines — sub-pixel in every photo.
+                                      DECORATION ONLY: 1.17:1 on --fam-app-bg. Fine between two things
+                                      layout has already separated; never the boundary of a control. */
+  --fam-control-border: #8A8A8A;   /* [OURS] the outline of a text input, which is the only thing that
+                                      says "type here" — WCAG 1.4.11 wants 3:1 for that. 3.45:1 on
+                                      --fam-app-bg (and 3.00:1 on --fam-sidebar-bg). Nothing is
+                                      photographed at this level of detail, so the value is ours. */
 
   /* ---------- text (07 §1.2) — all [ESTIMATED]; photo blur prevents an exact read ---- */
   --fam-text-primary: #1A1A1A;     /* date, day headers, event titles, list/task titles */
@@ -52,9 +58,16 @@
 
   /* ---------- semantics — cross-confirmed against the API palette (07 §1.2) ----------- */
   --fam-primary-blue: #2178AF;     /* [VERIFIED] palette "Blue"   — FAB, modal "Done" */
-  --fam-accent-coral: #F66951;     /* [VERIFIED] palette "Coral"  — today badge, now-line */
+  --fam-accent-coral: #F66951;     /* [VERIFIED] palette "Coral"  — today badge, now-line.
+                                      DECORATIVE FILL ONLY: 2.98:1 on --fam-app-bg, so it may tint a
+                                      surface but must never be text, and must never sit under white text. */
   --fam-star-gold: #FDC36D;        /* [VERIFIED] palette "Orange" — star chips, reward stars */
-  --fam-danger: #F66951;           /* [ESTIMATED] "Delete" label uses the same coral; a true error colour is [UNKNOWN] */
+  --fam-danger: #AC4A39;           /* [DERIVED] the verified coral at 70 % in sRGB — 5.54:1 on
+                                      --fam-app-bg, which is the same measurement for both of its jobs:
+                                      validation text / "Delete" labels ON white, and the confirm-delete
+                                      button fill UNDER white (WCAG 1.4.3 wants 4.5:1 for each).
+                                      The raw #F66951 it is derived from is 2.98:1 and fails both.
+                                      A true error colour is still [UNKNOWN] in the source. */
   --fam-focus-ring: var(--fam-primary-blue); /* [OURS] focus states are not photographed (touch device) */
   /* There is NO global success green: a completed check-circle uses the profile's own accent [VERIFIED]. */
 

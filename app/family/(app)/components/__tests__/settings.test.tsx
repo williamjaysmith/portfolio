@@ -1,8 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PALETTE, PALETTE_NAMES } from "@/lib/family/colors";
+import { AVATAR_IDS, AVATAR_LABELS } from "@/lib/family/avatars";
+import { PALETTE, PALETTE_NAMES, type PaletteColor } from "@/lib/family/colors";
 
+import { AvatarPicker } from "../settings/AvatarPicker";
 import { ColorPicker } from "../settings/ColorPicker";
 import { makeCategory, makeContext, stubDialog, withFamily } from "./family-test-utils";
 
@@ -46,6 +49,139 @@ describe("ColorPicker", () => {
     fireEvent.click(screen.getByRole("radio", { name: PALETTE_NAMES[PALETTE[3]] }));
 
     expect(onChange).toHaveBeenCalledWith(PALETTE[3]);
+  });
+
+  /**
+   * SC-009: a radio group is ONE tab stop with the arrows moving inside it.
+   * Twenty stops between the name field and Save is not "operable by keyboard".
+   */
+  describe("the keyboard model", () => {
+    const swatch = (index: number) =>
+      screen.getByRole("radio", { name: PALETTE_NAMES[PALETTE[index]] });
+
+    function renderPicker(selected = 0) {
+      const onChange = vi.fn();
+      render(<ColorPicker value={PALETTE[selected]} onChange={onChange} usedBy={[]} />);
+      return onChange;
+    }
+
+    it("puts a single tab stop on the chosen swatch", () => {
+      renderPicker(3);
+      const stops = screen.getAllByRole("radio").filter((option) => option.tabIndex === 0);
+
+      expect(stops).toEqual([swatch(3)]);
+      expect(swatch(0).tabIndex).toBe(-1);
+    });
+
+    /** A colour retired from the palette must still leave a way into the group. */
+    it("falls back to the first swatch when the value is not on the palette", () => {
+      render(<ColorPicker value={"#123456" as PaletteColor} onChange={vi.fn()} usedBy={[]} />);
+      const stops = screen.getAllByRole("radio").filter((option) => option.tabIndex === 0);
+
+      expect(stops).toEqual([swatch(0)]);
+    });
+
+    it("moves selection and focus with the arrow keys", () => {
+      const onChange = renderPicker(0);
+      fireEvent.keyDown(swatch(0), { key: "ArrowRight" });
+
+      expect(onChange).toHaveBeenCalledWith(PALETTE[1]);
+      expect(swatch(1)).toHaveFocus();
+    });
+
+    it("treats Down as forward and Up as back, like a radio group", () => {
+      const onChange = renderPicker(2);
+      fireEvent.keyDown(swatch(2), { key: "ArrowDown" });
+      expect(onChange).toHaveBeenLastCalledWith(PALETTE[3]);
+
+      fireEvent.keyDown(swatch(2), { key: "ArrowUp" });
+      expect(onChange).toHaveBeenLastCalledWith(PALETTE[1]);
+    });
+
+    it("wraps around both ends", () => {
+      const last = PALETTE.length - 1;
+      const onChange = renderPicker(0);
+      fireEvent.keyDown(swatch(0), { key: "ArrowLeft" });
+
+      expect(onChange).toHaveBeenCalledWith(PALETTE[last]);
+      expect(swatch(last)).toHaveFocus();
+    });
+
+    it("jumps to the ends with Home and End", () => {
+      const last = PALETTE.length - 1;
+      const onChange = renderPicker(5);
+
+      fireEvent.keyDown(swatch(5), { key: "End" });
+      expect(onChange).toHaveBeenLastCalledWith(PALETTE[last]);
+      expect(swatch(last)).toHaveFocus();
+
+      fireEvent.keyDown(swatch(5), { key: "Home" });
+      expect(onChange).toHaveBeenLastCalledWith(PALETTE[0]);
+      expect(swatch(0)).toHaveFocus();
+    });
+
+    it("leaves keys it does not own alone, so Tab still leaves the group", () => {
+      const onChange = renderPicker(0);
+      fireEvent.keyDown(swatch(0), { key: "Tab" });
+
+      expect(onChange).not.toHaveBeenCalled();
+    });
+  });
+});
+
+/** FR-022 + SC-009: the same radio group model for the illustrated avatars. */
+describe("AvatarPicker", () => {
+  const NO_AVATAR = "No avatar — use initials";
+  const face = (id: (typeof AVATAR_IDS)[number]) =>
+    screen.getByRole("radio", { name: AVATAR_LABELS[id] });
+
+  it("offers every illustration plus the initials default", () => {
+    render(<AvatarPicker value={null} onChange={vi.fn()} />);
+
+    expect(screen.getAllByRole("radio")).toHaveLength(AVATAR_IDS.length + 1);
+    expect(screen.getByRole("radio", { name: NO_AVATAR })).toBeChecked();
+  });
+
+  it("reports the chosen illustration, and the way back to initials", () => {
+    const onChange = vi.fn();
+    render(<AvatarPicker value="fox" onChange={onChange} />);
+
+    fireEvent.click(face("bear"));
+    expect(onChange).toHaveBeenLastCalledWith("bear");
+
+    fireEvent.click(screen.getByRole("radio", { name: NO_AVATAR }));
+    expect(onChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("puts a single tab stop on the chosen face", () => {
+    render(<AvatarPicker value="bunny" onChange={vi.fn()} />);
+    const stops = screen.getAllByRole("radio").filter((option) => option.tabIndex === 0);
+
+    expect(stops).toEqual([face("bunny")]);
+  });
+
+  it("moves selection and focus with the arrow keys, initials included", () => {
+    const onChange = vi.fn();
+    render(<AvatarPicker value="fox" onChange={onChange} />);
+
+    fireEvent.keyDown(face("fox"), { key: "ArrowRight" });
+    expect(onChange).toHaveBeenLastCalledWith("bear");
+    expect(face("bear")).toHaveFocus();
+
+    fireEvent.keyDown(face("fox"), { key: "ArrowLeft" });
+    expect(onChange).toHaveBeenLastCalledWith(null);
+    expect(screen.getByRole("radio", { name: NO_AVATAR })).toHaveFocus();
+  });
+
+  it("jumps to the ends with Home and End", () => {
+    const onChange = vi.fn();
+    render(<AvatarPicker value="fox" onChange={onChange} />);
+
+    fireEvent.keyDown(face("fox"), { key: "End" });
+    expect(onChange).toHaveBeenLastCalledWith(AVATAR_IDS[AVATAR_IDS.length - 1]);
+
+    fireEvent.keyDown(face("fox"), { key: "Home" });
+    expect(onChange).toHaveBeenLastCalledWith(null);
   });
 });
 
@@ -135,6 +271,39 @@ describe("DeleteDialog", () => {
     render(withFamily(context, <DeleteDialog category={alex} onClose={vi.fn()} />));
 
     expect(screen.getByText(/you.ll be punched out/)).toBeInTheDocument();
+  });
+
+  /**
+   * SC-009: the dialog is unmounted rather than closed, so nothing hands the
+   * keyboard back by itself — focus lands on <body> and the next Tab restarts
+   * from the top of the document.
+   */
+  it("gives the keyboard back to the control that opened it", () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return withFamily(
+        makeContext({ categories: [alex, sam] }),
+        <>
+          <button type="button" onClick={() => setOpen(true)}>
+            Delete
+          </button>
+          {open ? <DeleteDialog category={alex} onClose={() => setOpen(false)} /> : null}
+        </>,
+      );
+    }
+
+    render(<Harness />);
+    const opener = screen.getByRole("button", { name: "Delete" });
+    opener.focus();
+    fireEvent.click(opener);
+
+    const cancel = screen.getByRole("button", { name: "Cancel" });
+    expect(cancel).toHaveFocus();
+
+    fireEvent.click(cancel);
+
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(opener).toHaveFocus();
   });
 
   it("uses label wording for a label", () => {

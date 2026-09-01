@@ -734,6 +734,30 @@ Each change below was made after an adversarial security/product pass over the o
 | D27 | Anonymous probe expectation is HTTP 401 / SQLSTATE `42501`, not `[]` | `anon` has no `usage` on the schema — verified against a Postgres 17 Supabase image; the old quickstart mis-diagnosed its own check |
 | D19 | Nine migration files, each idempotent where cheap; push is an operator step | — |
 
+### Second pass, after the branch was built (2026-09-01)
+
+A further adversarial review ran against the finished implementation. It found one
+schema defect, verified against the live local database:
+
+| Change | Why |
+|---|---|
+| `hook_restrict_signup` is `SECURITY DEFINER` | It was `SECURITY INVOKER`. GoTrue calls the hook as `supabase_auth_admin`, and `household_users` has RLS enabled with a policy for `authenticated` only — so the allowlist lookup returned **zero rows whatever the table held**, and the hook would have refused **every** sign-up, the allowlisted parents included, the moment the operator enabled it. Verified on the running local stack: `relrowsecurity` true, policy roles `{authenticated}`, `prosecdef` false. `lib/family/__tests__/policies/auth-hook.test.ts` now pins the behaviour, including that the function is SECURITY DEFINER — that property is what makes it work at all, so it is asserted rather than assumed. |
+
+Two shapes worth knowing about, left as they are because fixing either is a design
+change rather than a defect fix:
+
+- **`updateHouseholdSettings` is not atomic.** It writes `households.name` and then
+  `household_settings` in two round-trips. Validation precedes both, so a rejected patch
+  writes neither, but a failure *between* the statements would leave the name changed and
+  the preferences not.
+- **`reorderCategories` fires N independent updates** through `Promise.all` and reports
+  only the first error, so a partial failure leaves a partially reordered list. The order
+  is recomputed from scratch on the next successful reorder, so it is self-healing rather
+  than corrupting.
+
+Both would need a transaction or an RPC. Neither is reachable from the interface today
+without a database failure mid-request.
+
 ---
 
 ## What Phases 2–5 add

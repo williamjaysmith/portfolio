@@ -1,7 +1,10 @@
+"use client";
+
 import type { ReactNode } from "react";
 
 import { BottomNav } from "./BottomNav";
 import { Fab } from "./Fab";
+import { useFamily } from "./FamilyProvider";
 import { ProfileChipRow } from "./ProfileChipRow";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -12,10 +15,23 @@ import { TopBar } from "./TopBar";
  * Both navs are always in the tree; `tokens.css` breakpoints show the rail in
  * landscape on a large screen and the bottom bar everywhere else, so the
  * layout never depends on measuring the viewport in JavaScript.
+ *
+ * This is also where the household's text-size rung enters the CSS (FR-038):
+ * `tokens.css` derives `--fam-text-scale`, and through it every `--fam-fs-*`,
+ * from `[data-text-size]`, and this is the outermost element below the
+ * `.family` wrapper that re-renders when the setting changes. Without the
+ * attribute the whole type scale is pinned at 1 and the Text size control in
+ * Settings saves to the database and changes nothing on screen.
+ *
+ * `settings.density` has no CSS behind it yet — recorded as a known no-op
+ * rather than wired here, because nothing in the shell reads a spacing token
+ * it could scale (every gap and pad is a literal Tailwind class).
  */
 export function AppShell({ children }: { children: ReactNode }) {
+  const { settings } = useFamily();
+
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div data-text-size={settings.textSize} className="flex h-dvh overflow-hidden">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />

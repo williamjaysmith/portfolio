@@ -34,9 +34,12 @@ export function PinPad({ disabled = false, onComplete, resetKey = 0 }: PinPadPro
     setValue("");
   }
 
+  // Re-focus after every reset. A wrong PIN disables the pad while the guess is
+  // in flight, and a disabled input loses focus — without this, the second
+  // attempt could only be typed on screen, never on a keyboard (SC-009).
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!disabled) inputRef.current?.focus();
+  }, [disabled, resetKey]);
 
   function push(digit: string): void {
     if (disabled || value.length >= PIN_LENGTH) return;

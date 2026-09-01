@@ -16,26 +16,32 @@
 import { readActor } from "../actor";
 import { ActionFailure, runAction, type ActionResult } from "../errors";
 import { requireMember, requireParent } from "../guards";
-import type { Role } from "../types";
+import type { Actor } from "../types";
 import { parseOrThrow, pinSchema } from "../validation";
-import { adminFamily, mapDbError, touchActor } from "./shared";
+import { adminFamily, loadProfile, mapDbError, touchActor } from "./shared";
 
-/** The database role of the punched-in profile, or `null` when nobody is. */
-async function currentActorRole(userId: string, householdId: string): Promise<Role | null> {
+/**
+ * The punched-in actor, carrying the role the DATABASE gives it right now
+ * (D10) — or `null` when nobody is punched in on this device.
+ */
+async function currentActor(userId: string, householdId: string): Promise<Actor | null> {
   const actor = await readActor();
   if (!actor || actor.userId !== userId || actor.householdId !== householdId) return null;
 
-  const { data, error } = await adminFamily()
-    .from("categories")
-    .select("id, role, is_profile, household_id")
-    .eq("id", actor.profileId)
-    .eq("household_id", householdId)
-    .maybeSingle();
-  if (error) throw mapDbError(error);
+  const profile = await loadProfile(householdId, actor.profileId);
+  if (!profile) return null;
+  return { ...actor, role: profile.role };
+}
 
-  const row = data as { role: Role; is_profile: boolean } | null;
-  if (!row || !row.is_profile) return null;
-  return row.role;
+/**
+ * A profile id is not a capability. Handed straight to `set_pin`/`clear_pin`,
+ * a REAL id from another household comes back 42501 → FORBIDDEN while an id
+ * that names nothing comes back P0002 → NOT_FOUND: the difference alone tells
+ * a prober which ids exist. Scoping the lookup to the caller's own household
+ * makes the two indistinguishable.
+ */
+async function requireHouseholdProfile(householdId: string, profileId: string): Promise<void> {
+  if (!(await loadProfile(householdId, profileId))) throw new ActionFailure("NOT_FOUND");
 }
 
 export async function setProfilePin(
@@ -44,10 +50,13 @@ export async function setProfilePin(
 ): Promise<ActionResult<null>> {
   return runAction(async () => {
     const { user, householdId } = await requireMember();
-    if ((await currentActorRole(user.id, householdId)) === "member") {
-      throw new ActionFailure("FORBIDDEN");
-    }
+    // Refused for a member actor whatever the id is, so this answer is never
+    // itself a signal about the id.
+    const actor = await currentActor(user.id, householdId);
+    if (actor?.role === "member") throw new ActionFailure("FORBIDDEN");
+
     const newPin = parseOrThrow(pinSchema, pin);
+    await requireHouseholdProfile(householdId, profileId);
 
     const { error } = await adminFamily().rpc("set_pin", {
       p_user_id: user.id,
@@ -55,6 +64,10 @@ export async function setProfilePin(
       p_pin: newPin,
     });
     if (error) throw mapDbError(error);
+
+    // Setting several PINs in a row is one task at the tablet: each success
+    // pushes the idle expiry forward (FR-013). A no-op with nobody punched in.
+    await touchActor(actor);
     return null;
   });
 }
@@ -63,6 +76,7 @@ export async function setProfilePin(
 export async function clearProfilePin(profileId: string): Promise<ActionResult<null>> {
   return runAction(async () => {
     const actor = await requireParent();
+    await requireHouseholdProfile(actor.householdId, profileId);
 
     const { error } = await adminFamily().rpc("clear_pin", {
       p_user_id: actor.userId,

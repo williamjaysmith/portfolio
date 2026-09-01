@@ -27,9 +27,17 @@ export function DeleteDialog({ category, onClose }: DeleteDialogProps) {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
+    // Captured before the dialog takes the keyboard. This dialog is unmounted
+    // rather than closed, so nothing hands focus back on its own: without this
+    // it lands on <body> and the next Tab restarts from the top (SC-009).
+    const opener = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
     if (dialog && !dialog.open && typeof dialog.showModal === "function") dialog.showModal();
     cancelRef.current?.focus();
+
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
   }, []);
 
   const lastParent = category.isProfile && !canDelete(category, profiles).allowed;

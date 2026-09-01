@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { createCategory, updateCategory } from "@/lib/family/actions/categories";
-import type { FieldErrors } from "@/lib/family/errors";
+import type { ActionResult, FieldErrors } from "@/lib/family/errors";
 import { isLastParent } from "@/lib/family/permissions";
-import type { Category } from "@/lib/family/types";
+import type { Category, CategoryInput } from "@/lib/family/types";
 
-import { useFamily } from "../FamilyProvider";
+import { useFamily, type FamilyContextValue } from "../FamilyProvider";
 import { useModalDialog } from "../useModalDialog";
 import { FIELD, FieldError, LABEL, LabelFields, ProfileFields } from "./CategoryFields";
 import { ColorPicker } from "./ColorPicker";
@@ -27,6 +27,23 @@ export interface CategoryFormProps {
   /** Bootstrap: the first person in a household is always a parent (D6). */
   forceParent?: boolean;
   onClose: () => void;
+}
+
+/**
+ * Hands the keyboard back to whatever opened the dialog once it goes away.
+ *
+ * The form is unmounted rather than closed, so nothing does this for us:
+ * without it focus lands on <body> and a keyboard user restarts from the top
+ * of the document after every save or cancel (SC-009). Call it before
+ * `useModalDialog`, whose effect is what takes the focus away.
+ */
+function useReturnFocus(): void {
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
 }
 
 function FormFooter({ pending, onCancel }: { pending: boolean; onCancel: () => void }) {
@@ -50,19 +67,71 @@ function FormFooter({ pending, onCancel }: { pending: boolean; onCancel: () => v
   );
 }
 
+/**
+ * The save, and whether it has to go through the punch-in gate.
+ *
+ * D6: the FIRST profile in a household with no parent is created without an
+ * actor, because nobody can punch in yet — no profile exists to hold a PIN.
+ * Routing that through `withActor` would open a picker with nobody in it and
+ * leave a fresh household permanently unable to add anyone.
+ * `requireParentOrBootstrap()` on the server is still the real gate: it allows
+ * an actor-less create only while the household has no parent, and forces the
+ * new record to be a parent profile.
+ */
+function saveCategory(
+  args: {
+    mode: "create" | "edit";
+    isProfile: boolean;
+    bootstrap: boolean;
+    existingId: string | undefined;
+    input: Omit<CategoryInput, "isProfile">;
+  },
+  withActor: FamilyContextValue["withActor"],
+): Promise<ActionResult<Category>> {
+  const run = () =>
+    args.mode === "create"
+      ? createCategory({ ...args.input, isProfile: args.isProfile })
+      : updateCategory(args.existingId ?? "", args.input);
+
+  return args.bootstrap ? run() : withActor(run);
+}
+
+/** The one parent left cannot be demoted, and the first person is always one. */
+function roleIsLocked(
+  forceParent: boolean,
+  existing: Category | undefined,
+  profiles: readonly Category[],
+): boolean {
+  if (forceParent) return true;
+  if (!existing) return false;
+  return existing.role === "parent" && isLastParent(existing, profiles);
+}
+
+function dialogTitle(
+  mode: "create" | "edit",
+  isProfile: boolean,
+  existing: Category | undefined,
+): string {
+  const kindLabel = isProfile ? "Profile" : "Label";
+  if (mode === "create") return `Add a ${kindLabel}`;
+  return `Edit ${existing?.label ?? kindLabel}`;
+}
+
 export function CategoryForm({ mode, kind, existing, forceParent, onClose }: CategoryFormProps) {
   const { categories, profiles, withActor } = useFamily();
+
+  useReturnFocus();
   const dialogRef = useModalDialog(true);
   const isProfile = kind === "profile";
 
   const form = useCategoryForm(existing, Boolean(forceParent));
+  const nameFieldLabel = isProfile ? "Name" : "Label name";
   const [errors, setErrors] = useState<FieldErrors>({});
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const lockedAsParent =
-    Boolean(forceParent) ||
-    (existing ? existing.role === "parent" && isLastParent(existing, profiles) : false);
+  const bootstrap = Boolean(forceParent);
+  const lockedAsParent = roleIsLocked(bootstrap, existing, profiles);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -70,20 +139,16 @@ export function CategoryForm({ mode, kind, existing, forceParent, onClose }: Cat
     setErrors({});
     setMessage(null);
 
-    const input = draftToInput(form.draft, isProfile);
-    const save = () =>
-      mode === "create"
-        ? createCategory({ ...input, isProfile })
-        : updateCategory(existing?.id ?? "", input);
-
-    // D6: the FIRST profile in a household with no parent is created without
-    // an actor, because nobody can punch in yet — no profile exists to hold a
-    // PIN. Routing this through `withActor` would open a picker with nobody in
-    // it and leave a fresh household permanently unable to add anyone.
-    // `requireParentOrBootstrap()` on the server is still the real gate: it
-    // allows this only while the household has no parent, and forces the new
-    // profile to be one.
-    const result = await (forceParent ? save() : withActor(save));
+    const result = await saveCategory(
+      {
+        mode,
+        isProfile,
+        bootstrap,
+        existingId: existing?.id,
+        input: draftToInput(form.draft, isProfile),
+      },
+      withActor,
+    );
 
     setPending(false);
     if (result.ok) {
@@ -93,8 +158,6 @@ export function CategoryForm({ mode, kind, existing, forceParent, onClose }: Cat
     setErrors(result.fieldErrors ?? {});
     setMessage(result.message);
   }
-
-  const kindLabel = isProfile ? "Profile" : "Label";
 
   return (
     <dialog
@@ -110,12 +173,12 @@ export function CategoryForm({ mode, kind, existing, forceParent, onClose }: Cat
         id="category-form-title"
         className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
-        {mode === "create" ? `Add a ${kindLabel}` : `Edit ${existing?.label ?? kindLabel}`}
+        {dialogTitle(mode, isProfile, existing)}
       </h2>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
         <label className={LABEL}>
-          {isProfile ? "Name" : "Label name"}
+          {nameFieldLabel}
           <input
             value={form.draft.label}
             onChange={(event) => form.set("label", event.target.value)}
@@ -142,7 +205,7 @@ export function CategoryForm({ mode, kind, existing, forceParent, onClose }: Cat
             form={form}
             errors={errors}
             lockedAsParent={lockedAsParent}
-            bootstrap={Boolean(forceParent)}
+            bootstrap={bootstrap}
           />
         ) : (
           <LabelFields form={form} errors={errors} />
