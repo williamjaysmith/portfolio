@@ -199,9 +199,23 @@ describe.skipIf(actions === null)("server actions: punch-in, PINs and category r
     );
   });
 
-  it("setProfilePin with nobody punched in is allowed (FR-018)", async () => {
+  it("the FIRST PIN is set with nobody punched in (FR-018, SC-010)", async () => {
     expect(state.cookies.has(ACTOR_COOKIE)).toBe(false);
     expectOk(await api.setProfilePin(parent.id, PARENT_PIN));
+  });
+
+  /**
+   * The no-lockout window closes the moment it can. Until a parent holds a PIN
+   * nobody could punch in to authorise a PIN, so the session alone has to do.
+   * Once one does, an actor-less caller — a child or a visitor at the
+   * always-signed-in tablet — can no longer reset a parent's PIN.
+   */
+  it("once a parent holds a PIN, an actor-less set is refused", async () => {
+    expect(state.cookies.has(ACTOR_COOKIE)).toBe(false);
+    expectFailure(await api.setProfilePin(parent.id, "4321"), "NO_ACTOR");
+    // And the original PIN still works, so nothing was half-written.
+    expectOk(await api.punchIn(parent.id, PARENT_PIN));
+    expectOk(await api.punchOut());
   });
 
   it("punchIn refuses a wrong PIN and mints an actor cookie for the right one", async () => {
@@ -238,8 +252,15 @@ describe.skipIf(actions === null)("server actions: punch-in, PINs and category r
     expectOk(await api.punchOut());
   });
 
-  it("the child gets a PIN with nobody punched in, then punches in as a member", async () => {
+  it("a punched-in parent gives the child a PIN, who then punches in as a member", async () => {
+    // Actor-less no longer works here: the parent has a PIN, so someone can
+    // punch in to authorise this, and therefore must.
+    expectFailure(await api.setProfilePin(child.id, CHILD_PIN), "NO_ACTOR");
+
+    expectOk(await api.punchIn(parent.id, PARENT_PIN));
     expectOk(await api.setProfilePin(child.id, CHILD_PIN));
+    expectOk(await api.punchOut());
+
     const session = expectOk(await api.punchIn(child.id, CHILD_PIN));
     expect(session).toMatchObject({ profileId: child.id, role: "member" });
   });

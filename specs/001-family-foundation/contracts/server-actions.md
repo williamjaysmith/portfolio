@@ -97,7 +97,14 @@ Returns `ActorSession = { profileId, label, color, role, expiresAt, ttlSeconds }
 
 `pin` must match `^[0-9]{4}$`. Calls `family.set_pin(user.id, profileId, pin)`; a target that is not a profile in the caller's household → `NOT_FOUND`. Never echoes the PIN or its hash.
 
-**Residual risk, accepted and recorded** (spec Assumptions): with nobody punched in, anyone at a signed-in device can set or reset any profile's PIN and then punch in as that profile. For a household of three this is the spec author's explicit choice over a lockout. Tightening options, if ever wanted: require a parent actor once any parent has a PIN, or require a fresh Google re-authentication for actor-less PIN changes.
+**Gating depends on where the household is, not on a fixed rule:**
+
+| Household state | Actor required |
+|---|---|
+| No parent profile holds a PIN | none — a signed-in member may set one (FR-018, SC-010) |
+| Some parent holds a PIN | a punched-in **parent** |
+
+A punched-in member is refused in both cases (FR-015). The window closes as soon as it can be closed: while nobody can punch in, requiring an actor would leave the household permanently read-only; once a parent can identify themselves, an actor-less caller at the always-signed-in tablet must no longer be able to reset a parent's PIN. The client mirrors this — the PIN row calls the action directly in the first case and routes through the punch-in gate in the second — but the server decides.
 
 ### `clearProfilePin(profileId: string): ActionResult<null>`
 

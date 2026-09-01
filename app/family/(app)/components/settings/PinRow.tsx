@@ -26,7 +26,7 @@ export interface PinRowProps {
 }
 
 export function PinRow({ profile }: PinRowProps) {
-  const { actor, withActor, refresh } = useFamily();
+  const { actor, profiles, withActor, refresh } = useFamily();
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,17 +35,29 @@ export function PinRow({ profile }: PinRowProps) {
   // A punched-in child may not touch PINs at all (FR-015).
   const blocked = actor?.role === "member";
 
+  /**
+   * Until some parent holds a PIN there is nobody who could punch in to
+   * authorise this, so the first one is set on the session alone (FR-018,
+   * SC-010). After that it is a parent-only act like any other, and goes
+   * through the punch-in gate.
+   */
+  const noParentCanPunchIn = !profiles.some(
+    (candidate) => candidate.role === "parent" && candidate.hasPin,
+  );
+
   async function save(pin: string): Promise<void> {
     setPending(true);
     setError(null);
-    const result = await setProfilePin(profile.id, pin);
+    const result = noParentCanPunchIn
+      ? await setProfilePin(profile.id, pin)
+      : await withActor(() => setProfilePin(profile.id, pin));
     setPending(false);
 
     if (result.ok) {
       setEditing(false);
       setStatus("PIN set");
-      // This path deliberately bypasses `withActor` (FR-018), so nothing else
-      // refetches: without this the picker still shows the profile as PIN-less.
+      // The bootstrap path bypasses `withActor`, so nothing else refetches:
+      // without this the picker still shows the profile as PIN-less.
       refresh();
       return;
     }

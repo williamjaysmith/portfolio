@@ -1,16 +1,21 @@
 "use server";
 
 /**
- * PIN management (FR-018, SC-010, D5).
+ * PIN management (FR-018, SC-010).
  *
- * `setProfilePin` is deliberately NOT parent-gated. If every profile lacked a
- * PIN, requiring an actor to set one would leave the household permanently
- * read-only — a signed-in account on the allowlist is already proof of family
- * membership. It IS refused for a punched-in member, because a child who has
- * identified themselves must not be able to take over a parent's profile.
+ * `setProfilePin` is gated on WHERE THE HOUSEHOLD IS, not on a fixed rule:
  *
- * The residual risk (anyone standing at a signed-in tablet with nobody punched
- * in can set a PIN) is recorded in spec.md → Assumptions.
+ *   no parent has a PIN yet  → a signed-in member may set one, no actor needed
+ *   a parent has a PIN       → a punched-in PARENT is required
+ *
+ * The first case is the no-lockout rule: requiring an actor when nobody can
+ * punch in would leave the household permanently read-only, and a signed-in
+ * account on the allowlist is already proof of family membership. The second
+ * closes the window as soon as it can be closed — once a parent can identify
+ * themselves, a child (or a visitor) at the always-signed-in tablet can no
+ * longer reset a parent's PIN and take over their profile.
+ *
+ * A punched-in member is refused in both cases (FR-015).
  */
 
 import { readActor } from "../actor";
@@ -44,6 +49,23 @@ async function requireHouseholdProfile(householdId: string, profileId: string): 
   if (!(await loadProfile(householdId, profileId))) throw new ActionFailure("NOT_FOUND");
 }
 
+/**
+ * Whether anyone who could authorise this is able to punch in yet. While the
+ * answer is no, the household would otherwise be stuck: SC-010 says it must be
+ * able to restore itself without developer intervention.
+ */
+async function aParentCanPunchIn(householdId: string): Promise<boolean> {
+  const { count, error } = await adminFamily()
+    .from("categories")
+    .select("id", { head: true, count: "exact" })
+    .eq("household_id", householdId)
+    .eq("is_profile", true)
+    .eq("role", "parent")
+    .eq("has_pin", true);
+  if (error) throw mapDbError(error);
+  return (count ?? 0) > 0;
+}
+
 export async function setProfilePin(
   profileId: string,
   pin: string,
@@ -54,6 +76,11 @@ export async function setProfilePin(
     // itself a signal about the id.
     const actor = await currentActor(user.id, householdId);
     if (actor?.role === "member") throw new ActionFailure("FORBIDDEN");
+
+    // Actor-less is allowed only while no parent could punch in to do it.
+    if (!actor && (await aParentCanPunchIn(householdId))) {
+      throw new ActionFailure("NO_ACTOR");
+    }
 
     const newPin = parseOrThrow(pinSchema, pin);
     await requireHouseholdProfile(householdId, profileId);

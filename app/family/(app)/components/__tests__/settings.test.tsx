@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AVATAR_IDS, AVATAR_LABELS } from "@/lib/family/avatars";
 import { PALETTE, PALETTE_NAMES, type PaletteColor } from "@/lib/family/colors";
 
+import type { FamilyContextValue } from "../FamilyProvider";
 import { AvatarPicker } from "../settings/AvatarPicker";
 import { ColorPicker } from "../settings/ColorPicker";
 import { makeCategory, makeContext, stubDialog, withFamily } from "./family-test-utils";
@@ -202,6 +203,41 @@ describe("PinRow", () => {
     fireEvent.change(screen.getByLabelText("Confirm"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
+    expect(setProfilePin).toHaveBeenCalledWith("p1", "1234");
+  });
+
+  /**
+   * The window closes as soon as it can: once a parent holds a PIN, somebody
+   * can punch in to authorise this, so nobody at the always-signed-in tablet
+   * gets to reset a parent's PIN without doing so.
+   */
+  it("goes through the punch-in gate once a parent holds a PIN", async () => {
+    const withActor: FamilyContextValue["withActor"] = vi.fn(async (run) => run());
+    const parentWithPin = makeCategory({ id: "p1", label: "Alex", role: "parent", hasPin: true });
+    const context = makeContext({ categories: [parentWithPin], actor: null, withActor });
+
+    render(withFamily(context, <PinRow profile={parentWithPin} />));
+    fireEvent.click(screen.getByRole("button", { name: "Reset PIN" }));
+    fireEvent.change(screen.getByLabelText("New PIN"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByLabelText("Confirm"), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(withActor).toHaveBeenCalled();
+    expect(setProfilePin).toHaveBeenCalledWith("p1", "1234");
+  });
+
+  it("skips the gate while no parent could punch in yet (SC-010)", () => {
+    const withActor: FamilyContextValue["withActor"] = vi.fn(async (run) => run());
+    const parentNoPin = makeCategory({ id: "p1", label: "Alex", role: "parent", hasPin: false });
+    const context = makeContext({ categories: [parentNoPin], actor: null, withActor });
+
+    render(withFamily(context, <PinRow profile={parentNoPin} />));
+    fireEvent.click(screen.getByRole("button", { name: "Set PIN" }));
+    fireEvent.change(screen.getByLabelText("New PIN"), { target: { value: "1234" } });
+    fireEvent.change(screen.getByLabelText("Confirm"), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(withActor).not.toHaveBeenCalled();
     expect(setProfilePin).toHaveBeenCalledWith("p1", "1234");
   });
 
