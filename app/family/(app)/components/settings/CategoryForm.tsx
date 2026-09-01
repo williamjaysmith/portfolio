@@ -71,11 +71,19 @@ export function CategoryForm({ mode, kind, existing, forceParent, onClose }: Cat
     setMessage(null);
 
     const input = draftToInput(form.draft, isProfile);
-    const result = await withActor(() =>
+    const save = () =>
       mode === "create"
         ? createCategory({ ...input, isProfile })
-        : updateCategory(existing?.id ?? "", input),
-    );
+        : updateCategory(existing?.id ?? "", input);
+
+    // D6: the FIRST profile in a household with no parent is created without
+    // an actor, because nobody can punch in yet — no profile exists to hold a
+    // PIN. Routing this through `withActor` would open a picker with nobody in
+    // it and leave a fresh household permanently unable to add anyone.
+    // `requireParentOrBootstrap()` on the server is still the real gate: it
+    // allows this only while the household has no parent, and forces the new
+    // profile to be one.
+    const result = await (forceParent ? save() : withActor(save));
 
     setPending(false);
     if (result.ok) {
