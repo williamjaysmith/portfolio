@@ -21,7 +21,7 @@
     "test:unit": "vitest run --project unit",
     "test:policies": "FAMILY_POLICY_TESTS=1 vitest run --project policies",
     "family:seed": "node --env-file-if-exists=.env.local scripts/family-seed.mjs",
-    "dev:local": "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:55321 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_LOCAL_REDACTED SUPABASE_SECRET_KEY=sb_secret_LOCAL_REDACTED next dev --turbopack",
+    "dev:local": "NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:55321 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_LOCAL_REDACTED SUPABASE_SECRET_KEY=sb_secret_LOCAL_REDACTED FAMILY_ACCOUNT_EMAIL=dev@family.local next dev --turbopack",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {

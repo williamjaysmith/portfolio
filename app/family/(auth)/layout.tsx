@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 /**
- * Chrome for the signed-out surface: sign-in, the OAuth bounce and
- * not-authorized. Deliberately NO FamilyProvider / AppShell — a visitor without
+ * Chrome for the signed-out surface: sign-in and not-authorized.
+ * Deliberately NO FamilyProvider / AppShell — a visitor without
  * a session must never construct the household app (FR-001), and the (auth)
  * group imports nothing from (app).
  */

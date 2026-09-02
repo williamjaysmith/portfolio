@@ -1,8 +1,8 @@
 # Phase 0 Research: Family Foundation
 
-**Feature**: `001-family-foundation` | **Date**: 2026-08-28
+**Feature**: `001-family-foundation` | **Date**: 2026-08-28 | **Amended**: 2026-09-02 (R13)
 
-Every unknown in the Technical Context, resolved. Each entry records the decision, why, and what was rejected. Facts verified against a primary source this session are marked `[verified]`.
+Every unknown in the Technical Context, resolved. Each entry records the decision, why, and what was rejected. Facts verified against a primary source this session are marked `[verified]`. R1–R12 are the Phase 0 set; R13 was added later, when the sign-in method changed.
 
 ---
 
@@ -168,6 +168,24 @@ So `proxy.ts` is a **redirect convenience, not a security boundary**. Every serv
 
 ---
 
+## R13 — Household sign-in: one shared account, one password (2026-09-02)
+
+**Decision**: `/family` has **one** Supabase account for the whole household. The sign-in screen is a single password field; a server action pairs the typed password with `FAMILY_ACCOUNT_EMAIL` — read from server-side env, never sent to the browser — and calls `signInWithPassword`. Supabase validates the password; the app never holds or compares it. `FAMILY_ACCOUNT_PASSWORD` exists only so the seed script can create the account, and nothing at runtime reads it. Google sign-in and the `/family/auth/callback` route are removed; `requireMember()`'s existing `claim_membership()` fallback binds membership on the first page load instead.
+
+**Rationale**: The household is two adults who wanted neither a Google account nor an email service in the loop. The sign-in is not where identity lives in this design — the punch-in PINs are (R2, R3) — so a credential the two of them share costs nothing that anything else depends on. It is a door, not a name.
+
+**Alternatives rejected**:
+
+- **Google OAuth** (the original R-less assumption in the spec, replaced here). Needs an OAuth client in a Google Cloud project that the household would have to own, keep enabled and re-verify; one-tap on a tablet is not worth an external console in the critical path of the family calendar. It also assumes each person *has* an account they want attached, which was the thing they objected to.
+- **Email magic links.** Either lean on Supabase's built-in mailer — rate-limited, and documented as not for production use — or stand up an SMTP provider. Both put a mailbox in the path of opening the calendar on a wall tablet, for a household that asked for no email at all.
+- **A password checked against `.env` in the app, with no Supabase session.** The decisive rejection. The publishable key ships in the browser, so row-level security is the only thing keeping the family's data private, and every policy is written against `auth.uid()`. With no Supabase session there is no `auth.uid()` — RLS would have nothing to filter on, and anyone who read the key out of the bundle could query the household directly. A gate in front of the UI would be decoration over an open database. A real session keeps the guarantee where R5 put it: in Postgres.
+
+**Consequences, accepted**: a lost password is reset from the Supabase dashboard, because no mail is ever sent; the Email provider must stay **on** (it is the door), so FR-004 is enforced instead by disabling sign-ups at the Auth API plus the Before-User-Created hook (see quickstart §4, and the operator-step ordering it explains); and the shared secret cannot attribute anything — which is why attribution was never asked of it.
+
+**Unchanged by this decision**: the schema, RLS, the allowlist, `claim_membership()`, punch-in, PINs, roles, and the shell. R5's three layers still stand exactly as written; only what unlocks layer 1 changed.
+
+---
+
 ## Resolved unknowns
 
 | Was unknown | Resolution |
@@ -179,5 +197,6 @@ So `proxy.ts` is a **redirect convenience, not a security boundary**. Every serv
 | How a custom schema reaches the client | Exposed schemas + explicit grants — R4 |
 | Whether a service worker is needed to install on iPad | No — manifest suffices — R9 |
 | How RLS policies get tested | Local Supabase + two clients — R10 |
+| How the household proves it is the household | One shared account, one password, validated by Supabase — R13 (2026-09-02; supersedes the Google assumption) |
 
 No `NEEDS CLARIFICATION` items remain.

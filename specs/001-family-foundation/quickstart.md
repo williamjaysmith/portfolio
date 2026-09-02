@@ -1,6 +1,6 @@
 # Quickstart: Family Foundation
 
-**Feature**: `001-family-foundation` | **Date**: 2026-08-28 | **Amended**: 2026-08-31
+**Feature**: `001-family-foundation` | **Date**: 2026-08-28 | **Amended**: 2026-08-31, 2026-09-02 (shared household password — no Google Cloud Console, no provider secrets)
 
 Everything needed to go from a clean checkout to a working `/family` shell, plus how to verify each security guarantee actually holds. Day-to-day development runs against the **local** Supabase stack (§3); the hosted project needs a one-time set of **operator steps** (§4) that require the account's access token and Dashboard.
 
@@ -24,10 +24,15 @@ Fill from **Project Settings → API Keys** (use the new-format keys — the leg
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | "publishable" (`sb_publishable_…`) | no — access is enforced by RLS |
 | `SUPABASE_SECRET_KEY` | "secret" (`sb_secret_…`) | **yes — bypasses all RLS** |
 | `FAMILY_ACTOR_SECRET` | `openssl rand -base64 32` | **yes — signs the actor cookie** |
-| `FAMILY_SEED_PARENT_EMAILS` | comma-separated Google addresses of the parents | personal — read only by the seed script, never committed |
-| `FAMILY_SEED_PROFILES` | optional JSON array of starting profiles (`label`, `color`, optional `role`, `avatarId`, `birthday`; see the header of `scripts/family-seed.mjs` for the exact shape) | personal — same |
+| `FAMILY_ACCOUNT_EMAIL` | the household account's address — any address you control, e.g. `household@willsmith.dev`. Nobody ever types it: `signIn` reads it on the server and pairs it with the typed password | personal — server-side only, never sent to the browser |
+| `FAMILY_ACCOUNT_PASSWORD` | the shared household password | **yes — but only `scripts/family-seed.mjs` reads it, to create the account (re-running the seed is how you rotate it). Nothing at runtime does; the app never holds or compares a password** |
+| `FAMILY_SEED_PARENT_EMAILS` | optional, comma-separated. **Extra** addresses to allowlist — the shared account is allowlisted for you, so leave it empty unless a second account genuinely needs in | personal — read only by the seed script |
+| `FAMILY_SEED_PROFILES` | optional JSON array of starting profiles (`label`, `color`, optional `role`, `avatar`, `birthday`, `emoji`, `isProfile`; see the header of `scripts/family-seed.mjs` for the exact shape) | personal — read only by the seed script |
+| `FAMILY_DEV_PASSWORD` | `--local` only: the password for the local `dev@family.local` account | local throwaway |
 
-`.env.local` is gitignored. The secret key must never reach a client component; `lib/family/supabase/admin.ts` carries `import 'server-only'` so an accidental client import fails the build. The seed variables are read by `scripts/family-seed.mjs` only — the app never sees them, and no email or name is ever committed (constitution §VII).
+`.env.local` is gitignored. The secret key must never reach a client component; `lib/family/supabase/admin.ts` carries `import 'server-only'` so an accidental client import fails the build. `FAMILY_ACCOUNT_EMAIL` has no `NEXT_PUBLIC_` prefix on purpose — the sign-in page must contain one field and no address (FR-002). The seed variables are read by `scripts/family-seed.mjs` only, and no email, name or password is ever committed (constitution §VII).
+
+> **Changing the household password later** is a Dashboard action — **Authentication → Users →** the household account — not an edit to `.env.local`. Supabase holds the only copy that matters; `FAMILY_ACCOUNT_PASSWORD` is stale the moment you change it there, and nothing at runtime reads it. This is also the "we forgot the password" path, because no recovery mail is ever sent (spec edge case).
 
 Local-only overrides for the policy suite and the seed script — defaults are the CLI's fixed local constants, so set these only if you changed them: `SUPABASE_LOCAL_URL` (`http://127.0.0.1:55321`), `SUPABASE_LOCAL_PUBLISHABLE_KEY`, `SUPABASE_LOCAL_SECRET_KEY`, `SUPABASE_LOCAL_DB_URL` (`postgresql://postgres:postgres@127.0.0.1:55322/postgres`). `supabase status -o env` prints the real values — trust it over this page.
 
@@ -44,20 +49,24 @@ The Portfolio stack uses its own port block (`supabase/config.toml`): API **5532
 ```bash
 supabase start                        # boots Postgres + Auth + PostgREST + Storage + Realtime on :553xx
 supabase db reset                     # replays migrations 001–009 (+ the comment-only seed.sql)
-npm run family:seed -- --local        # allowlists + creates the dev account dev@family.local,
-                                      # seeds fixture profiles into the "Our Family" household
+npm run family:seed -- --local        # creates the local account dev@family.local, allowlists it,
+                                      # seeds the fixture profiles and labels
 npm run dev:local                     # next dev with the local URL + keys inlined → http://localhost:3000/family
 ```
 
-Open `http://localhost:3000/family/sign-in`. Against the local stack the page shows an **email + password dev sign-in form** under the Google button (rendered only when `NODE_ENV !== 'production'` **and** the Supabase URL is `127.0.0.1`/`localhost` — it never renders against the hosted project). Sign in as the dev account the seed script printed; `requireMember()` claims the allowlist row on the first request and you land on `/family/calendar`.
+`--local` needs no `FAMILY_ACCOUNT_*` at all: it creates `dev@family.local` with `FAMILY_DEV_PASSWORD` (or the script's built-in default) and prints the address it used, never the password. But the **app** still reads `FAMILY_ACCOUNT_EMAIL`, so put `FAMILY_ACCOUNT_EMAIL=dev@family.local` in `.env.local` next to `FAMILY_ACTOR_SECRET` — `npm run dev:local` inlines the local Supabase URL and keys and reads the rest from that file. Sign-in then exercises exactly the production code path.
 
-Studio: `http://127.0.0.1:55323`. Email provider stays **on** locally (it is what the dev form uses); the Before-User-Created hook is not enabled locally.
+Open `http://localhost:3000/family/sign-in`. There is **one field**, a password, and it behaves identically against the local stack and the hosted project — there is no dev-only form and no second sign-in method to keep working. Type the local password; `requireMember()` claims the allowlist row on the first request and you land on `/family/calendar`.
+
+Studio: `http://127.0.0.1:55323`. The Email provider stays **on** locally *and* on the hosted project — it is the door the household password goes through. What is off on the hosted project (§4 step 5) is new sign-ups; locally, leave sign-ups on and the Before-User-Created hook off, so `supabase db reset` + seed always gets you back in.
 
 Editing `config.toml` needs `supabase stop && supabase start`. `supabase db reset` is the fastest way back to a clean state — the seed script is idempotent, so re-run it afterwards.
 
 ## 4. Hosted project — operator steps (one time, in this order)
 
-Everything here needs the Dashboard or `SUPABASE_ACCESS_TOKEN`; none of it is done by the implementation.
+Everything here needs the Dashboard or `SUPABASE_ACCESS_TOKEN`; none of it is done by the implementation. There is no Google Cloud Console step and no provider client id or secret to paste anywhere — since 2026-09-02 the household signs in with one shared password on one account (research R13).
+
+**The order is the whole point.** The one account must exist *before* the door is bolted: the seed creates it through the Admin API, and step 5 then turns new sign-ups off and switches on the hook that refuses any address not on the allowlist. Do 5 before 4 and the only account the household has may be refused at creation — recoverable only by turning the hook back off, which is exactly the confusion worth avoiding at 11pm on a wall tablet.
 
 1. **Push the schema**
    ```bash
@@ -68,23 +77,28 @@ Everything here needs the Dashboard or `SUPABASE_ACCESS_TOKEN`; none of it is do
    ```
    Watch for two NOTICEs from `006_storage.sql`: if the bucket or its read policy could not be created (hosted `storage` objects are owned by `supabase_storage_admin`), create the bucket in **Storage → New bucket**: name `family-avatars`, **private**, 5 MB limit, allowed types `image/jpeg, image/png, image/webp`. The read policy is optional — the app mints signed URLs server-side.
 2. **Expose the schema** — **Project Settings → API → Exposed schemas** → add `family` (or `PATCH /v1/projects/{ref}/postgrest` with `db_schema`). `db push` does not do this. Required, and easy to forget.
-3. **Auth providers** — **Authentication → Providers**:
-   - **Google: on.** Create the OAuth client in Google Cloud Console (**APIs & Services → Credentials → Create OAuth client ID → Web application**) with the authorized redirect URI exactly
-     ```
-     https://zgmltllcyqylgtazunai.supabase.co/auth/v1/callback
-     ```
-     and paste the Client ID / Secret into the provider.
-   - **Email: off.** Otherwise `signUp` with the publishable key mints an `authenticated` session for anyone.
-   - **Anonymous sign-ins: off** (they also assume the `authenticated` role).
-   - **URL Configuration**: Site URL `https://willsmith.dev`; additional redirect URLs `http://localhost:3000/**` and `https://willsmith.dev/**`.
-   - **Sessions**: leave "Time-box user sessions" and "Inactivity timeout" off (defaults) — FR-006 needs a wall tablet to stay signed in for days.
-4. **Seed the people** — with `FAMILY_SEED_PARENT_EMAILS` (and optionally `FAMILY_SEED_PROFILES`) in `.env.local`:
+3. **Choose the household credential** — in `.env.local`:
+   ```bash
+   FAMILY_ACCOUNT_EMAIL=household@willsmith.dev     # any address you control; nobody types it
+   FAMILY_ACCOUNT_PASSWORD=…                        # what the household will actually type
+   ```
+   The address is only an identifier for Supabase — no mail is ever sent to it, and it never reaches the browser. Pick the password the way you would a door key the two of you share: long, memorable, written down somewhere physical if you like. Do not commit either.
+
+   **Deployed runs need `FAMILY_ACCOUNT_EMAIL` in the Vercel project's environment too** (alongside `SUPABASE_SECRET_KEY` and `FAMILY_ACTOR_SECRET`) — `.env.local` covers only local runs, and without it every sign-in fails with the same unhelpful-by-design message. `FAMILY_ACCOUNT_PASSWORD` is **not** needed in Vercel: nothing at runtime reads it.
+4. **Create the account and the allowlist row**
    ```bash
    npm run family:seed -- --yes        # refuses to touch a non-local URL without --yes; prints the target first
    ```
-   Inserts the allowlist rows and starting profiles. **No PINs** — they are set from Settings on first run (FR-018).
-5. **Enable the sign-up hook — LAST** — **Authentication → Hooks → Before User Created** → `family.hook_restrict_signup`. Do this only after step 4, or the parents' own first sign-in is refused. With it on, no `auth.users` row is ever created for an address that is not on the allowlist.
-6. Verify SC-001 a/b/c, SC-002 and SC-010 below; install on the iPad (SC-008).
+   Creates the household account with `email_confirm: true` (which is what makes a mail service unnecessary — nothing is ever sent), inserts its `household_users` allowlist row, and adds `FAMILY_SEED_PROFILES` if you set any. It prints the address it used and never the password. Re-running it re-applies the password, which is the other way to rotate it. **No PINs** — they are set from Settings on first run (FR-018).
+5. **Close the door — LAST** — **Authentication**:
+   - **Providers → Email: ON.** It is the only provider and the only way in; turning it off locks the household out. (This is the reverse of the pre-2026-09-02 instruction, which had Email off and Google on.)
+   - **Sign In / Providers → "Allow new users to sign up": OFF.** This is what stops `signUp` with the publishable key minting an `authenticated` session for anyone (FR-004).
+   - **Anonymous sign-ins: OFF** (they also assume the `authenticated` role).
+   - **Hooks → Before User Created → `family.hook_restrict_signup`: ON.** Belt to the sign-up switch's braces: even if sign-ups are re-enabled by accident, no `auth.users` row is created for an address that is not on the allowlist. Only after step 4, or it refuses the household's own account.
+   - **URL Configuration**: Site URL `https://willsmith.dev`; additional redirect URLs `http://localhost:3000/**` and `https://willsmith.dev/**`. (Nothing in the app redirects through Supabase any more, but the site URL is still used by the Dashboard's own password-reset mail if you ever send one.)
+   - **Sessions**: leave "Time-box user sessions" and "Inactivity timeout" off (defaults) — FR-006 needs a wall tablet to stay signed in for days.
+6. **Sign in once** at `https://willsmith.dev/family/sign-in` to confirm the whole chain: the password is accepted, `claim_membership()` binds the allowlist row on that first page load (there is no callback route), and you land on `/family/calendar`.
+7. Verify SC-001 a/b/c, SC-002 and SC-010 below; install on the iPad (SC-008).
 
 ## 5. Run
 
@@ -107,10 +121,12 @@ Three independent paths, all must fail:
 # a) Signed out → redirected, and no household data in the HTML
 curl -s -i http://localhost:3000/family/calendar | head -20        # expect 307 → /family/sign-in
 
-# b) Signed in with a non-allowlisted Google account
-#    → the Before-User-Created hook refuses the account (403 from Auth) and the callback lands on
-#      /family/not-authorized. Before the hook is enabled: the account is created, the callback's
-#      claim_membership() returns null → signed out → /family/not-authorized. Either way: no data.
+# b) A wrong password on the sign-in screen
+#    → no session is created; the screen shows one message ("That password isn't right.") that does
+#      not distinguish a wrong password from an account that does not exist. There is no second
+#      account to try, no sign-up link, and no address in the page to attack.
+#    → and if an authenticated account somehow existed off the allowlist: claim_membership() returns
+#      null, requireMember() refuses, and /family/not-authorized renders with no household data.
 
 # c) Direct data access with the publishable key and no session
 curl -s -i "https://zgmltllcyqylgtazunai.supabase.co/rest/v1/categories?select=id" \
@@ -199,8 +215,10 @@ No suppressions: no `fallow-ignore`, `eslint-disable`, `@ts-ignore`, threshold l
 | Query returns `[]` when rows exist | RLS is filtering — the account is not on the allowlist, or has not claimed its row | Confirm the row in `family.household_users` and that `user_id` is bound (`claim_membership()` runs on first sign-in) |
 | Punch-in returns `NOT_FOUND` for every profile | `p_user_id` passed to `verify_pin` is not the session user, or that account is not a member of the profile's household (`household_users.user_id` still null) | Pass `user.id` from `requireMember()`; check the allowlist row is claimed |
 | `infinite recursion detected in policy` | A policy queried its own table without `SECURITY DEFINER` | `is_member()` must be `SECURITY DEFINER` |
-| OAuth returns `redirect_uri_mismatch` | Callback URL differs by even a character | Must be exactly the URL in §4 step 3 |
-| A parent's first Google sign-in lands on `/family/not-authorized` | The Before-User-Created hook was enabled before the allowlist rows existed, or the address differs in case/whitespace from the seed | Seed first (§4 step 4), hook last (step 5); addresses are stored lower-cased |
+| "That password isn't right." every time | By design the message cannot tell you which of these it is: the password is wrong; `FAMILY_ACCOUNT_EMAIL` is set but points at an address with no account; the account was never seeded; or the Email provider was turned off | Check `select email from auth.users` for the address in `FAMILY_ACCOUNT_EMAIL`; if it is missing, run §4 step 4 (temporarily re-enabling sign-ups if the hook blocks it). If it exists, set a new password in **Authentication → Users** |
+| "Can't reach the house right now." on sign-in | `UNAVAILABLE`, not a credential failure — `FAMILY_ACCOUNT_EMAIL` is **unset** in this environment (a Vercel deploy that never got it, most often), or Supabase is unreachable | Set it where the app runs, not just in `.env.local`; the server log carries the reason string |
+| Sign-in succeeds but lands on `/family/not-authorized` | The account exists but no allowlist row matches it — the seed did not run, or the address differs in case/whitespace | Confirm a `family.household_users` row whose `email` equals the account address (stored lower-cased); `claim_membership()` binds it on the next page load |
+| The sign-in page shows an email field, or the household address appears in the HTML | A regression against FR-002 — the address is server-side only | `FAMILY_ACCOUNT_EMAIL` must have no `NEXT_PUBLIC_` prefix, and only `familyAccountEmail()` in `lib/family/env.ts` (called from the `signIn` action) may read it |
 | Punch-in always returns `NO_ACTOR` | `FAMILY_ACTOR_SECRET` missing or changed; or the cookie was minted under a different account on this device | Set it (changing it invalidates existing cookies by design); sign out and back in |
 | Punch-in works in Chrome but not Safari on `http://localhost` | Cookie set with `Secure` on a non-HTTPS origin | `secure` must be `NODE_ENV === 'production'`; use `npm run dev:local` |
 | Punch-out leaves the actor badge | Cookie cleared with `cookies().delete()` (`Path=/`) instead of `Path=/family` + `maxAge: 0` | Clear with the identical attributes |

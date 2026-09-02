@@ -34,7 +34,16 @@ export function serverSecrets(): { secretKey: string; actorSecret: string } {
   };
 }
 
-/** True for a `supabase start` stack (127.0.0.1 / localhost on any port). */
-export function isLocalSupabase(url: string): boolean {
-  return /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(url);
+/**
+ * The address of the ONE Supabase account the household shares (FR-002).
+ *
+ * It is not a `NEXT_PUBLIC_*` name, so it is never inlined into a browser
+ * bundle, and nothing renders it: the sign-in form asks for a password only,
+ * and the server pairs it with this address. There is deliberately no reader
+ * for `FAMILY_ACCOUNT_PASSWORD` — Supabase validates the password, so nothing
+ * at runtime ever needs to hold it (only `scripts/family-seed.mjs` does, to
+ * create the account).
+ */
+export function familyAccountEmail(): string {
+  return required("FAMILY_ACCOUNT_EMAIL", process.env.FAMILY_ACCOUNT_EMAIL);
 }

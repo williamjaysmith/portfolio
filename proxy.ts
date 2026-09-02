@@ -16,7 +16,6 @@ import { updateSession } from "@/lib/family/supabase/proxy";
 /** Reachable without a session: the sign-in flow and the PWA's static assets. */
 const PUBLIC_ROUTES = [
   "/family/sign-in",
-  "/family/auth",
   "/family/not-authorized",
   "/family/manifest.webmanifest",
   "/family/icons",

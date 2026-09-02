@@ -30,6 +30,10 @@ const PROTECTED_PATHS = [
   "/family/calendar",
   "/family/settings",
   "/family/tasks/today",
+  // The OAuth callback is gone with Google (FR-002 is now a shared household
+  // password). Nothing under /family/auth is special any more, so it must be
+  // gated like every other path rather than left standing open.
+  "/family/auth/callback",
 ];
 
 /**
@@ -39,7 +43,6 @@ const PROTECTED_PATHS = [
  */
 const PUBLIC_PATHS = [
   "/family/sign-in",
-  "/family/auth/callback",
   "/family/not-authorized",
   "/family/manifest.webmanifest",
   "/family/icons/icon-192.png",
@@ -110,7 +113,7 @@ describe("proxy", () => {
     // The public list is prefix-scoped (`route` or `route/…`). A path that
     // merely starts with the same characters is a different route and must
     // still be gated.
-    it.each(["/family/auth-notes", "/family/icons-backup", "/family/sign-in-links"])(
+    it.each(["/family/icons-backup", "/family/sign-in-links", "/family/not-authorized-x"])(
       "does not treat %s as public",
       async (pathname) => {
         expect(isRedirectToSignIn(await proxy(requestFor(pathname)))).toBe(true);

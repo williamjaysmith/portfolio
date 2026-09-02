@@ -1,8 +1,8 @@
 # Contracts: Server Actions & Database Functions
 
-**Feature**: `001-family-foundation` | **Date**: 2026-08-28 | **Amended**: 2026-08-31 (D3, D5, D6, D10–D16, D29 — see data-model.md "Amendments")
+**Feature**: `001-family-foundation` | **Date**: 2026-08-28 | **Amended**: 2026-08-31 (D3, D5, D6, D10–D16, D29 — see data-model.md "Amendments"), 2026-09-02 (`signIn`; the OAuth callback route removed — FR-002)
 
-The interfaces Phase 1 exposes. There is no public HTTP API — the app's boundary is its server actions plus a handful of database functions. Every action lives in `lib/family/actions/`, starts with `"use server"`, and returns `Promise<ActionResult<…>>` through `runAction()` from `lib/family/errors.ts`. Types referenced below are the ones in `lib/family/types.ts`.
+The interfaces Phase 1 exposes. There is no public HTTP API — the app's boundary is its server actions plus a handful of database functions. Since 2026-09-02 there is **no route handler in the auth surface at all**: sign-in is a server action, and the `/family/auth/callback` route that exchanged an OAuth code is gone. Every action lives in `lib/family/actions/`, starts with `"use server"`, and returns `Promise<ActionResult<…>>` through `runAction()` from `lib/family/errors.ts`. Types referenced below are the ones in `lib/family/types.ts`.
 
 ## The rule every action follows
 
@@ -21,7 +21,7 @@ const parent = await requireParent();                     // throws → NO_ACTOR
 
 | Guard | What it does | Throws |
 |---|---|---|
-| `requireMember()` | `getClaims()` on the request's Supabase client (verified JWT, not `getSession()`) → `rpc('my_household')` → on `null`, one `rpc('claim_membership')` (covers the first sign-in and "allowlisted after the account already existed") → else refuse. Wrapped in React `cache()` so a request pays once. | `NOT_AUTHENTICATED`, `NOT_A_MEMBER` |
+| `requireMember()` | `getClaims()` on the request's Supabase client (verified JWT, not `getSession()`) → `rpc('my_household')` → on `null`, one `rpc('claim_membership')` (covers the very first sign-in and "allowlisted after the account already existed") → else refuse. Wrapped in React `cache()` so a request pays once. **This fallback is where membership binds** — there is no callback route, so the allowlist row is claimed on the first page load after `signIn`. | `NOT_AUTHENTICATED`, `NOT_A_MEMBER` |
 | `getMember()` | Non-throwing variant for layouts (`null` instead of throwing). | — |
 | `requireActor()` | Reads the `family_actor` cookie, verifies the JWT (HS256 only, audience `family-actor`), **and** requires `actor.userId === member.user.id && actor.householdId === member.householdId`. A cookie minted under another account on the same device is not an actor. | `NO_ACTOR` |
 | `requireParent()` | `requireActor()`, then **re-reads the profile row through the admin client** (`id, household_id, role, is_profile`). The role in the JWT is a hint; the database is the truth — a parent demoted or deleted on another device loses parent powers immediately, not at cookie expiry. Row missing / not a profile / other household → `NO_ACTOR` and the cookie is cleared. | `NO_ACTOR`, `FORBIDDEN` |
@@ -180,9 +180,29 @@ Server-side: size ≤ 5 MB and MIME sniffed from **magic bytes** (`lib/family/im
 
 ## Auth
 
+### `signIn(previousState: ActionResult<null> | null, formData: FormData): Promise<ActionResult<null>>`
+
+**Guard**: none — this action is *how* a session begins. It is the only entry point to `/family`; there is no OAuth callback route and no second form.
+
+The signature is `useActionState`'s reducer shape, so `SignInForm.tsx` hands the action straight to the hook **and the form still posts without JavaScript**. The only field is `password`; a missing or non-string entry becomes `""` rather than a crash. There is no success payload — success leaves through `redirect()`.
+
+1. Reads the household account's address from **server-side env** via `familyAccountEmail()` (`FAMILY_ACCOUNT_EMAIL`, deliberately not a `NEXT_PUBLIC_*` name). It is never accepted from the caller, never rendered, and never returned — the client sends a password and nothing else, so there is no address in the page, in the bundle, or on the wire.
+2. An empty password is refused before Supabase is called: the answer would be identical, and it costs a round trip and a rate-limit slot.
+3. Calls `supabase.auth.signInWithPassword({ email, password })` on the request's server client, so the session cookies are set on the response.
+4. **Supabase validates the password.** This application never holds it, hashes it, compares it, or logs it. `FAMILY_ACCOUNT_PASSWORD` exists only so the seed script can create the account; nothing at runtime reads that variable, and the correct password is not knowable to any code in this repository.
+5. On success, clears any actor cookie the previous person left on this device (D11 — a new session means a new person at the tablet), then `redirect('/family/calendar')` **outside** the `try/catch` (FR-030). Membership binds on the next request: `requireMember()` calls `my_household()` and falls back to `claim_membership()`, which is why removing the callback route cost nothing.
+6. On a rejected credential → `NOT_AUTHENTICATED` with one explicit message, **"That password isn't right."** (not the shared `ACTION_MESSAGES` default for that code, which speaks of an expired session). The failure is **deliberately indistinguishable**: a wrong password, an empty field, an account that does not exist and a disabled account all produce that one message. Nothing on the screen ever confirms that an account exists, and Supabase's own error text is never echoed.
+7. A failure *before* Supabase answers — a missing `FAMILY_ACCOUNT_EMAIL`, a network fault — is `UNAVAILABLE` ("Can't reach the house right now…"), logged server-side as a message string only, never the caught object. This is the one distinction the screen draws, and it draws it in the safe direction: it says the *house* is unreachable, never anything about the account.
+
+Rate limiting is Supabase's own on `/token?grant_type=password`; no attempt counter lives in this application, and none is exposed to the caller.
+
+The surface around it (`app/family/(auth)/sign-in/`): title **"Family calendar"**, label **"Household password"**, one `type="password"` field with `autoComplete="current-password"`, submit **"Sign in"** / **"Signing in…"**, footer **"Only household accounts can sign in."**, and a permanently rendered `role="alert"` line so the message arrives in a region a screen reader already watches and the layout does not jump. The page redirects an already-signed-in visitor to `/family/calendar` rather than showing them a password box.
+
 ### `signOut(): Promise<never>`
 
-**Guard**: none. Clears the actor cookie, calls `supabase.auth.signOut()`, then `redirect('/family/sign-in')` **outside** any `try/catch`. Available to everyone from Settings → Account ("Signed in as {email}"); signing out is not a data mutation and needs no actor. Clearing the actor here is what stops parent A's punch-in surviving into member B's session on a shared device.
+**Guard**: none. Clears the actor cookie, calls `supabase.auth.signOut()`, then `redirect('/family/sign-in')` **outside** any `try/catch`. Available to everyone from Settings → Account; signing out is not a data mutation and needs no actor. Clearing the actor here is what stops one person's punch-in surviving into the next person's use of the same device.
+
+The Account section says **"Signed in to the household account"** — not "Signed in as {email}". With one shared account the address identifies nobody, and FR-002 keeps it off the client entirely; who is *here* is the punch-in badge, which is elsewhere on the screen.
 
 ---
 
@@ -253,6 +273,8 @@ supabase.schema('family').from('categories')
 
 | Situation | Behaviour |
 |---|---|
+| Wrong household password, empty field, or an account that does not exist | `NOT_AUTHENTICATED` with one message for all three ("That password isn't right."). No session is created and nothing distinguishes the cases — the screen never confirms an account exists, and Supabase's error text is never returned. |
+| `FAMILY_ACCOUNT_EMAIL` missing, or Supabase unreachable during sign-in | `UNAVAILABLE`; the message names the *house*, not the account. Logged server-side as a string, never the caught object. |
 | Database unreachable during punch-in | `UNAVAILABLE`, action refused. Never optimistically allowed — see the offline edge case in the spec. |
 | Session expires mid-action | `NOT_AUTHENTICATED`; the shell clears its query cache and redirects to sign-in without exposing stale data. |
 | Actor cookie expired | `NO_ACTOR`; the interface clears the actor, reopens the punch-in sheet and retries the original action once on success. |

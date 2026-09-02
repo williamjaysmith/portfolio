@@ -1,12 +1,21 @@
 #!/usr/bin/env node
 /**
- * family-seed — puts the PEOPLE into the /family household.
+ * family-seed — creates the household ACCOUNT and puts the PEOPLE into the /family household.
  *
  * Migration 007 creates the household ("Our Family", fixed id) and its settings row but,
  * by design, no emails and no names (constitution §VII). This script adds them, from
  * environment variables, and is safe to re-run: every write is an upsert keyed on the
  * allowlist email or the category label. It never sets a PIN — PINs are created from the
  * app (FR-018).
+ *
+ * The household signs in with ONE shared Supabase account (FR-002): no identity provider
+ * and no mail service, so the account is created here with `email_confirm: true` and no
+ * confirmation mail is ever sent. This is the only place FAMILY_ACCOUNT_PASSWORD is read —
+ * at runtime Supabase validates the password and the app never holds it. The password is
+ * never printed, and re-running the seed re-applies it, which is how you rotate it.
+ *
+ * Run this BEFORE closing sign-ups at the Auth API and enabling the Before-User-Created
+ * hook (FR-004) — afterwards the account can no longer be created.
  *
  * Usage
  *   npm run family:seed -- --local     local stack (http://127.0.0.1:55321, the CLI's fixed
@@ -18,8 +27,13 @@
  *                                      Without --yes a non-local URL is refused.
  *
  * Environment (`npm run family:seed` loads .env.local via `node --env-file-if-exists`)
- *   FAMILY_SEED_PARENT_EMAILS  comma-separated emails to allowlist, e.g. "a@x.com,b@y.com"
- *                              (required unless --local)
+ *   FAMILY_ACCOUNT_EMAIL       the ONE household account's address (required unless --local).
+ *                              The same value the app reads server-side; it is never shown
+ *                              in the browser.
+ *   FAMILY_ACCOUNT_PASSWORD    that account's password (required unless --local). Known to
+ *                              the household; never logged, never committed.
+ *   FAMILY_SEED_PARENT_EMAILS  optional extra addresses to allowlist, comma-separated. Not
+ *                              needed for the shared account — it is allowlisted for you.
  *   FAMILY_SEED_PROFILES       optional JSON array of categories to create/update:
  *                              [{ "label": "Alex", "role": "parent", "color": "#2178AF",
  *                                 "avatar": "fox", "birthday": "2001-02-03" },
@@ -28,7 +42,7 @@
  *                              role defaults to "member", isProfile to true; avatar is an id
  *                              from lib/family/avatars.ts; colour must be a palette hex.
  *   FAMILY_DEV_PASSWORD        --local only; password for dev@family.local
- *                              (default "family-dev-password")
+ *                              (default: the DEV_PASSWORD_DEFAULT constant below)
  *   SUPABASE_LOCAL_URL / SUPABASE_LOCAL_SECRET_KEY   --local overrides
  *
  * Exit code 1 on any error (nothing is rolled back — re-run after fixing the input).
@@ -224,20 +238,69 @@ async function ensureHousehold(fam, log) {
   }
 }
 
-async function ensureDevUser(admin, password) {
+async function findUserByEmail(admin, email) {
+  const listed = unwrap(await admin.auth.admin.listUsers({ page: 1, perPage: 1000 }), "list users");
+  const user = listed.users.find((u) => u.email === email);
+  if (!user) throw new SeedError(`${email} exists but could not be found`);
+  return user;
+}
+
+/**
+ * The ONE account the household signs in with (FR-002).
+ *
+ * `email_confirm: true` is what makes a mail service unnecessary: the account is usable
+ * the moment it exists and nothing is ever sent to that address. Re-running re-applies
+ * the password, so rotating it is "edit .env.local, seed again". The password is a
+ * parameter here and never a log line.
+ */
+async function ensureAccount(admin, account) {
   const created = await admin.auth.admin.createUser({
-    email: DEV_EMAIL,
-    password,
+    email: account.email,
+    password: account.password,
     email_confirm: true,
   });
   if (!created.error) return { id: created.data.user.id, status: "created" };
-  if (!/already|exists/i.test(created.error.message)) {
-    throw new SeedError(`create ${DEV_EMAIL}: ${created.error.message}`);
+  if (!/already|exists|registered/i.test(created.error.message)) {
+    throw new SeedError(`create ${account.email}: ${created.error.message}`);
   }
-  const listed = unwrap(await admin.auth.admin.listUsers({ page: 1, perPage: 1000 }), "list users");
-  const user = listed.users.find((u) => u.email === DEV_EMAIL);
-  if (!user) throw new SeedError(`${DEV_EMAIL} exists but could not be found`);
-  return { id: user.id, status: "existing" };
+  const user = await findUserByEmail(admin, account.email);
+  unwrap(
+    await admin.auth.admin.updateUserById(user.id, {
+      password: account.password,
+      email_confirm: true,
+    }),
+    `set the password for ${account.email}`,
+  );
+  return { id: user.id, status: "existing; password re-applied" };
+}
+
+/**
+ * Which account this run creates. Hosted must be told both halves; --local keeps the
+ * dev fixture, so a local stack never needs the real household credentials near it.
+ */
+/** Never trims: a password may legitimately begin or end with a space. */
+function requiredEnv(env, name) {
+  const value = env[name];
+  if (!value) {
+    throw new SeedError(`${name} is required (set it in .env.local, or pass --local)`);
+  }
+  return value;
+}
+
+function requireHouseholdAccount(env) {
+  const email = requiredEnv(env, "FAMILY_ACCOUNT_EMAIL").trim().toLowerCase();
+  const password = requiredEnv(env, "FAMILY_ACCOUNT_PASSWORD");
+  if (!EMAIL_RE.test(email)) {
+    throw new SeedError(`FAMILY_ACCOUNT_EMAIL is not an email address: "${email}"`);
+  }
+  return { email, password };
+}
+
+function resolveAccount(flags, env) {
+  if (flags.local) {
+    return { email: DEV_EMAIL, password: env.FAMILY_DEV_PASSWORD || DEV_PASSWORD_DEFAULT };
+  }
+  return requireHouseholdAccount(env);
 }
 
 /**
@@ -348,30 +411,23 @@ function resolveProfiles(flags, env) {
   return flags.local ? FIXTURE_PROFILES.map(normaliseProfile) : [];
 }
 
-/** --local always has the dev account to add; hosted must be told who. */
-function assertAllowlistNotEmpty(flags, emails) {
-  if (!flags.local && emails.length === 0) {
-    throw new SeedError("FAMILY_SEED_PARENT_EMAILS is empty — nothing to allowlist");
-  }
-}
-
 /**
- * The local stack has no Google, so it needs an account you can actually sign
- * in with. Returns the address to allowlist alongside the real ones.
+ * Creates (or refreshes) the sign-in account and returns the address to allowlist —
+ * the account is worthless without an allowlist row, so the two always happen together.
  */
-async function seedDevAccount(admin, env, log) {
-  const dev = await ensureDevUser(admin, env.FAMILY_DEV_PASSWORD || DEV_PASSWORD_DEFAULT);
-  log(`dev account ${DEV_EMAIL}  ${dev.id}  (${dev.status}; password from FAMILY_DEV_PASSWORD or "${DEV_PASSWORD_DEFAULT}")`);
-  return DEV_EMAIL;
+async function seedAccount(admin, account, log) {
+  const user = await ensureAccount(admin, account);
+  log(`account     ${account.email}  ${user.id}  (${user.status}; password not shown)`);
+  return account.email;
 }
 
 async function main() {
   const flags = parseArgs(process.argv.slice(2));
   const env = process.env;
   const target = resolveTarget(flags, env);
+  const account = resolveAccount(flags, env);
   const emails = parseEmails(env.FAMILY_SEED_PARENT_EMAILS);
   const profiles = resolveProfiles(flags, env);
-  assertAllowlistNotEmpty(flags, emails);
 
   const lines = [];
   const log = (line) => lines.push(line);
@@ -383,9 +439,9 @@ async function main() {
   console.log(`family-seed → ${target.url}${flags.local ? " (local)" : ""}`);
   await ensureHousehold(fam, log);
 
-  const devEmails = flags.local ? [await seedDevAccount(admin, env, log)] : [];
+  const accountEmail = await seedAccount(admin, account, log);
 
-  await allowlist(fam, [...new Set([...devEmails, ...emails])], log);
+  await allowlist(fam, [...new Set([accountEmail, ...emails])], log);
   await upsertCategories(fam, profiles, log);
 
   console.log(lines.map((line) => `  ${line}`).join("\n"));
