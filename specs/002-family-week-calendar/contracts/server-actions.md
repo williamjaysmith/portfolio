@@ -11,7 +11,7 @@ validated with Zod 4 (`lib/family/validation.ts`) before anything reaches the da
 database constraints of `data-model.md` are the second line, not the first.
 
 **There is no drag action.** A drag commit is `updateEvent` with a scope and new times — a drag is
-a fast way to fill in an edit (decided per r-drag §3.3/r-client §5: one write path, one validation
+a fast way to fill in an edit (decided per research R205/R208: one write path, one validation
 surface, one policies-tier test suite discharges SC-205/SC-206/SC-207 for form and gesture alike).
 
 ## Guards: every event write is `requireActor`, none is parent-only
@@ -66,7 +66,7 @@ emitter (`lib/family/recurrence/grammar.ts`) is the sole producer of rule string
 canonical grammar — fixed field order `FREQ;INTERVAL=1;UNTIL;WKST` (weekly only) then
 `BYDAY`/`BYMONTHDAY`; `UNTIL` as a plain date for all-day series and as the household-zone
 end-of-day converted to UTC for timed series; inclusivity enforced by local-date comparison in the
-expander. This kills rule-injection and parse-mismatch as a class (r-recurrence §2). Zod rules:
+expander. This kills rule-injection and parse-mismatch as a class (research R201). Zod rules:
 
 | Rule | Refusal |
 |---|---|
@@ -163,7 +163,7 @@ Rule/start coherence on a splitting or series-level time change: the emitter re-
 rule's anchor parts from the new start — `BYMONTHDAY` from the new start's day-of-month, a weekly
 `BYDAY` set shifted by the move's day delta, `UNTIL`'s form switched to match a changed `all_day`
 — because a rule that disagrees with its own start date is unexpandable nonsense and the emitter's
-invariant (r-recurrence §2.3) is that they never disagree.
+invariant (research R201) is that they never disagree.
 
 **The drag path is this action.** A move is `patch: { startsAt, endsAt }` (or the all-day pair); a
 resize is the same with one edge changed; a band↔grid conversion (FR-251) is
@@ -235,7 +235,8 @@ Phase 1's read contract extends unchanged in kind: the browser queries Supabase 
 publishable key under RLS, explicit column lists (`EVENT_COLUMNS`, `EVENT_CATEGORY_COLUMNS`,
 `EVENT_EXCEPTION_COLUMNS` join `rows.ts`), explicit `.eq('household_id', …)` even under RLS.
 Anyone in the family reads the whole week with no punch-in (FR-269); **reads are open within the
-household; writes require an actor** — the Phase 1 asymmetry, now covering four more tables.
+household; writes require an actor** — the Phase 1 asymmetry, now covering three more tables
+(`events`, `event_categories`, `event_exceptions`).
 
 **One query per anchored week** (`fetchWeekEvents`): the three-branch OR — every series row
 (`rrule not null`), plus one-off timed rows overlapping the window, plus one-off all-day rows

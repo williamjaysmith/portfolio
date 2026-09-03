@@ -171,7 +171,7 @@ The gestures and rules the criteria compress, checked individually:
 | FR-248 punch-in on drop | Grab and carry a block with nobody punched in: no prompt until release on a valid slot |
 | FR-249/250 cancel & order | Release a drag over the top bar: block returns, nothing written, no prompt. Drag a repeat occurrence: scope question comes **before** the punch-in sheet; dismiss either → block returns |
 | FR-251 band conversion | Timed block into the all-day band → all-day that day, clock times gone. All-day pill onto 13:00 → timed 13:00–14:00 |
-| FR-286/287 | Delete one occurrence at this-and-future: that date and everything later (overrides included) gone, earlier weeks intact. Change an occurrence's categories: the dialog offers only *this and future* and *all* |
+| FR-286/287 | Delete one occurrence at this-and-future: that date and everything later (overrides included) gone, earlier weeks intact. Change an occurrence's categories: the dialog offers only *This and future events* and *All events* |
 | FR-288 refuse, never queue | Go offline (DevTools → Network → Offline), try a save: refused with a message, nothing stored, nothing queued. Delete an event on device B, then save an edit to it on A: refused "no longer exists", form closes |
 | FR-289/279 phone slice | At 390×844, Sunday-start week: slices are Sun–Tue, Wed–Fri, then **Thu–Sat** (last slice pulled back). Swipe left = later, one slice per swipe; from Thu–Sat, left lands on next week's Sun–Tue. Today returns to the slice containing today |
 
@@ -193,6 +193,7 @@ npm run test:coverage    # Istanbul report for the fallow gate
 | FR-246/247/251, FR-217 grab math | snap tables, duration preservation, min-step clamp, band conversions in `week-geometry` tests | unit |
 | FR-249/250/253, FR-238 | every reducer transition in `drag-state` tests: slop, all cancel paths write nothing, scope-before-punch-in, no scope on one-offs | unit |
 | FR-210 anchor behaviour | `useWeekAnchor` with fake timers: derived rollover, pinned week untouched | unit |
+| FR-276/Assumption 39 realtime wiring | `useFamilyRealtime` targeted jsdom test: `events`, `event_categories`, `event_exceptions` in the `TABLES` list each with **no** `filter` member; every notice a bare `invalidateQueries(familyKeys.all)` — the filtered-again regression named under Common problems | unit |
 | FR-285/218/217 geometry, FR-265 | `calendar/layout` clustering + cap + "+n more" grouping, min-height floor, midnight segmentation; `isEventVisible` truth table | unit |
 | FR-289 slice tiling | `sliceStarts` tables (`[0,3,4]`, `[0,2]`, `[0]`) in `calendar/dates` tests | unit |
 | FR-237/250 wording, FR-264, FR-262 | ScopeDialog (one component, same wording for edit/delete/drag), FilterSheet labels section, form field-level refusal — RTL | unit |

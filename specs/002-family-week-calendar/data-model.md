@@ -61,7 +61,7 @@ immediately after creation.
 | 014 | `014_realtime_calendar.sql` | Guarded publication adds for the three new tables; `notify pgrst, 'reload schema'` | FR-276, Assumption 39 |
 | 015 | `015_split_event_series.sql` | `family.split_event_series()` — the atomic `this_and_future` split, service-role only | FR-237, FR-241, FR-242 |
 
-015 is the adoption of the question r-schema left to the contracts phase: the split is a
+015 adopts research R204's atomicity decision, whose migration home is fixed here: the split is a
 multi-statement rewrite (truncate the head, insert the tail, copy links, re-home exceptions), and
 a half-completed split — a truncated series missing its tail — is visible data loss, worse than
 Phase 1's two documented non-atomic actions. It therefore goes through one `SECURITY DEFINER`
@@ -558,7 +558,7 @@ PL/pgSQL would create a second recurrence implementation that can drift from the
 exact trap the window-query design also avoids. The database's own constraints (time shape, rrule
 CHECK, timezone trigger, composite FKs) validate the tail row as the second line, per Phase 1's
 posture. **No lineage column** (`split_from_event_id`) is written or exists: FR-242/Assumption 27
-define "all occurrences" after a split as *the segment the person is standing in*, so no
+define "All events" after a split as *the segment the person is standing in*, so no
 requirement ever walks a chain; the two segments are fully self-contained rows. One nullable
 `alter table` restores ancestry if a later phase wants it.
 
@@ -636,7 +636,7 @@ against them:
    cascades its links and never touches events (FR-274); deleting an event cascades its links and
    exceptions.
 5. **Split chains do not exist.** A `this_and_future` split yields two fully self-contained
-   series rows with no linking column; "all occurrences" is segment-scoped by design (FR-242,
+   series rows with no linking column; "All events" is segment-scoped by design (FR-242,
    Assumption 27). The split is atomic (015) — the database can never hold a truncated head
    without its tail. `this_and_future` on the first occurrence never splits (FR-241): it is
    applied as "all", so no empty leading segment can exist.

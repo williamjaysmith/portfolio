@@ -18,7 +18,7 @@ The technical core is **three hand-rolled pure layers where the risk actually li
 **Target Platform**: iPadOS Safari (primary, landscape, installed); iOS/Android phones (the three-column slice); desktop browsers (development)
 **Performance Goals**: Block in its new place ≤ 1 s after the last prompt (SC-206); a moved occurrence on a second device ≤ 5 s with no reload (SC-204); a repeating event created in < 30 s including punch-in (SC-201); week expansion sub-millisecond at household scale (R206)
 **Constraints**: FR-288 — refuse, never queue, no optimistic writes; no horizontal page scroll at any width (FR-282); WCAG 2.1 AA + 44×44 pt touch floor (FR-263); fallow gates (maxCyclomatic 20, maxCognitive 15, CRAP needs coverage, no suppressions); Supabase free tier
-**Scale/Scope**: One household; series in the dozens, ~50 windowed one-off rows per week read; 89 FRs, 6 migrations, ~10 new `lib/family` modules, ~20 calendar components, 3 amended Phase 1 surfaces (realtime table list, FilterSheet, category-delete dialog). Zero NEEDS CLARIFICATION.
+**Scale/Scope**: One household; series in the dozens, ~50 windowed one-off rows per week read; 90 FRs, 6 migrations, ~10 new `lib/family` modules, ~20 calendar components, 3 amended Phase 1 surfaces (realtime table list, FilterSheet, category-delete dialog). Zero NEEDS CLARIFICATION.
 
 ## Constitution Check
 
@@ -26,14 +26,14 @@ The technical core is **three hand-rolled pure layers where the risk actually li
 
 | Principle | Status | How this plan satisfies it |
 |---|---|---|
-| **I. Sub-apps are self-contained** | PASS | Everything lands in `app/family/**`, `lib/family/**`, `supabase/migrations/` and the seed script. No portfolio-level file changes at all this phase — no new dependencies, no `next.config.ts`/`proxy.ts`/`vitest.config.ts` edits. The three amended surfaces (`useFamilyRealtime`, `FilterSheet`, the category-delete dialog) are `/family`-internal. Nothing is extracted for reuse; colectivo's dnd-kit usage is untouched. |
+| **I. Sub-apps are self-contained** | PASS | Everything lands in `app/family/**`, `lib/family/**`, `supabase/migrations/` and the seed script, with exactly two deliberate root-level touches, both `/family`-scoped in content: a fallow `boundaries` rule added to `.fallowrc.json` guarding `lib/family/recurrence/**` (a tightening principle IV's row relies on, not a suppression) and one `FAMILY_SEED_TIMEZONE` documentation line in `.env.example`. Beyond those two, no portfolio-level file changes — no new dependencies, no `next.config.ts`/`proxy.ts`/`vitest.config.ts` edits. The three amended surfaces (`useFamilyRealtime`, `FilterSheet`, the category-delete dialog) are `/family`-internal. Nothing is extracted for reuse; colectivo's dnd-kit usage is untouched. |
 | **II. Test-first for logic** | PASS | The phase is decomposed so the silently-data-corrupting parts are pure and land test-first: recurrence grammar/zone/expansion (the SC-208 year-long DST sweep is a unit table), week geometry, the drag reducer, slice tiling, layout clustering, visibility (R213) — and the scope/split action layer, whose SC-207 scope checks and split-atomicity assertion are written in the policies tier before the actions exist. Gesture feel and visual placement are verified by running the app — §II's own carve-out. |
 | **III. Accessible and touch-first** | PASS | FR-263 (44 pt floor, keyboard, focus) inherited and extended: every block is a focusable button reaching details→edit, and the drag has a slot-semantic keyboard path through the same reducer with `aria-live` announcements (R205). FR-214 derives block ink from the fill for 4.5:1; FR-218's minimum height keeps short events at the touch floor; colour is never alone — every block carries its title, and category identity pairs colour with name in details and filters. |
 | **IV. Layered, boundary-enforced architecture** | PASS | All calendar math — recurrence, zone, expansion, layout, geometry, drag state, tiling, visibility — lives in framework-free `lib/family/**`; components render from it; the one expansion entry point is fallow-boundary-guarded so no component imports recurrence internals (R206). `lib` imports nothing from `app/**`. |
 | **V. Quality gates** | PASS | The branchy new code is pure and exhaustively unit-tested, which is what feeds the CRAP gate; nothing in this design needs a suppression, threshold lift or baseline bump. `test:coverage` precedes any direct fallow run, as the pre-commit hook already enforces. |
 | **VI. Degrade gracefully** | PASS | FR-288 verbatim: offline or conflicting writes are refused with a message, never queued or shown as saved; every drag cancel path writes nothing and reverts to cached truth (R208); the later write wins and the refetch reconciles; the filter store keeps Phase 1's in-memory fallback when localStorage is unavailable. |
 | **VII. Private by default** | PASS | The three new tables get `is_member()` read policies, SELECT for `authenticated`, ALL for `service_role`, and **no client write path** — every write is a `requireActor` server action (FR-270/271, SC-205). `replica identity full` is prohibited so DELETE payloads carry no event content (R209). SC-203 gets an explicit per-path policies test. |
-| **VIII. Fidelity is specified** | PASS | The spec tags all 89 FRs (`[V]`/`[V-photo]`/`[ESTIMATED]`/`[OURS]`/`[P1]`) and resolves 8 source contradictions explicitly; this plan implements only resolved decisions and keeps photo-estimated geometry (stripes, now-line dot) tagged as such in the token layer. |
+| **VIII. Fidelity is specified** | PASS | The spec tags all 90 FRs (`[V]`/`[V-photo]`/`[ESTIMATED]`/`[OURS]`/`[P1]`) and resolves 8 source contradictions explicitly; this plan implements only resolved decisions and keeps photo-estimated geometry (stripes, now-line dot) tagged as such in the token layer. |
 
 **Result: PASS. No violations, so Complexity Tracking is empty and omitted.**
 
@@ -53,7 +53,7 @@ Design introduced four things worth re-testing against the constitution:
 ```text
 specs/002-family-week-calendar/
 ├── plan.md              # This file
-├── spec.md              # Approved specification (89 FRs, 40 assumptions, 8 contradiction resolutions)
+├── spec.md              # Approved specification (90 FRs, 44 assumptions, 8 contradiction resolutions)
 ├── research.md          # Phase 0 — 14 resolved decisions, R201–R214
 ├── data-model.md        # Phase 1 — migrations 010–015 (015 is the split RPC), constraints, policies
 ├── quickstart.md        # Phase 1 — setup, per-guarantee verification, operator steps (push + post-push check + timezone seed)
@@ -114,7 +114,7 @@ app/family/
     └── calendar/
         ├── page.tsx                      # server component: current week fetched → initialData (R207)
         └── components/
-            ├── WeekView.tsx              # orchestrator: anchor + slice state, geometry, wiring
+            ├── WeekView.tsx              # orchestrator: anchor + slice state, geometry, wiring, FR-290 follow-scroll
             ├── useWeekAnchor.ts          # {today|pinned} anchor over useNow in household tz (FR-210, R210)
             ├── useGridGeometry.ts        # ResizeObserver → GridMetrics, column count (FR-277/278), slice clamp
             ├── useWeekOccurrences.ts     # fetch → expand → filter → layout memo chain (R206)
@@ -140,7 +140,7 @@ Ordered so each step is independently verifiable. `/speckit.tasks` will expand t
 | 3 | Calendar lib (`dates`, `expand` window, `layout`, `visibility`) — **tests first** | Tiling, clustering, "+n more", midnight segmentation, moved-occurrence emission all unit-proven |
 | 4 | Rows/types/validation, week query + keys + prefetch, realtime table extension | Week fetch under RLS in the policies tier; SC-203's per-path zero-row checks |
 | 5 | Event server actions (create/edit/delete with scopes; the sole rrule emitter; split RPC) — **tests first** | SC-207's six scope checks, the split-atomicity assertion and SC-205's refusals written in the policies tier against the 553xx stack before the actions exist, then green |
-| 6 | Grid rendering: header, all-day band, columns, blocks, now-line, overflow, anchor | Story 1's fourteen scenarios by hand; screenshots at three widths; overnight rollover check (SC-211) |
+| 6 | Grid rendering: header, all-day band, columns, blocks, now-line, overflow, anchor, FR-290 follow-scroll | Story 1's fifteen scenarios by hand (US1-15 is the follow-scroll check); screenshots at three widths; overnight rollover check (SC-211) |
 | 7 | Details, create/edit form, delete confirm, ScopeDialog, FR-274 count amendment | Story 2's nineteen scenarios; validation messages against fields |
 | 8 | Drag: `week-geometry` + `drag-state` (**tests first**), `useEventDrag`, preview, prompts | Story 3's eleven scenarios; every reducer transition unit-tested; gesture feel by hand on the iPad |
 | 9 | SlicePager, FilterSheet labels, phone pass | Story 4's eleven scenarios; 390×844 and 1180×820 checks (SC-209, SC-213) |
@@ -164,5 +164,5 @@ Ordered so each step is independently verifiable. `/speckit.tasks` will expand t
 - [x] Phase 0 — research complete ([research.md](./research.md): R201–R214, no open unknowns, zero new dependencies)
 - [x] Constitution check — pass, before and after design
 - [x] Phase 1 — data-model.md (migrations 010–015 in full SQL incl. the split RPC, privilege matrix delta), contracts/server-actions.md (event actions + scope semantics), quickstart.md (verification per guarantee; operator steps: `db push`, post-push check, timezone seed)
-- [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 67 dependency-ordered tasks, T001–T067; test-first pairs for every pure layer, SC-207's six scope checks as named tasks, US1 as the MVP cut)
+- [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 68 dependency-ordered tasks, T001–T068; test-first pairs for every pure layer, SC-207's six scope checks as named tasks, US1 as the MVP cut, the constitution's code-reviewer + security-guardian gate as T066)
 - [ ] Phase 3 — implementation per the phasing table above
