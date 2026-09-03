@@ -164,5 +164,5 @@ Ordered so each step is independently verifiable. `/speckit.tasks` will expand t
 - [x] Phase 0 — research complete ([research.md](./research.md): R201–R214, no open unknowns, zero new dependencies)
 - [x] Constitution check — pass, before and after design
 - [x] Phase 1 — data-model.md (migrations 010–015 in full SQL incl. the split RPC, privilege matrix delta), contracts/server-actions.md (event actions + scope semantics), quickstart.md (verification per guarantee; operator steps: `db push`, post-push check, timezone seed)
-- [ ] Phase 2 — `/speckit.tasks`
+- [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 67 dependency-ordered tasks, T001–T067; test-first pairs for every pure layer, SC-207's six scope checks as named tasks, US1 as the MVP cut)
 - [ ] Phase 3 — implementation per the phasing table above
