@@ -22,6 +22,15 @@ Requirement numbers are stable labels, not an order: FR-284 … FR-289 were adde
 
 ---
 
+## Clarifications
+
+### Session 2026-09-02
+
+- Q: What timezone is the household in? → A: **America/Chicago** (US Central). Recorded in FR-284/Assumption 41; the seed writes it.
+- Q: Where does the hour grid's vertical scroll sit when the calendar opens or idles? → A: **It follows the now line** — current time held about a third from the top while untouched; a manual scroll pauses following until the next day rollover or a Today tap. FR-290/Assumption 42.
+
+---
+
 ## User Scenarios & Testing *(mandatory)*
 
 Example household used throughout, so the scenarios can be run by hand: profiles **Ana** (parent), **Ben** (parent) and **Cleo** (child), plus a Label **Bin day**. Week starts on Sunday.
@@ -50,6 +59,7 @@ The tablet sits on the kitchen counter with nobody touching it. It shows this we
 12. **Given** Saturday and Sunday columns and an event that finished two hours ago, **When** the week renders, **Then** the weekend columns are shaded and the finished event is dimmed relative to upcoming ones.
 13. **Given** twelve events on Thursday, **When** the column renders, **Then** all twelve are reachable by scrolling within that day and none is silently dropped.
 14. **Given** five events all running 09:00–10:00 on the same Tuesday, **When** the column renders at tablet-landscape width, **Then** three are drawn side by side and the remaining two are reachable through a "+2 more" control in that time band; none is drawn so narrow as to be unreadable and none is unreachable.
+15. **Given** the calendar untouched at 20:00, **When** it is glanced at, **Then** the hour grid is scrolled so the now line sits about a third from the top — the evening hours, not the morning — and **Given** someone scrolls to the morning and walks away, **Then** the grid stays where they left it until midnight or a Today tap, when it resumes following.
 
 ---
 
@@ -181,7 +191,8 @@ Ana is at work. She opens `/family` on her phone and sees three days of the same
 - **FR-217**: The system MUST draw an event that crosses midnight as one event with a segment in each day column it touches, and MUST treat an edit or drag begun from any segment as acting on that single event. `[?]` — resolved `[OURS 2026-09-02]`.
 - **FR-218**: The system MUST give a very short event a minimum block height — one line of the block's own title type plus the block's vertical padding, and never less than the 44-point touch floor of FR-263 — without altering its stored times. `[?]` — no source shows a short event or states a minimum; resolved `[OURS 2026-09-02]`.
 - **FR-219**: The system MUST render every event in the household's timezone (FR-284), whatever timezone the event itself carries. `[OURS 2026-09-02 #18]`
-- **FR-284**: The system MUST hold the household's timezone as a single IANA name kept with the household, seeded when the household is set up and read-only in this phase — no interface in this phase changes it, per Assumption 16. Every rendering (FR-219) and every occurrence a repeat rule produces (FR-234) MUST be worked in that timezone. `[?]` — no source names a household timezone and Phase 1 stores none, so this is a record this phase adds `[OURS 2026-09-02]` (Assumption 34).
+- **FR-290**: The system MUST keep the hour grid's vertical scroll following the current time while the view is untouched — the now line held roughly a third of the viewport's height from the top — so the wall shows now and the hours ahead at any time of day. A manual scroll of the hours MUST pause the following until the next day rollover (FR-210) or a Today activation (FR-281), either of which resumes it. `[?]` — no source describes the grid's initial or idle scroll; clarified with the operator 2026-09-02 (Assumption 42).
+- **FR-284**: The system MUST hold the household's timezone as a single IANA name kept with the household, seeded when the household is set up and read-only in this phase — no interface in this phase changes it, per Assumption 16. The operator's household is **`America/Chicago`** (clarified 2026-09-02, Assumption 41). Every rendering (FR-219) and every occurrence a repeat rule produces (FR-234) MUST be worked in that timezone. `[?]` — no source names a household timezone and Phase 1 stores none, so this is a record this phase adds `[OURS 2026-09-02]` (Assumption 34).
 
 **Events and their fields**
 
@@ -361,6 +372,9 @@ Delegated calls made while writing this specification, recorded here on the same
 38. **A write that cannot complete is refused, never queued.** Offline, and the case where another device has already deleted the event, both end in a message and no stored change — no optimistic write, no local queue, nothing shown as saved that is not saved. The offline cache is out of scope this phase, so pretending otherwise would be a lie the household could act on. `[OURS 2026-09-02]`
 39. **Deletions reach other devices as bare invalidation signals.** Phase 1's live-update channel filters by household on the server, and a deletion notice carries only the deleted record's identifier — not its household — so a filtered subscription would never fire on a delete. Phase 1's prohibition on broadcasting whole deleted rows stands, because a deleted event's title is exactly the child's-schedule data the constitution protects. So the calendar's records are subscribed without that filter and every notice is treated as "something changed, re-read" — the payload carries no content either way, and the household is the only tenant on this project. `[OURS 2026-09-02]`
 40. **Week renders a multi-day event the way Schedule and Month do** — one bar spanning the days, in a band above the hours, rather than a repeat in each day cell. The one-bar rendering is verified for Schedule and Month only; whether Week does the same, and whether Week has an all-day band at all, are both explicitly unknown in every document. A photographed all-day pill sitting inside the day-header band is what makes the band credible, and one bar is what a person means by "the camping trip". `[OURS 2026-09-02]`
+
+41. **The household's timezone is `America/Chicago`.** Clarified with the operator 2026-09-02. The value the seed writes into the household record (FR-284); every DST example in this specification (the March jump, the November repeat) is therefore US Central's. `[OURS 2026-09-02]`
+42. **The idle grid follows the now line.** The hour scroll holds the current time about a third from the top while untouched, so the wall reads correctly at a glance all day; a manual scroll pauses the following until the day rolls over or Today is tapped. A fixed morning start was rejected — at 20:00 it shows an empty morning — and compressing 24 hours into the viewport makes short events unreadable at wall distance. `[OURS 2026-09-02]`
 
 Smaller calls are carried by the requirement that makes them rather than numbered here, and each states its own reasoning inline: FR-214 (ink derived from the fill), FR-217 (a midnight-crossing event is one event), FR-218 (the minimum block height), FR-227 (colour order), FR-238 (extending the reference's one-time-item rule from chores to events), FR-240 (a single-occurrence delete is recorded as a skip), FR-252 (script-driven drag animation must honour reduced motion itself), FR-255, FR-260, FR-262, FR-265, FR-267 (filtering never writes), FR-272, and FR-273 (the calendar's new records get their own store-level policies). All are `[OURS 2026-09-02]`.
 
