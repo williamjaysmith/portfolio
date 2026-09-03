@@ -5,6 +5,7 @@ import {
   PALETTE,
   PALETTE_NAMES,
   contrastRatio,
+  eventInk,
   initialsFor,
   inkOn,
   isPaletteColor,
@@ -191,5 +192,59 @@ describe("inkOn", () => {
 
   it("normalises its input", () => {
     expect(inkOn("#b6e085")).toBe(inkOn("#B6E085"));
+  });
+});
+
+describe("eventInk", () => {
+  // The six fills whose fixed dark ink lands under 4.5:1 and must flip to
+  // white (FR-214). The visual brief lists nine "dark" palette values, but
+  // that list is the set never photographed on an event block; measured, the
+  // other three (Ochre 5.64:1, Deep Clementine 4.54:1, Coral 5.85:1) hold the
+  // dark ink — flipping them would put white at 3.09:1 or worse and break
+  // FR-214's own floor.
+  const WHITE_INK_FILLS = [
+    "#CB434C", // Deep Grapefruit — dark ink 3.69:1
+    "#00526D", // Deep River — dark ink 2.01:1
+    "#2178AF", // Blue — dark ink 3.62:1
+    "#2D8086", // Deep Sky — dark ink 3.77:1
+    "#408257", // Deep Sprout — dark ink 3.77:1
+    "#915EA1", // Deep Lavender — dark ink 3.58:1
+  ] as const;
+
+  it("clears 4.5:1 against the block's own fill for every palette colour (FR-214)", () => {
+    for (const hex of PALETTE) {
+      expect(contrastRatio(hex, eventInk([hex]))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("is inkOn under the hood — one mechanism for Profiles and Labels alike (FR-211)", () => {
+    for (const hex of PALETTE) {
+      expect(eventInk([hex])).toBe(inkOn(hex));
+    }
+  });
+
+  it("takes the fill from the leftmost solid segment on a striped block (FR-214)", () => {
+    for (const first of PALETTE) {
+      for (const second of PALETTE) {
+        expect(eventInk([first, second])).toBe(inkOn(first));
+      }
+    }
+    // Deep River leads: white ink, whatever pastels follow.
+    expect(eventInk(["#00526D", "#FBD97E", "#DADADA"])).toBe(INK_LIGHT);
+    // Same colours, Sunshine leads: dark ink.
+    expect(eventInk(["#FBD97E", "#00526D", "#DADADA"])).toBe(INK_DARK);
+  });
+
+  it("flips to white on exactly the dark fills where the dark ink fails 4.5:1", () => {
+    const flipped = PALETTE.filter((hex) => eventInk([hex]) === INK_LIGHT);
+    expect(flipped).toEqual([...WHITE_INK_FILLS]);
+    for (const hex of WHITE_INK_FILLS) {
+      expect(contrastRatio(hex, INK_DARK)).toBeLessThan(4.5);
+      expect(contrastRatio(hex, INK_LIGHT)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("uses the dark ink for the neutral no-category block (FR-213)", () => {
+    expect(eventInk([])).toBe(INK_DARK);
   });
 });

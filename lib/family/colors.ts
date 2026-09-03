@@ -165,6 +165,22 @@ export function inkOn(hex: string): Ink {
 }
 
 /**
+ * The legible ink for an event block's text (FR-211, FR-214).
+ *
+ * `fills` is the block's fill in drawing order — the event's assigned category
+ * colours, Profiles and Labels through the one identical mechanism. A single
+ * colour fills the whole block; several render as stripes with the title on
+ * the leftmost solid segment, so the ink is always chosen against `fills[0]`
+ * via `inkOn` — six dark fills flip it to white (dark ink bottoms out at
+ * 2.01:1 on Deep River). An empty list is the neutral no-category block
+ * (FR-213, a light fill), where the dark ink stands.
+ */
+export function eventInk(fills: readonly PaletteColor[]): Ink {
+  const leftmost = fills[0];
+  return leftmost === undefined ? INK_DARK : inkOn(leftmost);
+}
+
+/**
  * Default avatar text: first letter of the first two words, uppercased.
  * Uses code points (not UTF-16 units) so a name starting with an astral
  * character still yields one visible glyph.

@@ -40,6 +40,32 @@
   "boundaries": {
     "zones": [
       {
+        "name": "tests",
+        "patterns": [
+          "**/__tests__/**/*",
+          "**/*.test.{ts,tsx}"
+        ]
+      },
+      {
+        "name": "family-recurrence",
+        "patterns": [
+          "lib/family/recurrence/**/*"
+        ]
+      },
+      {
+        "name": "family-calendar-core",
+        "patterns": [
+          "lib/family/calendar/expand.ts",
+          "lib/family/calendar/dates.ts"
+        ]
+      },
+      {
+        "name": "family-actions",
+        "patterns": [
+          "lib/family/actions/**/*"
+        ]
+      },
+      {
         "name": "ui-pages",
         "patterns": [
           "app/**/page.tsx",
@@ -71,13 +97,6 @@
         ]
       },
       {
-        "name": "tests",
-        "patterns": [
-          "**/__tests__/**/*",
-          "**/*.test.{ts,tsx}"
-        ]
-      },
-      {
         "name": "config",
         "patterns": [
           "middleware.ts",
@@ -91,16 +110,43 @@
     ],
     "rules": [
       {
+        "from": "family-recurrence",
+        "allow": [
+          "family-recurrence",
+          "lib"
+        ]
+      },
+      {
+        "from": "family-calendar-core",
+        "allow": [
+          "family-calendar-core",
+          "family-recurrence",
+          "lib"
+        ]
+      },
+      {
+        "from": "family-actions",
+        "allow": [
+          "family-actions",
+          "family-recurrence",
+          "family-calendar-core",
+          "lib"
+        ]
+      },
+      {
         "from": "lib",
         "allow": [
-          "lib"
+          "lib",
+          "family-calendar-core"
         ]
       },
       {
         "from": "components",
         "allow": [
           "components",
-          "lib"
+          "lib",
+          "family-calendar-core",
+          "family-actions"
         ]
       },
       {
@@ -108,7 +154,9 @@
         "allow": [
           "ui-pages",
           "components",
-          "lib"
+          "lib",
+          "family-calendar-core",
+          "family-actions"
         ]
       },
       {
@@ -126,7 +174,10 @@
           "api-routes",
           "components",
           "lib",
-          "config"
+          "config",
+          "family-recurrence",
+          "family-calendar-core",
+          "family-actions"
         ]
       },
       {

@@ -66,6 +66,11 @@ export interface HouseholdSettings {
   punchOutMinutes: number;
   textSize: TextSize;
   density: Density;
+  /**
+   * The one IANA zone every render and every expansion works in (FR-284,
+   * FR-219/FR-234). Seeded at setup; no interface changes it this phase.
+   */
+  timezone: string;
   updatedAt: string;
 }
 
@@ -122,4 +127,163 @@ export interface HouseholdSettingsPatch {
   punchOutMinutes?: number;
   textSize?: TextSize;
   density?: Density;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Week calendar (Phase 2 — specs/002-family-week-calendar)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * RFC 5545 BYDAY codes — the closed grammar's weekday alphabet (R201).
+ * Sunday-first to match the household's default start-of-week (`WKST=SU`).
+ */
+export const WEEKDAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
+/** The verified pyskylight scope enum (FR-237), used by edit, delete and drag alike. */
+export type Scope = "this" | "this_and_future" | "all";
+
+/**
+ * The four repeat choices the form offers (FR-231/232). Clients submit this
+ * structure, never an rrule string — the server-side emitter is the sole
+ * producer of rule text (R201). `until` is a household-local `YYYY-MM-DD`;
+ * `null` or absent = the series never ends. Monthly's BYMONTHDAY is derived
+ * from the start date, never sent.
+ */
+export type RepeatChoice =
+  | { kind: "never" }
+  | { kind: "daily"; until?: string | null }
+  | { kind: "weekly"; weekdays: Weekday[]; until?: string | null }
+  | { kind: "monthly"; until?: string | null };
+
+/**
+ * The two-shape time model (FR-222/223): timed events are ISO instants
+ * (`endsAt` strictly after `startsAt`, FR-226 — so an event may cross
+ * midnight); all-day events are plain `YYYY-MM-DD` dates with an INCLUSIVE
+ * `endDate` (FR-225 — equal dates cover one day).
+ */
+export type EventTimes =
+  | { allDay: false; startsAt: string; endsAt: string }
+  | { allDay: true; startDate: string; endDate: string };
+
+export type ExceptionAction = "skip" | "override";
+
+/**
+ * One occurrence's divergence from its series: a skip, or an override of
+ * exactly the four fields FR-239 permits. `null` payload fields inherit from
+ * the series; `times` is `null` unless the override moved the occurrence.
+ */
+export interface EventException {
+  id: string;
+  eventId: string;
+  householdId: string;
+  /**
+   * THE key (R204): the occurrence's ORIGINAL date in the household's
+   * timezone — unchanged even when an override moves the occurrence.
+   */
+  occurrenceDate: string;
+  action: ExceptionAction;
+  summary: string | null;
+  description: string | null;
+  location: string | null;
+  times: EventTimes | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One `family.events` row — a one-off or a whole series (occurrences are
+ * computed, never stored). The read path always embeds the ordered category
+ * links and every exception, which is what lets `expandWindow` find a moved
+ * occurrence without any search-window bookkeeping (R206).
+ */
+export interface Event {
+  id: string;
+  householdId: string;
+  summary: string;
+  description: string | null;
+  location: string | null;
+  times: EventTimes;
+  /** The creating DEVICE's IANA zone — provenance only (FR-224); never rendered from. */
+  timezone: string;
+  /** Canonical prefix-less RFC 5545 rule (R201); `null` = one-off. */
+  rrule: string | null;
+  /** Reserved for the countdown phase (FR-228); nothing reads it now. */
+  countdownEnabled: boolean;
+  /** Ordered — the stripe draw order (FR-227). May be empty (FR-213). */
+  categoryIds: string[];
+  exceptions: EventException[];
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One rendered calendar entry, produced by the shared expander — the same
+ * code the server validates `occurrenceDate` against, so client and server
+ * can never disagree about what an occurrence is (contracts, "Read path").
+ * Field values are effective: any override is already merged.
+ */
+export interface Occurrence {
+  /** The `events` row (segment) this occurrence expands from — what every write round-trips. */
+  eventId: string;
+  /** Original household-local date — the exception key (R204), NOT necessarily the rendered date. */
+  occurrenceDate: string;
+  /** Whether a write on this occurrence must ask the scope question (FR-238). */
+  isRepeating: boolean;
+  summary: string;
+  description: string | null;
+  location: string | null;
+  /** Ordered — the stripe draw order (FR-227). */
+  categoryIds: string[];
+  times: EventTimes;
+}
+
+/** Input to `createEvent` (contracts/server-actions.md). */
+export type EventInput = EventTimes & {
+  summary: string;
+  description?: string | null;
+  location?: string | null;
+  /** Filled from `Intl.DateTimeFormat().resolvedOptions().timeZone` — no picker (FR-224). */
+  timezone: string;
+  repeat: RepeatChoice;
+  categoryIds: string[];
+};
+
+/**
+ * What `updateEvent` may change. `timezone` is absent by design — provenance
+ * is written once (FR-224). The drag path is this same shape: a move is the
+ * time pair, a band↔grid conversion adds `allDay` (FR-251).
+ */
+export type EventPatch = Partial<EventTimes> & {
+  summary?: string;
+  description?: string | null;
+  location?: string | null;
+  repeat?: RepeatChoice;
+  categoryIds?: string[];
+};
+
+/** Input to `updateEvent` (contracts/server-actions.md). */
+export interface UpdateEventInput {
+  id: string;
+  patch: EventPatch;
+  /** REQUIRED iff the event has a rule; FORBIDDEN on a one-off (FR-238). */
+  scope?: Scope;
+  /**
+   * `YYYY-MM-DD`, the occurrence's ORIGINAL household-local date; required
+   * for scope `this` and `this_and_future`.
+   */
+  occurrenceDate?: string;
+}
+
+/** Input to `deleteEvent` (contracts/server-actions.md). */
+export interface DeleteEventInput {
+  id: string;
+  /** Must be `true` — FR-258; once confirmed the delete is final. */
+  confirm: boolean;
+  scope?: Scope;
+  occurrenceDate?: string;
 }

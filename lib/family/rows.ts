@@ -12,6 +12,10 @@ import type {
   AvatarKind,
   Category,
   Density,
+  Event,
+  EventException,
+  EventTimes,
+  ExceptionAction,
   Household,
   HouseholdSettings,
   Role,
@@ -56,7 +60,64 @@ export interface HouseholdSettingsRow {
   punch_out_minutes: number;
   text_size: TextSize;
   density: Density;
+  timezone: string;
   updated_at: string;
+}
+
+export interface EventRow {
+  id: string;
+  household_id: string;
+  summary: string;
+  description: string | null;
+  location: string | null;
+  all_day: boolean;
+  starts_at: string | null;
+  ends_at: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  timezone: string;
+  rrule: string | null;
+  countdown_enabled: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventCategoryRow {
+  event_id: string;
+  category_id: string;
+  household_id: string;
+  position: number;
+  created_at: string;
+}
+
+export interface EventExceptionRow {
+  id: string;
+  household_id: string;
+  event_id: string;
+  occurrence_date: string;
+  action: ExceptionAction;
+  summary: string | null;
+  description: string | null;
+  location: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * The week read always embeds the ordered links and EVERY exception with each
+ * event row — that totality is what makes a moved occurrence findable (R206).
+ */
+export interface EventWithRelationsRow extends EventRow {
+  event_categories: EventCategoryRow[];
+  event_exceptions: EventExceptionRow[];
 }
 
 export const HOUSEHOLD_COLUMNS = "id, name, created_at, updated_at";
@@ -68,7 +129,18 @@ export const CATEGORY_COLUMNS =
 
 export const SETTINGS_COLUMNS =
   "household_id, show_name_not_date, time_format, start_week_on, punch_out_minutes, " +
-  "text_size, density, updated_at";
+  "text_size, density, timezone, updated_at";
+
+export const EVENT_COLUMNS =
+  "id, household_id, summary, description, location, all_day, starts_at, ends_at, " +
+  "start_date, end_date, timezone, rrule, countdown_enabled, created_by, updated_by, " +
+  "created_at, updated_at";
+
+export const EVENT_CATEGORY_COLUMNS = "event_id, category_id, household_id, position, created_at";
+
+export const EVENT_EXCEPTION_COLUMNS =
+  "id, household_id, event_id, occurrence_date, action, summary, description, location, " +
+  "starts_at, ends_at, start_date, end_date, created_by, updated_by, created_at, updated_at";
 
 export function toHousehold(row: HouseholdRow): Household {
   return {
@@ -114,6 +186,71 @@ export function toSettings(row: HouseholdSettingsRow): HouseholdSettings {
     punchOutMinutes: row.punch_out_minutes,
     textSize: row.text_size,
     density: row.density,
+    timezone: row.timezone,
+    updatedAt: row.updated_at,
+  };
+}
+
+// The event_time_shape CHECK guarantees exactly one populated pair per
+// all_day; the casts keep the type honest without re-validating on every read.
+function toEventTimes(row: EventRow): EventTimes {
+  if (row.all_day) {
+    return { allDay: true, startDate: row.start_date as string, endDate: row.end_date as string };
+  }
+  return { allDay: false, startsAt: row.starts_at as string, endsAt: row.ends_at as string };
+}
+
+// exception_time_shape: pairs arrive whole and at most one shape; both pairs
+// absent = the occurrence keeps the series' time.
+function toExceptionTimes(row: EventExceptionRow): EventTimes | null {
+  if (row.starts_at !== null) {
+    return { allDay: false, startsAt: row.starts_at, endsAt: row.ends_at as string };
+  }
+  if (row.start_date !== null) {
+    return { allDay: true, startDate: row.start_date, endDate: row.end_date as string };
+  }
+  return null;
+}
+
+export function toEventException(row: EventExceptionRow): EventException {
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    householdId: row.household_id,
+    occurrenceDate: row.occurrence_date,
+    action: row.action,
+    summary: row.summary,
+    description: row.description,
+    location: row.location,
+    times: toExceptionTimes(row),
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toEvent(row: EventWithRelationsRow): Event {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    summary: row.summary,
+    description: row.description,
+    location: row.location,
+    times: toEventTimes(row),
+    timezone: row.timezone,
+    rrule: row.rrule,
+    countdownEnabled: row.countdown_enabled,
+    // PostgREST embed order is unspecified; `position` is the draw order (FR-227).
+    categoryIds: [...row.event_categories]
+      .sort((a, b) => a.position - b.position)
+      .map((link) => link.category_id),
+    exceptions: [...row.event_exceptions]
+      .sort((a, b) => a.occurrence_date.localeCompare(b.occurrence_date))
+      .map(toEventException),
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
 }

@@ -1,12 +1,21 @@
 import { describe, it, expect } from "vitest";
 import {
   CATEGORY_COLUMNS,
+  EVENT_CATEGORY_COLUMNS,
+  EVENT_COLUMNS,
+  EVENT_EXCEPTION_COLUMNS,
   HOUSEHOLD_COLUMNS,
   SETTINGS_COLUMNS,
   type CategoryRow,
+  type EventCategoryRow,
+  type EventExceptionRow,
+  type EventRow,
+  type EventWithRelationsRow,
   type HouseholdRow,
   type HouseholdSettingsRow,
   toCategory,
+  toEvent,
+  toEventException,
   toHousehold,
   toSettings,
 } from "@/lib/family/rows";
@@ -85,6 +94,7 @@ const settingsRow: HouseholdSettingsRow = {
   punch_out_minutes: 15,
   text_size: "large",
   density: "roomy",
+  timezone: "America/Chicago",
   updated_at: "2026-02-02T11:30:00.000Z",
 };
 
@@ -191,6 +201,7 @@ describe("toSettings", () => {
       punchOutMinutes: 15,
       textSize: "large",
       density: "roomy",
+      timezone: "America/Chicago",
       updatedAt: "2026-02-02T11:30:00.000Z",
     });
   });
@@ -208,8 +219,159 @@ describe("toSettings", () => {
   });
 });
 
+const EVENT_ID = "22222222-2222-4222-8222-222222222222";
+
+const baseEventRow: EventRow = {
+  id: EVENT_ID,
+  household_id: HOUSEHOLD_ID,
+  summary: "Piano",
+  description: "Bring the blue book",
+  location: "Miss Reed's",
+  all_day: false,
+  starts_at: "2026-10-06T22:00:00.000Z",
+  ends_at: "2026-10-06T22:45:00.000Z",
+  start_date: null,
+  end_date: null,
+  timezone: "America/Chicago",
+  rrule: "FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=TU",
+  countdown_enabled: false,
+  created_by: null,
+  updated_by: null,
+  created_at: "2026-09-01T10:00:00.000Z",
+  updated_at: "2026-09-01T10:00:00.000Z",
+};
+
+const timedEventRow: EventWithRelationsRow = {
+  ...baseEventRow,
+  event_categories: [],
+  event_exceptions: [],
+};
+
+const linkRow = (category_id: string, position: number): EventCategoryRow => ({
+  event_id: EVENT_ID,
+  category_id,
+  household_id: HOUSEHOLD_ID,
+  position,
+  created_at: "2026-09-01T10:00:00.000Z",
+});
+
+const skipRow: EventExceptionRow = {
+  id: "33333333-3333-4333-8333-333333333333",
+  household_id: HOUSEHOLD_ID,
+  event_id: EVENT_ID,
+  occurrence_date: "2026-10-13",
+  action: "skip",
+  summary: null,
+  description: null,
+  location: null,
+  starts_at: null,
+  ends_at: null,
+  start_date: null,
+  end_date: null,
+  created_by: null,
+  updated_by: null,
+  created_at: "2026-09-01T10:00:00.000Z",
+  updated_at: "2026-09-01T10:00:00.000Z",
+};
+
+describe("toEvent", () => {
+  it("maps a timed row to the timed shape with no snake_case keys", () => {
+    const event = toEvent(timedEventRow);
+    expect(event.times).toEqual({
+      allDay: false,
+      startsAt: "2026-10-06T22:00:00.000Z",
+      endsAt: "2026-10-06T22:45:00.000Z",
+    });
+    expect(event.rrule).toBe("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=TU");
+    expect(event.countdownEnabled).toBe(false);
+    for (const key of Object.keys(event)) {
+      expect(key).not.toContain("_");
+    }
+  });
+
+  it("maps an all-day row to the inclusive date shape", () => {
+    const event = toEvent({
+      ...timedEventRow,
+      all_day: true,
+      starts_at: null,
+      ends_at: null,
+      start_date: "2026-10-06",
+      end_date: "2026-10-08",
+      rrule: null,
+    });
+    expect(event.times).toEqual({ allDay: true, startDate: "2026-10-06", endDate: "2026-10-08" });
+    expect(event.rrule).toBeNull();
+  });
+
+  it("orders categoryIds by position, not by arrival order", () => {
+    const event = toEvent({
+      ...timedEventRow,
+      event_categories: [linkRow("cat-b", 1), linkRow("cat-a", 0), linkRow("cat-c", 2)],
+    });
+    expect(event.categoryIds).toEqual(["cat-a", "cat-b", "cat-c"]);
+  });
+
+  it("orders exceptions by occurrence date, not by arrival order", () => {
+    const event = toEvent({
+      ...timedEventRow,
+      event_exceptions: [skipRow, { ...skipRow, id: "44444444-4444-4444-8444-444444444444", occurrence_date: "2026-10-06" }],
+    });
+    expect(event.exceptions.map((exception) => exception.occurrenceDate)).toEqual([
+      "2026-10-06",
+      "2026-10-13",
+    ]);
+  });
+});
+
+describe("toEventException", () => {
+  it("maps a skip with no payload and null times", () => {
+    const exception = toEventException(skipRow);
+    expect(exception.action).toBe("skip");
+    expect(exception.times).toBeNull();
+    expect(exception.summary).toBeNull();
+    expect(exception.occurrenceDate).toBe("2026-10-13");
+  });
+
+  it("maps a timed override to the timed shape", () => {
+    const exception = toEventException({
+      ...skipRow,
+      action: "override",
+      starts_at: "2026-10-06T23:00:00.000Z",
+      ends_at: "2026-10-06T23:45:00.000Z",
+    });
+    expect(exception.times).toEqual({
+      allDay: false,
+      startsAt: "2026-10-06T23:00:00.000Z",
+      endsAt: "2026-10-06T23:45:00.000Z",
+    });
+  });
+
+  it("maps a date-pair override to the all-day shape (an FR-251 grid→band drag)", () => {
+    const exception = toEventException({
+      ...skipRow,
+      action: "override",
+      start_date: "2026-10-06",
+      end_date: "2026-10-06",
+    });
+    expect(exception.times).toEqual({ allDay: true, startDate: "2026-10-06", endDate: "2026-10-06" });
+  });
+
+  it("keeps a title-only override's times null so the series time is inherited", () => {
+    const exception = toEventException({ ...skipRow, action: "override", summary: "Recital" });
+    expect(exception.times).toBeNull();
+    expect(exception.summary).toBe("Recital");
+  });
+});
+
 describe("column constants", () => {
-  const ALL_COLUMN_CONSTANTS = [HOUSEHOLD_COLUMNS, CATEGORY_COLUMNS, SETTINGS_COLUMNS];
+  const ALL_COLUMN_CONSTANTS = [
+    HOUSEHOLD_COLUMNS,
+    CATEGORY_COLUMNS,
+    SETTINGS_COLUMNS,
+    EVENT_COLUMNS,
+    EVENT_CATEGORY_COLUMNS,
+    EVENT_EXCEPTION_COLUMNS,
+  ];
 
   it("never selects a wildcard", () => {
     for (const columns of ALL_COLUMN_CONSTANTS) {
@@ -240,6 +402,11 @@ describe("column constants", () => {
     expect(columnList(HOUSEHOLD_COLUMNS).sort()).toEqual(Object.keys(householdRow).sort());
     expect(columnList(CATEGORY_COLUMNS).sort()).toEqual(Object.keys(profileRow).sort());
     expect(columnList(SETTINGS_COLUMNS).sort()).toEqual(Object.keys(settingsRow).sort());
+    expect(columnList(EVENT_COLUMNS).sort()).toEqual(Object.keys(baseEventRow).sort());
+    expect(columnList(EVENT_CATEGORY_COLUMNS).sort()).toEqual(
+      Object.keys(linkRow("cat-a", 0)).sort(),
+    );
+    expect(columnList(EVENT_EXCEPTION_COLUMNS).sort()).toEqual(Object.keys(skipRow).sort());
   });
 
   it("selects has_pin, the boolean flag, and nothing else PIN-shaped", () => {

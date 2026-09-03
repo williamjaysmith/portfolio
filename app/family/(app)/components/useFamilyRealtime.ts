@@ -14,11 +14,22 @@ import { createClient } from "@/lib/family/supabase/client";
  * Realtime does not apply the same column privileges as a normal read.
  */
 
-const TABLES = [
-  { table: "categories", filter: (id: string) => `household_id=eq.${id}` },
-  { table: "household_settings", filter: (id: string) => `household_id=eq.${id}` },
-  { table: "households", filter: (id: string) => `id=eq.${id}` },
-] as const;
+type TableSubscription = {
+  readonly table: string;
+  // Optional: the calendar tables subscribe UNFILTERED (R209, Assumption 39) —
+  // DELETE payloads carry primary keys only, never household_id, so a filtered
+  // subscription would silently never fire on deletes.
+  readonly filter?: (householdId: string) => string;
+};
+
+const TABLES: readonly TableSubscription[] = [
+  { table: "categories", filter: (id) => `household_id=eq.${id}` },
+  { table: "household_settings", filter: (id) => `household_id=eq.${id}` },
+  { table: "households", filter: (id) => `id=eq.${id}` },
+  { table: "events" },
+  { table: "event_categories" },
+  { table: "event_exceptions" },
+];
 
 export function useFamilyRealtime(householdId: string): void {
   const queryClient = useQueryClient();
@@ -31,7 +42,8 @@ export function useFamilyRealtime(householdId: string): void {
     for (const { table, filter } of TABLES) {
       channel = channel.on(
         "postgres_changes",
-        { event: "*", schema: "family", table, filter: filter(householdId) },
+        // The spread keeps the params free of a `filter` key when none applies.
+        { event: "*", schema: "family", table, ...(filter && { filter: filter(householdId) }) },
         invalidate,
       );
     }

@@ -15,7 +15,15 @@ import { z } from "zod";
 import { AVATAR_IDS } from "./avatars";
 import { isPaletteColor, normalizeHex } from "./colors";
 import { ACTION_MESSAGES, ActionFailure, type FieldErrors } from "./errors";
-import type { Category, CategoryPatch, Role } from "./types";
+import {
+  WEEKDAYS,
+  type Category,
+  type CategoryPatch,
+  type EventInput,
+  type RepeatChoice,
+  type Role,
+  type Scope,
+} from "./types";
 
 export const pinSchema = z
   .string({ error: "PIN must be exactly 4 digits." })
@@ -218,3 +226,321 @@ export function parseOrThrow<S extends z.ZodType>(schema: S, input: unknown): z.
   const message = result.error.issues[0]?.message ?? ACTION_MESSAGES.VALIDATION;
   throw new ActionFailure("VALIDATION", message, fieldErrors(result.error));
 }
+
+/* ------------------------------------------------------------------------- *
+ * Week calendar (Phase 2 — contracts/server-actions.md, "Shared input shapes")
+ * ------------------------------------------------------------------------- */
+
+export const scopeSchema = z.enum(["this", "this_and_future", "all"], {
+  error: "Choose which events this applies to.",
+});
+
+const untilSchema = z.iso
+  .date({ error: "Repeat end must be a date like 2026-12-15." })
+  .nullable()
+  .optional();
+
+const weekdaysSchema = z
+  .array(z.enum(WEEKDAYS, { error: "Weekdays must be codes like MO." }), {
+    error: "Pick the weekdays the event repeats on.",
+  })
+  .min(1, { error: "Pick at least one weekday." })
+  .refine((days) => new Set(days).size === days.length, {
+    error: "Each weekday can appear only once.",
+  });
+
+/**
+ * The four structured choices (FR-231/232). Strict objects: a client can
+ * never smuggle a BYMONTHDAY (the emitter derives it from the start) or a
+ * COUNT (the grammar is UNTIL-only) — R201's no-rule-strings rule starts here.
+ */
+export const repeatChoiceSchema = z.discriminatedUnion(
+  "kind",
+  [
+    z.strictObject({ kind: z.literal("never") }),
+    z.strictObject({ kind: z.literal("daily"), until: untilSchema }),
+    z.strictObject({ kind: z.literal("weekly"), weekdays: weekdaysSchema, until: untilSchema }),
+    z.strictObject({ kind: z.literal("monthly"), until: untilSchema }),
+  ],
+  { error: "Choose how the event repeats." },
+);
+
+// The same source the client fills the field from (FR-224); the database
+// trigger against pg_timezone_names is the backstop.
+const SUPPORTED_TIMEZONES = new Set<string>(Intl.supportedValuesOf("timeZone"));
+
+const timezoneSchema = z
+  .string({ error: "Timezone must be an IANA name." })
+  .refine((zone) => SUPPORTED_TIMEZONES.has(zone), {
+    error: "Timezone must be an IANA name like America/Chicago.",
+  });
+
+const instantSchema = z.iso.datetime({
+  offset: true,
+  error: "Times must be ISO instants like 2026-10-06T17:00:00-05:00.",
+});
+
+const plainDateSchema = z.iso.date({ error: "Dates must look like 2026-10-06." });
+
+const summarySchema = z
+  .string({ error: "Title is required." })
+  .trim()
+  .min(1, { error: "Title is required." })
+  .max(120, { error: "Title must be 120 characters or fewer." });
+
+const descriptionSchema = z
+  .string({ error: "Notes must be text." })
+  .trim()
+  .max(2000, { error: "Notes must be 2000 characters or fewer." })
+  .transform((value) => (value === "" ? null : value));
+
+const locationSchema = z
+  .string({ error: "Location must be text." })
+  .trim()
+  .max(200, { error: "Location must be 200 characters or fewer." })
+  .transform((value) => (value === "" ? null : value));
+
+const categoryIdsSchema = z
+  .array(z.uuid({ error: "Invalid id." }), { error: "Profiles and Labels must be a list of ids." })
+  .refine((ids) => new Set(ids).size === ids.length, {
+    error: "Each Profile or Label can appear only once.",
+  });
+
+const END_AFTER_START = "The end must be after the start.";
+const END_DATE_BEFORE_START = "The end date can't be before the start date.";
+
+interface FieldIssue {
+  path: (string | number)[];
+  message: string;
+}
+
+const eventBaseFields = {
+  summary: summarySchema,
+  description: descriptionSchema.nullable().optional(),
+  location: locationSchema.nullable().optional(),
+  timezone: timezoneSchema,
+  repeat: repeatChoiceSchema,
+  categoryIds: categoryIdsSchema,
+};
+
+/**
+ * The two-shape time model at the boundary (FR-222/223): strict objects, so
+ * mixing shapes — or sending an rrule string — is refused, not stripped.
+ * FR-226 compares instants (a midnight-crosser is valid); FR-225 makes the
+ * all-day end inclusive (equal dates are one day).
+ */
+export const eventInputSchema = z
+  .discriminatedUnion(
+    "allDay",
+    [
+      z.strictObject({
+        ...eventBaseFields,
+        allDay: z.literal(false),
+        startsAt: instantSchema,
+        endsAt: instantSchema,
+      }),
+      z.strictObject({
+        ...eventBaseFields,
+        allDay: z.literal(true),
+        startDate: plainDateSchema,
+        endDate: plainDateSchema,
+      }),
+    ],
+    { error: "Choose timed or all-day." },
+  )
+  .superRefine((value, ctx) => {
+    if (value.allDay) {
+      if (value.endDate < value.startDate) {
+        ctx.addIssue({ code: "custom", path: ["endDate"], message: END_DATE_BEFORE_START, input: value });
+      }
+    } else if (Date.parse(value.endsAt) <= Date.parse(value.startsAt)) {
+      ctx.addIssue({ code: "custom", path: ["endsAt"], message: END_AFTER_START, input: value });
+    }
+  });
+
+/** `null` on a series that never ends (FR-232). */
+function repeatUntil(repeat: RepeatChoice): string | null {
+  return repeat.kind === "never" ? null : (repeat.until ?? null);
+}
+
+/** The household-zone calendar date of an instant — `en-CA` formats as `YYYY-MM-DD`. */
+function localDateInZone(instantIso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(instantIso));
+}
+
+const UNTIL_BEFORE_START = "The repeat can't end before the event starts.";
+
+/**
+ * Full `createEvent` validation. The one rule the schema alone cannot hold —
+ * `until` ≥ the start, compared as HOUSEHOLD-zone local dates (R201), never
+ * as UTC dates — needs the household timezone, so it lives here. Throws
+ * field-keyed `ActionFailure('VALIDATION')` (FR-262).
+ */
+export function validateEventInput(input: unknown, householdTimezone: string): EventInput {
+  const parsed = parseOrThrow(eventInputSchema, input);
+  const until = repeatUntil(parsed.repeat);
+  if (until !== null) {
+    const startDate = parsed.allDay
+      ? parsed.startDate
+      : localDateInZone(parsed.startsAt, householdTimezone);
+    if (until < startDate) {
+      throw new ActionFailure("VALIDATION", UNTIL_BEFORE_START, { repeat: [UNTIL_BEFORE_START] });
+    }
+  }
+  return parsed;
+}
+
+// Time fields arrive as whole pairs — a lone edge cannot say what the other
+// edge should become.
+function halfPairIssues(patch: PatchTimeFields): FieldIssue[] {
+  const issues: FieldIssue[] = [];
+  if ((patch.startsAt === undefined) !== (patch.endsAt === undefined)) {
+    const missing = patch.startsAt === undefined ? "startsAt" : "endsAt";
+    issues.push({ path: [missing], message: "A new time needs both its start and its end." });
+  }
+  if ((patch.startDate === undefined) !== (patch.endDate === undefined)) {
+    const missing = patch.startDate === undefined ? "startDate" : "endDate";
+    issues.push({ path: [missing], message: "A new date range needs both its start and its end." });
+  }
+  return issues;
+}
+
+// At most one time shape per patch, and a band↔grid conversion (FR-251) must
+// carry the new shape's times.
+function shapeIssues(patch: PatchTimeFields): FieldIssue[] {
+  const hasInstants = patch.startsAt !== undefined;
+  const hasDates = patch.startDate !== undefined;
+  if (hasInstants && hasDates) {
+    return [{ path: ["allDay"], message: "A change can carry clock times or dates, not both." }];
+  }
+  if (patch.allDay === true && !hasDates) {
+    return [{ path: ["startDate"], message: "An all-day change needs its dates." }];
+  }
+  if (patch.allDay === false && !hasInstants) {
+    return [{ path: ["startsAt"], message: "A timed change needs its start and end times." }];
+  }
+  return [];
+}
+
+// FR-226/FR-225 hold on patched times exactly as on created ones.
+function orderIssues(patch: PatchTimeFields): FieldIssue[] {
+  const issues: FieldIssue[] = [];
+  if (
+    patch.startsAt !== undefined &&
+    patch.endsAt !== undefined &&
+    Date.parse(patch.endsAt) <= Date.parse(patch.startsAt)
+  ) {
+    issues.push({ path: ["endsAt"], message: END_AFTER_START });
+  }
+  if (patch.startDate !== undefined && patch.endDate !== undefined && patch.endDate < patch.startDate) {
+    issues.push({ path: ["endDate"], message: END_DATE_BEFORE_START });
+  }
+  return issues;
+}
+
+interface PatchTimeFields {
+  allDay?: boolean;
+  startsAt?: string;
+  endsAt?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+function patchTimeIssues(patch: PatchTimeFields): FieldIssue[] {
+  const halves = halfPairIssues(patch);
+  if (halves.length > 0) return halves;
+  return [...shapeIssues(patch), ...orderIssues(patch)];
+}
+
+/**
+ * What `updateEvent` may change. Strict: `timezone` (provenance, written
+ * once — FR-224) and `rrule` (emitter-only — R201) are refused, not stripped.
+ */
+const eventPatchSchema = z
+  .strictObject({
+    summary: summarySchema.optional(),
+    description: descriptionSchema.nullable().optional(),
+    location: locationSchema.nullable().optional(),
+    repeat: repeatChoiceSchema.optional(),
+    categoryIds: categoryIdsSchema.optional(),
+    allDay: z.boolean({ error: "Choose timed or all-day." }).optional(),
+    startsAt: instantSchema.optional(),
+    endsAt: instantSchema.optional(),
+    startDate: plainDateSchema.optional(),
+    endDate: plainDateSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    for (const issue of patchTimeIssues(value)) {
+      ctx.addIssue({ code: "custom", path: issue.path, message: issue.message, input: value });
+    }
+  })
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    error: "Nothing to update.",
+  });
+
+function occurrenceScoped(scope: Scope | undefined): boolean {
+  return scope === "this" || scope === "this_and_future";
+}
+
+const OCCURRENCE_REQUIRED = "Say which occurrence this applies to.";
+
+// The scope rules a schema can hold without the row: a per-occurrence scope
+// names its occurrence, and a 'this' patch cannot carry series-only fields —
+// categories change at series scope only (FR-287) and a repeat is a series
+// property (FR-239). Whether a scope is required at all needs the row (FR-238)
+// and stays in the action.
+function updateScopeIssues(value: {
+  scope?: Scope;
+  occurrenceDate?: string;
+  patch: { categoryIds?: unknown; repeat?: unknown };
+}): FieldIssue[] {
+  const issues: FieldIssue[] = [];
+  if (occurrenceScoped(value.scope) && value.occurrenceDate === undefined) {
+    issues.push({ path: ["occurrenceDate"], message: OCCURRENCE_REQUIRED });
+  }
+  if (value.scope === "this" && value.patch.categoryIds !== undefined) {
+    issues.push({
+      path: ["patch", "categoryIds"],
+      message: "Profiles and Labels change for the whole series, not one event.",
+    });
+  }
+  if (value.scope === "this" && value.patch.repeat !== undefined) {
+    issues.push({
+      path: ["patch", "repeat"],
+      message: "The repeat changes for the whole series, not one event.",
+    });
+  }
+  return issues;
+}
+
+export const updateEventInputSchema = z
+  .strictObject({
+    id: z.uuid({ error: "Invalid id." }),
+    patch: eventPatchSchema,
+    scope: scopeSchema.optional(),
+    occurrenceDate: plainDateSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    for (const issue of updateScopeIssues(value)) {
+      ctx.addIssue({ code: "custom", path: issue.path, message: issue.message, input: value });
+    }
+  });
+
+export const deleteEventInputSchema = z
+  .strictObject({
+    id: z.uuid({ error: "Invalid id." }),
+    // FR-258: no delete without explicit confirmation; once confirmed it is final.
+    confirm: z.literal(true, { error: "Deleting needs explicit confirmation." }),
+    scope: scopeSchema.optional(),
+    occurrenceDate: plainDateSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (occurrenceScoped(value.scope) && value.occurrenceDate === undefined) {
+      ctx.addIssue({ code: "custom", path: ["occurrenceDate"], message: OCCURRENCE_REQUIRED, input: value });
+    }
+  });

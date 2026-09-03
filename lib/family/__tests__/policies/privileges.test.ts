@@ -1,8 +1,12 @@
 /**
- * The privilege inventory (DECISIONS §4). Read straight from the catalogue as
- * `postgres`, then spot-checked through the API. Any grant that is not in the
- * matrix — a new `t` for anon, a helper callable by authenticated, a way for
- * service_role to read a PIN hash — fails here before it ships.
+ * The privilege inventory (DECISIONS §4; Phase 2 delta per 002's data-model
+ * privilege matrix). Read straight from the catalogue as `postgres`, then
+ * spot-checked through the API. Any grant that is not in the matrix — a new
+ * `t` for anon, a helper callable by authenticated, a way for service_role to
+ * read a PIN hash — fails here before it ships. The calendar tables (`events`,
+ * `event_categories`, `event_exceptions`) must show anon nothing /
+ * authenticated SELECT / service_role ALL; `split_event_series` is
+ * service_role-only; the two timezone trigger functions are callable by nobody.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -15,11 +19,16 @@ const TABLES = [
   "categories",
   "household_settings",
   "profile_pins",
+  "events",
+  "event_categories",
+  "event_exceptions",
 ] as const;
 type Table = (typeof TABLES)[number];
 
 const FUNCTIONS = [
+  "assert_event_timezone",
   "assert_profile_account_is_member",
+  "assert_settings_timezone",
   "can_read_avatar",
   "claim_membership",
   "clear_pin",
@@ -28,6 +37,7 @@ const FUNCTIONS = [
   "is_member",
   "my_household",
   "set_pin",
+  "split_event_series",
   "sync_has_pin",
   "touch_updated_at",
   "verify_pin",
@@ -114,7 +124,7 @@ describe("privileges: the grant matrix", () => {
     expect(await executePrivileges(pool, "anon")).toEqual(executeMatrix([]));
   });
 
-  it("authenticated: usage, SELECT on the four tables, execute on the four helpers, nothing on profile_pins", async () => {
+  it("authenticated: usage, SELECT on everything but profile_pins, execute on the four helpers", async () => {
     expect(await schemaUsage(pool, "authenticated")).toBe(true);
     expect(await tablePrivileges(pool, "authenticated")).toEqual(
       tableMatrix({
@@ -122,6 +132,9 @@ describe("privileges: the grant matrix", () => {
         household_users: READ,
         categories: READ,
         household_settings: READ,
+        events: READ,
+        event_categories: READ,
+        event_exceptions: READ,
       }),
     );
     expect(await executePrivileges(pool, "authenticated")).toEqual(
@@ -129,7 +142,7 @@ describe("privileges: the grant matrix", () => {
     );
   });
 
-  it("service_role: usage, ALL on the four tables, the PIN functions — and nothing on profile_pins", async () => {
+  it("service_role: usage, ALL on everything but profile_pins, the PIN functions and the split", async () => {
     expect(await schemaUsage(pool, "service_role")).toBe(true);
     expect(await tablePrivileges(pool, "service_role")).toEqual(
       tableMatrix({
@@ -137,11 +150,36 @@ describe("privileges: the grant matrix", () => {
         household_users: ALL,
         categories: ALL,
         household_settings: ALL,
+        events: ALL,
+        event_categories: ALL,
+        event_exceptions: ALL,
       }),
     );
     expect(await executePrivileges(pool, "service_role")).toEqual(
-      executeMatrix(["set_pin", "verify_pin", "clear_pin", "is_member", "my_household"]),
+      executeMatrix([
+        "set_pin",
+        "verify_pin",
+        "clear_pin",
+        "is_member",
+        "my_household",
+        "split_event_series",
+      ]),
     );
+  });
+
+  it("split_event_series executes for service_role only; the timezone triggers for nobody", async () => {
+    // Data-model "Privilege matrix (delta)": only service_role may execute the
+    // split; the two timezone triggers must never be grantable to any API role.
+    for (const role of ["anon", "authenticated", "supabase_auth_admin"]) {
+      const inventory = await executePrivileges(pool, role);
+      expect(inventory.split_event_series, role).toBe(false);
+    }
+    expect((await executePrivileges(pool, "service_role")).split_event_series).toBe(true);
+    for (const role of ["anon", "authenticated", "service_role", "supabase_auth_admin"]) {
+      const inventory = await executePrivileges(pool, role);
+      expect(inventory.assert_event_timezone, role).toBe(false);
+      expect(inventory.assert_settings_timezone, role).toBe(false);
+    }
   });
 
   it("supabase_auth_admin: usage, SELECT on the allowlist, execute on the signup hook only", async () => {

@@ -11,8 +11,9 @@
  * Every custom property is prefixed --fam- so nothing collides with the portfolio's
  * Tailwind theme variables (--font-sans, --color-*, --spacing, ...).
  *
- * Sources: docs/research/skylight/07-visual-design-system.md §1, §2, §3, §8;
- *          docs/research/skylight/00-master-map.md §3; specs/001-family-foundation/research.md R8, R12.
+ * Sources: docs/research/skylight/07-visual-design-system.md §1, §2, §3, §4, §8;
+ *          docs/research/skylight/00-master-map.md §3; specs/001-family-foundation/research.md R8, R12;
+ *          specs/002-family-week-calendar/spec.md FR-208/209/212/213/215 (week-grid tokens).
  * Evidence tags: [VERIFIED] from the API/help centre · [SAMPLED] pixel-sampled from photos (±3/channel)
  *                [ESTIMATED] derived from photographs (±~10 %) · [DERIVED] arithmetic on source values
  *                [OURS] our own decision, not in any source.
@@ -121,6 +122,50 @@
   --fam-radius-card: calc(20 * var(--fam-u));    /* [ESTIMATED] event block / task card radius */
   --fam-radius-modal: calc(40 * var(--fam-u));   /* [ESTIMATED] modal radius */
 
+  /* ---------- week grid (Phase 2 — 07 §3.2–3.4, §4.5–4.8) ----------------------------------
+   * Photo-derived geometry: [SAMPLED] = pixel-read from a photograph, everything else is a
+   * proportional photo estimate (±~10 %). None of it comes from a written specification. */
+  --fam-dayheader-h: calc(137 * var(--fam-u));   /* [SAMPLED] day-header band — date line + one all-day row */
+  --fam-hour-gutter-w: calc(117 * var(--fam-u)); /* [SAMPLED] hour-label gutter left of the first day column */
+  --fam-day-col-w: calc(337 * var(--fam-u));     /* [SAMPLED] photographed column pitch. NOT a layout constant:
+                                                    FR-277/278 pick the column count by measurement — this is
+                                                    the "whole column that fits" width that fitting divides by. */
+  --fam-hour-row-h: calc(195 * var(--fam-u));    /* [SAMPLED] one hour of the ruler (two photos agree, 195/198) */
+  --fam-halfhour-y: calc(97 * var(--fam-u));     /* [SAMPLED] half-hour hairline offset within a row (≈ row/2) */
+  --fam-event-inset: calc(6 * var(--fam-u));     /* [ESTIMATED] block inset from its column edges, each side */
+  --fam-event-pad: calc(30 * var(--fam-u));      /* [SAMPLED] event-block padding, left/top */
+  --fam-event-pad-end: calc(24 * var(--fam-u));  /* [ESTIMATED] event-block padding, right/bottom */
+  --fam-event-gap: calc(8 * var(--fam-u));       /* [ESTIMATED] title → time gap inside a block */
+  --fam-event-avatar: calc(40 * var(--fam-u));   /* [SAMPLED] avatar in the block corner; also the "+N" chip */
+  --fam-avatar-overlap: calc(12 * var(--fam-u)); /* [ESTIMATED] stacked-avatar overlap (≈30 %) */
+  --fam-allday-h: calc(40 * var(--fam-u));       /* [ESTIMATED] all-day pill height */
+  --fam-allday-r: calc(20 * var(--fam-u));       /* [DERIVED] allday-h / 2 = full pill */
+  --fam-today-badge: calc(44 * var(--fam-u));    /* [ESTIMATED] today's filled date circle (FR-209) — the circle
+                                                    itself is [VERIFIED] "an orange dot"; only the size is a
+                                                    photo estimate. Fill: --fam-accent-coral. */
+  --fam-nowline-w: 2px;                          /* [ESTIMATED] now-line bar thickness (FR-208) — deliberately
+                                                    UNSCALED so it cannot thin to sub-pixel at the 0.5 unit
+                                                    floor [OURS] */
+  --fam-nowline-dot: calc(14 * var(--fam-u));    /* [ESTIMATED] dot at the gutter edge of the now-line (FR-208).
+                                                    Colour for bar and dot: --fam-accent-coral [VERIFIED]. */
+  --fam-stripe-w: calc(40 * var(--fam-u));       /* [ESTIMATED] multi-category stripe width (FR-212) */
+  --fam-stripe-angle: 45deg;                     /* [SCREENSHOT] photo-only: the ~45° read of pdp/10.jpg — no
+                                                    Skylight document ever says "diagonal" (Assumption 17) */
+
+  /* Weekend shading + past-event dimming (FR-215): both toggles are [VERIFIED]; both VALUES are
+   * [UNKNOWN] in every source, so these two numbers are our own picks. */
+  --fam-weekend-shade: #F7F7F8;                  /* [OURS] weekend column wash — reuses the sampled pill neutral
+                                                    so the shade stays inside the photographed neutral family */
+  --fam-past-dim: 0.55;                          /* [OURS] opacity of a finished event block — dimmed against
+                                                    upcoming blocks yet still readable and tappable */
+
+  /* No-category event (FR-213): "a light fill with a thin border" — the white-outlined pill is
+   * photographed; its exact border grey is not readable from any photo. */
+  --fam-event-neutral-fill: #FFFFFF;             /* [SCREENSHOT: c2.png] white fill */
+  --fam-event-neutral-border: var(--fam-control-border); /* [OURS] the block is a focusable control (FR-263), so
+                                                    its only boundary needs 3:1 (WCAG 1.4.11); --fam-hairline is
+                                                    decoration-only by this file's own rule */
+
   /* ---------- touch ------------------------------------------------------------------------ */
   /* Every interactive control gets min-height/min-width: var(--fam-touch) regardless of scale
    * (FR-035): 52 px pills and 61 px chips fall below 44 px once --fam-u < 0.85. [OURS] */
@@ -166,6 +211,15 @@
   --fam-fs-pill: max(12px, calc(21 * var(--fam-t)));    /* sans 500 — top-bar pill label ("Today", "Filter") */
   --fam-fs-nav: max(12px, calc(19 * var(--fam-t)));     /* sans 500 — rail / bottom-nav label */
   --fam-fs-small: max(12px, calc(16 * var(--fam-t)));   /* sans 500 — "⭐ 10" star chip, captions */
+
+  /* Week-grid type (Phase 2, 07 §4.5–4.7) — photo-estimated like the rest of this block. */
+  --fam-fs-day-header: max(12px, calc(40 * var(--fam-t)));  /* serif 400 — "Wed 18" day-header line. Same number
+                                                               as --fam-fs-clock but a different face (sans 500);
+                                                               do not borrow one for the other. */
+  --fam-fs-event-title: max(12px, calc(26 * var(--fam-t))); /* sans 600 — event-block title, the only consistently
+                                                               semibold body text in the product */
+  --fam-fs-allday: max(12px, calc(22 * var(--fam-t)));      /* sans 500 — all-day pill label [SAMPLED] */
+  --fam-fs-today-badge: max(12px, calc(22 * var(--fam-t))); /* sans 600 — digits inside the today circle */
 }
 
 .family[data-text-size="small"],
