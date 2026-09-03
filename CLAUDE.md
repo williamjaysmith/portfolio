@@ -1,26 +1,27 @@
 <!-- SPECKIT START -->
-**Active feature**: `001-family-foundation` — Phase 1 of the `/family` Skylight Calendar clone.
+**Active feature**: `002-family-week-calendar` — Phase 2 of the `/family` Skylight Calendar
+clone: the Week calendar (events, simple repeats + per-occurrence exceptions, scoped edit/delete,
+full drag, 3-day phone slice). Planned; implementation not started.
 
 Read in this order before touching `/family` code:
-1. `specs/001-family-foundation/plan.md` — the implementation plan
-2. `specs/001-family-foundation/spec.md` — what must be true
-3. `specs/001-family-foundation/research.md` — the 12 technical decisions and why
-4. `specs/001-family-foundation/data-model.md` — schema, policies, constraints
-5. `specs/001-family-foundation/contracts/server-actions.md` — the action interfaces
-6. `specs/001-family-foundation/quickstart.md` — setup and how to verify each guarantee
+1. `specs/002-family-week-calendar/plan.md` — the implementation plan and phasing
+2. `specs/002-family-week-calendar/spec.md` — 89 requirements, evidence-tagged
+3. `specs/002-family-week-calendar/research.md` — the technical decisions and why
+4. `specs/002-family-week-calendar/data-model.md` — migrations 010–015, policies, invariants
+5. `specs/002-family-week-calendar/contracts/server-actions.md` — the action surface
+6. `specs/002-family-week-calendar/quickstart.md` — setup and how to verify each guarantee
+
+Phase 1 (`specs/001-family-foundation/`) is shipped and hosted: shared-password sign-in (one
+household account, `FAMILY_ACCOUNT_EMAIL` server-side, sign-ups disabled + Before-User-Created
+hook), punch-in PINs, shell, Profiles & Labels, PWA. Its docs bind Phase 2's conventions.
 
 Product truth lives in `docs/research/skylight/00-master-map.md`.
 Note: this repo is Next 16 — request interception is `proxy.ts`, not `middleware.ts`,
 and it is NOT an authorization boundary. Every server action re-checks auth itself.
 
-**Status**: implemented (60/65 tasks). What remains needs the operator's Supabase access or an
-iPad: `supabase db push` to the hosted project and the dashboard steps (Exposed schemas, Google
-provider, Email/anonymous sign-in off, the Before-User-Created hook), the hosted SC-001 run, and
-the home-screen install check — all listed in `quickstart.md` §"Operator steps".
-
 **Working locally**: `supabase start` (this repo's stack is on **553xx**, not the CLI defaults —
 another project already occupies 543xx), then `supabase db reset`, `npm run family:seed -- --local`,
-then `npm run dev:local` and sign in with the local-only dev form.
+then `npm run dev:local` and sign in with password `family-dev-password` (account `dev@family.local`).
 
 **The gate needs coverage**: fallow scores untested branchy functions via CRAP, so
 `.fallowrc.json` points `health.coverage` at `coverage/coverage-final.json` and
