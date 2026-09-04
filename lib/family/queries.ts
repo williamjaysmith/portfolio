@@ -47,6 +47,9 @@ export const familyKeys = {
    */
   week: (householdId: string, weekStartISO: string) =>
     ["family", "events", householdId, weekStartISO] as const,
+  /** FR-274's affected-event count for one category's delete confirmation. */
+  categoryEventCount: (householdId: string, categoryId: string) =>
+    ["family", "category-event-count", householdId, categoryId] as const,
 };
 
 const STALE_TIME = 30_000;
@@ -145,6 +148,36 @@ export async function fetchWeekEvents(
     .or(threeBranchOr);
   if (error) throw new Error(error.message);
   return ((data ?? []) as unknown as EventWithRelationsRow[]).map(toEvent);
+}
+
+/**
+ * How many events carry a category — what the category-delete confirmation
+ * states (FR-274, Assumption 24). A read, so not an action: the RLS path, and
+ * `head: true` because only the number changes hands, never a row. The
+ * `household_id` + `category_id` pair is exactly the key of
+ * `event_categories_category_idx` (011), so the count is an index scan.
+ */
+export async function fetchCategoryEventCount(
+  supabase: SupabaseClient,
+  householdId: string,
+  categoryId: string,
+): Promise<number> {
+  const { count, error } = await supabase
+    .schema("family")
+    .from("event_categories")
+    .select("category_id", { count: "exact", head: true })
+    .eq("household_id", householdId)
+    .eq("category_id", categoryId);
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+export function useCategoryEventCount(householdId: string, categoryId: string) {
+  return useQuery({
+    queryKey: familyKeys.categoryEventCount(householdId, categoryId),
+    queryFn: () => fetchCategoryEventCount(createClient(), householdId, categoryId),
+    staleTime: STALE_TIME,
+  });
 }
 
 export function useCategories(householdId: string, initialData?: Category[]) {

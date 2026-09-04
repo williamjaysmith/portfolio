@@ -5,12 +5,80 @@ const pathname = vi.fn();
 vi.mock("next/navigation", () => ({ usePathname: () => pathname() }));
 
 const { Fab } = await import("../Fab");
+const { FabActionProvider, useRegisterFabAction } = await import("../FabAction");
 
 /**
- * FR-034: one create control, in the same place on every tab. Phase 1 has
- * nothing to create yet, so it explains which phase brings each one.
+ * FR-034: one create control, in the same place on every tab. A tab that can
+ * create registers what "+" does; a tab that cannot yet explains which phase
+ * brings its creation.
  */
 describe("Fab", () => {
+  it("runs the action the current tab registered, under that action's name (FR-254)", () => {
+    pathname.mockReturnValue("/family/calendar");
+    const run = vi.fn();
+    function Registrar() {
+      useRegisterFabAction("Add event", run);
+      return null;
+    }
+    render(
+      <FabActionProvider>
+        <Registrar />
+        <Fab />
+      </FabActionProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add event" }));
+
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  it("runs the latest handler even when the page hands over a fresh one each render", () => {
+    pathname.mockReturnValue("/family/calendar");
+    const runs: (() => void)[] = [];
+    function Registrar() {
+      // A fresh function per render must neither loop the registry nor go stale.
+      const run = vi.fn();
+      runs.push(run);
+      useRegisterFabAction("Add event", run);
+      return null;
+    }
+    render(
+      <FabActionProvider>
+        <Registrar />
+        <Fab />
+      </FabActionProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Add event" }));
+
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs[runs.length - 1]).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the placeholder once the registering tab unmounts", () => {
+    pathname.mockReturnValue("/family/calendar");
+    function Registrar() {
+      useRegisterFabAction("Add event", vi.fn());
+      return null;
+    }
+    const { rerender } = render(
+      <FabActionProvider>
+        <Registrar />
+        <Fab />
+      </FabActionProvider>,
+    );
+    expect(screen.getByRole("button", { name: "Add event" })).toBeInTheDocument();
+
+    rerender(
+      <FabActionProvider>
+        <Fab />
+      </FabActionProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "Add calendar" })).toBeInTheDocument();
+  });
+
   it("names the thing the current tab creates", () => {
     pathname.mockReturnValue("/family/calendar");
     render(<Fab />);

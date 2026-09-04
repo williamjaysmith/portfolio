@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 
 import type { AllDayBar, AllDayLayout } from "@/lib/family/calendar/layout";
 import { eventInk, type PaletteColor } from "@/lib/family/colors";
+import type { Occurrence } from "@/lib/family/types";
 
 import { fillsOf, stripeBackground } from "./EventBlock";
 import { headerGridTemplate } from "./WeekHeader";
@@ -23,9 +24,10 @@ import { headerGridTemplate } from "./WeekHeader";
  * with a thin border for none — ink from `colors.ts` against the first fill.
  * Past all-day bars (ended before today) dim like past blocks (FR-215).
  *
- * Bars are not yet controls: the tap-for-details surface lands with T047,
- * which turns each bar into a ≥44pt button (FR-263) — nothing interactive
- * is rendered here until it can actually do something.
+ * Each bar is a focusable button whose press opens the occurrence's details
+ * (FR-256), reported through `onOpen` like a block's. Rows are the band's
+ * token height or the FR-263 touch floor, whichever is taller — so a bar is
+ * never a control too small to tap.
  */
 
 export interface AllDayBandProps {
@@ -36,7 +38,12 @@ export interface AllDayBandProps {
   colorsById: Readonly<Record<string, PaletteColor>>;
   /** Household-local today; `null` before the clock's first publish. */
   todayDate: string | null;
+  /** FR-256: a bar press opens that occurrence's details. Absent = read-only. */
+  onOpen?: (occurrence: Occurrence) => void;
 }
+
+/** One lane: the [ESTIMATED] pill token, never under the touch floor. */
+const LANE_HEIGHT = "max(var(--fam-allday-h), var(--fam-touch))";
 
 function fillStyle(fills: readonly PaletteColor[]): CSSProperties {
   if (fills.length === 1) return { backgroundColor: fills[0] };
@@ -74,24 +81,26 @@ function isPast(bar: AllDayBar, todayDate: string | null): boolean {
   return todayDate !== null && times.allDay && times.endDate < todayDate;
 }
 
-export function AllDayBand({ columnDates, layout, colorsById, todayDate }: AllDayBandProps) {
+export function AllDayBand({ columnDates, layout, colorsById, todayDate, onOpen }: AllDayBandProps) {
   return (
     <div
       // FR-207: grow to three lanes, scroll past that.
       className="grid content-start gap-y-1 overflow-y-auto"
       style={{
         ...headerGridTemplate(columnDates.length),
-        gridAutoRows: "var(--fam-allday-h)",
-        maxHeight: "calc(3 * var(--fam-allday-h) + 2 * var(--fam-event-gap))",
+        gridAutoRows: LANE_HEIGHT,
+        maxHeight: `calc(3 * ${LANE_HEIGHT} + 2 * var(--fam-event-gap))`,
       }}
     >
       {layout.bars.map((bar) => {
         const fills = fillsOf(bar.occurrence.categoryIds, colorsById);
         return (
-          <div
+          <button
             key={`${bar.occurrence.eventId}:${bar.occurrence.occurrenceDate}`}
+            type="button"
+            onClick={() => onOpen?.(bar.occurrence)}
             style={barStyle(bar, fills)}
-            className={`mx-(--fam-event-inset) flex items-center overflow-hidden rounded-(--fam-allday-r) px-3 font-medium text-(length:--fam-fs-allday) ${
+            className={`mx-(--fam-event-inset) flex items-center overflow-hidden rounded-(--fam-allday-r) px-3 text-left font-medium text-(length:--fam-fs-allday) ${
               fills.length === 0
                 ? "border bg-(--fam-event-neutral-fill) border-(--fam-event-neutral-border)"
                 : ""
@@ -104,7 +113,7 @@ export function AllDayBand({ columnDates, layout, colorsById, todayDate }: AllDa
             >
               {bar.occurrence.summary}
             </span>
-          </div>
+          </button>
         );
       })}
     </div>

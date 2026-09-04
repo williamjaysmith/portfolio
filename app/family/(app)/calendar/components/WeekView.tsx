@@ -8,8 +8,12 @@ import { TOUCH_FLOOR, type WeekLayout } from "@/lib/family/calendar/layout";
 import type { PaletteColor } from "@/lib/family/colors";
 import type { Category, Event } from "@/lib/family/types";
 
+import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily } from "../../components/FamilyProvider";
 import { AllDayBand } from "./AllDayBand";
+import { slotSeedOf } from "./event-drafts";
+import { EventEditor } from "./EventEditor";
+import { useCalendarEditor, type CalendarEditor } from "./useCalendarEditor";
 import { useFollowScroll } from "./useFollowScroll";
 import { useGridGeometry } from "./useGridGeometry";
 import { useWeekAnchor } from "./useWeekAnchor";
@@ -25,12 +29,19 @@ import { WeekHeader } from "./WeekHeader";
  *   useWeekAnchor      {today | pinned} week + slice state over the clock
  *   useWeekOccurrences fetch → expand → filter → layout memo chain (R206)
  *   useFollowScroll    the FR-290 follow-scroll on the hour viewport (T034)
+ *   useCalendarEditor  the US2 write surfaces and their one commit path (T050)
  *
  * Navigation (FR-281, Contradiction 1): the ‹ / Today / › cluster renders as
  * top-right pills in Phase 1's top-bar pill idiom. The arrows step a WHOLE
  * anchored week whatever the column count; Today returns to the live week's
  * slice containing today AND resumes the follow-scroll (FR-290's second
  * resume path). The slice swipe is US4's SlicePager (FR-279), not this.
+ *
+ * Creating has exactly two doors (FR-254): the shell's FAB, which this view
+ * registers "Add event" with while mounted, and a tap on an empty slot —
+ * that day, that 15-minute slot, one hour long (FR-255). No long press. A
+ * tap on a block, bar or "+n more" row opens details (FR-256); editing is
+ * reached from there only (FR-257).
  *
  * Until the grid's first measurement lands, the hour viewport renders with
  * an EMPTY layout rather than not at all — the viewport must mount for the
@@ -58,6 +69,30 @@ function colorMapOf(categories: readonly Category[]): Record<string, PaletteColo
   const map: Record<string, PaletteColor> = {};
   for (const category of categories) map[category.id] = category.color;
   return map;
+}
+
+/** FR-254's two doors into the create form: the shell's FAB and the empty-slot tap (FR-255). */
+function useCreateDoors(openCreate: CalendarEditor["openCreate"], zone: string) {
+  const createFromFab = useCallback(() => openCreate(), [openCreate]);
+  useRegisterFabAction("Add event", createFromFab);
+
+  return useCallback(
+    (date: string, minutes: number) => openCreate(slotSeedOf(zone, date, minutes)),
+    [openCreate, zone],
+  );
+}
+
+/** A one-line grid notice — the week's load failure, or the editor's FR-288 messages. */
+function Notice({ message }: { message: string | null }) {
+  if (message === null) return null;
+  return (
+    <p
+      role="alert"
+      className="px-(--fam-edge-inset) py-1 text-(length:--fam-fs-small) text-(--fam-danger)"
+    >
+      {message}
+    </p>
+  );
 }
 
 export interface WeekViewProps {
@@ -99,6 +134,9 @@ export function WeekView({ initialWeekStart, initialEvents }: WeekViewProps) {
     metrics: layoutMetrics,
     initialData: anchor.weekStart === initialWeekStart ? initialEvents : undefined,
   });
+
+  const editor = useCalendarEditor({ householdId, weekStart: anchor.weekStart, zone });
+  const createFromSlot = useCreateDoors(editor.openCreate, zone);
 
   const colorsById = useMemo(() => colorMapOf(categories), [categories]);
 
@@ -149,17 +187,12 @@ export function WeekView({ initialWeekStart, initialEvents }: WeekViewProps) {
           layout={layout.allDay}
           colorsById={colorsById}
           todayDate={todayDate}
+          onOpen={editor.openDetails}
         />
       </div>
 
-      {week.error === null ? null : (
-        <p
-          role="alert"
-          className="px-(--fam-edge-inset) py-1 text-(length:--fam-fs-small) text-(--fam-danger)"
-        >
-          The week could not be loaded.
-        </p>
-      )}
+      <Notice message={week.error === null ? null : "The week could not be loaded."} />
+      <Notice message={editor.notice} />
 
       <WeekGrid
         columnDates={week.columnDates}
@@ -170,7 +203,11 @@ export function WeekView({ initialWeekStart, initialEvents }: WeekViewProps) {
         timeFormat={settings.timeFormat}
         viewportRef={attachViewport}
         onViewportScroll={onScroll}
+        onOpen={editor.openDetails}
+        onSlotTap={createFromSlot}
       />
+
+      <EventEditor editor={editor} />
     </div>
   );
 }

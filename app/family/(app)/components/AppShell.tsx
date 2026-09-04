@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { BottomNav } from "./BottomNav";
 import { Fab } from "./Fab";
+import { FabActionProvider } from "./FabAction";
 import { useFamily } from "./FamilyProvider";
 import { ProfileChipRow } from "./ProfileChipRow";
 import { Sidebar } from "./Sidebar";
@@ -26,22 +27,28 @@ import { TopBar } from "./TopBar";
  * `settings.density` has no CSS behind it yet — recorded as a known no-op
  * rather than wired here, because nothing in the shell reads a spacing token
  * it could scale (every gap and pad is a literal Tailwind class).
+ *
+ * The FAB and the page it floats over share one registry (`FabAction.tsx`):
+ * the page registers what "+" creates, the FAB runs it — which is why the
+ * provider wraps both and lives here rather than in `FamilyProvider`.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const { settings } = useFamily();
 
   return (
-    <div data-text-size={settings.textSize} className="flex h-dvh overflow-hidden">
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar />
-        <ProfileChipRow />
-        <main className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          {children}
-          <Fab />
-        </main>
-        <BottomNav />
+    <FabActionProvider>
+      <div data-text-size={settings.textSize} className="flex h-dvh overflow-hidden">
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <TopBar />
+          <ProfileChipRow />
+          <main className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+            {children}
+            <Fab />
+          </main>
+          <BottomNav />
+        </div>
       </div>
-    </div>
+    </FabActionProvider>
   );
 }

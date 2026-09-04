@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import type { OverflowGroup } from "@/lib/family/calendar/layout";
-import type { TimeFormat } from "@/lib/family/types";
+import type { Occurrence, TimeFormat } from "@/lib/family/types";
 
 import { formatTimeRange } from "./EventBlock";
 
@@ -15,23 +15,21 @@ import { formatTimeRange } from "./EventBlock";
  *
  * The open/closed flag is the component's own — it is pure view disclosure
  * that nothing above needs to know; every fact rendered comes from the
- * `OverflowGroup` prop. Row presses are inert until T047 wires the
- * event-details surface (a "+n more" row opens details like a block does).
+ * `OverflowGroup` prop. A row press opens that occurrence's details exactly
+ * as a block's does (FR-256), reported through `onOpen`; the list stays open
+ * so the row is still there to take the keyboard back when details close.
  */
-
-/** T047 replaces this with the event-details opener (FR-256/257). */
-function noop(): void {
-  // Deliberately inert while the calendar is read-only (US1).
-}
 
 export interface MoreOverflowProps {
   group: OverflowGroup;
   /** Household IANA zone (FR-219/284). */
   zone: string;
   timeFormat: TimeFormat;
+  /** FR-256: a row press opens that occurrence's details. Absent = read-only. */
+  onOpen?: (occurrence: Occurrence) => void;
 }
 
-export function MoreOverflow({ group, zone, timeFormat }: MoreOverflowProps) {
+export function MoreOverflow({ group, zone, timeFormat, onOpen }: MoreOverflowProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -56,7 +54,7 @@ export function MoreOverflow({ group, zone, timeFormat }: MoreOverflowProps) {
             <li key={`${occurrence.eventId}:${occurrence.occurrenceDate}`}>
               <button
                 type="button"
-                onClick={noop}
+                onClick={() => onOpen?.(occurrence)}
                 className="min-h-(--fam-touch) w-full rounded-lg px-3 py-1 text-left"
               >
                 <span className="block truncate font-semibold text-(length:--fam-fs-small)">

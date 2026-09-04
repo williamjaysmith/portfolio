@@ -17,6 +17,15 @@ vi.mock("@/lib/family/actions/pins", () => ({
   clearProfilePin: (...args: unknown[]) => clearProfilePin(...args),
 }));
 
+// The FR-274 count is an RLS read the dialog makes through React Query; the
+// hook is stubbed so the dialog's copy can be pinned without a client.
+const useCategoryEventCount = vi.fn<(householdId: string, categoryId: string) => { data?: number; isError: boolean }>();
+vi.mock("@/lib/family/queries", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/family/queries")>()),
+  useCategoryEventCount: (householdId: string, categoryId: string) =>
+    useCategoryEventCount(householdId, categoryId),
+}));
+
 const { PinRow } = await import("../settings/PinRow");
 const { DeleteDialog } = await import("../settings/DeleteDialog");
 
@@ -278,10 +287,66 @@ describe("PinRow", () => {
 
 /** FR-026: say exactly what will be lost, and never orphan the household. */
 describe("DeleteDialog", () => {
-  beforeEach(stubDialog);
+  beforeEach(() => {
+    stubDialog();
+    useCategoryEventCount.mockReset().mockReturnValue({ data: 3, isError: false });
+  });
 
   const alex = makeCategory({ id: "a", label: "Alex", role: "parent" });
   const sam = makeCategory({ id: "s", label: "Sam", role: "parent" });
+
+  /** 002 FR-274 / Assumption 24: the confirmation counts the events it touches, and says they stay. */
+  describe("the affected-event count (FR-274)", () => {
+    it("counts this category's events in this household", () => {
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+
+      expect(useCategoryEventCount).toHaveBeenCalledWith("household-1", "a");
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "3 events are assigned to Alex — they stay on the calendar, just without Alex.",
+      );
+    });
+
+    it("speaks singular and zero plainly", () => {
+      useCategoryEventCount.mockReturnValue({ data: 1, isError: false });
+      const { unmount } = render(
+        withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />),
+      );
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "1 event is assigned to Alex — it stays on the calendar, just without Alex.",
+      );
+      unmount();
+
+      useCategoryEventCount.mockReturnValue({ data: 0, isError: false });
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+      expect(screen.getByRole("status")).toHaveTextContent("No events are assigned to Alex.");
+    });
+
+    it("uses tag wording for a label", () => {
+      const holidays = makeCategory({ id: "h", label: "Holidays", isProfile: false, emoji: "🎉" });
+      render(
+        withFamily(makeContext({ categories: [alex, holidays] }), <DeleteDialog category={holidays} onClose={vi.fn()} />),
+      );
+
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "3 events are tagged Holidays — they stay on the calendar, just without Holidays.",
+      );
+    });
+
+    it("says it is still counting, or could not, rather than showing a false number", () => {
+      useCategoryEventCount.mockReturnValue({ data: undefined, isError: false });
+      const { unmount } = render(
+        withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />),
+      );
+      expect(screen.getByRole("status")).toHaveTextContent("Counting the events this affects…");
+      unmount();
+
+      useCategoryEventCount.mockReturnValue({ data: undefined, isError: true });
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+      expect(screen.getByRole("status")).toHaveTextContent("Couldn't count the events this affects.");
+      // The delete itself is not held hostage by the count.
+      expect(screen.getByRole("button", { name: "Delete Alex" })).toBeEnabled();
+    });
+  });
 
   it("spells out what deleting a person removes", () => {
     const context = makeContext({ categories: [alex, sam] });

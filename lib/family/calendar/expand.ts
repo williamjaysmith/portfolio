@@ -25,9 +25,33 @@ import {
   type SeriesInput,
   type SeriesOccurrence,
 } from "../recurrence/expand";
+import { parseRule, type RuleUntil } from "../recurrence/grammar";
 import { DAY_MS } from "../recurrence/plain-date";
 import { addDays, diffDays, localDateOf, type WeekWindow } from "./dates";
-import type { Event, EventTimes, Occurrence } from "../types";
+import type { Event, EventTimes, Occurrence, RepeatChoice } from "../types";
+
+/**
+ * A stored rule read back as the form's structured choice (FR-231/232) —
+ * the one place client code turns rule text into anything, so the details
+ * view and the edit form describe a repeat without ever touching the grammar
+ * (R201; the boundary seals `recurrence/` behind this module). `until` comes
+ * back as the household-local date it admits — the expander's own reading of
+ * an instant UNTIL — and a `null` rule is a one-off.
+ */
+export function repeatChoiceOf(rrule: string | null, householdTz: string): RepeatChoice {
+  if (rrule === null) return { kind: "never" };
+  const rule = parseRule(rrule);
+  const until = untilDateOf(rule.until, householdTz);
+  if (rule.freq === "DAILY") return { kind: "daily", until };
+  if (rule.freq === "WEEKLY") return { kind: "weekly", weekdays: [...rule.byDay], until };
+  // BYMONTHDAY is derived from the start on every write, never chosen.
+  return { kind: "monthly", until };
+}
+
+function untilDateOf(until: RuleUntil | null, householdTz: string): string | null {
+  if (until === null) return null;
+  return until.kind === "date" ? until.date : localDateOf(householdTz, until.ms);
+}
 
 export function expandWindow(
   events: readonly Event[],

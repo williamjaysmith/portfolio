@@ -1,0 +1,125 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { Scope } from "@/lib/family/types";
+
+import { stubDialog } from "../../../components/__tests__/family-test-utils";
+import { ScopeDialog, type ScopeDialogMode } from "../ScopeDialog";
+
+/**
+ * T048 — the FR-237/250 same-wording rule (R213's jsdom tier): one component
+ * serves edit, delete and drag, and the three option strings are byte-identical
+ * in every mode; FR-287 removes "This event" when categories change; FR-242's
+ * segment wording appears on "All events" after a split.
+ *
+ * FR-238 (no scope question for a non-repeating event) is a CALLER contract,
+ * not a branch here: the dialog is never mounted for a one-off, so it has no
+ * repeat-ness input and no non-repeating rendering to cover. The callers'
+ * suites (form commit, delete flow, drag drop pipeline) own that assertion.
+ */
+
+const MODES: readonly ScopeDialogMode[] = ["edit", "delete", "move"];
+
+/** FR-237's Clarified strings, asserted verbatim. */
+const EXPECTED_OPTIONS = ["This event", "This and future events", "All events"] as const;
+
+function renderDialog(overrides: Partial<Parameters<typeof ScopeDialog>[0]> = {}) {
+  const onChoose = vi.fn<(scope: Scope) => void>();
+  const onCancel = vi.fn<() => void>();
+  render(<ScopeDialog mode="edit" onChoose={onChoose} onCancel={onCancel} {...overrides} />);
+  return { onChoose, onCancel };
+}
+
+function optionNames(): string[] {
+  return screen
+    .getAllByRole("radio")
+    .map((radio) => (radio as HTMLInputElement).labels?.[0]?.textContent?.trim() ?? "");
+}
+
+describe("ScopeDialog", () => {
+  beforeEach(() => {
+    stubDialog();
+  });
+
+  it.each(MODES)(
+    "offers exactly 'This event' / 'This and future events' / 'All events' in %s mode (FR-237/250)",
+    (mode) => {
+      renderDialog({ mode });
+
+      expect(optionNames()).toEqual([...EXPECTED_OPTIONS]);
+      for (const label of EXPECTED_OPTIONS) {
+        expect(screen.getByRole("radio", { name: label })).toBeInTheDocument();
+      }
+    },
+  );
+
+  it("titles the dialog by action while the question stays identical", () => {
+    const titles: Record<ScopeDialogMode, string> = {
+      edit: "Edit repeating event",
+      delete: "Delete repeating event",
+      move: "Move repeating event",
+    };
+    for (const mode of MODES) {
+      const { unmount } = render(
+        <ScopeDialog mode={mode} onChoose={vi.fn()} onCancel={vi.fn()} />,
+      );
+      expect(screen.getByRole("heading", { name: titles[mode] })).toBeInTheDocument();
+      expect(screen.getByText("Which events should this apply to?")).toBeInTheDocument();
+      unmount();
+    }
+  });
+
+  it("groups the options as a radio group with 'This event' preselected", () => {
+    renderDialog();
+
+    expect(
+      screen.getByRole("radiogroup", { name: "Which events should this apply to?" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "This event" })).toBeChecked();
+  });
+
+  it("does not offer 'This event' when categories are among the changed fields (FR-287, US2-18)", () => {
+    renderDialog({ categoriesChanged: true });
+
+    expect(optionNames()).toEqual(["This and future events", "All events"]);
+    expect(screen.queryByRole("radio", { name: "This event" })).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "This and future events" })).toBeChecked();
+  });
+
+  it("carries the segment wording on 'All events' only for a previously split series (FR-242)", () => {
+    const { unmount } = render(
+      <ScopeDialog mode="edit" wasSplit onChoose={vi.fn()} onCancel={vi.fn()} />,
+    );
+    // The note describes the option without changing its FR-237 name.
+    const all = screen.getByRole("radio", { name: "All events" });
+    expect(all).toHaveAccessibleDescription(
+      "This series was split earlier, so only the part this event belongs to is affected.",
+    );
+    unmount();
+
+    render(<ScopeDialog mode="edit" onChoose={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "All events" })).toHaveAccessibleDescription("");
+  });
+
+  it("reports the selected scope through onChoose", () => {
+    const { onChoose, onCancel } = renderDialog({ mode: "delete" });
+
+    fireEvent.click(screen.getByRole("radio", { name: "This and future events" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(onChoose).toHaveBeenCalledExactlyOnceWith("this_and_future");
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it("cancels without choosing, from the button and from Escape alike", () => {
+    const { onChoose, onCancel } = renderDialog({ mode: "move" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    // Escape reaches the <dialog> as a cancel event.
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    expect(onCancel).toHaveBeenCalledTimes(2);
+    expect(onChoose).not.toHaveBeenCalled();
+  });
+});

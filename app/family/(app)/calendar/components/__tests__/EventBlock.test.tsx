@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { TimedSegment } from "@/lib/family/calendar/layout";
 import { INK_DARK, INK_LIGHT, PALETTE } from "@/lib/family/colors";
@@ -158,7 +158,7 @@ describe("EventBlock", () => {
     }
   });
 
-  it("is a focusable button whose press is inert until T047, and dims via the token when past (FR-215/263)", () => {
+  it("is a focusable button that dims via the token when past (FR-215/263)", () => {
     renderBlock(makeOccurrence(), [SPROUT], {}, true);
 
     const block = screen.getByRole("button", { name: /Grocery Run/ });
@@ -166,7 +166,26 @@ describe("EventBlock", () => {
     expect(block.className).toContain("opacity-(--fam-past-dim)");
     block.focus();
     expect(block).toHaveFocus();
-    // T047 wires the details surface; today a press must do nothing at all.
+    // Read-only render: no opener, so a press does nothing at all.
     expect(() => fireEvent.click(block)).not.toThrow();
+  });
+
+  it("reports its occurrence on press so the details surface can open (FR-256/257)", () => {
+    const occurrence = makeOccurrence();
+    const onOpen = vi.fn();
+    render(
+      <EventBlock
+        segment={makeSegment(occurrence)}
+        fills={[BLUE]}
+        dimmed={false}
+        zone={ZONE}
+        timeFormat="12h"
+        onOpen={onOpen}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Grocery Run/ }));
+
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(occurrence);
   });
 });

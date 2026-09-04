@@ -5,6 +5,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeContext, withFamily } from "../../../components/__tests__/family-test-utils";
 import { WeekView } from "../WeekView";
 
+// The write surface's actions reach the server-only admin client; nothing
+// here writes, so the module is stubbed at the boundary.
+vi.mock("@/lib/family/actions/events", () => ({
+  createEvent: vi.fn(),
+  updateEvent: vi.fn(),
+  deleteEvent: vi.fn(),
+}));
+
 /**
  * T033 — the orchestrator's week navigation (FR-281, Contradiction 1): the
  * ‹ / Today / › pill cluster steps a WHOLE anchored week per press whatever

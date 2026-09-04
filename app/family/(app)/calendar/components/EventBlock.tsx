@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 
 import type { TimedSegment } from "@/lib/family/calendar/layout";
 import { eventInk, type Ink, type PaletteColor } from "@/lib/family/colors";
-import type { EventTimes, TimeFormat } from "@/lib/family/types";
+import type { EventTimes, Occurrence, TimeFormat } from "@/lib/family/types";
 
 /**
  * One drawn rectangle of a timed occurrence (T031). Purely presentational:
@@ -23,8 +23,10 @@ import type { EventTimes, TimeFormat } from "@/lib/family/types";
  * full range, never a per-column clip, so both halves read as one event.
  *
  * Each block is a focusable button at least 44pt tall (FR-263; layout's
- * `minBlockHeight` guarantees the height). The press is deliberately inert:
- * T047 wires it to the event-details surface (FR-256/257).
+ * `minBlockHeight` guarantees the height). Its press opens the occurrence's
+ * details (FR-256) — never an edit directly (FR-257): the block only reports
+ * WHICH occurrence was tapped through `onOpen`, and every segment of a
+ * midnight-crosser reports the same one.
  */
 
 /** Category ids → the block's fills in draw order; unknown ids drop out. */
@@ -93,11 +95,6 @@ function variantOf(fills: readonly PaletteColor[]): Variant {
   return fills.length === 1 ? "single" : "striped";
 }
 
-/** T047 replaces this with the event-details opener (FR-256/257). */
-function noop(): void {
-  // Deliberately inert while the calendar is read-only (US1).
-}
-
 export interface EventBlockProps {
   segment: TimedSegment;
   /** The occurrence's category colours in draw order (FR-227) — see `fillsOf`. */
@@ -107,9 +104,11 @@ export interface EventBlockProps {
   /** Household IANA zone — the one zone every render works in (FR-219/284). */
   zone: string;
   timeFormat: TimeFormat;
+  /** FR-256: a press opens this occurrence's details. Absent = read-only. */
+  onOpen?: (occurrence: Occurrence) => void;
 }
 
-export function EventBlock({ segment, fills, dimmed, zone, timeFormat }: EventBlockProps) {
+export function EventBlock({ segment, fills, dimmed, zone, timeFormat, onOpen }: EventBlockProps) {
   const variant = variantOf(fills);
   const ink: Ink = eventInk(fills);
 
@@ -136,7 +135,7 @@ export function EventBlock({ segment, fills, dimmed, zone, timeFormat }: EventBl
     <button
       type="button"
       data-variant={variant}
-      onClick={noop}
+      onClick={() => onOpen?.(segment.occurrence)}
       style={style}
       className={`absolute overflow-hidden rounded-(--fam-radius-card) pt-(--fam-event-pad) pr-(--fam-event-pad-end) pb-(--fam-event-pad-end) pl-(--fam-event-pad) text-left ${
         variant === "neutral"

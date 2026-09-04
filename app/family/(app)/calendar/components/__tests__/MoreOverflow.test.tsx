@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { OverflowGroup } from "@/lib/family/calendar/layout";
 import type { Occurrence } from "@/lib/family/types";
@@ -47,8 +47,8 @@ const group: OverflowGroup = {
   ],
 };
 
-function renderGroup() {
-  return render(<MoreOverflow group={group} zone={ZONE} timeFormat="12h" />);
+function renderGroup(onOpen?: (occurrence: Occurrence) => void) {
+  return render(<MoreOverflow group={group} zone={ZONE} timeFormat="12h" onOpen={onOpen} />);
 }
 
 describe("MoreOverflow", () => {
@@ -70,11 +70,25 @@ describe("MoreOverflow", () => {
       "aria-expanded",
       "true",
     );
-    // Each listed row is itself a focusable control (FR-263); its press is
-    // inert until T047 wires the details surface.
+    // Each listed row is itself a focusable control (FR-263).
     const standup = screen.getByRole("button", { name: /Standup/ });
     expect(standup).toHaveTextContent("9:00 AM – 10:00 AM");
     expect(screen.getByRole("button", { name: /Vet Call/ })).toBeInTheDocument();
+  });
+
+  it("opens a collapsed event's details from its row, like a block (FR-256)", () => {
+    const onOpen = vi.fn();
+    renderGroup(onOpen);
+
+    fireEvent.click(screen.getByRole("button", { name: "+2 more" }));
+    fireEvent.click(screen.getByRole("button", { name: /Vet Call/ }));
+
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(group.occurrences[1]);
+    // The list stays open, so the row is still there to take focus back.
+    expect(screen.getByRole("button", { name: "+2 more" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
   });
 
   it("collapses again on a second tap", () => {

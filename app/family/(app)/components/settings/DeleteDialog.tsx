@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { deleteCategory } from "@/lib/family/actions/categories";
 import { canDelete } from "@/lib/family/permissions";
+import { useCategoryEventCount } from "@/lib/family/queries";
 import type { Category } from "@/lib/family/types";
 
 import { useFamily } from "../FamilyProvider";
@@ -12,6 +13,11 @@ import { useFamily } from "../FamilyProvider";
  * Deleting is confirmed, and the dialog says exactly what goes and what stays
  * (FR-026, constitution §VI). The only parent cannot be deleted at all — the
  * database refuses it too, so this is an explanation, not the enforcement.
+ *
+ * Phase 2 amends what "stays" with a number (002 FR-274, Assumption 24): the
+ * events carrying this Profile or Label survive its deletion, rendered
+ * without it, and the confirmation says how many — an RLS read through
+ * `useCategoryEventCount`, counted afresh for the dialog, never an action.
  */
 
 export interface DeleteDialogProps {
@@ -19,8 +25,24 @@ export interface DeleteDialogProps {
   onClose: () => void;
 }
 
+/** FR-274's line: how many events this touches, and that they stay. */
+function affectedEventsLine(
+  count: { data?: number; isError: boolean },
+  category: Pick<Category, "label" | "isProfile">,
+): string {
+  if (count.isError) return "Couldn't count the events this affects.";
+  if (count.data === undefined) return "Counting the events this affects…";
+  const carrying = category.isProfile ? `assigned to ${category.label}` : `tagged ${category.label}`;
+  if (count.data === 0) return `No events are ${carrying}.`;
+  if (count.data === 1) {
+    return `1 event is ${carrying} — it stays on the calendar, just without ${category.label}.`;
+  }
+  return `${count.data} events are ${carrying} — they stay on the calendar, just without ${category.label}.`;
+}
+
 export function DeleteDialog({ category, onClose }: DeleteDialogProps) {
-  const { profiles, actor, withActor } = useFamily();
+  const { householdId, profiles, actor, withActor } = useFamily();
+  const affected = useCategoryEventCount(householdId, category.id);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -74,6 +96,10 @@ export function DeleteDialog({ category, onClose }: DeleteDialogProps) {
         {category.isProfile
           ? `This removes ${category.label}'s profile, colour, avatar and PIN. Anything assigned to ${category.label} in the future would be left unassigned. This can't be undone.`
           : `Items tagged only with ${category.label} would become untagged. This can't be undone.`}
+      </p>
+
+      <p role="status" className="mt-2 text-(length:--fam-fs-body) text-(--fam-text-secondary)">
+        {affectedEventsLine(affected, category)}
       </p>
 
       {isSelf ? (

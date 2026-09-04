@@ -1,6 +1,6 @@
 import type { WeekLayout } from "@/lib/family/calendar/layout";
 import type { PaletteColor } from "@/lib/family/colors";
-import type { TimeFormat } from "@/lib/family/types";
+import type { Occurrence, TimeFormat } from "@/lib/family/types";
 
 import { DayColumn } from "./DayColumn";
 import { headerGridTemplate } from "./WeekHeader";
@@ -47,6 +47,10 @@ export interface WeekGridProps {
   viewportRef?: (node: HTMLDivElement | null) => void;
   /** Every viewport scroll, manual or not — `useFollowScroll` tells them apart. */
   onViewportScroll?: () => void;
+  /** FR-256: a block or "+n more" row press opens that occurrence's details. */
+  onOpen?: (occurrence: Occurrence) => void;
+  /** FR-254/255: a tap on empty grid — the column's date and the 15-minute slot's wall minutes. */
+  onSlotTap?: (date: string, minutes: number) => void;
 }
 
 export function WeekGrid({
@@ -58,6 +62,8 @@ export function WeekGrid({
   timeFormat,
   viewportRef,
   onViewportScroll,
+  onOpen,
+  onSlotTap,
 }: WeekGridProps) {
   return (
     <div ref={viewportRef} onScroll={onViewportScroll} className="min-h-0 flex-1 overflow-y-auto">
@@ -88,6 +94,8 @@ export function WeekGrid({
             segments={layout.timed.filter((segment) => segment.columnIndex === columnIndex)}
             overflow={layout.overflow.filter((group) => group.columnIndex === columnIndex)}
             colorsById={colorsById}
+            onOpen={onOpen}
+            onSlotTap={onSlotTap}
           />
         ))}
       </div>
