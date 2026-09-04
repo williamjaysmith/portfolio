@@ -6,8 +6,11 @@ import { useEffect, useMemo } from "react";
 import { addDays, fetchBoundsOf, weekWindowOf, type WeekWindow } from "@/lib/family/calendar/dates";
 import { expandWindow } from "@/lib/family/calendar/expand";
 import { layoutWeek, type LayoutMetrics, type WeekLayout } from "@/lib/family/calendar/layout";
+import { visibleOccurrences } from "@/lib/family/calendar/visibility";
 import { prefetchWeek, useWeekEvents, type WeekFetchBounds } from "@/lib/family/queries";
 import type { Event, Occurrence } from "@/lib/family/types";
+
+import { useDeviceVisibility } from "../../components/useDeviceVisibility";
 
 /**
  * T028: the one data path from the anchored week to drawn rectangles, as a
@@ -16,9 +19,9 @@ import type { Event, Occurrence } from "@/lib/family/types";
  *   fetch (`useWeekEvents`, cache key = the anchored week, R207)
  *     → `expandWindow`  — ONCE per mounted week; only new data or a new
  *                         week re-runs it
- *     → visibility      — its own pass-through layer today; T061 slots
- *                         `isEventVisible` here (FR-265/267) so a filter
- *                         toggle re-filters WITHOUT re-expanding
+ *     → visibility      — `visibleOccurrences` over THIS device's hidden
+ *                         categories (FR-265/267, T061); its own layer, so a
+ *                         filter toggle re-filters WITHOUT re-expanding
  *     → `layoutWeek`    — per visible slice and measured metrics; a swipe
  *                         or rotation re-layouts without touching the
  *                         layers above
@@ -59,7 +62,7 @@ export interface UseWeekOccurrencesOptions {
 }
 
 export interface WeekOccurrencesState {
-  /** The WHOLE anchored week, expanded once and visibility-filtered. */
+  /** The WHOLE anchored week, expanded once and filtered to what this device shows. */
   occurrences: Occurrence[];
   /** The visible slice's consecutive household-local dates, `columns` long. */
   columnDates: string[];
@@ -82,10 +85,13 @@ export function useWeekOccurrences(options: UseWeekOccurrencesOptions): WeekOccu
     [data, weekWindow, zone],
   );
 
-  // The visibility seam (R206): T061 replaces `visibleOf` with the
-  // FR-265 filter over the device's hidden categories — display-only by
-  // construction (FR-267), and a separate layer so it can never re-expand.
-  const occurrences = useMemo(() => visibleOf(expanded), [expanded]);
+  // The visibility layer (T061, R206): the FR-265 filter over the device's
+  // OWN hidden set — display-only by construction (FR-267), and a layer of
+  // its own, so toggling a profile or a label can never re-expand the week.
+  // The hidden set is read here rather than passed in: it is a per-device
+  // view preference (FR-266), not something the view should have to thread.
+  const { hiddenIds } = useDeviceVisibility();
+  const occurrences = useMemo(() => visibleOccurrences(expanded, hiddenIds), [expanded, hiddenIds]);
 
   const columnDates = useMemo(
     () => columnDatesOf(weekStart, sliceStart, columns),
@@ -124,11 +130,6 @@ export function useWeekOccurrences(options: UseWeekOccurrencesOptions): WeekOccu
  */
 function toFetchWindow(weekWindow: WeekWindow): WeekFetchBounds {
   return fetchBoundsOf(weekWindow);
-}
-
-/** T061's slot. Until then every expanded occurrence is visible (FR-265's default). */
-function visibleOf(occurrences: Occurrence[]): Occurrence[] {
-  return occurrences;
 }
 
 /** The slice's consecutive dates — what the header, columns and layout all key on. */

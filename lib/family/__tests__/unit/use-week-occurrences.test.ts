@@ -9,16 +9,20 @@ import { prefetchWeek, useWeekEvents } from "@/lib/family/queries";
 import type { Event } from "@/lib/family/types";
 
 import {
+  resetDeviceVisibility,
+  useDeviceVisibility,
+} from "@/app/family/(app)/components/useDeviceVisibility";
+import {
   useWeekOccurrences,
   type UseWeekOccurrencesOptions,
 } from "@/app/family/(app)/calendar/components/useWeekOccurrences";
 
 /**
  * T028 / R206: the memo chain is fetch → `expandWindow` (ONCE per mounted
- * week) → visibility (a pass-through seam until T061) → `layoutWeek`, so a
- * metrics change, a slice swipe or — later — a filter toggle re-layouts
- * without ever re-expanding. The query is mocked; expansion and layout run
- * for real.
+ * week) → visibility (`visibleOccurrences`, T061) → `layoutWeek`, so a
+ * metrics change, a slice swipe or a filter toggle re-layouts without ever
+ * re-expanding. The query is mocked; expansion, filtering and layout run for
+ * real, and the hidden set is the real per-device store.
  */
 
 vi.mock("@/lib/family/queries", async (importOriginal) => {
@@ -102,9 +106,25 @@ function renderWeek(initialOptions: UseWeekOccurrencesOptions) {
   };
 }
 
+/** The hook reads the device's hidden set itself, so the filter case needs both. */
+function renderFilteredWeek(initialOptions: UseWeekOccurrencesOptions) {
+  const queryClient = new QueryClient();
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(QueryClientProvider, { client: queryClient }, children);
+  return renderHook(
+    (options: UseWeekOccurrencesOptions) => ({
+      week: useWeekOccurrences(options),
+      visibility: useDeviceVisibility(),
+    }),
+    { wrapper, initialProps: initialOptions },
+  );
+}
+
 describe("useWeekOccurrences", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    resetDeviceVisibility();
   });
 
   afterEach(() => {
@@ -159,6 +179,34 @@ describe("useWeekOccurrences", () => {
     expect(result.current.columnDates).toEqual(["2026-09-10", "2026-09-11", "2026-09-12"]);
     expect(result.current.layout?.timed).toHaveLength(0); // Monday left the slice
     expect(result.current.occurrences).toHaveLength(1); // …but not the week
+    expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-filters on a filter toggle without re-expanding (FR-265, R206)", () => {
+    stubWeekQuery({
+      data: [
+        makeEvent({ id: "cleo-only", categoryIds: ["profile-cleo"] }),
+        makeEvent({ id: "cleo-and-ana", categoryIds: ["profile-cleo", "profile-ana"] }),
+      ],
+    });
+    const { result } = renderFilteredWeek(makeOptions());
+    expect(result.current.week.occurrences).toHaveLength(2);
+    expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.visibility.setHidden("profile-cleo", true);
+    });
+
+    // Ana keeps the shared event on the grid; the Cleo-only one goes (US4 scenario 7).
+    expect(result.current.week.occurrences.map((o) => o.eventId)).toEqual(["cleo-and-ana"]);
+    expect(result.current.week.layout?.timed).toHaveLength(1);
+    expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.visibility.showAll();
+    });
+
+    expect(result.current.week.occurrences).toHaveLength(2);
     expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
   });
 

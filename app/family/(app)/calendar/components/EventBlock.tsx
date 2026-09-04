@@ -6,6 +6,15 @@ import type { TimedSegment } from "@/lib/family/calendar/layout";
 import { eventInk, type Ink, type PaletteColor } from "@/lib/family/colors";
 import type { EventTimes, Occurrence, TimeFormat } from "@/lib/family/types";
 
+import {
+  timedSourceOf,
+  useDragSurface,
+  type DragHandle,
+  type DragHandleProps,
+  type DragKeyProps,
+  type DragSurface,
+} from "./useEventDrag";
+
 /**
  * One drawn rectangle of a timed occurrence (T031). Purely presentational:
  * `layout.ts` decided the rectangle (top/height already floored per FR-218,
@@ -27,6 +36,16 @@ import type { EventTimes, Occurrence, TimeFormat } from "@/lib/family/types";
  * details (FR-256) — never an edit directly (FR-257): the block only reports
  * WHICH occurrence was tapped through `onOpen`, and every segment of a
  * midnight-crosser reports the same one.
+ *
+ * When a drag surface is in the tree (US3, T057/T058) the same button is also
+ * the gesture's handle: it hands the surface a `DragHandle` describing itself
+ * — the occurrence, its TRUE range in this column's frame (`timedSourceOf`),
+ * and `move` — and takes back the pointer-down, the keyboard drag (Alt+Arrow
+ * / Alt+Shift+Arrow / Enter / Escape) and `touch-action: none`, which is what
+ * makes a press on a block a drag rather than a scroll (R205, Assumption 44).
+ * Nothing else changes: the tap still opens details, and with NO surface —
+ * a read-only grid, and every paint before the grid has been measured — the
+ * block renders exactly as US1 shipped it.
  */
 
 /** Category ids → the block's fills in draw order; unknown ids drop out. */
@@ -108,9 +127,42 @@ export interface EventBlockProps {
   onOpen?: (occurrence: Occurrence) => void;
 }
 
+/** The occurrence, its true range here, and "the whole block" (T055's handle). */
+function dragHandleOf(segment: TimedSegment): DragHandle {
+  const { occurrence } = segment;
+  return {
+    eventId: occurrence.eventId,
+    occurrenceDate: occurrence.occurrenceDate,
+    isRepeating: occurrence.isRepeating,
+    occurrence,
+    source: timedSourceOf(segment),
+    mode: { kind: "move" },
+  };
+}
+
+/** What a drag surface adds to the button; nothing at all without one. */
+interface BlockDragProps {
+  pointer: DragHandleProps | null;
+  keys: DragKeyProps | null;
+  isSource: boolean;
+}
+
+const NO_DRAG: BlockDragProps = { pointer: null, keys: null, isSource: false };
+
+function blockDragPropsOf(surface: DragSurface | null, segment: TimedSegment): BlockDragProps {
+  if (surface === null) return NO_DRAG;
+  const handle = dragHandleOf(segment);
+  return {
+    pointer: surface.handleProps(handle),
+    keys: surface.keyProps(handle),
+    isSource: surface.isDragSource(segment.occurrence),
+  };
+}
+
 export function EventBlock({ segment, fills, dimmed, zone, timeFormat, onOpen }: EventBlockProps) {
   const variant = variantOf(fills);
   const ink: Ink = eventInk(fills);
+  const drag = blockDragPropsOf(useDragSurface(), segment);
 
   const style: CSSProperties = {
     top: segment.top,
@@ -118,6 +170,7 @@ export function EventBlock({ segment, fills, dimmed, zone, timeFormat, onOpen }:
     left: `calc(${segment.leftFraction * 100}% + var(--fam-event-inset))`,
     width: `calc(${segment.widthFraction * 100}% - 2 * var(--fam-event-inset))`,
     color: ink,
+    ...drag.pointer?.style,
   };
   if (variant === "single") style.backgroundColor = fills[0];
   if (variant === "striped") style.backgroundImage = stripeBackground(fills);
@@ -135,13 +188,16 @@ export function EventBlock({ segment, fills, dimmed, zone, timeFormat, onOpen }:
     <button
       type="button"
       data-variant={variant}
+      data-dragging={drag.isSource ? "true" : undefined}
       onClick={() => onOpen?.(segment.occurrence)}
+      onPointerDown={drag.pointer?.onPointerDown}
+      {...(drag.keys ?? {})}
       style={style}
       className={`absolute overflow-hidden rounded-(--fam-radius-card) pt-(--fam-event-pad) pr-(--fam-event-pad-end) pb-(--fam-event-pad-end) pl-(--fam-event-pad) text-left ${
         variant === "neutral"
           ? "border bg-(--fam-event-neutral-fill) border-(--fam-event-neutral-border)"
           : ""
-      } ${dimmed ? "opacity-(--fam-past-dim)" : ""}`}
+      } ${dimmed || drag.isSource ? "opacity-(--fam-past-dim)" : ""}`}
     >
       <span
         className="block w-fit max-w-full truncate font-semibold text-(length:--fam-fs-event-title)"

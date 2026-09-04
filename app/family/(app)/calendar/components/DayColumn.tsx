@@ -7,9 +7,11 @@ import type { PaletteColor } from "@/lib/family/colors";
 import type { Occurrence, TimeFormat } from "@/lib/family/types";
 
 import { useNow } from "../../components/Clock";
+import { DragPreviewBlock } from "./DragPreviewBlock";
 import { EventBlock, fillsOf } from "./EventBlock";
 import { MoreOverflow } from "./MoreOverflow";
 import { NowLine } from "./NowLine";
+import { DragSurfaceContext, dragGhostOf, useDragSurface } from "./useEventDrag";
 
 /**
  * One day column of the FR-201 grid (T030): 24 token-height hour cells with
@@ -30,7 +32,15 @@ import { NowLine } from "./NowLine";
  * reports the 15-minute slot under the finger through `onSlotTap` — FR-254's
  * second way to create, a plain tap, never a long press. The blocks sit
  * above the hour cells as siblings, so a tap on a block never reaches a
- * cell and a cell tap is empty grid by construction.
+ * cell and a cell tap is empty grid by construction. (The drag layer eats
+ * the click a finished drag ends with, so a drop on empty grid never opens
+ * the create form — T055's swallow, T057's guarantee.)
+ *
+ * A live drag adds one thing to the column: the snapped ghost of the dragged
+ * block when the candidate lands HERE (T056), which is also R208's pending
+ * overlay — it stays through the write, so the block is never drawn back at
+ * its old time while the new one is in flight. The drag surface arrives by
+ * context, so a read-only grid is unchanged.
  */
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
@@ -101,6 +111,7 @@ export function DayColumn({
 }: DayColumnProps) {
   const now = useNow();
   const nowMs = now === null ? null : now.getTime();
+  const ghost = dragGhostOf(useDragSurface(), date);
 
   return (
     <div
@@ -143,6 +154,23 @@ export function DayColumn({
           onOpen={onOpen}
         />
       ))}
+
+      {ghost === null ? null : (
+        // The ghost is a COPY, not a second handle: inside it the drag surface
+        // is absent, so its block registers no gesture and does not dim
+        // itself as the source — the real block, dimmed in place, is that.
+        <DragSurfaceContext.Provider value={null}>
+          <DragPreviewBlock
+            occurrence={ghost.occurrence}
+            placement={ghost.placement}
+            date={date}
+            fills={fillsOf(ghost.occurrence.categoryIds, colorsById)}
+            metrics={ghost.metrics}
+            zone={zone}
+            timeFormat={timeFormat}
+          />
+        </DragSurfaceContext.Provider>
+      )}
 
       {date === todayDate ? <NowLine zone={zone} /> : null}
     </div>
