@@ -57,12 +57,10 @@
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { localStack } from "./local-stack.mjs";
 
 const HOUSEHOLD_ID = "00000000-0000-4000-8000-000000000001";
 const HOUSEHOLD_NAME = "Our Family";
-const LOCAL_URL = "http://127.0.0.1:55321";
-// Fixed constant minted by the Supabase CLI for every local stack — public, not a secret.
-const LOCAL_SECRET_KEY = "sb_secret_LOCAL_REDACTED";
 const LOCAL_URL_RE = /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/;
 const DEV_EMAIL = "dev@family.local";
 const DEV_PASSWORD_DEFAULT = "family-dev-password";
@@ -143,8 +141,7 @@ function parseArgs(argv) {
 
 function localTarget(env) {
   return {
-    url: env.SUPABASE_LOCAL_URL || LOCAL_URL,
-    secretKey: env.SUPABASE_LOCAL_SECRET_KEY || LOCAL_SECRET_KEY,
+    ...localStack(env),
   };
 }
 

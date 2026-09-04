@@ -7,6 +7,37 @@ import {
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
 import { connect } from "node:net";
+import { readFileSync } from "node:fs";
+
+// `.env.local` holds the LOCAL stack's keys — public constants the CLI mints
+// the same everywhere, but shaped like real ones, so they are gitignored rather
+// than committed. Vitest does not read .env files, and the policies project
+// needs them before its global setup opens a pool, so load them here. Values
+// already in the environment win, which keeps CI and one-off overrides honest.
+const ENV_LINE = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/;
+
+/** `KEY=value` lines, unquoted. Comments and blanks simply do not match. */
+function envPairs(text: string): [string, string][] {
+  const matched = text.split("\n").map((line) => ENV_LINE.exec(line));
+  const lines = matched.filter((match): match is RegExpExecArray => match !== null);
+  return lines.map((match) => [match[1], match[2].trim().replace(/^["'](.*)["']$/, "$1")]);
+}
+
+function readIfPresent(path: string): string {
+  try {
+    return readFileSync(path, "utf8");
+  } catch {
+    return ""; // absent is normal — the suite then reports which key it needs
+  }
+}
+
+function loadEnvLocal(): void {
+  for (const [key, value] of envPairs(readIfPresent(resolve(__dirname, ".env.local")))) {
+    process.env[key] ??= value;
+  }
+}
+
+loadEnvLocal();
 
 // Two projects (D20): `unit` is the jsdom suite every file used to run in;
 // `policies` runs `lib/family/__tests__/policies/**` against the LOCAL Supabase

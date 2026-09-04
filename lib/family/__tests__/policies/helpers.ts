@@ -57,11 +57,38 @@ const port = process.env.SUPABASE_LOCAL_PORT ?? "55321";
  * constants (identical on every machine); `supabase status -o env` prints the
  * live values if they ever differ.
  */
+/**
+ * The local stack's keys are public constants the CLI mints identically
+ * everywhere, but they carry a real key's shape, so they are not committed:
+ * `supabase status -o env` prints them and the quickstart puts them in
+ * `.env.local`, which this suite is run with.
+ *
+ * Absence is reported by `assertLocalKeys` at the start of a run rather than
+ * thrown here, because these files are IMPORTED even when the suite is skipped
+ * for a missing stack — throwing at import would break collection instead of
+ * explaining itself.
+ */
+function localKey(name: string): string {
+  return process.env[name] ?? "";
+}
+
+/** Call from a `beforeAll`: turns a missing key into the fix, not a 401. */
+export function assertLocalKeys(): void {
+  const missing = LOCAL_KEY_VARS.filter((name) => !process.env[name]);
+  if (missing.length === 0) return;
+  throw new Error(
+    `${missing.join(" and ")} unset. Run \`supabase start\`, copy the keys out of ` +
+      "`supabase status -o env` into .env.local, and run this suite with that file sourced " +
+      "(`set -a; . ./.env.local; set +a`).",
+  );
+}
+
+const LOCAL_KEY_VARS = ["SUPABASE_LOCAL_PUBLISHABLE_KEY", "SUPABASE_LOCAL_SECRET_KEY"] as const;
+
 export const LOCAL = {
   url: process.env.SUPABASE_LOCAL_URL ?? `http://${host}:${port}`,
-  publishableKey:
-    process.env.SUPABASE_LOCAL_PUBLISHABLE_KEY ?? "sb_publishable_LOCAL_REDACTED",
-  secretKey: process.env.SUPABASE_LOCAL_SECRET_KEY ?? "sb_secret_LOCAL_REDACTED",
+  publishableKey: localKey("SUPABASE_LOCAL_PUBLISHABLE_KEY"),
+  secretKey: localKey("SUPABASE_LOCAL_SECRET_KEY"),
   dbUrl:
     process.env.SUPABASE_LOCAL_DB_URL ?? "postgresql://postgres:postgres@127.0.0.1:55322/postgres",
 } as const;
@@ -74,6 +101,7 @@ const NO_PERSIST = {
 
 /** `service_role` through Kong — what `createAdminClient()` is in the app. */
 export function adminClient(): SupabaseClient {
+  assertLocalKeys();
   return createClient(LOCAL.url, LOCAL.secretKey, NO_PERSIST);
 }
 
@@ -95,6 +123,7 @@ export async function userClient(user: Pick<FixtureUser, "email" | "password">):
 
 /** Direct connection as `postgres` — catalogue queries, fixtures, clock manipulation. */
 export function createPool(): Pool {
+  assertLocalKeys();
   return new Pool({ connectionString: LOCAL.dbUrl, max: 2 });
 }
 
