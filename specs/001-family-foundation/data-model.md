@@ -598,7 +598,7 @@ values ('00000000-0000-4000-8000-000000000001')
 on conflict (household_id) do nothing;
 ```
 
-A migration is committed and replayed by every `supabase db reset`, so it must not carry the parents' addresses or the children's names (constitution §VII). The deterministic household id lets the seed script and the policy suite reference it. Allowlist rows and profiles are created by `scripts/family-seed.mjs`, which reads `FAMILY_SEED_PARENT_EMAILS` (and optionally `FAMILY_SEED_PROFILES`) from `.env.local`; with `--local` it also creates the dev account and fixture profiles. PINs are **never** seeded — they are set from the interface, exercising the FR-018 path on day one.
+A migration is committed and replayed by every `supabase db reset`, so it must not carry the parents' addresses or the children's names (constitution §VII). The deterministic household id lets the seed script and the policy suite reference it. Allowlist rows and profiles are created by `scripts/family-seed.mjs`, which allowlists the household account from `FAMILY_ACCOUNT_EMAIL` (and optionally seeds profiles from `FAMILY_SEED_PROFILES`); with `--local` it also creates the dev account and fixture profiles. PINs are **never** seeded — they are set from the interface, exercising the FR-018 path on day one.
 
 ---
 

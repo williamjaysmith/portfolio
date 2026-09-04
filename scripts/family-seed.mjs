@@ -39,8 +39,6 @@
  *                              in the browser.
  *   FAMILY_ACCOUNT_PASSWORD    that account's password (required unless --local). Known to
  *                              the household; never logged, never committed.
- *   FAMILY_SEED_PARENT_EMAILS  optional extra addresses to allowlist, comma-separated. Not
- *                              needed for the shared account — it is allowlisted for you.
  *   FAMILY_SEED_PROFILES       optional JSON array of categories to create/update:
  *                              [{ "label": "Alex", "role": "parent", "color": "#2178AF",
  *                                 "avatar": "fox", "birthday": "2001-02-03" },
@@ -171,18 +169,6 @@ function hostedTarget(env, allowRemote) {
 
 function resolveTarget(flags, env) {
   return flags.local ? localTarget(env) : hostedTarget(env, flags.yes);
-}
-
-function parseEmails(raw) {
-  if (!raw) return [];
-  const emails = raw
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter((e) => e.length > 0);
-  for (const email of emails) {
-    if (!EMAIL_RE.test(email)) throw new SeedError(`invalid email in FAMILY_SEED_PARENT_EMAILS: "${email}"`);
-  }
-  return [...new Set(emails)];
 }
 
 function parseProfiles(raw) {
@@ -642,7 +628,6 @@ async function main() {
   const env = process.env;
   const target = resolveTarget(flags, env);
   const account = resolveAccount(flags, env);
-  const emails = parseEmails(env.FAMILY_SEED_PARENT_EMAILS);
   const profiles = resolveProfiles(flags, env);
   const zone = resolveTimezone(env);
 
@@ -659,7 +644,7 @@ async function main() {
 
   const accountEmail = await seedAccount(admin, account, log);
 
-  await allowlist(fam, [...new Set([accountEmail, ...emails])], log);
+  await allowlist(fam, [accountEmail], log);
   await upsertCategories(fam, profiles, log);
   if (flags.local) await seedFixtureWeek(fam, zone, log);
 

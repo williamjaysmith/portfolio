@@ -26,7 +26,6 @@ Fill from **Project Settings → API Keys** (use the new-format keys — the leg
 | `FAMILY_ACTOR_SECRET` | `openssl rand -base64 32` | **yes — signs the actor cookie** |
 | `FAMILY_ACCOUNT_EMAIL` | the household account's address — any address you control, e.g. `household@willsmith.dev`. Nobody ever types it: `signIn` reads it on the server and pairs it with the typed password | personal — server-side only, never sent to the browser |
 | `FAMILY_ACCOUNT_PASSWORD` | the shared household password | **yes — but only `scripts/family-seed.mjs` reads it, to create the account (re-running the seed is how you rotate it). Nothing at runtime does; the app never holds or compares a password** |
-| `FAMILY_SEED_PARENT_EMAILS` | optional, comma-separated. **Extra** addresses to allowlist — the shared account is allowlisted for you, so leave it empty unless a second account genuinely needs in | personal — read only by the seed script |
 | `FAMILY_SEED_PROFILES` | optional JSON array of starting profiles (`label`, `color`, optional `role`, `avatar`, `birthday`, `emoji`, `isProfile`; see the header of `scripts/family-seed.mjs` for the exact shape) | personal — read only by the seed script |
 | `FAMILY_DEV_PASSWORD` | `--local` only: the password for the local `dev@family.local` account | local throwaway |
 
