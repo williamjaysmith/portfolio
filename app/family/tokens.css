@@ -166,6 +166,94 @@
                                                     its only boundary needs 3:1 (WCAG 1.4.11); --fam-hairline is
                                                     decoration-only by this file's own rule */
 
+  /* ---------- tasks board (Phase 3 — 07 §4.10; spec 003 FR-301…FR-398) ----------------------
+   * THIS FILE IS THE SOLE OWNER of every token below, of the late treatment and of the streak
+   * badge's geometry: the board's renderers consume them and neither redefine nor extend them.
+   *
+   * The colour half is not a palette, it is arithmetic over ONE accent the family chose, and the
+   * palette runs from Sunshine (luminance 0.72) to Deep River (0.08) — so every value here is
+   * checked across all twenty colours by lib/family/__tests__/unit/task-tokens.test.ts, which
+   * reads these declarations out of this file. Change a number here and that suite fails, which
+   * is the point: a tint that reads on Deep River and vanishes on Sunshine has been guessed.
+   * Geometry is px @1920×1080 × --fam-u, [ESTIMATED] from photographs unless marked otherwise.
+   */
+  --fam-task-col-w: calc(400 * var(--fam-u));    /* [ESTIMATED] the reference's ~400 pt column, whose own
+                                                    arithmetic leaves a fifth half-visible. NOT a layout
+                                                    constant: FR-394/396 measure how many WHOLE columns fit
+                                                    and stretch those to share the width — this is only what
+                                                    the fitting divides by (`boardLayoutOf`). */
+  --fam-task-col-gap: calc(16 * var(--fam-u));   /* [ESTIMATED] between columns, and between wrapped rows */
+  --fam-task-col-pad: calc(12 * var(--fam-u));   /* [ESTIMATED] a column body's own inset */
+
+  /* Column header (FR-304, FR-305, FR-306) — the panel is --fam-profile-20. */
+  --fam-task-header-pad: calc(20 * var(--fam-u));  /* [ESTIMATED] */
+  --fam-task-header-gap: calc(12 * var(--fam-u));  /* [ESTIMATED] avatar → name → count → toggles */
+  --fam-task-avatar: calc(96 * var(--fam-u));      /* [ESTIMATED] the header avatar the ring encircles */
+  --fam-task-progress-w: max(3px, calc(8 * var(--fam-u))); /* [OURS] FR-305's ring thickness; floored so it
+                                                    cannot thin to sub-pixel at the 0.5 unit floor */
+  --fam-task-toggle-d: calc(56 * var(--fam-u));    /* [ESTIMATED] a header toggle's DRAWN diameter */
+  --fam-task-toggle-hit: max(var(--fam-touch), var(--fam-task-toggle-d)); /* FR-397: the hit area is larger
+                                                    than the drawing on every viewport below the reference */
+  --fam-task-ring-w: max(2px, calc(5 * var(--fam-u)));     /* [OURS] an ON toggle's ring */
+  --fam-task-ring-w-off: max(2px, calc(3 * var(--fam-u))); /* [OURS] an OFF toggle's ring — thinner AS WELL AS
+                                                    faded, because a 40 % fade of anything cannot reach 3:1
+                                                    against the rung it was faded toward (FR-306) */
+  --fam-task-ring-arc: 62%;                        /* [OURS] the partial ring an inactive TIME-OF-DAY toggle
+                                                    draws. Chores never draws it — it is not a time of day —
+                                                    and is full circumference in both states (FR-306). */
+
+  /* Sections and cards (FR-302, FR-320, FR-348, FR-349) */
+  --fam-task-section-gap: calc(14 * var(--fam-u)); /* [ESTIMATED] between sections, and between cards */
+  --fam-task-section-pad: calc(10 * var(--fam-u)); /* [ESTIMATED] section heading → first card */
+  --fam-task-card-min-h: calc(96 * var(--fam-u));  /* [ESTIMATED]; the card body is itself a ≥44 pt control */
+  --fam-task-card-pad: calc(20 * var(--fam-u));    /* [ESTIMATED] */
+  --fam-task-card-gap: calc(14 * var(--fam-u));    /* [ESTIMATED] emoji → title → circle */
+  --fam-task-card-r: var(--fam-radius-card);       /* [DERIVED] a task card is an event block's radius */
+  --fam-task-emoji: calc(36 * var(--fam-u));       /* [ESTIMATED] the card's leading emoji */
+  --fam-task-circle-d: calc(44 * var(--fam-u));    /* [ESTIMATED] the DRAWN completion circle */
+  --fam-task-circle-hit: max(var(--fam-touch), var(--fam-task-circle-d)); /* FR-397, as above */
+  --fam-task-circle-w: max(2px, calc(3 * var(--fam-u)));  /* [OURS] the white circle's edge — white on a 40 %
+                                                    tint is 1.13:1, so the circle is drawn WITH an edge in
+                                                    the card's own ink or it is not there at all */
+  --fam-task-check-w: max(2px, calc(4 * var(--fam-u)));   /* [OURS] the white checkmark's stroke */
+
+  /* One badge geometry, shared by the late badge (FR-358) and the streak badge (FR-372) — both
+   * [OURS], neither measured by any source (Assumptions 17, 22). One shape, so a card carrying
+   * both does not read as two unrelated ornaments. */
+  --fam-task-badge-h: calc(34 * var(--fam-u));
+  --fam-task-badge-pad: calc(12 * var(--fam-u));
+  --fam-task-badge-r: calc(17 * var(--fam-u));   /* [DERIVED] badge-h / 2 = full pill */
+  --fam-task-badge-gap: calc(6 * var(--fam-u));  /* icon → label inside a badge */
+  --fam-task-badge-edge: 1px;                    /* [OURS] deliberately UNSCALED — a hairline that thins to
+                                                    sub-pixel is a hairline that is not drawn */
+  --fam-task-streak-icon: calc(20 * var(--fam-u)); /* [OURS] FR-372's lightning bolt */
+
+  /* The FR-358 late treatment. A pill, not tinted text: raw text at 4.5:1 on EVERY card tint is
+   * not achievable in one colour, and a pill only has to be legible against its own fill. */
+  --fam-late-fill: #674117;        /* [DERIVED] the verified palette ochre at 50 % in sRGB. White on it is
+                                      8.95:1, and it clears 3:1 on every incomplete card (worst 4.34:1).
+                                      Ochre-derived (yellow-orange) rather than coral-derived, so it cannot
+                                      be read as --fam-danger's "delete this" (FR-358). */
+  --fam-late-ink: #FFFFFF;         /* [OURS] 8.95:1 on the fill above */
+  --fam-late-edge: var(--fam-task-ink); /* [OURS] on a COMPLETED dark card the fill alone is 1.04:1 — the
+                                      edge is the card's own ink, which is ≥4.5:1 on that card by
+                                      construction, so the badge is perceivable on every one of the twenty */
+
+  /* FR-349's completion cross-fade. The reduced-motion block below collapses this token itself,
+   * so a script that reads it (getComputedStyle) opts in by construction rather than by
+   * remembering to — CSS transitions are already collapsed by the same block. */
+  --fam-task-fade-ms: 180ms;       /* [OURS] duration and easing are [UNKNOWN] in every source */
+  --fam-task-fade-ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* The ink a profile-tinted board surface carries. The DEFAULT is the primary ink, which is
+   * correct for the 20 % header panel (≥12.35:1 across the palette) and for the 40 % card
+   * (≥8.44:1, and white never wins on that rung). A COMPLETED card is the accent at full
+   * strength, where six of the twenty flip to white — so TaskCard sets --fam-task-ink from
+   * `inkOn()` (lib/family/colors.ts, already tested) on the fill it actually drew. That is
+   * FR-398's "choose card text for 4.5:1 at both tints"; it cannot be decided in CSS. */
+  --fam-task-ink: var(--fam-text-primary);
+  --fam-task-toggle-ink: var(--fam-text-primary); /* what makes an OFF toggle still a control */
+
   /* ---------- touch ------------------------------------------------------------------------ */
   /* Every interactive control gets min-height/min-width: var(--fam-touch) regardless of scale
    * (FR-035): 52 px pills and 61 px chips fall below 44 px once --fam-u < 0.85. [OURS] */
@@ -249,6 +337,32 @@
   --fam-profile-100: var(--profile);
   --fam-profile-40: color-mix(in srgb, var(--profile) 40%, white);
   --fam-profile-20: color-mix(in srgb, var(--profile) 20%, white);
+
+  /* The fourth rung is DOWNWARD and is not part of the tint ladder: the ladder composites the
+   * accent on WHITE (100 / 40 / 20) and the board needs one value composited on BLACK, because
+   * three things have to survive a Sunshine-yellow profile as well as a Deep River one —
+   * FR-348's completed disc under a white check, FR-306's ON toggle ring on the 20 % panel, and
+   * FR-305's progress arc. FR-398 permits deriving only HOW MUCH DEEPER, never another hue, so
+   * this is the accent's own channels scaled: never a substituted colour. At 40 %, across all
+   * twenty: white on the disc ≥7.12:1; the ring ≥6.66:1 on its panel; the disc ≥6.27:1 against
+   * the incomplete card it replaces; and on the completed card either the disc (≥1.94:1) or its
+   * white check (≥1.37:1) clears 3:1 — deepening an already-dark accent cannot separate it, and
+   * on exactly those colours the white check does. Measured in task-tokens.test.ts. */
+  --fam-profile-deep: color-mix(in srgb, var(--profile) 40%, black);
+
+  /* FR-306's two ring states. ON is the deep rung above. OFF is that ring faded 40 % toward the
+   * panel it sits on — 3.56:1 or better from the ON ring, which is what distinguishes the two —
+   * and it is deliberately NOT what makes the toggle perceivable: nothing faded 40 % toward a
+   * 20 % panel can reach 3:1 against it. --fam-task-toggle-ink carries that, at ≥12.35:1, and
+   * the OFF ring is thinner as well as fainter (--fam-task-ring-w-off). The Chores toggle draws
+   * the FULL circumference in both states — it is not a time of day and never draws the partial
+   * arc — so an off Chores toggle is visibly off rather than readable only by its section's
+   * absence (FR-306, FR-307). */
+  --fam-task-ring-off: color-mix(in srgb, var(--fam-profile-deep) 40%, var(--fam-profile-20));
+
+  /* FR-305's ring is a filled arc in --fam-profile-deep over this track. The unfilled part is
+   * decoration, not state, so it takes the faded rung rather than a neutral of its own. */
+  --fam-task-progress-track: var(--fam-task-ring-off);
 }
 
 .family .fam-tint-100 {
@@ -273,7 +387,24 @@
   .family .fam-profile {
     --fam-profile-40: var(--profile);
     --fam-profile-20: var(--profile);
+    --fam-profile-deep: var(--profile);
+    --fam-task-ring-off: var(--profile);
   }
+}
+
+/* ---------- board structure (FR-394, SC-315) --------------------------------------------------
+ * The two rules that keep twenty occurrences reachable without the page ever scrolling sideways
+ * at any width. They live here, with the geometry, so ProfileColumn, UpForGrabsColumn and the
+ * board orchestrator consume one contract instead of each asserting its own overflow. */
+.family .fam-board {
+  overflow-x: hidden;
+}
+
+.family .fam-task-scroll {
+  overflow-y: auto;
+  /* A column that has run out of scroll must not hand the gesture to the page behind it — on the
+   * wall tablet that reads as the board lurching under a finger. [OURS] */
+  overscroll-behavior: contain;
 }
 
 /* ---------- focus (SC-009) --------------------------------------------------------------------
@@ -294,5 +425,12 @@
     animation-iteration-count: 1;
     transition-duration: 0.01ms;
     scroll-behavior: auto;
+  }
+
+  /* FR-349's cross-fade and FR-397's rule for script-driven motion: the DURATION TOKEN itself
+   * collapses, so anything that reads it — a CSS transition, or a script asking
+   * getComputedStyle for --fam-task-fade-ms — opts in without having to remember to. */
+  .family {
+    --fam-task-fade-ms: 0.01ms;
   }
 }

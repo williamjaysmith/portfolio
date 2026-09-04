@@ -287,3 +287,229 @@ export interface DeleteEventInput {
   scope?: Scope;
   occurrenceDate?: string;
 }
+
+/* ------------------------------------------------------------------------- *
+ * Tasks (Phase 3 — specs/003-family-tasks)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The three time-of-day slots (FR-302, FR-335). The order they are written in
+ * is the canonical one the `task_slots_shape` CHECK enumerates and the board
+ * renders its sections in.
+ */
+export type TimeOfDay = "morning" | "afternoon" | "evening";
+
+/**
+ * FR-347's delete scopes. The same three values Phase 2 verified, so the
+ * calendar's `Scope` is reused rather than restated — a second union could
+ * drift from the one the scope dialog and the action already share.
+ */
+export type TaskScope = Scope;
+
+/** The Completed Date delay's unit (FR-342). */
+export type RenewUnit = "day" | "week" | "month";
+
+/**
+ * The repeat the form submits (FR-334, FR-339–FR-346). Clients never send a
+ * rule string; `ruleFromTaskChoice` maps this onto the shared emitter.
+ * `after_completion` is not a rule at all — it writes the `renew_after_*`
+ * triple and leaves `rrule` null. Monthly's BYMONTHDAY is derived from
+ * `startsOn`, never sent.
+ */
+export type TaskRepeatChoice =
+  | { kind: "never" }
+  | { kind: "daily"; interval: number; until?: string | null }
+  | { kind: "weekly"; interval: number; weekdays: Weekday[]; until?: string | null }
+  | { kind: "monthly"; interval: number; until?: string | null }
+  | { kind: "after_completion"; amount: number; unit: RenewUnit; until?: string | null };
+
+/** A resolution's two stored statuses (FR-360); absence of a row is "outstanding". */
+export type ResolutionStatus = "complete" | "skipped";
+
+/**
+ * What an occurrence is, once the resolution index has been consulted (R315).
+ * Skipped occurrences stay in the list — hiding them is the filter layer's job
+ * (FR-361) and removing them from the denominator is the counters' (FR-360).
+ */
+export type OccurrenceState = "unresolved" | ResolutionStatus;
+
+/**
+ * One assignee of a task, in that Profile's own routine order, carrying that
+ * Profile's own habit streak (FR-310, FR-324, FR-371). Zero assignee rows on a
+ * task means up for grabs (FR-365).
+ */
+export interface TaskAssignee {
+  taskId: string;
+  householdId: string;
+  categoryId: string;
+  /** Fractional index — a routine drag writes one row (FR-310). */
+  sortOrder: number;
+  streakCount: number;
+  /** The last household-local date `streakCount` accounts for (FR-373). */
+  streakThrough: string | null;
+  /** The day this assignee's Completed Date chain is seeded from (R309). */
+  createdAt: string;
+}
+
+/**
+ * One `family.tasks` row — a chore or a routine definition (FR-317).
+ * Occurrences are computed, never stored. The four chore sub-types fall out of
+ * `startsOn` and `dueTime` (FR-325); the repeat mode is which of `rrule` and
+ * `renewAfterAmount` is populated (FR-339).
+ *
+ * `rewardPoints` is deliberately absent: the reserved star value is read by
+ * nothing this phase (FR-329, SC-319).
+ */
+export interface Task {
+  id: string;
+  householdId: string;
+  summary: string;
+  description: string | null;
+  emoji: string | null;
+  /** The one discriminator (FR-317). */
+  routine: boolean;
+  upForGrabs: boolean;
+  trackHabit: boolean;
+  /** Household-local `YYYY-MM-DD`; the rule anchor and the chain seed. Null = Anytime. */
+  startsOn: string | null;
+  /** Household wall clock `HH:MM` (FR-326), never an instant. Chores only. */
+  dueTime: string | null;
+  /** A routine's slots (FR-335); empty on a chore. */
+  timesOfDay: TimeOfDay[];
+  /** Canonical prefix-less rule (R201); null = no rule-mode repeat. */
+  rrule: string | null;
+  /** `0` IS "Immediately" (FR-342); null = not a Completed Date chore. */
+  renewAfterAmount: number | null;
+  renewAfterUnit: RenewUnit | null;
+  renewUntil: string | null;
+  assignees: TaskAssignee[];
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One RESOLVED occurrence, complete or skipped (FR-360). `occurrenceDate` is
+ * the occurrence's SCHEDULED date (FR-353); `resolvedOn` is the day it was
+ * actually ticked, which for a late chore is a different day (FR-354).
+ */
+export interface TaskResolution {
+  id: string;
+  householdId: string;
+  taskId: string;
+  /** Null on an Anytime chore's single undated occurrence (FR-328). */
+  occurrenceDate: string | null;
+  /** Routines only (FR-335). */
+  occurrenceSlot: TimeOfDay | null;
+  /** The chain's OWNER; null for an up-for-grabs task's household chain (FR-363). */
+  assigneeId: string | null;
+  /** The Profile CREDITED (FR-354, FR-368); null only on a skip crediting nobody. */
+  categoryId: string | null;
+  /** The previous cycle of a Completed Date chore (FR-343); null on every rule-mode row. */
+  cyclePrev: string | null;
+  status: ResolutionStatus;
+  resolvedOn: string;
+  resolvedAt: string;
+  /** The punched-in ACTOR, who may not be the credited Profile (Assumption 3). */
+  createdBy: string | null;
+  createdAt: string;
+}
+
+/**
+ * The tail of one Completed Date chain, from the `family.task_cursors` view —
+ * the row that decides what is due, which may be arbitrarily old (R309).
+ */
+export interface TaskCursor {
+  householdId: string;
+  taskId: string;
+  assigneeId: string | null;
+  tailId: string;
+  tailResolvedOn: string;
+}
+
+/**
+ * One Task Box template. FR-377 fixes the field set exactly: a title, an
+ * optional emoji and a type — no description, date, repeat or assignment, and
+ * no star value on any surface (FR-329, SC-319).
+ */
+export interface TaskBoxItem {
+  id: string;
+  householdId: string;
+  summary: string;
+  emoji: string | null;
+  routine: boolean;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * The five columns a resolution's uniqueness is keyed by (FR-353, FR-370) —
+ * the same tuple `lib/family/tasks/resolutions.ts` indexes on, so client and
+ * database agree about what an occurrence is by construction.
+ *
+ * `contracts/server-actions.md` calls this shape `TaskOccurrenceKey`; it is one
+ * type under one name here.
+ */
+export interface OccurrenceKey {
+  taskId: string;
+  /** The CHAIN OWNER; null = an up-for-grabs task's household chain. */
+  assigneeId: string | null;
+  /** The occurrence's ORIGINAL household-local date; null = an Anytime chore. */
+  occurrenceDate: string | null;
+  slot: TimeOfDay | null;
+  /** Completed Date only: the resolution id this cycle follows. */
+  cyclePrev?: string | null;
+}
+
+/**
+ * One dated appearance of a task for one assignee (spec §Key Entities), as
+ * `expandTaskDay` produces it — the shape every renderer and every
+ * occurrence-validating action reads (R315).
+ *
+ * The first five fields are `OccurrenceKey`: `scheduledDate` is the identity
+ * and what a late card shows (FR-358), never the day it is drawn on.
+ */
+export interface BoardOccurrence {
+  taskId: string;
+  assigneeId: string | null;
+  /** The occurrence's own household-local date; null = an Anytime chore (FR-328). */
+  scheduledDate: string | null;
+  slot: TimeOfDay | null;
+  cyclePrev: string | null;
+  /** The board day it is drawn on — differs from `scheduledDate` only when carried (FR-357). */
+  displayedDate: string;
+  /** FR-325's Late: a Timed or All-day chore drawn past its own date. */
+  isLate: boolean;
+  summary: string;
+  description: string | null;
+  emoji: string | null;
+  routine: boolean;
+  upForGrabs: boolean;
+  trackHabit: boolean;
+  /** Household wall clock `HH:MM`; null on an all-day, anytime or routine occurrence. */
+  dueTime: string | null;
+  /** The instant `dueTime` falls at under FR-326's DST rules; null without a due time. */
+  dueAt: string | null;
+  /** FR-359: Skip exists for routines and repeating chores only. */
+  isRepeating: boolean;
+  /** FR-311's tie-break: the defining task's creation order. */
+  taskCreatedAt: string;
+  state: OccurrenceState;
+  /** The Profile a resolution credited — an up-for-grabs claim (FR-367); null while unresolved. */
+  creditedCategoryId: string | null;
+}
+
+/**
+ * The four per-device task switches (FR-384, R319). The per-Profile toggle is
+ * NOT here — it rides Phase 1's shipped `useDeviceVisibility` category set.
+ * Skipped defaults OFF: FR-361 shows skipped occurrences only when it is on.
+ */
+export interface TaskFilters {
+  completed: boolean;
+  late: boolean;
+  skipped: boolean;
+  upForGrabs: boolean;
+}

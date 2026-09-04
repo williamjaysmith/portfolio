@@ -23,12 +23,25 @@
  * --local additionally seeds the fixture week the US1 hand checks read
  * (002 quickstart §3). Hosted mode gains ONLY the timezone write.
  *
+ * Phase 3 (003-family-tasks): --local also seeds the fixture TASK BOARD (003
+ * quickstart §3) — the fourteen named fixtures plus the anytime shelf that
+ * carries Cleo's column to twenty occurrences. The hosted seed gains NOTHING
+ * this phase: the seventeen Task Box templates are reference product data
+ * seeded by migration 020, and real tasks come from the household. Unlike the
+ * calendar week's frozen September 2026 dates, every task fixture is ANCHORED
+ * TO THE DAY THIS RUNS — "late", "carried forward" and "the streak behind this
+ * routine" have no meaning against a fixed date — so re-run the seed after the
+ * day rolls over to re-anchor them. The one thing this adds for both modes:
+ * a household created HERE rather than by 007 gets family.seed_task_box()
+ * called on it, so the Task Box is never empty (FR-382).
+ *
  * Usage
  *   npm run family:seed -- --local     local stack (http://127.0.0.1:55321, the CLI's fixed
  *                                      secret key). Creates the dev account dev@family.local,
  *                                      allowlists it, seeds the fixture profiles/labels
  *                                      unless FAMILY_SEED_PROFILES is set, and seeds the
- *                                      fixture calendar week (002 quickstart §3).
+ *                                      fixture calendar week (002 quickstart §3) and the
+ *                                      fixture task board (003 quickstart §3).
  *   npm run family:seed -- --yes       hosted project from .env.local
  *                                      (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SECRET_KEY).
  *                                      Without --yes a non-local URL is refused.
@@ -126,6 +139,285 @@ const FIXTURE_WEEK = [
   // (FR-235 gap → 03:00 exactly; FR-236 fold → first instant).
   { id: fixtureEventId(13), summary: "Night meds", date: "2026-09-14", start: "02:30", end: "03:00", categories: ["Ben"], rrule: "FREQ=DAILY;INTERVAL=1" },
 ];
+
+/** Fixed ids keep the fixture board idempotent, like the fixture week's above. */
+function fixtureTaskId(n) {
+  return `00000000-0000-4000-8000-0000000002${String(n).padStart(2, "0")}`;
+}
+
+function fixtureResolutionId(n) {
+  return `00000000-0000-4000-8000-0000000003${String(n).padStart(2, "0")}`;
+}
+
+const MS_PER_DAY = 86400000;
+const RULE_WEEKDAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+/** The fourteen named fixtures own ids 1–14; the anytime shelf continues after them. */
+const SHELF_FIRST_ID = 15;
+/** SC-315: every one of twenty occurrences in one column must stay reachable. */
+const CLEO_COLUMN_TARGET = 20;
+/**
+ * Cleo's named fixtures make seven occurrences on the seed day: Feed the cat,
+ * Sort the recycling, the carried-forward Water the plants, Make bed, today's
+ * skipped Practice piano, and Brush teeth in two slots. Homework makes an
+ * eighth on a weekday only — its rule is Mon–Fri — so the shelf absorbs the
+ * difference rather than the count drifting with the day of the week.
+ */
+const CLEO_NAMED_OCCURRENCES = 7;
+
+/**
+ * The household-local date the seed is running on. Every task fixture is
+ * anchored to it rather than to a frozen date, because "late", "carried
+ * forward" and "the streak behind this routine" have no meaning against one
+ * (003 quickstart §3) — so a re-run after the day rolls over re-anchors them.
+ */
+function todayInZone(zone) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const f = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+  return `${f.year}-${f.month}-${f.day}`;
+}
+
+/**
+ * Whole-day steps on UTC midnights: UTC has no transitions, so stepping by
+ * days can never cross one (lib/family/recurrence/plain-date.ts's rule).
+ */
+function addDays(isoDate, days) {
+  const [y, mo, d] = isoDate.split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, d) + days * MS_PER_DAY).toISOString().slice(0, 10);
+}
+
+function weekdayIndex(isoDate) {
+  const [y, mo, d] = isoDate.split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, d)).getUTCDay();
+}
+
+function ruleWeekday(isoDate) {
+  return RULE_WEEKDAYS[weekdayIndex(isoDate)];
+}
+
+function isWeekday(isoDate) {
+  const day = weekdayIndex(isoDate);
+  return day >= 1 && day <= 5;
+}
+
+/** UNTIL's date form: a routine has no clock time for the instant form to carry. */
+function untilDate(isoDate) {
+  return isoDate.replaceAll("-", "");
+}
+
+/**
+ * Completions on each of the last `days` days, in every slot — what a streak of
+ * that length is made of (FR-373: a day advances the count only when every one
+ * of that routine's occurrences for that person is complete).
+ */
+function dailyCompletions(assignee, slots, days) {
+  const rows = [];
+  for (let back = days; back >= 1; back -= 1) {
+    for (const slot of slots) rows.push({ assignee, dayOffset: -back, slot, status: "complete" });
+  }
+  return rows;
+}
+
+/**
+ * The Tasks board fixtures (003 quickstart §3), --local only: one fixture per
+ * hand check, each anchored to the seed day by `startsOffset`/`dayOffset`.
+ * `slots` is what makes a row a routine (the 016 CHECK pairs them), and rule
+ * strings are written by hand HERE only — clients never submit them (R301).
+ */
+const FIXTURE_TASKS = [
+  // Timed sub-type; weekly on today's weekday from three weeks back, so three
+  // missed occurrences carry forward beside today's fresh one (SC-307, FR-341),
+  // and Cleo is refused when she tries to tick it (SC-304).
+  {
+    id: fixtureTaskId(1),
+    summary: "Take out trash",
+    assignees: ["Ben"],
+    startsOffset: -21,
+    dueTime: "18:00",
+    rule: (today) => `FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=${ruleWeekday(today)}`,
+  },
+  // INTERVAL=2 end to end (FR-345) and FR-357's bound: anchored four weeks back,
+  // the today-28 occurrence is off today's board and the today-14 one is on it.
+  {
+    id: fixtureTaskId(2),
+    summary: "Hoover the stairs",
+    assignees: ["Ana"],
+    startsOffset: -28,
+    dueTime: "09:00",
+    rule: (today) => `FREQ=WEEKLY;INTERVAL=2;WKST=SU;BYDAY=${ruleWeekday(today)}`,
+  },
+  // All-day sub-type: a date and no time (FR-327).
+  { id: fixtureTaskId(3), summary: "Feed the cat", emoji: "🐱", assignees: ["Cleo"], startsOffset: 0 },
+  // Anytime sub-type: neither date nor time, so never late and present every day
+  // (FR-328). The description is what SC-320's search match reads.
+  {
+    id: fixtureTaskId(4),
+    summary: "Sort the recycling",
+    description: "goes in the blue bin",
+    assignees: ["Cleo"],
+  },
+  // Late is defined off the Timed sub-type, so the time is load-bearing: unresolved
+  // two days back, carried onto today (FR-325, SC-308), and one-off, so US3-7's
+  // details view offers no Skip.
+  {
+    id: fixtureTaskId(5),
+    summary: "Water the plants",
+    assignees: ["Cleo"],
+    startsOffset: -2,
+    dueTime: "18:00",
+  },
+  // SC-307's cursor half: one resolution a fortnight back puts a DERIVED open
+  // occurrence on today with no stored next date, and its tail lies outside the
+  // week window, which is what proves family.task_cursors is read at all.
+  {
+    id: fixtureTaskId(6),
+    summary: "Clean the bathroom",
+    assignees: ["Ana"],
+    startsOffset: -14,
+    renewAfter: { amount: 2, unit: "week" },
+    resolutions: [{ assignee: "Ana", dayOffset: -14, status: "complete" }],
+  },
+  // The chain HEAD case: no resolutions at all, so the open occurrence is
+  // max(starts_on, the assignee's chain start) — today, both ways.
+  {
+    id: fixtureTaskId(7),
+    summary: "Descale the kettle",
+    assignees: ["Ben"],
+    startsOffset: 0,
+    renewAfter: { amount: 1, unit: "month" },
+  },
+  // Up for Grabs: nobody assigned (FR-308/FR-365), one household-wide occurrence
+  // for SC-311's double claim and FR-363's skip.
+  {
+    id: fixtureTaskId(8),
+    summary: "Empty the dishwasher",
+    assignees: [],
+    upForGrabs: true,
+    startsOffset: 0,
+  },
+  // One task, two assignees, two independently completable occurrences (FR-324):
+  // Ana's is already complete, Ben's is outstanding (SC-317, and SC-304's
+  // parent-credits-another case).
+  {
+    id: fixtureTaskId(9),
+    summary: "Set the table",
+    assignees: ["Ana", "Ben"],
+    startsOffset: 0,
+    resolutions: [{ assignee: "Ana", dayOffset: 0, status: "complete" }],
+  },
+  // Endless daily 02:30 — the DST pair always holds an occurrence to inspect
+  // (AS-2.15, SC-313).
+  {
+    id: fixtureTaskId(10),
+    summary: "Cat medicine",
+    assignees: ["Ben"],
+    startsOffset: 0,
+    dueTime: "02:30",
+    rule: () => "FREQ=DAILY;INTERVAL=1",
+  },
+  // Two slots on one routine, separately completable (FR-335), its own card
+  // progress (FR-312), and eleven completed days behind it with none today —
+  // so the badge reads eleven and the streak checkpoint stops at yesterday
+  // (US4-6, SC-312's starting point).
+  {
+    id: fixtureTaskId(11),
+    summary: "Brush teeth",
+    emoji: "🪥",
+    assignees: ["Cleo"],
+    slots: ["morning", "evening"],
+    trackHabit: true,
+    startsOffset: -11,
+    rule: () => "FREQ=DAILY;INTERVAL=1",
+    resolutions: dailyCompletions("Cleo", ["morning", "evening"], 11),
+    streak: { count: 11, throughOffset: -1 },
+  },
+  // INTERVAL=2 on a routine (SC-313's first half), anchored an even number of
+  // days back so today is a matching day.
+  {
+    id: fixtureTaskId(12),
+    summary: "Make bed",
+    emoji: "🛏️",
+    assignees: ["Cleo"],
+    slots: ["morning"],
+    startsOffset: -14,
+    rule: () => "FREQ=DAILY;INTERVAL=2",
+  },
+  // SC-309/SC-310's skip: five completed days behind it and today SKIPPED, so
+  // the occurrence leaves the denominator and stays invisible until the Skipped
+  // filter is on, while the streak holds at five and its checkpoint still
+  // advances to today (FR-373 — a fully resolved day is accounted either way).
+  {
+    id: fixtureTaskId(13),
+    summary: "Practice piano",
+    emoji: "🎹",
+    assignees: ["Cleo"],
+    slots: ["evening"],
+    trackHabit: true,
+    startsOffset: -5,
+    rule: () => "FREQ=DAILY;INTERVAL=1",
+    resolutions: [
+      ...dailyCompletions("Cleo", ["evening"], 5),
+      { assignee: "Cleo", dayOffset: 0, slot: "evening", status: "skipped" },
+    ],
+    streak: { count: 5, throughOffset: 0 },
+  },
+  // FR-346 on a routine: the end date lives inside the rule's own UNTIL
+  // (renew_until is cursor-mode only), a fortnight out (US2-10).
+  {
+    id: fixtureTaskId(14),
+    summary: "Homework",
+    emoji: "📝",
+    assignees: ["Cleo"],
+    slots: ["afternoon"],
+    startsOffset: 0,
+    rule: (today) =>
+      `FREQ=WEEKLY;INTERVAL=1;UNTIL=${untilDate(addDays(today, 14))};WKST=SU;BYDAY=MO,TU,WE,TH,FR`,
+  },
+];
+
+/** The anytime shelf that carries Cleo's column to CLEO_COLUMN_TARGET. */
+const SHELF_CHORES = [
+  "Tidy the toy box",
+  "Fold your laundry",
+  "Wipe the table",
+  "Sweep the porch",
+  "Water the fern",
+  "Sort your books",
+  "Match the socks",
+  "Refill the water jug",
+  "Dust the shelf",
+  "Tidy the shoe rack",
+  "Empty your bin",
+  "Put away the board games",
+  "Wipe the bathroom mirror",
+];
+
+/**
+ * How many shelf chores today needs. Twenty occurrences in Cleo's column, one of
+ * them (today's Practice piano) skipped, so nineteen are visible until the
+ * Skipped filter is on — and Homework's weekday-only rule is why the size is
+ * computed rather than fixed.
+ */
+function shelfSize(today) {
+  const named = CLEO_NAMED_OCCURRENCES + (isWeekday(today) ? 1 : 0);
+  const wanted = CLEO_COLUMN_TARGET - named;
+  if (wanted > SHELF_CHORES.length) {
+    throw new SeedError(`the anytime shelf needs ${wanted} chores and only ${SHELF_CHORES.length} are named`);
+  }
+  return wanted;
+}
+
+function shelfFixtures(today) {
+  return SHELF_CHORES.slice(0, shelfSize(today)).map((summary, index) => ({
+    id: fixtureTaskId(SHELF_FIRST_ID + index),
+    summary,
+    assignees: ["Cleo"],
+  }));
+}
 
 class SeedError extends Error {}
 
@@ -262,6 +554,22 @@ function unwrap(result, what) {
   return result.data;
 }
 
+/**
+ * Migration 020 calls this for the household 007 commits, so a stack that has
+ * that row already carries the seventeen templates and the call returns 0 —
+ * it is idempotent by emptiness, never by conflict, so a deleted template is
+ * never resurrected (FR-381). A household created HERE instead has an empty
+ * box until this runs, which is the whole reason the call lives on the
+ * creation path (FR-382, 003 quickstart §3).
+ */
+async function seedTaskBox(fam, log) {
+  const seeded = unwrap(
+    await fam.rpc("seed_task_box", { p_household_id: HOUSEHOLD_ID }),
+    "seed the task box",
+  );
+  log(`task box    ${seeded} template${seeded === 1 ? "" : "s"}  (seeded)`);
+}
+
 async function ensureHousehold(fam, log) {
   const existing = unwrap(
     await fam.from("households").select("id, name").eq("id", HOUSEHOLD_ID).maybeSingle(),
@@ -272,6 +580,7 @@ async function ensureHousehold(fam, log) {
   } else {
     unwrap(await fam.from("households").insert({ id: HOUSEHOLD_ID, name: HOUSEHOLD_NAME }), "create household");
     log(`household   ${HOUSEHOLD_ID}  "${HOUSEHOLD_NAME}"  (created)`);
+    await seedTaskBox(fam, log);
   }
   const settings = unwrap(
     await fam.from("household_settings").select("household_id").eq("household_id", HOUSEHOLD_ID).maybeSingle(),
@@ -561,8 +870,8 @@ function overrideRow(spec, zone) {
 }
 
 /** The links need real category ids; a FAMILY_SEED_PROFILES override may lack them. */
-async function fixtureCategoryIds(fam) {
-  const labels = [...new Set(FIXTURE_WEEK.flatMap((spec) => spec.categories))];
+async function fixtureCategoryIds(fam, wanted) {
+  const labels = [...new Set(wanted)];
   const rows = unwrap(
     await fam.from("categories").select("id, label").eq("household_id", HOUSEHOLD_ID).in("label", labels),
     "read fixture categories",
@@ -571,7 +880,7 @@ async function fixtureCategoryIds(fam) {
   for (const label of labels) {
     if (!byLabel.has(label)) {
       throw new SeedError(
-        `the fixture week needs the category "${label}" — include it in FAMILY_SEED_PROFILES or unset it`,
+        `the fixtures need the category "${label}" — include it in FAMILY_SEED_PROFILES or unset it`,
       );
     }
   }
@@ -586,7 +895,7 @@ function eventLine(spec) {
 
 /** --local only. Hosted data comes from the household, never from fixtures. */
 async function seedFixtureWeek(fam, zone, log) {
-  const categoryIds = await fixtureCategoryIds(fam);
+  const categoryIds = await fixtureCategoryIds(fam, FIXTURE_WEEK.flatMap((spec) => spec.categories));
   unwrap(
     await fam.from("events").upsert(FIXTURE_WEEK.map((spec) => eventRow(spec, zone))),
     "upsert fixture events",
@@ -602,6 +911,177 @@ async function seedFixtureWeek(fam, zone, log) {
     "upsert fixture overrides",
   );
   for (const spec of FIXTURE_WEEK) log(eventLine(spec));
+}
+
+/**
+ * One task row. `slots` decides `routine` on its own: 016's CHECK pairs them, so
+ * a fixture that carries slots IS a routine and one that does not is a chore.
+ * reward_points is left alone — it is reserved for the rewards phase (FR-329).
+ */
+/** An undated anytime chore has no first day; everything else counts from today. */
+function taskStartsOn(spec, today) {
+  return spec.startsOffset === undefined ? null : addDays(today, spec.startsOffset);
+}
+
+/** When the task first appears, and what it repeats on. */
+function taskSchedule(spec, today) {
+  return {
+    starts_on: taskStartsOn(spec, today),
+    due_time: spec.dueTime ?? null,
+    times_of_day: spec.slots ?? [],
+    rrule: spec.rule ? spec.rule(today) : null,
+  };
+}
+
+/** Completed Date's delay, or nulls for every other mode. */
+function taskRenewal({ renewAfter }) {
+  if (!renewAfter) {
+    return { renew_after_amount: null, renew_after_unit: null, renew_until: null };
+  }
+  return { renew_after_amount: renewAfter.amount, renew_after_unit: renewAfter.unit, renew_until: null };
+}
+
+function taskRow(spec, today) {
+  return {
+    id: spec.id,
+    household_id: HOUSEHOLD_ID,
+    summary: spec.summary,
+    description: spec.description ?? null,
+    emoji: spec.emoji ?? null,
+    routine: Boolean(spec.slots),
+    up_for_grabs: Boolean(spec.upForGrabs),
+    track_habit: Boolean(spec.trackHabit),
+    ...taskSchedule(spec, today),
+    ...taskRenewal(spec),
+  };
+}
+
+/**
+ * FR-371: the lightning badge reads a STORED count, so a seeded streak carries
+ * the checkpoint the resolve action would have left — `streak_through` advances
+ * on any fully resolved day, the count only on a fully completed one (FR-373).
+ */
+function streakColumns(spec, today) {
+  if (!spec.streak) return { streak_count: 0, streak_through: null };
+  return { streak_count: spec.streak.count, streak_through: addDays(today, spec.streak.throughOffset) };
+}
+
+/** Zero rows for an up-for-grabs task is what makes it up for grabs (FR-365). */
+function assigneeRows(specs, categoryIds, today) {
+  const nextOrder = new Map();
+  return specs.flatMap((spec) =>
+    spec.assignees.map((label) => {
+      const sortOrder = (nextOrder.get(label) ?? 0) + SORT_GAP;
+      nextOrder.set(label, sortOrder);
+      return {
+        household_id: HOUSEHOLD_ID,
+        task_id: spec.id,
+        category_id: categoryIds.get(label),
+        sort_order: sortOrder,
+        ...streakColumns(spec, today),
+      };
+    }),
+  );
+}
+
+/**
+ * One resolved occurrence, keyed by the SCHEDULED date (FR-353). Every seeded
+ * resolution was ticked on the day it was due, so resolved_on is that same date;
+ * cycle_prev stays null, which is a chain head in cursor mode and the only legal
+ * value in every other mode.
+ */
+function resolutionRow(spec, entry, ordinal, categoryIds, today) {
+  const date = addDays(today, entry.dayOffset);
+  const profileId = categoryIds.get(entry.assignee);
+  return {
+    id: fixtureResolutionId(ordinal),
+    household_id: HOUSEHOLD_ID,
+    task_id: spec.id,
+    occurrence_date: date,
+    occurrence_slot: entry.slot ?? null,
+    assignee_id: profileId,
+    category_id: profileId,
+    cycle_prev: null,
+    status: entry.status,
+    resolved_on: date,
+  };
+}
+
+/** Ordinals come from the fixture order above, so the ids are stable per re-run. */
+function resolutionRows(specs, categoryIds, today) {
+  const rows = [];
+  for (const spec of specs) {
+    for (const entry of spec.resolutions ?? []) {
+      rows.push(resolutionRow(spec, entry, rows.length + 1, categoryIds, today));
+    }
+  }
+  return rows;
+}
+
+/**
+ * Resolutions are replaced, not upserted: re-anchoring shifts every occurrence
+ * date by the same number of days, and the occurrence key is unique and not
+ * deferrable, so an in-place update would collide with the row it is shifting
+ * onto. Delete then insert has no such intermediate state.
+ */
+async function replaceFixtureResolutions(fam, specs, categoryIds, today) {
+  unwrap(
+    await fam
+      .from("task_resolutions")
+      .delete()
+      .eq("household_id", HOUSEHOLD_ID)
+      .in("task_id", specs.map((spec) => spec.id)),
+    "clear fixture resolutions",
+  );
+  const rows = resolutionRows(specs, categoryIds, today);
+  if (rows.length === 0) return;
+  unwrap(await fam.from("task_resolutions").insert(rows), "insert fixture resolutions");
+}
+
+/**
+ * A weekday and a weekend seed want different shelf sizes, so a re-run after the
+ * day rolls over must drop what it no longer wants — otherwise Cleo's column
+ * creeps past CLEO_COLUMN_TARGET and SC-315 stops being a hand check.
+ */
+async function dropSurplusShelf(fam, keep) {
+  const surplus = SHELF_CHORES.slice(keep).map((_, index) => fixtureTaskId(SHELF_FIRST_ID + keep + index));
+  if (surplus.length === 0) return;
+  unwrap(
+    await fam.from("tasks").delete().eq("household_id", HOUSEHOLD_ID).in("id", surplus),
+    "drop surplus shelf chores",
+  );
+}
+
+function taskKind(spec) {
+  if (spec.slots) return "routine";
+  return spec.upForGrabs ? "grabs" : "chore";
+}
+
+function taskLine(spec, today) {
+  const when = spec.startsOffset === undefined ? "anytime" : addDays(today, spec.startsOffset);
+  const time = spec.dueTime ? ` ${spec.dueTime}` : "";
+  return `${taskKind(spec).padEnd(11)} ${spec.summary}  ${when}${time}  (upserted)`;
+}
+
+/** --local only. Hosted task data comes from the household, never from fixtures. */
+async function seedFixtureTasks(fam, zone, log) {
+  const today = todayInZone(zone);
+  const specs = [...FIXTURE_TASKS, ...shelfFixtures(today)];
+  const categoryIds = await fixtureCategoryIds(fam, specs.flatMap((spec) => spec.assignees));
+  await dropSurplusShelf(fam, shelfSize(today));
+  unwrap(
+    await fam.from("tasks").upsert(specs.map((spec) => taskRow(spec, today))),
+    "upsert fixture tasks",
+  );
+  unwrap(
+    await fam
+      .from("task_assignees")
+      .upsert(assigneeRows(specs, categoryIds, today), { onConflict: "task_id,category_id" }),
+    "assign fixture tasks",
+  );
+  await replaceFixtureResolutions(fam, specs, categoryIds, today);
+  for (const spec of specs) log(taskLine(spec, today));
+  log(`anchored    ${today}  (re-run the seed after the day rolls over)`);
 }
 
 /** Explicit JSON wins; --local falls back to the fixtures, hosted to nothing. */
@@ -644,6 +1124,7 @@ async function main() {
   await allowlist(fam, [accountEmail], log);
   await upsertCategories(fam, profiles, log);
   if (flags.local) await seedFixtureWeek(fam, zone, log);
+  if (flags.local) await seedFixtureTasks(fam, zone, log);
 
   console.log(lines.map((line) => `  ${line}`).join("\n"));
   console.log("PINs are never seeded — set them from Settings in the app.");

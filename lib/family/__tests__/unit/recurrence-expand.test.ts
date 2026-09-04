@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   expandSeries,
+  ruleDatesIn,
+  type LocalDateRange,
   type SeriesException,
   type SeriesInput,
 } from "@/lib/family/recurrence/expand";
+import { parseRule } from "@/lib/family/recurrence/grammar";
 import { instantToWall } from "@/lib/family/recurrence/zone";
 import type { EventTimes } from "@/lib/family/types";
 
@@ -344,5 +347,137 @@ describe("DST placement (FR-235/236) and duration in instant space", () => {
       hour: 1,
       minute: 30,
     });
+  });
+});
+
+/**
+ * T017 — `ruleDatesIn` is the date-only walk `expandSeries` is now built on
+ * (R304): one rule engine, two consumers. Events keep their times; tasks take
+ * the dates, so a routine with no clock time never has a start instant
+ * invented for it.
+ *
+ * Every case below is one of `expandSeries`'s OWN tables above, re-asserted
+ * through the primitive — including UNTIL inclusivity by household-local date
+ * on a genuine `T235959Z` rule, which is why the walk needs the zone.
+ */
+describe("ruleDatesIn — one rule walk, two consumers (R304)", () => {
+  const datesOf = (
+    rrule: string,
+    anchorDate: string,
+    range: LocalDateRange,
+  ): string[] => ruleDatesIn(parseRule(rrule), anchorDate, range, CHICAGO);
+
+  it("walks SC-208's year of Tuesdays", () => {
+    const dates = datesOf("FREQ=WEEKLY;INTERVAL=1;BYDAY=TU", "2026-01-06", {
+      start: "2026-01-01",
+      end: "2026-12-31",
+    });
+    expect(dates).toHaveLength(52);
+    expect(dates[0]).toBe("2026-01-06");
+    expect(dates[51]).toBe("2026-12-29");
+  });
+
+  it("keeps the until-date occurrence of an all-day series", () => {
+    expect(
+      datesOf("FREQ=DAILY;INTERVAL=1;UNTIL=20260110", "2026-01-05", {
+        start: "2026-01-01",
+        end: "2026-01-31",
+      }),
+    ).toEqual([
+      "2026-01-05",
+      "2026-01-06",
+      "2026-01-07",
+      "2026-01-08",
+      "2026-01-09",
+      "2026-01-10",
+    ]);
+  });
+
+  it("reads an instant UNTIL by its household-local date, not by the instant", () => {
+    expect(
+      datesOf("FREQ=DAILY;INTERVAL=1;UNTIL=20260111T055959Z", "2026-01-05", {
+        start: "2026-01-01",
+        end: "2026-01-31",
+      }),
+    ).toEqual([
+      "2026-01-05",
+      "2026-01-06",
+      "2026-01-07",
+      "2026-01-08",
+      "2026-01-09",
+      "2026-01-10",
+    ]);
+  });
+
+  it("keeps the until-date occurrence of a genuine Skylight T235959Z rule", () => {
+    expect(
+      datesOf(
+        "FREQ=WEEKLY;INTERVAL=1;UNTIL=20260106T235959Z;WKST=SU;BYDAY=MO,TU",
+        "2025-12-29",
+        { start: "2025-12-28", end: "2026-01-31" },
+      ),
+    ).toEqual(["2025-12-29", "2025-12-30", "2026-01-05", "2026-01-06"]);
+  });
+
+  it("skips the months that have no 31st", () => {
+    expect(
+      datesOf("FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=31", "2026-01-31", {
+        start: "2026-01-01",
+        end: "2026-12-31",
+      }),
+    ).toEqual([
+      "2026-01-31",
+      "2026-03-31",
+      "2026-05-31",
+      "2026-07-31",
+      "2026-08-31",
+      "2026-10-31",
+      "2026-12-31",
+    ]);
+  });
+
+  it("walks exactly the BYDAY weekdays of a multi-weekday rule", () => {
+    expect(
+      datesOf("FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR", "2026-09-07", {
+        start: "2026-09-06",
+        end: "2026-09-19",
+      }),
+    ).toEqual([
+      "2026-09-07",
+      "2026-09-09",
+      "2026-09-11",
+      "2026-09-14",
+      "2026-09-16",
+      "2026-09-18",
+    ]);
+  });
+
+  it("never emits a date before the anchor, whatever the range asks for", () => {
+    expect(
+      datesOf("FREQ=WEEKLY;INTERVAL=1;BYDAY=TU", "2026-01-06", {
+        start: "2025-12-01",
+        end: "2025-12-31",
+      }),
+    ).toEqual([]);
+  });
+
+  it("gives exactly the dates expandSeries reports for the same series", () => {
+    const piano = series({
+      rrule: "FREQ=WEEKLY;INTERVAL=1;BYDAY=TU",
+      times: timed("2026-01-06T23:00:00.000Z", "2026-01-06T23:45:00.000Z"),
+    });
+    const range = { start: "2026-01-01", end: "2026-12-31" };
+    expect(datesOf(piano.rrule, "2026-01-06", range)).toEqual(
+      expandSeries(piano, range, CHICAGO).map((occ) => occ.occurrenceDate),
+    );
+  });
+
+  it("carries a widened interval into the same walk (FR-345)", () => {
+    expect(
+      datesOf("FREQ=DAILY;INTERVAL=2", "2026-01-01", {
+        start: "2026-01-01",
+        end: "2026-01-09",
+      }),
+    ).toEqual(["2026-01-01", "2026-01-03", "2026-01-05", "2026-01-07", "2026-01-09"]);
   });
 });

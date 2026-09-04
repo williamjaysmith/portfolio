@@ -23,7 +23,7 @@ import {
   datePartsOf,
   epochDayOf,
   isoOfEpochDay,
-  weekdayIndexOf,
+  weekStartDay,
 } from "../recurrence/plain-date";
 import type { WeekStart } from "../types";
 
@@ -77,10 +77,13 @@ export function weekAnchorOf(
   return startOnCurrentDay ? date : weekStartOf(date, startWeekOn);
 }
 
-/** The `YYYY-MM-DD` of the week containing `date`, per the household start-of-week. */
+/**
+ * The `YYYY-MM-DD` of the week containing `date`, per the household
+ * start-of-week. The arithmetic lives in `plain-date.ts` so the recurrence
+ * walk's `WKST` week parity reads weeks the same way this does (R303).
+ */
 export function weekStartOf(date: string, startWeekOn: WeekStart): string {
-  const day = epochDayOf(date);
-  return isoOfEpochDay(day - ((weekdayIndexOf(day) - startWeekOn + 7) % 7));
+  return isoOfEpochDay(weekStartDay(epochDayOf(date), startWeekOn));
 }
 
 /** Week anchoring in a named zone: the instant's LOCAL date decides the week. */

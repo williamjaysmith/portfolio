@@ -182,13 +182,22 @@ function ruleFromChoice(
   if (choice.kind === "never") return null;
   const untilDate = choice.until ?? null;
   const until = untilDate === null ? null : untilOn(untilDate, times.allDay, household.zone);
-  if (choice.kind === "daily") return emitRule({ freq: "DAILY", until });
+  // INTERVAL is stamped here, never sent: `RepeatChoice` carries no interval,
+  // so the calendar's rules stay at 1 while the grammar admits 1–99 (R301).
+  if (choice.kind === "daily") return emitRule({ freq: "DAILY", interval: 1, until });
   if (choice.kind === "weekly") {
-    return emitRule({ freq: "WEEKLY", until, wkst: household.wkst, byDay: [...choice.weekdays] });
+    return emitRule({
+      freq: "WEEKLY",
+      interval: 1,
+      until,
+      wkst: household.wkst,
+      byDay: [...choice.weekdays],
+    });
   }
   // BYMONTHDAY is derived from the start, never sent.
   return emitRule({
     freq: "MONTHLY",
+    interval: 1,
     until,
     byMonthDay: dayOfMonth(startDateOf(times, household.zone)),
   });
@@ -207,9 +216,14 @@ function shiftWeekday(day: RuleWeekday, delta: number): RuleWeekday {
 function reanchorRule(rrule: string, from: EventTimes, to: EventTimes, zone: string): string {
   const rule = parseRule(rrule);
   const until = retimedUntil(rule.until, to.allDay, zone);
-  if (rule.freq === "DAILY") return emitRule({ freq: "DAILY", until });
+  if (rule.freq === "DAILY") return emitRule({ freq: "DAILY", interval: 1, until });
   if (rule.freq === "MONTHLY") {
-    return emitRule({ freq: "MONTHLY", until, byMonthDay: dayOfMonth(startDateOf(to, zone)) });
+    return emitRule({
+      freq: "MONTHLY",
+      interval: 1,
+      until,
+      byMonthDay: dayOfMonth(startDateOf(to, zone)),
+    });
   }
   const delta = diffDays(startDateOf(from, zone), startDateOf(to, zone));
   return emitRule({ ...rule, until, byDay: rule.byDay.map((day) => shiftWeekday(day, delta)) });

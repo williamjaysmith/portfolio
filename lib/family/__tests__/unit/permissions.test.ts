@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Category, Role } from "@/lib/family/types";
 import {
   type Decision,
+  type OccurrenceTarget,
   type Operation,
   type PermissionContext,
   bootstrapRole,
@@ -9,6 +10,7 @@ import {
   canChangeRole,
   canDelete,
   isLastParent,
+  ownsOccurrence,
 } from "@/lib/family/permissions";
 
 type Outcome = "ok" | "NO_ACTOR" | "FORBIDDEN";
@@ -65,6 +67,33 @@ const MATRIX: Record<Operation, OperationRule> = {
     noActor: "NO_ACTOR",
     noActorBootstrap: "NO_ACTOR",
   },
+  // Phase 3 (FR-389). The two target-aware rows read "FORBIDDEN" for a member
+  // because this sweep supplies no target — a member with no record in hand
+  // owns nothing. What a member may do WITH a target is the FR-351 block below.
+  manage_tasks: {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
+  manage_task_box: {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
+  resolve_occurrence: {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
+  reorder_routines: {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
 };
 
 const OPERATIONS = Object.keys(MATRIX) as Operation[];
@@ -99,7 +128,7 @@ const CASES = OPERATIONS.flatMap((op) =>
 
 describe("can", () => {
   it("covers every operation × actor × household state", () => {
-    expect(CASES).toHaveLength(10 * 3 * 2);
+    expect(CASES).toHaveLength(14 * 3 * 2);
   });
 
   it.each(CASES)(
@@ -125,9 +154,163 @@ describe("can", () => {
 
   it("does not let bootstrap open any other write", () => {
     const bootstrap = { householdHasParent: false };
-    for (const op of ["reorder_categories", "delete_category", "upload_avatar", "update_settings", "clear_pin"] as const) {
+    for (const op of [
+      "reorder_categories",
+      "delete_category",
+      "upload_avatar",
+      "update_settings",
+      "clear_pin",
+      "manage_tasks",
+      "manage_task_box",
+      "resolve_occurrence",
+      "reorder_routines",
+    ] as const) {
       expect(can(null, op, bootstrap)).toEqual({ allowed: false, reason: "NO_ACTOR" });
     }
+  });
+});
+
+/* ------------------------------------------------ FR-351: the first target -- */
+
+const ANA = "profile-ana";
+const CLEO = "profile-cleo";
+const STEADY: PermissionContext = { householdHasParent: true };
+
+/** Cleo's own homework — an assigned occurrence whose chain owner is Cleo. */
+const cleosOwn: OccurrenceTarget = { upForGrabs: false, assigneeId: CLEO };
+
+/** The dishwasher, unclaimed: it belongs to nobody until a claim names a Profile. */
+function upForGrabs(creditProfileId?: string | null): OccurrenceTarget {
+  return { upForGrabs: true, assigneeId: null, creditProfileId };
+}
+
+describe("ownsOccurrence (FR-351, FR-353)", () => {
+  it("is true for the occurrence whose chain owner is the actor", () => {
+    expect(ownsOccurrence({ profileId: CLEO }, cleosOwn)).toBe(true);
+  });
+
+  it("is false for another Profile's occurrence", () => {
+    expect(ownsOccurrence({ profileId: ANA }, cleosOwn)).toBe(false);
+  });
+
+  it("is false for the household chain of an unassigned task", () => {
+    expect(ownsOccurrence({ profileId: CLEO }, { upForGrabs: false, assigneeId: null })).toBe(false);
+  });
+
+  it("lets the credit ride the assignee, and refuses a credit pointing elsewhere", () => {
+    expect(ownsOccurrence({ profileId: CLEO }, { ...cleosOwn, creditProfileId: CLEO })).toBe(true);
+    expect(ownsOccurrence({ profileId: CLEO }, { ...cleosOwn, creditProfileId: ANA })).toBe(false);
+    expect(ownsOccurrence({ profileId: CLEO }, { ...cleosOwn, creditProfileId: null })).toBe(true);
+  });
+
+  it("lets a claim of an unclaimed up-for-grabs occurrence credit only the actor (US3-13)", () => {
+    expect(ownsOccurrence({ profileId: CLEO }, upForGrabs(CLEO))).toBe(true);
+    expect(ownsOccurrence({ profileId: CLEO }, upForGrabs(ANA))).toBe(false);
+  });
+
+  it("refuses an up-for-grabs write that names no Profile — a claim is never anonymous", () => {
+    expect(ownsOccurrence({ profileId: CLEO }, upForGrabs())).toBe(false);
+    expect(ownsOccurrence({ profileId: CLEO }, upForGrabs(null))).toBe(false);
+  });
+
+  it("refuses an up-for-grabs occurrence that somehow carries a chain owner", () => {
+    // The 018 trigger forbids the row; the rule does not depend on it holding.
+    expect(
+      ownsOccurrence({ profileId: CLEO }, {
+        upForGrabs: true,
+        assigneeId: CLEO,
+        creditProfileId: CLEO,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("can, with a target (FR-351, FR-389)", () => {
+  const member = { role: "member" as const, profileId: CLEO };
+  const parent = { role: "parent" as const, profileId: ANA };
+
+  it("lets a member resolve their own occurrence", () => {
+    expect(can(member, "resolve_occurrence", { ...STEADY, target: cleosOwn })).toEqual({
+      allowed: true,
+    });
+  });
+
+  it("refuses a member another Profile's occurrence", () => {
+    expect(
+      can(member, "resolve_occurrence", {
+        ...STEADY,
+        target: { upForGrabs: false, assigneeId: ANA },
+      }),
+    ).toEqual({ allowed: false, reason: "FORBIDDEN" });
+  });
+
+  it("lets a parent resolve anyone's, and credit a claim to anyone", () => {
+    expect(
+      can(parent, "resolve_occurrence", {
+        ...STEADY,
+        target: { upForGrabs: false, assigneeId: CLEO },
+      }),
+    ).toEqual({ allowed: true });
+    expect(can(parent, "resolve_occurrence", { ...STEADY, target: upForGrabs(CLEO) })).toEqual({
+      allowed: true,
+    });
+  });
+
+  it("lets a member claim for themselves and nobody else", () => {
+    expect(can(member, "resolve_occurrence", { ...STEADY, target: upForGrabs(CLEO) })).toEqual({
+      allowed: true,
+    });
+    expect(can(member, "resolve_occurrence", { ...STEADY, target: upForGrabs(ANA) })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
+  });
+
+  it("refuses a member with no target and a member with no profile", () => {
+    expect(can(member, "resolve_occurrence", STEADY)).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
+    expect(
+      can({ role: "member" }, "resolve_occurrence", { ...STEADY, target: cleosOwn }),
+    ).toEqual({ allowed: false, reason: "FORBIDDEN" });
+  });
+
+  it("still demands a punch-in for a resolution, target or not (FR-350)", () => {
+    expect(can(null, "resolve_occurrence", { ...STEADY, target: cleosOwn })).toEqual({
+      allowed: false,
+      reason: "NO_ACTOR",
+    });
+    expect(
+      can(null, "resolve_occurrence", { householdHasParent: false, target: cleosOwn }),
+    ).toEqual({ allowed: false, reason: "NO_ACTOR" });
+  });
+
+  it("orders routines within one's own column only", () => {
+    expect(can(member, "reorder_routines", { ...STEADY, target: cleosOwn })).toEqual({
+      allowed: true,
+    });
+    expect(
+      can(member, "reorder_routines", { ...STEADY, target: { upForGrabs: false, assigneeId: ANA } }),
+    ).toEqual({ allowed: false, reason: "FORBIDDEN" });
+  });
+
+  it("keeps the parent-only verbs parent-only however the target reads", () => {
+    for (const op of ["manage_tasks", "manage_task_box"] as const) {
+      expect(can(member, op, { ...STEADY, target: cleosOwn })).toEqual({
+        allowed: false,
+        reason: "FORBIDDEN",
+      });
+      expect(can(parent, op, { ...STEADY, target: cleosOwn })).toEqual({ allowed: true });
+    }
+  });
+
+  it("ignores a target on an operation that has no record to own", () => {
+    expect(can(member, "read", { ...STEADY, target: upForGrabs(ANA) })).toEqual({ allowed: true });
+    expect(can(member, "update_settings", { ...STEADY, target: cleosOwn })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
   });
 });
 

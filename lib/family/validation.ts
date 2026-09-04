@@ -23,6 +23,8 @@ import {
   type RepeatChoice,
   type Role,
   type Scope,
+  type TaskRepeatChoice,
+  type TimeOfDay,
 } from "./types";
 
 export const pinSchema = z
@@ -42,11 +44,15 @@ const labelSchema = z
   .max(40, { error: "Name must be 40 characters or fewer." });
 
 /** Zod 4 counts code points: 8 is enough for a ZWJ family sequence, not for a sentence. */
-const emojiSchema = z
-  .string({ error: "Emoji must be text." })
-  .trim()
-  .min(1, { error: "Emoji can't be blank." })
-  .max(8, { error: "Emoji must be a single emoji." });
+function emojiFieldSchema(maxLength: number) {
+  return z
+    .string({ error: "Emoji must be text." })
+    .trim()
+    .min(1, { error: "Emoji can't be blank." })
+    .max(maxLength, { error: "Emoji must be a single emoji." });
+}
+
+const emojiSchema = emojiFieldSchema(8);
 
 const dietaryPrefsSchema = z
   .string({ error: "Dietary notes must be text." })
@@ -240,14 +246,16 @@ const untilSchema = z.iso
   .nullable()
   .optional();
 
-const weekdaysSchema = z
-  .array(z.enum(WEEKDAYS, { error: "Weekdays must be codes like MO." }), {
-    error: "Pick the weekdays the event repeats on.",
-  })
-  .min(1, { error: "Pick at least one weekday." })
-  .refine((days) => new Set(days).size === days.length, {
-    error: "Each weekday can appear only once.",
-  });
+function weekdayListSchema(missing: string) {
+  return z
+    .array(z.enum(WEEKDAYS, { error: "Weekdays must be codes like MO." }), { error: missing })
+    .min(1, { error: "Pick at least one weekday." })
+    .refine((days) => new Set(days).size === days.length, {
+      error: "Each weekday can appear only once.",
+    });
+}
+
+const weekdaysSchema = weekdayListSchema("Pick the weekdays the event repeats on.");
 
 /**
  * The four structured choices (FR-231/232). Strict objects: a client can
@@ -288,23 +296,29 @@ const summarySchema = z
   .min(1, { error: "Title is required." })
   .max(120, { error: "Title must be 120 characters or fewer." });
 
-const descriptionSchema = z
-  .string({ error: "Notes must be text." })
-  .trim()
-  .max(2000, { error: "Notes must be 2000 characters or fewer." })
-  .transform((value) => (value === "" ? null : value));
+/** A long optional text field: trimmed, bounded, and blank folded to `null`. */
+function longTextSchema(noun: string, maxLength: number) {
+  return z
+    .string({ error: `${noun} must be text.` })
+    .trim()
+    .max(maxLength, { error: `${noun} must be ${maxLength} characters or fewer.` })
+    .transform((value) => (value === "" ? null : value));
+}
 
-const locationSchema = z
-  .string({ error: "Location must be text." })
-  .trim()
-  .max(200, { error: "Location must be 200 characters or fewer." })
-  .transform((value) => (value === "" ? null : value));
+const descriptionSchema = longTextSchema("Notes", 2000);
 
-const categoryIdsSchema = z
-  .array(z.uuid({ error: "Invalid id." }), { error: "Profiles and Labels must be a list of ids." })
-  .refine((ids) => new Set(ids).size === ids.length, {
-    error: "Each Profile or Label can appear only once.",
-  });
+const locationSchema = longTextSchema("Location", 200);
+
+function idListSchema(missing: string, duplicate: string) {
+  return z
+    .array(z.uuid({ error: "Invalid id." }), { error: missing })
+    .refine((ids) => new Set(ids).size === ids.length, { error: duplicate });
+}
+
+const categoryIdsSchema = idListSchema(
+  "Profiles and Labels must be a list of ids.",
+  "Each Profile or Label can appear only once.",
+);
 
 const END_AFTER_START = "The end must be after the start.";
 const END_DATE_BEFORE_START = "The end date can't be before the start date.";
@@ -544,3 +558,263 @@ export const deleteEventInputSchema = z
       ctx.addIssue({ code: "custom", path: ["occurrenceDate"], message: OCCURRENCE_REQUIRED, input: value });
     }
   });
+
+/* ------------------------------------------------------------------------- *
+ * Tasks (Phase 3 — contracts/server-actions.md, "Zod rules")
+ * ------------------------------------------------------------------------- */
+
+/**
+ * Canonical slot order — the same sequence 016's `task_slots_shape` spells out
+ * as seven literal arrays, so a routine this schema accepts cannot then be
+ * refused by the CHECK behind it (FR-302, FR-335).
+ */
+const TIMES_OF_DAY = ["morning", "afternoon", "evening"] as const satisfies readonly TimeOfDay[];
+
+const timeOfDaySchema = z.enum(TIMES_OF_DAY, {
+  error: "Times of day are morning, afternoon or evening.",
+});
+
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** FR-320's emoji is one glyph, not a label: 16 characters is the outer bound. */
+function isOneGrapheme(value: string): boolean {
+  return [...graphemes.segment(value)].length === 1;
+}
+
+const taskEmojiSchema = emojiFieldSchema(16).refine(isOneGrapheme, {
+  error: "Emoji must be a single emoji.",
+});
+
+/**
+ * A due time is a HOUSEHOLD WALL CLOCK (FR-326), never an instant and never
+ * seconds: `dueInstantOf` composes it onto the zone at read time, so a stored
+ * offset would fabricate a precision no task read ever uses.
+ */
+const TASK_WALL_CLOCK = /^([01][0-9]|2[0-3]):([0-5][0-9])$/;
+
+const dueTimeSchema = z
+  .string({ error: "A due time must be text." })
+  .regex(TASK_WALL_CLOCK, { error: "A due time is a clock time like 18:00." });
+
+/** FR-345: whole intervals 1–99, the bound 016's `tasks_rrule_grammar` carries. */
+const intervalSchema = z
+  .number({ error: "Repeat every how many? Enter a whole number." })
+  .int({ error: "Repeat every how many? Enter a whole number." })
+  .min(1, { error: "Repeat every 1 to 99." })
+  .max(99, { error: "Repeat every 1 to 99." });
+
+/** FR-342: `0` IS "Immediately"; the same 0–99 bound 016 stores. */
+const renewAmountSchema = z
+  .number({ error: "After how long? Enter a whole number." })
+  .int({ error: "After how long? Enter a whole number." })
+  .min(0, { error: "The delay must be between 0 and 99." })
+  .max(99, { error: "The delay must be between 0 and 99." });
+
+const renewUnitSchema = z.enum(["day", "week", "month"], {
+  error: "Choose days, weeks or months.",
+});
+
+/**
+ * The five structured choices (FR-334, FR-339–FR-346). Strict objects, so no
+ * client can smuggle a BYMONTHDAY (the emitter derives it from `startsOn`), a
+ * COUNT (FR-346 accepts no count-of-occurrences limit in either mode) or a rule
+ * string of any shape — R201's no-rule-strings rule, kept for tasks.
+ */
+export const taskRepeatChoiceSchema = z.discriminatedUnion(
+  "kind",
+  [
+    z.strictObject({ kind: z.literal("never") }),
+    z.strictObject({ kind: z.literal("daily"), interval: intervalSchema, until: untilSchema }),
+    z.strictObject({
+      kind: z.literal("weekly"),
+      interval: intervalSchema,
+      weekdays: weekdayListSchema("Pick the weekdays this repeats on."),
+      until: untilSchema,
+    }),
+    z.strictObject({ kind: z.literal("monthly"), interval: intervalSchema, until: untilSchema }),
+    z.strictObject({
+      kind: z.literal("after_completion"),
+      amount: renewAmountSchema,
+      unit: renewUnitSchema,
+      until: untilSchema,
+    }),
+  ],
+  { error: "Choose how this repeats." },
+);
+
+/**
+ * `TaskInput` (contracts → `createTask`). Strict: `rrule`, the `renew_after_*`
+ * triple and the reserved star value are refused rather than stripped, so a
+ * client that tries to write one gets told (FR-329, SC-319, R201).
+ */
+const taskObjectSchema = z.strictObject({
+  summary: summarySchema,
+  description: longTextSchema("Description", 2000).nullable().optional(),
+  emoji: taskEmojiSchema.nullable().optional(),
+  // FR-317: the one discriminator. Every shape rule below reads off it.
+  routine: z.boolean({ error: "Choose chore or routine." }),
+  assigneeIds: idListSchema(
+    "Assignees must be a list of Profile ids.",
+    "Each Profile can appear only once.",
+  ),
+  upForGrabs: z.boolean({ error: "Up for grabs must be on or off." }).optional(),
+  trackHabit: z.boolean({ error: "Track habit must be on or off." }).optional(),
+  startsOn: plainDateSchema.nullable().optional(),
+  dueTime: dueTimeSchema.nullable().optional(),
+  timesOfDay: z
+    .array(timeOfDaySchema, { error: "Times of day must be a list." })
+    .optional(),
+  repeat: taskRepeatChoiceSchema,
+  saveToTaskBox: z.boolean({ error: "Save to task box must be on or off." }).optional(),
+});
+
+/** The fields the cross-field rules read, with every optional resolved once. */
+interface TaskShape {
+  routine: boolean;
+  upForGrabs: boolean;
+  trackHabit: boolean;
+  assigneeIds: string[];
+  startsOn: string | null;
+  dueTime: string | null;
+  timesOfDay: TimeOfDay[];
+  repeat: TaskRepeatChoice;
+}
+
+function taskShapeOf(value: z.output<typeof taskObjectSchema>): TaskShape {
+  return {
+    routine: value.routine,
+    upForGrabs: value.upForGrabs ?? false,
+    trackHabit: value.trackHabit ?? false,
+    assigneeIds: value.assigneeIds,
+    startsOn: value.startsOn ?? null,
+    dueTime: value.dueTime ?? null,
+    timesOfDay: value.timesOfDay ?? [],
+    repeat: value.repeat,
+  };
+}
+
+const NEEDS_AN_ASSIGNEE = "Assign this to at least one Profile, or mark it Up for Grabs.";
+
+/** FR-322 / FR-338 / FR-365: assigned to somebody, or to nobody on purpose. */
+function assignmentIssues(task: TaskShape): FieldIssue[] {
+  if (!task.upForGrabs) {
+    return task.assigneeIds.length > 0 ? [] : [{ path: ["assigneeIds"], message: NEEDS_AN_ASSIGNEE }];
+  }
+  const issues: FieldIssue[] = [];
+  if (task.assigneeIds.length > 0) {
+    issues.push({
+      path: ["upForGrabs"],
+      message: "An Up for Grabs task belongs to nobody — clear its assignees first.",
+    });
+  }
+  if (task.routine) {
+    issues.push({ path: ["upForGrabs"], message: "Only a chore can be Up for Grabs." });
+  }
+  return issues;
+}
+
+/** FR-337: habit tracking is unrepresentable on a chore, not merely unoffered. */
+function habitIssues(task: TaskShape): FieldIssue[] {
+  if (!task.trackHabit || task.routine) return [];
+  return [{ path: ["trackHabit"], message: "Track Habit is a routine's switch." }];
+}
+
+/** Non-empty, deduplicated and in canonical order, in one comparison. */
+function isCanonicalSlotSet(slots: readonly TimeOfDay[]): boolean {
+  const canonical = TIMES_OF_DAY.filter((slot) => slots.includes(slot));
+  return canonical.length === slots.length && canonical.every((slot, index) => slot === slots[index]);
+}
+
+/** FR-333 / FR-335: a routine carries slots, a chore carries none. */
+function slotIssues(task: TaskShape): FieldIssue[] {
+  if (!task.routine) {
+    if (task.timesOfDay.length === 0) return [];
+    return [{ path: ["timesOfDay"], message: "Only a routine has times of day." }];
+  }
+  if (task.timesOfDay.length === 0) {
+    return [{ path: ["timesOfDay"], message: "Pick at least one time of day." }];
+  }
+  if (isCanonicalSlotSet(task.timesOfDay)) return [];
+  return [
+    {
+      path: ["timesOfDay"],
+      message: "Pick each time of day once, in order: morning, afternoon, evening.",
+    },
+  ];
+}
+
+/** The two rule kinds a routine may repeat on (FR-334, Assumption 26). */
+const ROUTINE_RULE_KINDS: readonly TaskRepeatChoice["kind"][] = ["daily", "weekly"];
+
+/** FR-333: a routine has none of a chore's timing fields, and always repeats. */
+function routineTimingIssues(task: TaskShape): FieldIssue[] {
+  const issues: FieldIssue[] = [];
+  if (task.dueTime !== null) {
+    issues.push({ path: ["dueTime"], message: "A routine has no due time — it has times of day." });
+  }
+  if (task.startsOn === null) {
+    issues.push({ path: ["startsOn"], message: "A routine needs a first day." });
+  }
+  if (!ROUTINE_RULE_KINDS.includes(task.repeat.kind)) {
+    issues.push({
+      path: ["repeat"],
+      message: "A routine repeats every so many days, or on chosen weekdays.",
+    });
+  }
+  return issues;
+}
+
+/** FR-325: Timed is a date AND a time; a time alone names no day. */
+function choreTimingIssues(task: TaskShape): FieldIssue[] {
+  if (task.dueTime === null || task.startsOn !== null) return [];
+  return [{ path: ["dueTime"], message: "A due time needs a due date." }];
+}
+
+/**
+ * FR-328 + FR-343: both repeat modes need an anchor — a rule needs a day to
+ * walk from, a chain needs a seed — so an Anytime chore cannot repeat at all,
+ * which is what 016's `task_repeat_needs_an_anchor` makes structural.
+ */
+function repeatAnchorIssues(task: TaskShape): FieldIssue[] {
+  if (task.repeat.kind === "never" || task.startsOn !== null) return [];
+  return [{ path: ["repeat"], message: "An Anytime chore has no date to repeat from." }];
+}
+
+function taskRepeatUntil(repeat: TaskRepeatChoice): string | null {
+  return repeat.kind === "never" ? null : (repeat.until ?? null);
+}
+
+/**
+ * FR-346's end date. `startsOn` and `until` are both household-local
+ * `YYYY-MM-DD` already — unlike an event's instant start — so comparing them as
+ * strings IS the household-zone local-date comparison, with no zone to consult.
+ */
+function repeatUntilIssues(task: TaskShape): FieldIssue[] {
+  const until = taskRepeatUntil(task.repeat);
+  if (until === null || task.startsOn === null || until >= task.startsOn) return [];
+  return [{ path: ["repeat"], message: "The repeat can't end before the first date." }];
+}
+
+/**
+ * Every cross-field rule, in one list, so `createTask` and a merged
+ * `updateTask` patch (FR-318) can be judged by the same function rather than by
+ * two that drift.
+ */
+function taskShapeIssues(task: TaskShape): FieldIssue[] {
+  return [
+    ...assignmentIssues(task),
+    ...habitIssues(task),
+    ...slotIssues(task),
+    ...(task.routine ? routineTimingIssues(task) : choreTimingIssues(task)),
+    ...repeatAnchorIssues(task),
+    ...repeatUntilIssues(task),
+  ];
+}
+
+export const taskInputSchema = taskObjectSchema.superRefine((value, ctx) => {
+  for (const issue of taskShapeIssues(taskShapeOf(value))) {
+    ctx.addIssue({ code: "custom", path: issue.path, message: issue.message, input: value });
+  }
+});
+
+export type TaskInput = z.output<typeof taskInputSchema>;

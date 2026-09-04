@@ -18,9 +18,17 @@ import type {
   ExceptionAction,
   Household,
   HouseholdSettings,
+  RenewUnit,
+  ResolutionStatus,
   Role,
+  Task,
+  TaskAssignee,
+  TaskBoxItem,
+  TaskCursor,
+  TaskResolution,
   TextSize,
   TimeFormat,
+  TimeOfDay,
   WeekStart,
 } from "./types";
 
@@ -266,6 +274,206 @@ export function toEvent(row: EventWithRelationsRow): Event {
     exceptions: [...row.event_exceptions]
       .sort((a, b) => a.occurrence_date.localeCompare(b.occurrence_date))
       .map(toEventException),
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+/* ------------------------------------------------------------------------- *
+ * Tasks (Phase 3 — specs/003-family-tasks)
+ * ------------------------------------------------------------------------- */
+
+/** `reward_points` is absent by design — nothing this phase reads it (FR-329, SC-319). */
+export interface TaskRow {
+  id: string;
+  household_id: string;
+  summary: string;
+  description: string | null;
+  emoji: string | null;
+  routine: boolean;
+  up_for_grabs: boolean;
+  track_habit: boolean;
+  starts_on: string | null;
+  due_time: string | null;
+  times_of_day: TimeOfDay[];
+  rrule: string | null;
+  renew_after_amount: number | null;
+  renew_after_unit: RenewUnit | null;
+  renew_until: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskAssigneeRow {
+  household_id: string;
+  task_id: string;
+  category_id: string;
+  sort_order: number | string;
+  streak_count: number;
+  streak_through: string | null;
+  created_at: string;
+}
+
+/** The board read embeds a task's assignees with their streak pair (R314). */
+export interface TaskWithAssigneesRow extends TaskRow {
+  task_assignees: TaskAssigneeRow[];
+}
+
+export interface TaskResolutionRow {
+  id: string;
+  household_id: string;
+  task_id: string;
+  occurrence_date: string | null;
+  occurrence_slot: TimeOfDay | null;
+  assignee_id: string | null;
+  category_id: string | null;
+  cycle_prev: string | null;
+  status: ResolutionStatus;
+  resolved_on: string;
+  resolved_at: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+/** `family.task_cursors` — a view, so it has no id of its own beyond the tail's. */
+export interface TaskCursorRow {
+  household_id: string;
+  task_id: string;
+  assignee_id: string | null;
+  tail_id: string;
+  tail_resolved_on: string;
+}
+
+/** `reward_points` is absent by design (FR-377, SC-319). */
+export interface TaskBoxItemRow {
+  id: string;
+  household_id: string;
+  summary: string;
+  emoji: string | null;
+  routine: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const TASK_COLUMNS =
+  "id, household_id, summary, description, emoji, routine, up_for_grabs, track_habit, " +
+  "starts_on, due_time, times_of_day, rrule, renew_after_amount, renew_after_unit, " +
+  "renew_until, created_by, updated_by, created_at, updated_at";
+
+export const TASK_ASSIGNEE_COLUMNS =
+  "household_id, task_id, category_id, sort_order, streak_count, streak_through, created_at";
+
+export const TASK_RESOLUTION_COLUMNS =
+  "id, household_id, task_id, occurrence_date, occurrence_slot, assignee_id, category_id, " +
+  "cycle_prev, status, resolved_on, resolved_at, created_by, created_at";
+
+export const TASK_CURSOR_COLUMNS =
+  "household_id, task_id, assignee_id, tail_id, tail_resolved_on";
+
+export const TASK_BOX_COLUMNS =
+  "id, household_id, summary, emoji, routine, created_by, updated_by, created_at, updated_at";
+
+/**
+ * The tasks select with its one embed, built as a joined list rather than
+ * adjacent template literals — the production bundler folds those and drops the
+ * separator between them, which shipped as PGRST100 on every client-side read
+ * (see `eventsSelect`).
+ */
+export function tasksSelect(): string {
+  return [TASK_COLUMNS, `task_assignees(${TASK_ASSIGNEE_COLUMNS})`].join(",");
+}
+
+function toTaskAssignee(row: TaskAssigneeRow): TaskAssignee {
+  return {
+    taskId: row.task_id,
+    householdId: row.household_id,
+    categoryId: row.category_id,
+    // `numeric` arrives as a string from PostgREST.
+    sortOrder: Number(row.sort_order),
+    streakCount: row.streak_count,
+    streakThrough: row.streak_through,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * PostgREST renders `time` as `HH:MM:SS`; the domain type is the `HH:MM` wall
+ * clock the action wrote, and validation admits no seconds (FR-326).
+ */
+function toDueTime(value: string | null): string | null {
+  return value === null ? null : value.slice(0, 5);
+}
+
+export function toTask(row: TaskWithAssigneesRow): Task {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    summary: row.summary,
+    description: row.description,
+    emoji: row.emoji,
+    routine: row.routine,
+    upForGrabs: row.up_for_grabs,
+    trackHabit: row.track_habit,
+    startsOn: row.starts_on,
+    dueTime: toDueTime(row.due_time),
+    timesOfDay: [...row.times_of_day],
+    rrule: row.rrule,
+    renewAfterAmount: row.renew_after_amount,
+    renewAfterUnit: row.renew_after_unit,
+    renewUntil: row.renew_until,
+    // PostgREST embed order is unspecified and the expander's output order
+    // follows this one, so it is pinned rather than inherited.
+    assignees: [...row.task_assignees]
+      .sort((a, b) => a.category_id.localeCompare(b.category_id))
+      .map(toTaskAssignee),
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toTaskResolution(row: TaskResolutionRow): TaskResolution {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    taskId: row.task_id,
+    occurrenceDate: row.occurrence_date,
+    occurrenceSlot: row.occurrence_slot,
+    assigneeId: row.assignee_id,
+    categoryId: row.category_id,
+    cyclePrev: row.cycle_prev,
+    status: row.status,
+    resolvedOn: row.resolved_on,
+    resolvedAt: row.resolved_at,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+  };
+}
+
+export function toTaskCursor(row: TaskCursorRow): TaskCursor {
+  return {
+    householdId: row.household_id,
+    taskId: row.task_id,
+    assigneeId: row.assignee_id,
+    tailId: row.tail_id,
+    tailResolvedOn: row.tail_resolved_on,
+  };
+}
+
+export function toTaskBoxItem(row: TaskBoxItemRow): TaskBoxItem {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    summary: row.summary,
+    emoji: row.emoji,
+    routine: row.routine,
     createdBy: row.created_by,
     updatedBy: row.updated_by,
     createdAt: row.created_at,

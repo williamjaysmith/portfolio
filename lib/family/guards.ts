@@ -119,17 +119,28 @@ async function clearActorQuietly(): Promise<void> {
 /**
  * Re-reads the profile row: a parent demoted or deleted on another device loses
  * the power immediately, not when the cookie expires. The returned actor
- * carries the database role.
+ * carries the DATABASE role, so a caller may branch on it (R323).
+ *
+ * Extracted from `requireParent` for Phase 3's FR-351, the first privileged
+ * path that is not parent-only: a resolution lets a parent act for anyone and a
+ * member only for themselves, so it must decide from this role and never from
+ * the cookie's.
  */
-export async function requireParent(): Promise<Actor> {
+export async function requireVerifiedActor(): Promise<Actor> {
   const actor = await requireActor();
   const profile = await readActorProfile(actor);
   if (!profile) {
     await clearActorQuietly();
     throw new ActionFailure("NO_ACTOR");
   }
-  if (profile.role !== "parent") throw new ActionFailure("FORBIDDEN");
   return { ...actor, role: profile.role };
+}
+
+/** The same re-read, refusing anyone the database does not call a parent. */
+export async function requireParent(): Promise<Actor> {
+  const actor = await requireVerifiedActor();
+  if (actor.role !== "parent") throw new ActionFailure("FORBIDDEN");
+  return actor;
 }
 
 /**

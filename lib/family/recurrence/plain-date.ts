@@ -1,8 +1,8 @@
 /**
  * Epoch-day arithmetic on plain `YYYY-MM-DD` dates — the household-local
- * date vocabulary shared by the recurrence walk (`expand.ts`) and the
- * calendar's week maths (`calendar/dates.ts`), extracted so neither
- * reimplements it (quality-bars: no new duplication).
+ * date vocabulary shared by the recurrence walk (`expand.ts`), the calendar's
+ * week maths (`calendar/dates.ts`) and the tasks board, extracted so none of
+ * them reimplements it (quality-bars: no new duplication).
  *
  * An epoch day is a date's UTC-midnight ms divided by 86 400 000 — a pure
  * day counter. UTC has no transitions, so stepping by whole days can never
@@ -43,6 +43,27 @@ export function datePartsOf(day: number): { year: number; month: number; day: nu
 /** 0 = Sunday … 6 = Saturday. */
 export function weekdayIndexOf(day: number): number {
   return new Date(day * DAY_MS).getUTCDay();
+}
+
+/**
+ * The first day of the week containing `day`, weeks starting on `startWeekOn`
+ * (0 = Sunday … 6 = Saturday). One implementation serves the calendar's
+ * start-of-week setting and the recurrence walk's `WKST` week parity, so the
+ * two can never disagree about which week a date is in (R303).
+ */
+export function weekStartDay(day: number, startWeekOn: number): number {
+  return day - ((weekdayIndexOf(day) - startWeekOn + 7) % 7);
+}
+
+/**
+ * Whole CALENDAR months from `from` to `to`, signed — the day-of-month is
+ * ignored, so the count is the same for every day of a month. This is what
+ * `INTERVAL=N` counts on a monthly rule (R303).
+ */
+export function monthsBetween(from: number, to: number): number {
+  const start = datePartsOf(from);
+  const end = datePartsOf(to);
+  return (end.year - start.year) * 12 + (end.month - start.month);
 }
 
 function pad(value: number, width: number): string {

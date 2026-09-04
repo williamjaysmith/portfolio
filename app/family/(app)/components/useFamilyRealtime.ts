@@ -16,9 +16,10 @@ import { createClient } from "@/lib/family/supabase/client";
 
 type TableSubscription = {
   readonly table: string;
-  // Optional: the calendar tables subscribe UNFILTERED (R209, Assumption 39) —
-  // DELETE payloads carry primary keys only, never household_id, so a filtered
-  // subscription would silently never fire on deletes.
+  // Optional: the calendar and task tables subscribe UNFILTERED (R209, R324,
+  // Assumption 39) — DELETE payloads carry primary keys only, never
+  // household_id, so a filtered subscription would silently never fire on
+  // deletes.
   readonly filter?: (householdId: string) => string;
 };
 
@@ -29,7 +30,32 @@ const TABLES: readonly TableSubscription[] = [
   { table: "events" },
   { table: "event_categories" },
   { table: "event_exceptions" },
+  // Tasks (FR-392, SC-306). Unfiltered for the reason above, which this phase
+  // makes routine rather than rare: an un-complete and an unskip each DELETE a
+  // `task_resolutions` row, so deletes are the hot path, not the edge case.
+  //
+  // The bare `familyKeys.all` invalidation below is now LOAD-BEARING, not
+  // merely convenient: completing a Completed Date occurrence creates a FUTURE
+  // day's occurrence, and the cursor read that publishes it is unwindowed, so
+  // narrowing this sweep to the displayed day would break that mode first.
+  { table: "tasks" },
+  { table: "task_assignees" },
+  { table: "task_resolutions" },
+  { table: "task_box_items" },
 ];
+
+/** `CLOSED` is the ordinary unmount; only these two mean nothing will arrive. */
+const FAILED_STATUSES: readonly string[] = ["CHANNEL_ERROR", "TIMED_OUT"];
+
+/**
+ * A channel that never subscribes fails silently — the screen keeps showing
+ * whatever it drew last and nobody learns the house has moved on. Said out
+ * loud, in the one place that knows, rather than diagnosed from a stale board.
+ */
+function reportChannelStatus(status: string, error?: Error): void {
+  if (!FAILED_STATUSES.includes(status)) return;
+  console.error(`[family] realtime channel ${status}`, error?.message ?? "no reason reported");
+}
 
 export function useFamilyRealtime(householdId: string): void {
   const queryClient = useQueryClient();
@@ -47,7 +73,7 @@ export function useFamilyRealtime(householdId: string): void {
         invalidate,
       );
     }
-    channel.subscribe();
+    channel.subscribe(reportChannelStatus);
 
     return () => {
       void supabase.removeChannel(channel);

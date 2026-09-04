@@ -60,6 +60,12 @@
         ]
       },
       {
+        "name": "family-tasks-core",
+        "patterns": [
+          "lib/family/tasks/**/*"
+        ]
+      },
+      {
         "name": "family-actions",
         "patterns": [
           "lib/family/actions/**/*"
@@ -125,11 +131,21 @@
         ]
       },
       {
+        "from": "family-tasks-core",
+        "allow": [
+          "family-tasks-core",
+          "family-recurrence",
+          "family-calendar-core",
+          "lib"
+        ]
+      },
+      {
         "from": "family-actions",
         "allow": [
           "family-actions",
           "family-recurrence",
           "family-calendar-core",
+          "family-tasks-core",
           "lib"
         ]
       },
@@ -137,7 +153,8 @@
         "from": "lib",
         "allow": [
           "lib",
-          "family-calendar-core"
+          "family-calendar-core",
+          "family-tasks-core"
         ]
       },
       {
@@ -146,6 +163,7 @@
           "components",
           "lib",
           "family-calendar-core",
+          "family-tasks-core",
           "family-actions"
         ]
       },
@@ -156,6 +174,7 @@
           "components",
           "lib",
           "family-calendar-core",
+          "family-tasks-core",
           "family-actions"
         ]
       },
@@ -177,6 +196,7 @@
           "config",
           "family-recurrence",
           "family-calendar-core",
+          "family-tasks-core",
           "family-actions"
         ]
       },
