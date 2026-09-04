@@ -13,11 +13,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
   CATEGORY_COLUMNS,
-  EVENT_CATEGORY_COLUMNS,
-  EVENT_COLUMNS,
-  EVENT_EXCEPTION_COLUMNS,
   HOUSEHOLD_COLUMNS,
   SETTINGS_COLUMNS,
+  eventsSelect,
   toCategory,
   toEvent,
   toHousehold,
@@ -129,9 +127,7 @@ export interface WeekFetchBounds extends WeekCacheWindow {
 
 // The week read embeds the ordered links and EVERY exception with each event
 // row — that totality is what makes a moved occurrence findable (R206).
-const WEEK_EVENT_COLUMNS =
-  `${EVENT_COLUMNS}, event_categories(${EVENT_CATEGORY_COLUMNS}), ` +
-  `event_exceptions(${EVENT_EXCEPTION_COLUMNS})`;
+const WEEK_EVENT_COLUMNS = eventsSelect();
 
 export async function fetchWeekEvents(
   supabase: SupabaseClient,
