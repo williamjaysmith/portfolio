@@ -1,11 +1,14 @@
 <!-- SPECKIT START -->
 **Active feature**: `002-family-week-calendar` — Phase 2 of the `/family` Skylight Calendar
 clone: the Week calendar (events, simple repeats + per-occurrence exceptions, scoped edit/delete,
-full drag, 3-day phone slice). Planned; implementation not started.
+full drag, 3-day phone slice). **Built and locally verified**; 67 of 68 tasks done. What
+remains needs the operator: `supabase db push` of migrations 010-015 to the hosted project, the
+timezone seed (`FAMILY_SEED_TIMEZONE=America/Chicago`), and the wall-tablet/iPad checks — all in
+`specs/002-family-week-calendar/quickstart.md` §4 (task T067).
 
 Read in this order before touching `/family` code:
 1. `specs/002-family-week-calendar/plan.md` — the implementation plan and phasing
-2. `specs/002-family-week-calendar/spec.md` — 89 requirements, evidence-tagged
+2. `specs/002-family-week-calendar/spec.md` — 90 requirements, evidence-tagged
 3. `specs/002-family-week-calendar/research.md` — the technical decisions and why
 4. `specs/002-family-week-calendar/data-model.md` — migrations 010–015, policies, invariants
 5. `specs/002-family-week-calendar/contracts/server-actions.md` — the action surface

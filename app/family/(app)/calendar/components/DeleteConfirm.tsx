@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+
+import { useModalDialog } from "../../components/useModalDialog";
 
 /**
  * The delete confirmation (T049, FR-258, US2-11): every delete asks first,
@@ -32,21 +34,8 @@ export interface DeleteConfirmProps {
 }
 
 export function DeleteConfirm({ summary, pending = false, onConfirm, onCancel }: DeleteConfirmProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    // Captured before the dialog takes the keyboard: this dialog is unmounted
-    // rather than closed, so nothing hands focus back on its own (SC-009).
-    const opener = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open && typeof dialog.showModal === "function") dialog.showModal();
-    cancelRef.current?.focus();
-
-    return () => {
-      if (opener?.isConnected) opener.focus();
-    };
-  }, []);
+  const dialogRef = useModalDialog(true, cancelRef);
 
   return (
     <dialog

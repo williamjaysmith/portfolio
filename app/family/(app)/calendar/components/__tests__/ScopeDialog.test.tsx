@@ -86,19 +86,17 @@ describe("ScopeDialog", () => {
     expect(screen.getByRole("radio", { name: "This and future events" })).toBeChecked();
   });
 
-  it("carries the segment wording on 'All events' only for a previously split series (FR-242)", () => {
-    const { unmount } = render(
-      <ScopeDialog mode="edit" wasSplit onChoose={vi.fn()} onCancel={vi.fn()} />,
-    );
-    // The note describes the option without changing its FR-237 name.
-    const all = screen.getByRole("radio", { name: "All events" });
-    expect(all).toHaveAccessibleDescription(
-      "This series was split earlier, so only the part this event belongs to is affected.",
-    );
-    unmount();
-
+  it("warns on 'All events' that a split repeat reaches only its own part (FR-242)", () => {
+    // Split history is deliberately not stored (no lineage column), so the
+    // caveat is worded to hold either way and is always shown rather than
+    // hidden behind a signal the app cannot observe.
     render(<ScopeDialog mode="edit" onChoose={vi.fn()} onCancel={vi.fn()} />);
-    expect(screen.getByRole("radio", { name: "All events" })).toHaveAccessibleDescription("");
+
+    // The note describes the option without changing its FR-237 name.
+    expect(screen.getByRole("radio", { name: "All events" })).toHaveAccessibleDescription(
+      "If this repeat was ever split by a \u201cthis and future\u201d change, this reaches only the part this event belongs to.",
+    );
+    expect(screen.getByRole("radio", { name: "This event" })).toHaveAccessibleDescription("");
   });
 
   it("reports the selected scope through onChoose", () => {

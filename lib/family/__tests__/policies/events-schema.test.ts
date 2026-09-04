@@ -313,6 +313,23 @@ describe("events schema: the data-model invariants", () => {
     expect(foreignException.error?.code).toBe("23503");
   });
 
+  it("attribution cannot name a profile from another household (23503)", async () => {
+    // Migration 011 tightens events.created_by/updated_by to the composite
+    // (id, household_id) key, so the schema itself refuses the mismatch the
+    // action layer already prevents by taking attribution from the actor.
+    const forged = await insertEvent({
+      summary: `Forged attribution ${fx.run}`,
+      created_by: categoryB,
+    });
+    expect(forged.error?.code).toBe("23503");
+
+    const honest = await insertEvent({
+      summary: `Honest attribution ${fx.run}`,
+      created_by: categoryA,
+    });
+    expect(honest.error).toBeNull();
+  });
+
   it("deleting a category cascades its links and leaves the event standing (FR-274, SC-214)", async () => {
     const doomedCategory = await insertCategory(pool, {
       householdId: householdA,

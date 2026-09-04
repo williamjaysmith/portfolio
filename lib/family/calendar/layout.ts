@@ -37,7 +37,7 @@
  * (44 floor, 180 cap threshold) live here.
  */
 
-import { diffDays, localDateOf } from "./dates";
+import { diffDays, localDateOf, wallMinutesOf } from "./dates";
 import type { EventTimes, Occurrence } from "../types";
 import { MINUTES_PER_DAY } from "../week-geometry";
 
@@ -421,36 +421,6 @@ function laneForSpan(laneEnds: number[], span: AllDaySpan): number {
   }
   laneEnds.push(span.endColumn);
   return laneEnds.length - 1;
-}
-
-/* ------------------------------------------------------------ wall time -- */
-
-const wallFormatters = new Map<string, Intl.DateTimeFormat>();
-
-function wallFormatterFor(zone: string): Intl.DateTimeFormat {
-  const cached = wallFormatters.get(zone);
-  if (cached) return cached;
-  // h23 pins midnight to "00"; construction is the expensive part, cache it.
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: zone,
-    hourCycle: "h23",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  wallFormatters.set(zone, formatter);
-  return formatter;
-}
-
-/**
- * Wall-clock minutes since the ruler's midnight at a UTC instant. A plain
- * instant→wall READ — every instant has exactly one reading, so no DST
- * policy is exercised here. Zone POLICY (wall→instant, gap/fold) stays in
- * `recurrence/zone.ts`, which the fallow boundary keeps out of this zone's
- * reach on purpose; only `calendar/expand.ts`/`dates.ts` may compose it.
- */
-function wallMinutesOf(zone: string, instantMs: number): number {
-  const text = wallFormatterFor(zone).format(instantMs); // "HH:MM"
-  return Number(text.slice(0, 2)) * 60 + Number(text.slice(3, 5));
 }
 
 /* --------------------------------------------------------------- guards -- */

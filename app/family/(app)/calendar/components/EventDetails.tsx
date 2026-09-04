@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 
 import { localDateOf } from "@/lib/family/calendar/dates";
 import type {
@@ -11,6 +11,8 @@ import type {
   TimeFormat,
   Weekday,
 } from "@/lib/family/types";
+
+import { useModalDialog } from "../../components/useModalDialog";
 
 /**
  * The event-details surface (T047, FR-256): tapping a block or a "+n more"
@@ -183,21 +185,8 @@ export function EventDetails({
   onDelete,
   onClose,
 }: EventDetailsProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    // Captured before the dialog takes the keyboard: this dialog is unmounted
-    // rather than closed, so nothing hands focus back on its own (SC-009).
-    const opener = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open && typeof dialog.showModal === "function") dialog.showModal();
-    closeRef.current?.focus();
-
-    return () => {
-      if (opener?.isConnected) opener.focus();
-    };
-  }, []);
+  const dialogRef = useModalDialog(true, closeRef);
 
   const repeatText = repeatInWords(repeat, occurrence.occurrenceDate);
   const assigned = assignedOf(occurrence.categoryIds, categories);

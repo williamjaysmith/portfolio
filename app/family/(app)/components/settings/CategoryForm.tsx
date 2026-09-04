@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { createCategory, updateCategory } from "@/lib/family/actions/categories";
 import type { ActionResult, FieldErrors } from "@/lib/family/errors";
@@ -27,23 +27,6 @@ export interface CategoryFormProps {
   /** Bootstrap: the first person in a household is always a parent (D6). */
   forceParent?: boolean;
   onClose: () => void;
-}
-
-/**
- * Hands the keyboard back to whatever opened the dialog once it goes away.
- *
- * The form is unmounted rather than closed, so nothing does this for us:
- * without it focus lands on <body> and a keyboard user restarts from the top
- * of the document after every save or cancel (SC-009). Call it before
- * `useModalDialog`, whose effect is what takes the focus away.
- */
-function useReturnFocus(): void {
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    return () => {
-      if (opener?.isConnected) opener.focus();
-    };
-  }, []);
 }
 
 function FormFooter({ pending, onCancel }: { pending: boolean; onCancel: () => void }) {
@@ -120,8 +103,7 @@ function dialogTitle(
 export function CategoryForm({ mode, kind, existing, forceParent, onClose }: CategoryFormProps) {
   const { categories, profiles, withActor } = useFamily();
 
-  useReturnFocus();
-  const dialogRef = useModalDialog(true);
+  const dialogRef = useModalDialog(true, true);
   const isProfile = kind === "profile";
 
   const form = useCategoryForm(existing, Boolean(forceParent));

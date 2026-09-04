@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
 import { deleteCategory } from "@/lib/family/actions/categories";
 import { canDelete } from "@/lib/family/permissions";
@@ -8,6 +8,7 @@ import { useCategoryEventCount } from "@/lib/family/queries";
 import type { Category } from "@/lib/family/types";
 
 import { useFamily } from "../FamilyProvider";
+import { useModalDialog } from "../useModalDialog";
 
 /**
  * Deleting is confirmed, and the dialog says exactly what goes and what stays
@@ -43,24 +44,10 @@ function affectedEventsLine(
 export function DeleteDialog({ category, onClose }: DeleteDialogProps) {
   const { householdId, profiles, actor, withActor } = useFamily();
   const affected = useCategoryEventCount(householdId, category.id);
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useModalDialog(true, cancelRef);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-
-  useEffect(() => {
-    // Captured before the dialog takes the keyboard. This dialog is unmounted
-    // rather than closed, so nothing hands focus back on its own: without this
-    // it lands on <body> and the next Tab restarts from the top (SC-009).
-    const opener = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open && typeof dialog.showModal === "function") dialog.showModal();
-    cancelRef.current?.focus();
-
-    return () => {
-      if (opener?.isConnected) opener.focus();
-    };
-  }, []);
 
   const lastParent = category.isProfile && !canDelete(category, profiles).allowed;
   const isSelf = actor?.profileId === category.id;

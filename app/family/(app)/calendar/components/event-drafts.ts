@@ -11,7 +11,7 @@ import type {
 } from "@/lib/family/types";
 import { WEEKDAYS } from "@/lib/family/types";
 
-import { wallMinutesOf } from "./NowLine";
+import { wallMinutesOf } from "@/lib/family/calendar/dates";
 import type { EventDraft, EventFormSeed } from "./useEventForm";
 
 /**

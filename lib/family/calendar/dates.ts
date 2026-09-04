@@ -108,3 +108,36 @@ function midnightMs(zone: string, date: string): number {
   const parts = datePartsOf(epochDayOf(date));
   return wallToInstant(zone, { ...parts, hour: 0, minute: 0, second: 0 });
 }
+
+/* ------------------------------------------------------------ wall time -- */
+
+const wallFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function wallFormatterFor(zone: string): Intl.DateTimeFormat {
+  const cached = wallFormatters.get(zone);
+  if (cached) return cached;
+  // h23 pins midnight to "00"; construction is the expensive part, cache it.
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  wallFormatters.set(zone, formatter);
+  return formatter;
+}
+
+/**
+ * Wall-clock minutes since the zone's midnight at a UTC instant. A plain
+ * instant→wall READ — every instant has exactly one reading, so no DST policy
+ * is exercised here; zone POLICY (wall→instant, gap and fold) stays in
+ * `recurrence/zone.ts`.
+ *
+ * One implementation on purpose: the hour grid, the now line and the FR-290
+ * follow-scroll all place the same minute, and two conversions could disagree
+ * by a minute — a calendar that is wrong is worse than one that is absent.
+ */
+export function wallMinutesOf(zone: string, instantMs: number): number {
+  const text = wallFormatterFor(zone).format(instantMs); // "HH:MM"
+  return Number(text.slice(0, 2)) * 60 + Number(text.slice(3, 5));
+}

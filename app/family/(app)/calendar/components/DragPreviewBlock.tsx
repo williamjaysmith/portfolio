@@ -102,7 +102,16 @@ export function DragPreviewBlock({
 }: DragPreviewBlockProps) {
   const reducedMotion = useReducedMotion();
   const segment = ghostSegmentOf(occurrence, placement, date, metrics);
-  const top = Math.max(0, placement.startMinutes * metrics.pxPerMinute);
+  // The same clamp the settled block gets (calendar/layout.ts): a floored
+  // short block near midnight is pulled up inside the column, so the ghost
+  // and where it lands cannot disagree at the day's edge.
+  const top = Math.max(
+    0,
+    Math.min(
+      placement.startMinutes * metrics.pxPerMinute,
+      MINUTES_PER_DAY * metrics.pxPerMinute - segment.height,
+    ),
+  );
 
   return (
     <motion.div

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { localDateOf } from "@/lib/family/calendar/dates";
 
 import { useNow } from "../../components/Clock";
-import { wallMinutesOf } from "./NowLine";
+import { wallMinutesOf } from "@/lib/family/calendar/dates";
 
 /**
  * T034: the FR-290 follow-scroll (US1-15, Assumption 42). While the grid is

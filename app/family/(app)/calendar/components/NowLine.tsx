@@ -3,6 +3,7 @@
 import { MINUTES_PER_DAY } from "@/lib/family/week-geometry";
 
 import { useNow } from "../../components/Clock";
+import { wallMinutesOf } from "@/lib/family/calendar/dates";
 
 /**
  * FR-208 (T032): the current-time indicator — a 2pt coral bar across today's
@@ -20,32 +21,6 @@ import { useNow } from "../../components/Clock";
  * as a fraction of the 24-row canvas, matching layout.ts's ruler exactly.
  * Decorative for assistive tech: the top bar's clock announces the time.
  */
-
-const wallFormatters = new Map<string, Intl.DateTimeFormat>();
-
-function wallFormatterFor(zone: string): Intl.DateTimeFormat {
-  const cached = wallFormatters.get(zone);
-  if (cached) return cached;
-  // h23 pins midnight to "00"; construction is the expensive part, cache it.
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: zone,
-    hourCycle: "h23",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  wallFormatters.set(zone, formatter);
-  return formatter;
-}
-
-/**
- * Wall minutes since the household zone's midnight — an instant→wall READ.
- * Shared with the FR-290 follow-scroll (`useFollowScroll`), which must place
- * the same line at the same y; two conversions could disagree by a minute.
- */
-export function wallMinutesOf(zone: string, instantMs: number): number {
-  const text = wallFormatterFor(zone).format(instantMs); // "HH:MM"
-  return Number(text.slice(0, 2)) * 60 + Number(text.slice(3, 5));
-}
 
 export interface NowLineProps {
   /** Household IANA zone (FR-284) — never the device's. */

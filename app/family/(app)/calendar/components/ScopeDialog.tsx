@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import type { Scope } from "@/lib/family/types";
+
+import { useModalDialog } from "../../components/useModalDialog";
 
 /**
  * The three-scope question for a repeating event — ONE component serving
@@ -29,8 +31,6 @@ export interface ScopeDialogProps {
   mode: ScopeDialogMode;
   /** FR-287 — the change includes Profiles/Labels, so "This event" is not offered. */
   categoriesChanged?: boolean;
-  /** FR-242 — the series was previously split, so "All events" names its segment. */
-  wasSplit?: boolean;
   onChoose: (scope: Scope) => void;
   onCancel: () => void;
 }
@@ -54,26 +54,11 @@ const SPLIT_NOTE_ID = "scope-dialog-split-note";
 export function ScopeDialog({
   mode,
   categoriesChanged = false,
-  wasSplit = false,
   onChoose,
   onCancel,
 }: ScopeDialogProps) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const [scope, setScope] = useState<Scope>(categoriesChanged ? "this_and_future" : "this");
-
-  useEffect(() => {
-    // Captured before the dialog takes the keyboard: this dialog is unmounted
-    // rather than closed, so nothing hands focus back on its own (the Phase 1
-    // DeleteDialog idiom, SC-009).
-    const opener = document.activeElement as HTMLElement | null;
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open && typeof dialog.showModal === "function") dialog.showModal();
-    dialog?.querySelector<HTMLInputElement>("input:checked")?.focus();
-
-    return () => {
-      if (opener?.isConnected) opener.focus();
-    };
-  }, []);
+  const dialogRef = useModalDialog(true, "input:checked");
 
   const offered = categoriesChanged
     ? SCOPE_LABELS.filter((option) => option.scope !== "this")
@@ -113,18 +98,18 @@ export function ScopeDialog({
                 value={value}
                 checked={scope === value}
                 onChange={() => setScope(value)}
-                aria-describedby={value === "all" && wasSplit ? SPLIT_NOTE_ID : undefined}
+                aria-describedby={value === "all" ? SPLIT_NOTE_ID : undefined}
                 className="size-5 accent-(--fam-primary-blue)"
               />
               {label}
             </label>
-            {value === "all" && wasSplit ? (
+            {value === "all" ? (
               <p
                 id={SPLIT_NOTE_ID}
                 className="mb-1 pl-10 pr-2 text-(length:--fam-fs-small) text-(--fam-text-secondary)"
               >
-                This series was split earlier, so only the part this event belongs to is
-                affected.
+                If this repeat was ever split by a &ldquo;this and future&rdquo; change, this
+                reaches only the part this event belongs to.
               </p>
             ) : null}
           </div>

@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-
 import type { FieldErrors } from "@/lib/family/errors";
 import { WEEKDAYS, type Category, type EventInput, type Weekday } from "@/lib/family/types";
 
@@ -250,17 +248,7 @@ function CategoryPicker({
 
 export function EventForm({ mode, seed, onSubmit, onClose }: EventFormProps) {
   const { categories, settings } = useFamily();
-
-  // Hands the keyboard back to whatever opened the dialog once it goes away —
-  // the CategoryForm reasoning (SC-009); the form is unmounted, not closed,
-  // so nothing else restores focus. Runs before `useModalDialog` takes it.
-  useEffect(() => {
-    const opener = document.activeElement;
-    return () => {
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    };
-  }, []);
-  const dialogRef = useModalDialog(true);
+  const dialogRef = useModalDialog(true, true);
 
   const form = useEventForm({
     seed,
