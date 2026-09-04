@@ -1,6 +1,36 @@
 <!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+**Active feature**: `002-family-week-calendar` — Phase 2 of the `/family` Skylight Calendar
+clone: the Week calendar (events, simple repeats + per-occurrence exceptions, scoped edit/delete,
+full drag, 3-day phone slice). **Built, verified, and deployed.**
+Migrations 010-015 are on the hosted project and the household timezone is seeded
+(`America/Chicago`). All 68 tasks are done except the parts of T067 that need real hardware: the
+wall-tablet run, the iPad drag feel pass, and the overnight rollover watch
+(`specs/002-family-week-calendar/quickstart.md` §4).
+
+Read in this order before touching `/family` code:
+1. `specs/002-family-week-calendar/plan.md` — the implementation plan and phasing
+2. `specs/002-family-week-calendar/spec.md` — 90 requirements, evidence-tagged
+3. `specs/002-family-week-calendar/research.md` — the technical decisions and why
+4. `specs/002-family-week-calendar/data-model.md` — migrations 010–015, policies, invariants
+5. `specs/002-family-week-calendar/contracts/server-actions.md` — the action surface
+6. `specs/002-family-week-calendar/quickstart.md` — setup and how to verify each guarantee
+
+Phase 1 (`specs/001-family-foundation/`) is shipped and hosted: shared-password sign-in (one
+household account, `FAMILY_ACCOUNT_EMAIL` server-side, sign-ups disabled + Before-User-Created
+hook), punch-in PINs, shell, Profiles & Labels, PWA. Its docs bind Phase 2's conventions.
+
+Product truth lives in `docs/research/skylight/00-master-map.md`.
+Note: this repo is Next 16 — request interception is `proxy.ts`, not `middleware.ts`,
+and it is NOT an authorization boundary. Every server action re-checks auth itself.
+
+**Working locally**: `supabase start` (this repo's stack is on **553xx**, not the CLI defaults —
+another project already occupies 543xx), then `supabase db reset`, `npm run family:seed -- --local`,
+then `npm run dev:local` and sign in with password `family-dev-password` (account `dev@family.local`).
+
+**The gate needs coverage**: fallow scores untested branchy functions via CRAP, so
+`.fallowrc.json` points `health.coverage` at `coverage/coverage-final.json` and
+`npm run fallow:audit` regenerates it first. `coverage/` is gitignored, so run
+`npm run test:coverage` once before invoking `fallow` directly (the git pre-commit hook does).
 <!-- SPECKIT END -->
 
 # Portfolio — willsmith.dev
@@ -13,7 +43,7 @@ A Next.js 16 (App Router) portfolio on Vercel that also hosts self-contained sub
 | `/skyhammer`         | Music player                                  |
 | `/colectivo/routes`  | Delivery-routing tool (localStorage-backed)   |
 | `/design`            | Design work                                   |
-| `/family`            | **In development** — Skylight Calendar clone, family-only (Supabase) |
+| `/family`            | Skylight Calendar clone, family-only (Supabase). Phase 1 built; awaiting the operator's hosted setup |
 
 ## Stack
 

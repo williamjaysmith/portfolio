@@ -1,0 +1,298 @@
+/* app/family/tokens.css
+ * Skylight-derived design tokens for /family.
+ *
+ * Scoped to `.family` (the wrapper <div> rendered by app/family/layout.tsx) — NOT :root.
+ * The portfolio owns :root and globals.css; this file is plain CSS with no Tailwind
+ * directives (no @theme / @apply / @utility / @import "tailwindcss") because a stylesheet
+ * imported from a nested layout is not processed as Tailwind input. Consume the tokens
+ * from JSX with Tailwind 4's variable shorthand: bg-(--fam-sidebar-bg),
+ * text-(--fam-text-muted), text-(length:--fam-fs-nav), h-(--fam-topbar-h), etc.
+ *
+ * Every custom property is prefixed --fam- so nothing collides with the portfolio's
+ * Tailwind theme variables (--font-sans, --color-*, --spacing, ...).
+ *
+ * Sources: docs/research/skylight/07-visual-design-system.md §1, §2, §3, §4, §8;
+ *          docs/research/skylight/00-master-map.md §3; specs/001-family-foundation/research.md R8, R12;
+ *          specs/002-family-week-calendar/spec.md FR-208/209/212/213/215 (week-grid tokens).
+ * Evidence tags: [VERIFIED] from the API/help centre · [SAMPLED] pixel-sampled from photos (±3/channel)
+ *                [ESTIMATED] derived from photographs (±~10 %) · [DERIVED] arithmetic on source values
+ *                [OURS] our own decision, not in any source.
+ *
+ * Reference canvas: every Skylight Calendar is 1920×1080 logical px [VERIFIED]. All metrics below are
+ * written as the source's px @1920 multiplied by one scalable unit (--fam-u), so the numbers in this
+ * file are the dossier's numbers verbatim and the whole UI scales from a single root (FR-038).
+ */
+
+.family {
+  /* ---------- scale --------------------------------------------------------
+   * --fam-u = 1 logical px of the 1920-wide reference, scaled from the LONG edge of the
+   * viewport so an iPad renders identical element sizes in landscape and portrait (the
+   * device behaves the same way). Clamped to [0.5px, 1px]: never larger than the
+   * reference, never smaller than half of it (phones hit the floor). [OURS]
+   * `lvh` is the large-viewport height (ignores iOS Safari's collapsing toolbar); the
+   * `vh` declaration is the fallback for browsers without viewport-unit variants.
+   */
+  --fam-u: clamp(0.5px, calc(max(100vw, 100vh) / 1920), 1px);
+
+  /* Text-size rung (settings.text_size). "medium" is the photographed scale [VERIFIED];
+   * the small/large multipliers are [UNKNOWN] in the source → 0.875 / 1.125 are placeholders [OURS]. */
+  --fam-text-scale: 1;
+
+  /* ---------- surfaces & chrome (07 §1.2) ----------------------------------- */
+  --fam-app-bg: #FFFFFF;           /* [SAMPLED] calendar canvas, cards, modals */
+  --fam-sidebar-bg: #E9F0F7;       /* [SAMPLED] left rail + portrait bottom bar — "a cool pale blue, not grey" */
+  --fam-sidebar-active: #FFFFFF;   /* [SAMPLED] active nav item = white pill, no border, no shadow */
+  --fam-pill-btn-bg: #F7F7F8;      /* [SAMPLED] top-bar pill buttons (Day / Filter / Today / ‹ ›) */
+  --fam-btn-secondary-bg: #F9F9F9; /* [SAMPLED] modal secondary button */
+  --fam-hairline: #EDEDED;         /* [ESTIMATED] grid / divider hairlines — sub-pixel in every photo.
+                                      DECORATION ONLY: 1.17:1 on --fam-app-bg. Fine between two things
+                                      layout has already separated; never the boundary of a control. */
+  --fam-control-border: #8A8A8A;   /* [OURS] the outline of a text input, which is the only thing that
+                                      says "type here" — WCAG 1.4.11 wants 3:1 for that. 3.45:1 on
+                                      --fam-app-bg (and 3.00:1 on --fam-sidebar-bg). Nothing is
+                                      photographed at this level of detail, so the value is ours. */
+
+  /* ---------- text (07 §1.2) — all [ESTIMATED]; photo blur prevents an exact read ---- */
+  --fam-text-primary: #1A1A1A;     /* date, day headers, event titles, list/task titles */
+  --fam-text-secondary: #6E6E6E;   /* event times, hour gutter, modal subtitle */
+  --fam-text-muted: #4A4A4A;       /* sidebar labels, pill labels (NB: darker than "secondary" — dossier naming kept as-is) */
+
+  /* ---------- semantics — cross-confirmed against the API palette (07 §1.2) ----------- */
+  --fam-primary-blue: #2178AF;     /* [VERIFIED] palette "Blue"   — FAB, modal "Done" */
+  --fam-accent-coral: #F66951;     /* [VERIFIED] palette "Coral"  — today badge, now-line.
+                                      DECORATIVE FILL ONLY: 2.98:1 on --fam-app-bg, so it may tint a
+                                      surface but must never be text, and must never sit under white text. */
+  --fam-star-gold: #FDC36D;        /* [VERIFIED] palette "Orange" — star chips, reward stars */
+  --fam-danger: #AC4A39;           /* [DERIVED] the verified coral at 70 % in sRGB — 5.54:1 on
+                                      --fam-app-bg, which is the same measurement for both of its jobs:
+                                      validation text / "Delete" labels ON white, and the confirm-delete
+                                      button fill UNDER white (WCAG 1.4.3 wants 4.5:1 for each).
+                                      The raw #F66951 it is derived from is 2.98:1 and fails both.
+                                      A true error colour is still [UNKNOWN] in the source. */
+  --fam-focus-ring: var(--fam-primary-blue); /* [OURS] focus states are not photographed (touch device) */
+  /* There is NO global success green: a completed check-circle uses the profile's own accent [VERIFIED]. */
+
+  /* ---------- the 20-colour palette — GET /api/colors, in API order (07 §1.1) [VERIFIED] --- */
+  /* Slugs match lib/family/colors.ts PALETTE_NAMES (kebab-cased). A profile stores ONE of these hexes;
+   * every tinted surface is derived from it (see .fam-profile below). */
+  --fam-palette-orange: #FDC36D;
+  --fam-palette-sunshine: #FBD97E;
+  --fam-palette-ochre: #CE812D;
+  --fam-palette-deep-sunshine: #FDB305;
+  --fam-palette-clementine: #F3B075;
+  --fam-palette-deep-clementine: #CF632E;
+  --fam-palette-coral: #F66951;
+  --fam-palette-grapefruit: #FBA994;
+  --fam-palette-deep-grapefruit: #CB434C;
+  --fam-palette-lavender: #D5B6EC;
+  --fam-palette-cyan: #A8D4D3;
+  --fam-palette-river: #93D1E6;
+  --fam-palette-deep-river: #00526D;
+  --fam-palette-blue: #2178AF;
+  --fam-palette-sky: #82D7DD;
+  --fam-palette-deep-sky: #2D8086;
+  --fam-palette-sprout: #B6E085;
+  --fam-palette-deep-sprout: #408257;
+  --fam-palette-charcoal: #DADADA;
+  --fam-palette-deep-lavender: #915EA1;
+
+  /* ---------- type faces (07 §2.2 stand-ins; research R12) ------------------------------- */
+  /* The device typefaces are [UNKNOWN]; Fraunces ≈ P22 Mackinac Pro, DM Sans ≈ Matter.
+   * --font-fraunces / --font-dm-sans are injected by next/font on this same wrapper element. */
+  --fam-font-serif: var(--font-fraunces), ui-serif, Georgia, serif;
+  --fam-font-sans: var(--font-dm-sans), system-ui, sans-serif;
+
+  /* ---------- metrics — px @1920×1080 × --fam-u (07 §3.2–3.4) — all [ESTIMATED] unless noted */
+  --fam-rail-w: calc(102 * var(--fam-u));        /* [SAMPLED] 102 + 117 + 5×337 = 1904 ≈ 1920 */
+  --fam-topbar-h: calc(85 * var(--fam-u));       /* [SAMPLED] 85 + 89 + 137 + 769 = 1080 */
+  --fam-chiprow-h: calc(89 * var(--fam-u));      /* [SAMPLED] */
+  --fam-nav-pitch: calc(118 * var(--fam-u));     /* [ESTIMATED] vertical pitch between rail items */
+  --fam-nav-icon: calc(32 * var(--fam-u));       /* [ESTIMATED] stroke ~2 */
+  --fam-pill-h: calc(52 * var(--fam-u));         /* [ESTIMATED] top-bar pill button height */
+  --fam-pill-r: calc(26 * var(--fam-u));         /* [DERIVED] pill-h / 2 = full pill */
+  --fam-chip-h: calc(61 * var(--fam-u));         /* [SAMPLED] profile chip height */
+  --fam-chip-r: calc(30 * var(--fam-u));         /* [DERIVED] chip-h / 2 = full pill */
+  --fam-chip-cap-w: calc(72 * var(--fam-u));     /* [SAMPLED] coloured left cap ≈ 22 % of the chip */
+  --fam-chip-avatar: calc(48 * var(--fam-u));    /* [ESTIMATED] avatar inside the cap, 2 px accent ring */
+  --fam-fab-d: calc(90 * var(--fam-u));          /* [SAMPLED] FAB diameter */
+  --fam-fab-inset: calc(32 * var(--fam-u));      /* [ESTIMATED] FAB inset from the content corner */
+  --fam-bottomnav-h: calc(102 * var(--fam-u));   /* [DERIVED] not in source — mirrors the rail width so the
+                                                    bar is the rail rotated (07 §4.16 "same nav, rotated") */
+  --fam-edge-inset: calc(20 * var(--fam-u));     /* [ESTIMATED] screen-edge / content inset */
+  --fam-radius-card: calc(20 * var(--fam-u));    /* [ESTIMATED] event block / task card radius */
+  --fam-radius-modal: calc(40 * var(--fam-u));   /* [ESTIMATED] modal radius */
+
+  /* ---------- week grid (Phase 2 — 07 §3.2–3.4, §4.5–4.8) ----------------------------------
+   * Photo-derived geometry: [SAMPLED] = pixel-read from a photograph, everything else is a
+   * proportional photo estimate (±~10 %). None of it comes from a written specification. */
+  --fam-dayheader-h: calc(137 * var(--fam-u));   /* [SAMPLED] day-header band — date line + one all-day row */
+  --fam-hour-gutter-w: calc(117 * var(--fam-u)); /* [SAMPLED] hour-label gutter left of the first day column */
+  --fam-day-col-w: calc(337 * var(--fam-u));     /* [SAMPLED] photographed column pitch. NOT a layout constant:
+                                                    FR-277/278 pick the column count by measurement — this is
+                                                    the "whole column that fits" width that fitting divides by. */
+  --fam-hour-row-h: calc(195 * var(--fam-u));    /* [SAMPLED] one hour of the ruler (two photos agree, 195/198) */
+  --fam-halfhour-y: calc(97 * var(--fam-u));     /* [SAMPLED] half-hour hairline offset within a row (≈ row/2) */
+  --fam-event-inset: calc(6 * var(--fam-u));     /* [ESTIMATED] block inset from its column edges, each side */
+  --fam-event-pad: calc(30 * var(--fam-u));      /* [SAMPLED] event-block padding, left/top */
+  --fam-event-pad-end: calc(24 * var(--fam-u));  /* [ESTIMATED] event-block padding, right/bottom */
+  --fam-event-gap: calc(8 * var(--fam-u));       /* [ESTIMATED] title → time gap inside a block */
+  --fam-event-avatar: calc(40 * var(--fam-u));   /* [SAMPLED] avatar in the block corner; also the "+N" chip */
+  --fam-avatar-overlap: calc(12 * var(--fam-u)); /* [ESTIMATED] stacked-avatar overlap (≈30 %) */
+  --fam-allday-h: calc(40 * var(--fam-u));       /* [ESTIMATED] all-day pill height */
+  --fam-allday-r: calc(20 * var(--fam-u));       /* [DERIVED] allday-h / 2 = full pill */
+  --fam-today-badge: calc(44 * var(--fam-u));    /* [ESTIMATED] today's filled date circle (FR-209) — the circle
+                                                    itself is [VERIFIED] "an orange dot"; only the size is a
+                                                    photo estimate. Fill: --fam-accent-coral. */
+  --fam-nowline-w: 2px;                          /* [ESTIMATED] now-line bar thickness (FR-208) — deliberately
+                                                    UNSCALED so it cannot thin to sub-pixel at the 0.5 unit
+                                                    floor [OURS] */
+  --fam-nowline-dot: calc(14 * var(--fam-u));    /* [ESTIMATED] dot at the gutter edge of the now-line (FR-208).
+                                                    Colour for bar and dot: --fam-accent-coral [VERIFIED]. */
+  --fam-stripe-w: calc(40 * var(--fam-u));       /* [ESTIMATED] multi-category stripe width (FR-212) */
+  --fam-stripe-angle: 45deg;                     /* [SCREENSHOT] photo-only: the ~45° read of pdp/10.jpg — no
+                                                    Skylight document ever says "diagonal" (Assumption 17) */
+
+  /* Weekend shading + past-event dimming (FR-215): both toggles are [VERIFIED]; both VALUES are
+   * [UNKNOWN] in every source, so these two numbers are our own picks. */
+  --fam-weekend-shade: #F7F7F8;                  /* [OURS] weekend column wash — reuses the sampled pill neutral
+                                                    so the shade stays inside the photographed neutral family */
+  --fam-past-dim: 0.55;                          /* [OURS] opacity of a finished event block — dimmed against
+                                                    upcoming blocks yet still readable and tappable */
+
+  /* No-category event (FR-213): "a light fill with a thin border" — the white-outlined pill is
+   * photographed; its exact border grey is not readable from any photo. */
+  --fam-event-neutral-fill: #FFFFFF;             /* [SCREENSHOT: c2.png] white fill */
+  --fam-event-neutral-border: var(--fam-control-border); /* [OURS] the block is a focusable control (FR-263), so
+                                                    its only boundary needs 3:1 (WCAG 1.4.11); --fam-hairline is
+                                                    decoration-only by this file's own rule */
+
+  /* ---------- touch ------------------------------------------------------------------------ */
+  /* Every interactive control gets min-height/min-width: var(--fam-touch) regardless of scale
+   * (FR-035): 52 px pills and 61 px chips fall below 44 px once --fam-u < 0.85. [OURS] */
+  --fam-touch: 44px;
+
+  /* ---------- base styling for the scope --------------------------------------------------- */
+  color-scheme: light; /* Skylight's UI is light-only in every source; also blocks the portfolio's dark swap */
+  background: var(--fam-app-bg);
+  color: var(--fam-text-primary);
+  font-family: var(--fam-font-sans);
+  font-optical-sizing: auto; /* lets Fraunces / DM Sans `opsz` track the rendered size (07 §2.2) */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Progressive enhancement: the large-viewport unit ignores iOS Safari's collapsing toolbar,
+ * so the scale does not jump while scrolling. Custom properties cannot fall back per-declaration,
+ * hence the @supports guard rather than a second declaration. [OURS] */
+@supports (height: 100lvh) {
+  .family {
+    --fam-u: clamp(0.5px, calc(max(100vw, 100lvh) / 1920), 1px);
+  }
+}
+
+/* ---------- text scale -----------------------------------------------------------------------
+ * A custom property substitutes its var() references on the element where it is DECLARED, then
+ * inherits the computed result. So the text-dependent tokens are declared on `.family` AND on any
+ * descendant carrying [data-text-size] — that lets the (app) layout set the attribute from
+ * settings.text_size below the wrapper without re-rendering the wrapper itself. Layout metrics
+ * (--fam-u based) are intentionally NOT affected by the text-size rung (FR-038: type scales
+ * independently of chrome). */
+.family,
+.family [data-text-size] {
+  --fam-t: calc(var(--fam-u) * var(--fam-text-scale));
+
+  /* Type scale — px @1920×1080, "Medium" rung, all [ESTIMATED] (07 §2.4). Base 24.
+   * Each size is floored at 12px so labels stay legible on a phone at the 0.5 scale floor. [OURS] */
+  --fam-fs-date: max(12px, calc(48 * var(--fam-t)));    /* serif 400 — top-bar date / household name */
+  --fam-fs-clock: max(12px, calc(40 * var(--fam-t)));   /* sans 500 — clock, temperature */
+  --fam-fs-title: max(12px, calc(36 * var(--fam-t)));   /* serif 400 — modal / page / profile-name title */
+  --fam-fs-section: max(12px, calc(28 * var(--fam-t))); /* serif 400 — section heading ("Morning") */
+  --fam-fs-body: max(12px, calc(24 * var(--fam-t)));    /* sans 400 — body, event time, hour gutter, buttons */
+  --fam-fs-chip: max(12px, calc(24 * var(--fam-t)));    /* sans 500 — profile chip label */
+  --fam-fs-pill: max(12px, calc(21 * var(--fam-t)));    /* sans 500 — top-bar pill label ("Today", "Filter") */
+  --fam-fs-nav: max(12px, calc(19 * var(--fam-t)));     /* sans 500 — rail / bottom-nav label */
+  --fam-fs-small: max(12px, calc(16 * var(--fam-t)));   /* sans 500 — "⭐ 10" star chip, captions */
+
+  /* Week-grid type (Phase 2, 07 §4.5–4.7) — photo-estimated like the rest of this block. */
+  --fam-fs-day-header: max(12px, calc(40 * var(--fam-t)));  /* serif 400 — "Wed 18" day-header line. Same number
+                                                               as --fam-fs-clock but a different face (sans 500);
+                                                               do not borrow one for the other. */
+  --fam-fs-event-title: max(12px, calc(26 * var(--fam-t))); /* sans 600 — event-block title, the only consistently
+                                                               semibold body text in the product */
+  --fam-fs-allday: max(12px, calc(22 * var(--fam-t)));      /* sans 500 — all-day pill label [SAMPLED] */
+  --fam-fs-today-badge: max(12px, calc(22 * var(--fam-t))); /* sans 600 — digits inside the today circle */
+}
+
+.family[data-text-size="small"],
+.family [data-text-size="small"] {
+  --fam-text-scale: 0.875; /* [UNKNOWN] in source → placeholder [OURS] */
+}
+
+.family[data-text-size="medium"],
+.family [data-text-size="medium"] {
+  --fam-text-scale: 1; /* the photographed rung [VERIFIED] */
+}
+
+.family[data-text-size="large"],
+.family [data-text-size="large"] {
+  --fam-text-scale: 1.125; /* [UNKNOWN] in source → placeholder [OURS] */
+}
+
+/* ---------- profile tint system (07 §1.4, research R8) ---------------------------------------
+ * Every profile-coloured surface is ONE accent hex composited on white at a fixed opacity per role:
+ * 100 % (event block, all-day pill, chip cap, completed task card, avatar ring), ≈40 % (chip body,
+ * incomplete task card), ≈20 % (Tasks / Rewards column header). [SAMPLED, checks within ±3/channel]
+ *
+ * Put .fam-profile on the element that sets the accent: style={{ "--profile": category.color }}.
+ * The derived variables must be declared on THAT element (var() resolves where declared), so they
+ * cannot live on .family. Never hand-pick a tint. */
+.family .fam-profile {
+  --fam-profile-100: var(--profile);
+  --fam-profile-40: color-mix(in srgb, var(--profile) 40%, white);
+  --fam-profile-20: color-mix(in srgb, var(--profile) 20%, white);
+}
+
+.family .fam-tint-100 {
+  background-color: var(--fam-profile-100);
+}
+
+.family .fam-tint-40 {
+  background-color: var(--fam-profile-40);
+}
+
+.family .fam-tint-20 {
+  background-color: var(--fam-profile-20);
+}
+
+.family .fam-ring {
+  box-shadow: 0 0 0 2px var(--fam-profile-100); /* [ESTIMATED] "2px ring in --profile" — do not scale */
+}
+
+/* Fallback (R8): without color-mix() every tint is the full-strength accent.
+ * Legible, less pretty, no layout change. */
+@supports not (color: color-mix(in srgb, red, white)) {
+  .family .fam-profile {
+    --fam-profile-40: var(--profile);
+    --fam-profile-20: var(--profile);
+  }
+}
+
+/* ---------- focus (SC-009) --------------------------------------------------------------------
+ * Pressed / hover / focus states are [UNKNOWN] (touch device, nothing photographed) — designed by us. */
+.family :focus-visible {
+  outline: 3px solid var(--fam-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---------- reduced motion ------------------------------------------------------------------
+ * Animation durations / easing are [UNKNOWN] in the source; whatever later phases add via CSS,
+ * this collapses it for people who asked for less motion. This un-layered rule already beats
+ * Tailwind's `@layer utilities` transition/animation classes without !important; JS-driven
+ * motion (framer-motion) must consult `useReducedMotion()` itself. */
+@media (prefers-reduced-motion: reduce) {
+  .family * {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    transition-duration: 0.01ms;
+    scroll-behavior: auto;
+  }
+}

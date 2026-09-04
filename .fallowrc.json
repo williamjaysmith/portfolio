@@ -1,6 +1,5 @@
 {
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-
   "ignorePatterns": [
     "**/*.d.ts",
     ".next/**",
@@ -8,7 +7,6 @@
     "docs/**",
     "graphify-out/**"
   ],
-
   "ignoreDependencies": [
     "eslint-config-next",
     "tailwindcss",
@@ -16,7 +14,6 @@
     "react-dom",
     "@types/node"
   ],
-
   "dynamicallyLoaded": [
     "app/**/page.tsx",
     "app/**/layout.tsx",
@@ -40,9 +37,34 @@
     "vitest.config.ts",
     "vitest.setup.ts"
   ],
-
   "boundaries": {
     "zones": [
+      {
+        "name": "tests",
+        "patterns": [
+          "**/__tests__/**/*",
+          "**/*.test.{ts,tsx}"
+        ]
+      },
+      {
+        "name": "family-recurrence",
+        "patterns": [
+          "lib/family/recurrence/**/*"
+        ]
+      },
+      {
+        "name": "family-calendar-core",
+        "patterns": [
+          "lib/family/calendar/expand.ts",
+          "lib/family/calendar/dates.ts"
+        ]
+      },
+      {
+        "name": "family-actions",
+        "patterns": [
+          "lib/family/actions/**/*"
+        ]
+      },
       {
         "name": "ui-pages",
         "patterns": [
@@ -55,10 +77,25 @@
           "app/**/default.tsx"
         ]
       },
-      { "name": "api-routes", "patterns": ["app/api/**/*"] },
-      { "name": "components", "patterns": ["app/components/**/*", "app/**/components/**/*"] },
-      { "name": "lib", "patterns": ["lib/**/*"] },
-      { "name": "tests", "patterns": ["**/__tests__/**/*", "**/*.test.{ts,tsx}"] },
+      {
+        "name": "api-routes",
+        "patterns": [
+          "app/api/**/*"
+        ]
+      },
+      {
+        "name": "components",
+        "patterns": [
+          "app/components/**/*",
+          "app/**/components/**/*"
+        ]
+      },
+      {
+        "name": "lib",
+        "patterns": [
+          "lib/**/*"
+        ]
+      },
       {
         "name": "config",
         "patterns": [
@@ -72,15 +109,86 @@
       }
     ],
     "rules": [
-      { "from": "lib", "allow": ["lib"] },
-      { "from": "components", "allow": ["components", "lib"] },
-      { "from": "ui-pages", "allow": ["ui-pages", "components", "lib"] },
-      { "from": "api-routes", "allow": ["api-routes", "lib"] },
-      { "from": "tests", "allow": ["tests", "ui-pages", "api-routes", "components", "lib", "config"] },
-      { "from": "config", "allow": ["config", "lib"] }
+      {
+        "from": "family-recurrence",
+        "allow": [
+          "family-recurrence",
+          "lib"
+        ]
+      },
+      {
+        "from": "family-calendar-core",
+        "allow": [
+          "family-calendar-core",
+          "family-recurrence",
+          "lib"
+        ]
+      },
+      {
+        "from": "family-actions",
+        "allow": [
+          "family-actions",
+          "family-recurrence",
+          "family-calendar-core",
+          "lib"
+        ]
+      },
+      {
+        "from": "lib",
+        "allow": [
+          "lib",
+          "family-calendar-core"
+        ]
+      },
+      {
+        "from": "components",
+        "allow": [
+          "components",
+          "lib",
+          "family-calendar-core",
+          "family-actions"
+        ]
+      },
+      {
+        "from": "ui-pages",
+        "allow": [
+          "ui-pages",
+          "components",
+          "lib",
+          "family-calendar-core",
+          "family-actions"
+        ]
+      },
+      {
+        "from": "api-routes",
+        "allow": [
+          "api-routes",
+          "lib"
+        ]
+      },
+      {
+        "from": "tests",
+        "allow": [
+          "tests",
+          "ui-pages",
+          "api-routes",
+          "components",
+          "lib",
+          "config",
+          "family-recurrence",
+          "family-calendar-core",
+          "family-actions"
+        ]
+      },
+      {
+        "from": "config",
+        "allow": [
+          "config",
+          "lib"
+        ]
+      }
     ]
   },
-
   "rules": {
     "unused-files": "error",
     "unused-exports": "warn",
@@ -91,11 +199,16 @@
     "circular-dependency": "warn",
     "duplicate-export": "warn"
   },
-
   "overrides": [
     {
-      "files": ["**/*.test.{ts,tsx}", "**/__tests__/**/*"],
-      "rules": { "unused-files": "off", "unused-exports": "off" }
+      "files": [
+        "**/*.test.{ts,tsx}",
+        "**/__tests__/**/*"
+      ],
+      "rules": {
+        "unused-files": "off",
+        "unused-exports": "off"
+      }
     },
     {
       "files": [
@@ -112,23 +225,29 @@
         "app/**/robots.ts",
         "app/**/manifest.ts"
       ],
-      "rules": { "unused-exports": "off" }
+      "rules": {
+        "unused-exports": "off"
+      }
     },
     {
-      "files": ["app/api/**/route.ts"],
-      "rules": { "unused-exports": "off", "unused-files": "off" }
+      "files": [
+        "app/api/**/route.ts"
+      ],
+      "rules": {
+        "unused-exports": "off",
+        "unused-files": "off"
+      }
     }
   ],
-
   "duplicates": {
     "mode": "mild",
     "minTokens": 50,
     "minLines": 5,
     "threshold": 10
   },
-
   "health": {
     "maxCyclomatic": 20,
-    "maxCognitive": 15
+    "maxCognitive": 15,
+    "coverage": "coverage/coverage-final.json"
   }
 }

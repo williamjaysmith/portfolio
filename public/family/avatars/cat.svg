@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img">
+<title>Cat</title>
+<circle cx="48" cy="48" r="48" fill="#E5DDF7"/>
+<path d="M21 42L26 13 46 29z" fill="#9DA3AD"/>
+<path d="M75 42L70 13 50 29z" fill="#9DA3AD"/>
+<path d="M26.5 36L29 21 40.5 30zM69.5 36L67 21 55.5 30z" fill="#F1B7BF"/>
+<ellipse cx="48" cy="52" rx="28" ry="26" fill="#9DA3AD"/>
+<ellipse cx="48" cy="61" rx="13" ry="8.5" fill="#D8DBE0"/>
+<circle cx="40" cy="48" r="3.2" fill="#2B2B2B"/>
+<circle cx="56" cy="48" r="3.2" fill="#2B2B2B"/>
+<path d="M40 46.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0zM56 46.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0z" fill="#FFFFFF"/>
+<path d="M44.2 54.5h7.6L48 59.2z" fill="#E68A97"/>
+<path d="M44.5 60.5C46.3 63.0 49.7 63.0 51.5 60.5C50 65.5 46 65.5 44.5 60.5z" fill="#5D6270"/>
+<circle cx="32" cy="57" r="3.6" fill="#F58F8A" fill-opacity=".5"/>
+<circle cx="64" cy="57" r="3.6" fill="#F58F8A" fill-opacity=".5"/>
+</svg>

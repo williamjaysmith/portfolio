@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img">
+<title>Penguin</title>
+<circle cx="48" cy="48" r="48" fill="#D2EBF3"/>
+<circle cx="48" cy="52" r="27" fill="#2E3440"/>
+<path d="M26 50C26 37 38 34 48 44C58 34 70 37 70 50C70 66 60 76 48 76C36 76 26 66 26 50z" fill="#FFFFFF"/>
+<circle cx="40" cy="48" r="3.2" fill="#2B2B2B"/>
+<circle cx="56" cy="48" r="3.2" fill="#2B2B2B"/>
+<path d="M40 46.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0zM56 46.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0z" fill="#FFFFFF"/>
+<path d="M41.5 53.5h13L48 61.5z" fill="#F0A24B"/>
+<circle cx="32" cy="58" r="3.6" fill="#F58F8A" fill-opacity=".5"/>
+<circle cx="64" cy="58" r="3.6" fill="#F58F8A" fill-opacity=".5"/>
+</svg>

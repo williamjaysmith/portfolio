@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img">
+<title>Fox</title>
+<circle cx="48" cy="48" r="48" fill="#FDE7D3"/>
+<path d="M20 44L26 12 45 30z" fill="#F3B075"/>
+<path d="M76 44L70 12 51 30z" fill="#F3B075"/>
+<path d="M25.5 37L28.5 19.5 40 30.5zM70.5 37L67.5 19.5 56 30.5z" fill="#FCD5B8"/>
+<circle cx="48" cy="52" r="27" fill="#F3B075"/>
+<path d="M27 55C31 49 41 50 48 56C55 50 65 49 69 55C68 68 58 75 48 75C38 75 28 68 27 55z" fill="#FFF8F2"/>
+<circle cx="40" cy="48" r="3.2" fill="#2B2B2B"/>
+<circle cx="56" cy="48" r="3.2" fill="#2B2B2B"/>
+<path d="M40 46.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0zM56 46.9a1.1 1.1 0 1 0 2.2 0a1.1 1.1 0 1 0-2.2 0z" fill="#FFFFFF"/>
+<ellipse cx="48" cy="57.5" rx="3.4" ry="2.5" fill="#3E2A22"/>
+<path d="M44.5 60.5C46.3 63.0 49.7 63.0 51.5 60.5C50 65.5 46 65.5 44.5 60.5z" fill="#3E2A22"/>
+<circle cx="32" cy="57" r="3.6" fill="#F58F8A" fill-opacity=".5"/>
+<circle cx="64" cy="57" r="3.6" fill="#F58F8A" fill-opacity=".5"/>
+</svg>

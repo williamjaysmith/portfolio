@@ -1,0 +1,9 @@
+-- supabase/seed.sql — intentionally empty.
+--
+-- `supabase db reset` runs this after the migrations. The household itself is created by
+-- migration 007_seed.sql (no people, no emails — constitution §VII). Local fixtures (the dev
+-- account, allowlist rows, sample profiles/labels) come from the seed script instead:
+--
+--   npm run family:seed -- --local
+--
+-- Keep this file free of personal data; it is committed.
