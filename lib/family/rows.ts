@@ -142,6 +142,24 @@ export const EVENT_EXCEPTION_COLUMNS =
   "id, household_id, event_id, occurrence_date, action, summary, description, location, " +
   "starts_at, ends_at, start_date, end_date, created_by, updated_by, created_at, updated_at";
 
+/**
+ * The events select with its two embeds, as one joined array rather than two
+ * adjacent template literals.
+ *
+ * It was written as `` `…event_categories(${…}), ` + `event_exceptions(${…})` ``
+ * and that shipped broken: the production bundler folded the two literals and
+ * dropped the `), ` between them, so every client-side week read returned
+ * PGRST100 while dev and the server render — unminified — were fine. Joining a
+ * list has no adjacent-literal seam to lose.
+ */
+export function eventsSelect(): string {
+  return [
+    EVENT_COLUMNS,
+    `event_categories(${EVENT_CATEGORY_COLUMNS})`,
+    `event_exceptions(${EVENT_EXCEPTION_COLUMNS})`,
+  ].join(",");
+}
+
 export function toHousehold(row: HouseholdRow): Household {
   return {
     id: row.id,

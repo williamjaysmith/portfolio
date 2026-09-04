@@ -29,9 +29,7 @@ import { emitRule, parseRule, type RuleUntil, type RuleWeekday } from "../recurr
 import { datePartsOf, epochDayOf } from "../recurrence/plain-date";
 import { wallToInstant } from "../recurrence/zone";
 import {
-  EVENT_CATEGORY_COLUMNS,
-  EVENT_COLUMNS,
-  EVENT_EXCEPTION_COLUMNS,
+  eventsSelect,
   toEvent,
   type EventWithRelationsRow,
 } from "../rows";
@@ -83,9 +81,7 @@ interface ExceptionPayload {
 const WKST_OF: Record<WeekStart, RuleWeekday> = { 0: "SU", 1: "MO" };
 
 // The same embed the week read uses: ordered links and EVERY exception (R206).
-const EVENT_WITH_RELATIONS =
-  `${EVENT_COLUMNS}, event_categories(${EVENT_CATEGORY_COLUMNS}), ` +
-  `event_exceptions(${EVENT_EXCEPTION_COLUMNS})`;
+const EVENT_WITH_RELATIONS = eventsSelect();
 
 const NO_PAIRS: EventWrite = { starts_at: null, ends_at: null, start_date: null, end_date: null };
 const EMPTY_PAYLOAD: ExceptionPayload = { summary: null, description: null, location: null, times: null };

@@ -82,7 +82,8 @@ supabase/migrations/
 ├── 016_tasks.sql                         # family.time_of_day domain; family.tasks (routine discriminator, starts_on/due_time,
 │                                         #   times_of_day, rrule + the tight grammar CHECK, renew_after_*/renew_until,
 │                                         #   reserved reward_points); 9 shape CHECKs incl. num_nonnulls repeat exclusivity;
-│                                         #   4 partial indexes; touch trigger; assert_up_for_grabs_is_unassigned; policy, grants
+│                                         #   tasks_household_idx (the board's read is unwindowed, so one index serves it);
+│                                         #   touch trigger; assert_up_for_grabs_is_unassigned; policy, grants
 ├── 017_task_assignees.sql                # join table (sort_order fractional index + streak_count/streak_through);
 │                                         #   assert_task_assignee() — Profile-only (FR-323) and no assignee on up-for-grabs;
 │                                         #   composite (id,household_id) FKs both ways; index; policy, grants
