@@ -37,8 +37,8 @@
  * Placements are grid space (a column index and wall minutes) throughout —
  * mapping a column index to a date and minutes to an instant is the
  * adapter's job. A keyboard nudge may take a column index outside the
- * rendered slice, exactly as an edge-hold page does (R211); the adapter
- * resolves the date by offset from the slice's first day.
+ * rendered window, exactly as an edge-hold page does (R211); the adapter
+ * resolves the date by offset from the window's first day.
  */
 
 import {

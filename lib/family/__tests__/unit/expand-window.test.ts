@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { expandWindow } from "@/lib/family/calendar/expand";
-import { weekWindowOf } from "@/lib/family/calendar/dates";
+import { viewWindowOf } from "@/lib/family/calendar/dates";
 import type { Event, EventException, EventTimes } from "@/lib/family/types";
 
 const CHICAGO = "America/Chicago";
 // Sun 2026-09-06 … Sat 2026-09-12; startMs Sun 00:00 CDT, endMs next Sun 00:00.
-const WEEK = weekWindowOf("2026-09-06", CHICAGO);
+const WEEK = viewWindowOf("2026-09-06", 7, CHICAGO);
 
 function timed(startsAt: string, endsAt: string): EventTimes {
   return { allDay: false, startsAt, endsAt };

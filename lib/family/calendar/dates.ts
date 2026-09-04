@@ -1,16 +1,20 @@
 /**
- * Week anchoring and plain-date maths for the calendar (FR-203, FR-289,
- * R207/R210). The displayed week is the one starting on the household's
- * start-of-week day in the HOUSEHOLD's zone — so anchoring converts the
- * instant through `zone.ts` first; nothing here reimplements zone policy.
+ * View anchoring and plain-date maths for the calendar (FR-203, R207/R210),
+ * worked in the HOUSEHOLD's zone — anchoring converts the instant through
+ * `zone.ts` first; nothing here reimplements zone policy.
  *
- * `sliceStarts` is FR-289's tiling table: slices of `columns` days tiled from
- * the week's first day, the LAST slice pulled back so it ends on the week's
- * last day while still showing a full set of columns.
+ * The displayed view is a ROLLING WINDOW: `anchorDate` is its leftmost day and
+ * the column count is its width, so a page moves the anchor by exactly that
+ * many days. There is no seven-day box to tile into slices — with the anchor
+ * rolling on today (`START_ON_CURRENT_DAY`) such a box would skip the days a
+ * short window steps over and repeat those a pulled-back last slice covered
+ * twice. `weekStartOf` survives for the settings toggle's off branch and for
+ * the Month view a later phase adds.
  *
- * `weekWindowOf` derives the one fetch/expansion window per anchored week:
+ * `viewWindowOf` derives the one fetch/expansion window per displayed window:
  * inclusive local dates for all-day comparisons, half-open instants
- * [startMs, endMs) for timed ones (R206's three-branch read).
+ * [startMs, endMs) for timed ones (R206's three-branch read). It spans exactly
+ * the days the grid draws, so the fetch can never be narrower than the view.
  */
 
 import { instantToWall, wallToInstant } from "../recurrence/zone";
@@ -23,11 +27,11 @@ import {
 } from "../recurrence/plain-date";
 import type { WeekStart } from "../types";
 
-/** The anchored week as the read and the expander consume it (R206/R207). */
-export interface WeekWindow {
+/** A run of household-local days as the read and the expander consume it (R206/R207). */
+export interface DateWindow {
   /** Inclusive household-local first day, `YYYY-MM-DD`. */
   startDate: string;
-  /** Inclusive household-local last day — `startDate` + 6. */
+  /** Inclusive household-local last day. */
   endDate: string;
   /** Instant of `startDate` 00:00 in the household zone (epoch ms). */
   startMs: number;
@@ -51,6 +55,28 @@ export function diffDays(from: string, to: string): number {
   return epochDayOf(to) - epochDayOf(from);
 }
 
+/**
+ * Skylight's "Start on current day" (36835449004315), which overrides the
+ * start-of-week preference for the Week view and makes today the leftmost
+ * column. Held on and in code for this phase, like the other calendar toggles
+ * (spec 002 Assumption 16): a wall calendar whose first five columns are
+ * already spent is showing the household the past.
+ *
+ * `startWeekOn` still decides the anchor when this is off, and still governs
+ * the views a later phase adds — which is why the branch stays rather than the
+ * snap being deleted.
+ */
+export const START_ON_CURRENT_DAY = true;
+
+/** The leftmost day of the window a date is shown in. */
+export function weekAnchorOf(
+  date: string,
+  startWeekOn: WeekStart,
+  startOnCurrentDay: boolean = START_ON_CURRENT_DAY,
+): string {
+  return startOnCurrentDay ? date : weekStartOf(date, startWeekOn);
+}
+
 /** The `YYYY-MM-DD` of the week containing `date`, per the household start-of-week. */
 export function weekStartOf(date: string, startWeekOn: WeekStart): string {
   const day = epochDayOf(date);
@@ -63,25 +89,10 @@ export function weekStartFor(zone: string, instantMs: number, startWeekOn: WeekS
 }
 
 /**
- * Day offsets (0–6) where each slice of a `columns`-day view starts (FR-289):
- * tiled from day 0, last slice pulled back to end on day 6. One slice at 7.
- */
-export function sliceStarts(columns: number): number[] {
-  if (!Number.isInteger(columns) || columns < 1 || columns > 7) {
-    throw new Error(`a week slices into 1–7 columns, not ${columns}`);
-  }
-  const starts: number[] = [];
-  for (let start = 0; start + columns < 7; start += columns) starts.push(start);
-  starts.push(7 - columns);
-  return starts;
-}
-
-/** The anchored week's fetch/expansion window (see `WeekWindow`). */
-/**
  * The window's instant bounds as the ISO strings PostgREST compares against
  * (`lib/family/queries.ts` — the timed branch of the week read).
  */
-export function fetchBoundsOf(window: WeekWindow): {
+export function fetchBoundsOf(window: DateWindow): {
   startDate: string;
   endDate: string;
   startsAt: string;
@@ -95,16 +106,26 @@ export function fetchBoundsOf(window: WeekWindow): {
   };
 }
 
-export function weekWindowOf(weekStart: string, zone: string): WeekWindow {
+/**
+ * The displayed window's fetch/expansion window (see `DateWindow`): `days`
+ * consecutive household-local days from `anchorDate`. `days` is the grid's
+ * measured column count, so what is fetched and expanded is exactly what is
+ * drawn — never less.
+ */
+export function viewWindowOf(anchorDate: string, days: number, zone: string): DateWindow {
+  if (!Number.isInteger(days) || days < 1) {
+    throw new Error(`a window spans a whole number of days, not ${days}`);
+  }
   return {
-    startDate: weekStart,
-    endDate: addDays(weekStart, 6),
-    startMs: midnightMs(zone, weekStart),
-    endMs: midnightMs(zone, addDays(weekStart, 7)),
+    startDate: anchorDate,
+    endDate: addDays(anchorDate, days - 1),
+    startMs: zoneMidnightMs(zone, anchorDate),
+    endMs: zoneMidnightMs(zone, addDays(anchorDate, days)),
   };
 }
 
-function midnightMs(zone: string, date: string): number {
+/** The instant of a household-local date's 00:00 — one derivation, one DST reading. */
+export function zoneMidnightMs(zone: string, date: string): number {
   const parts = datePartsOf(epochDayOf(date));
   return wallToInstant(zone, { ...parts, hour: 0, minute: 0, second: 0 });
 }

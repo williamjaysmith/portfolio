@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createEvent, deleteEvent, updateEvent } from "@/lib/family/actions/events";
+import { viewWindowOf } from "@/lib/family/calendar/dates";
 import { ACTION_MESSAGES } from "@/lib/family/errors";
 import { familyKeys } from "@/lib/family/queries";
 import type { Category, Event, Occurrence } from "@/lib/family/types";
@@ -36,7 +37,8 @@ vi.mock("@/lib/family/actions/events", () => ({
 
 const HOUSEHOLD_ID = "household-1";
 const ZONE = "America/Chicago";
-const WEEK_START = "2026-10-04";
+/** The displayed window the harness renders: a seven-day one from 4 October. */
+const WINDOW = viewWindowOf("2026-10-04", 7, ZONE);
 const ALEX = "11111111-1111-4111-8111-111111111111";
 const CLEO = "22222222-2222-4222-8222-222222222222";
 
@@ -98,7 +100,7 @@ const dentistOccurrence = makeOccurrence({
 });
 
 function Harness({ occurrence }: { occurrence: Occurrence }) {
-  const editor = useCalendarEditor({ householdId: HOUSEHOLD_ID, weekStart: WEEK_START, zone: ZONE });
+  const editor = useCalendarEditor({ householdId: HOUSEHOLD_ID, window: WINDOW, zone: ZONE });
   return (
     <>
       <button type="button" onClick={() => editor.openCreate()}>
@@ -122,7 +124,7 @@ function renderEditor(
   context: Partial<FamilyContextValue> = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(familyKeys.week(HOUSEHOLD_ID, WEEK_START), events);
+  client.setQueryData(familyKeys.week(HOUSEHOLD_ID, WINDOW), events);
   const withActor: FamilyContextValue["withActor"] = vi.fn(async (run) => run());
   render(
     <QueryClientProvider client={client}>
@@ -217,14 +219,14 @@ describe("the write surface", () => {
 
     it("never writes the week cache itself — the refetch after invalidation redraws (R208)", async () => {
       const { client } = renderEditor();
-      const before = client.getQueryData(familyKeys.week(HOUSEHOLD_ID, WEEK_START));
+      const before = client.getQueryData(familyKeys.week(HOUSEHOLD_ID, WINDOW));
 
       click("Add event");
       type(screen.getByLabelText("Title"), "Swim lesson");
       click("Save");
 
       await waitFor(() => expect(createEvent).toHaveBeenCalledTimes(1));
-      expect(client.getQueryData(familyKeys.week(HOUSEHOLD_ID, WEEK_START))).toBe(before);
+      expect(client.getQueryData(familyKeys.week(HOUSEHOLD_ID, WINDOW))).toBe(before);
     });
   });
 

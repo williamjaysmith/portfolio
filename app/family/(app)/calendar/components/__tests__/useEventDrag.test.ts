@@ -45,8 +45,8 @@ const METRICS: DragMetrics = {
   viewportHeightPx: 600,
 };
 
-const WEEK_START = "2026-09-06"; // a Sunday — the household's week start
-const COLUMN_DATES = [0, 1, 2, 3, 4, 5, 6].map((day) => addDays(WEEK_START, day));
+const WINDOW_START = "2026-09-06";
+const COLUMN_DATES = [0, 1, 2, 3, 4, 5, 6].map((day) => addDays(WINDOW_START, day));
 const MONDAY = COLUMN_DATES[1];
 const TUESDAY = COLUMN_DATES[2];
 
@@ -109,7 +109,7 @@ function mount(overrides: Partial<UseEventDragOptions> = {}): Harness {
   const options: UseEventDragOptions = {
     metrics: METRICS,
     columnDates: COLUMN_DATES,
-    weekStart: WEEK_START,
+    windowStart: WINDOW_START,
     occurrences: [PIANO],
     onPage,
     // R213: the metrics are injected, and they track the node's own scrolling
@@ -339,17 +339,17 @@ describe("useEventDrag", () => {
     expect(harness.hook.result.current.preview).toBeNull();
   });
 
-  it("carries the gesture across a week page and re-frames its columns", () => {
+  it("carries the gesture across a page and re-frames its columns", () => {
     const harness = mount();
     // Held right where it started: without a re-frame this drop is a no-op.
     dragTo(harness, BLOCK_X + 8, BLOCK_TOP_Y + 2);
 
-    const nextWeek = addDays(WEEK_START, 7);
+    const nextWindow = addDays(WINDOW_START, 7);
     act(() => {
       harness.hook.rerender({
         ...harness.options,
-        weekStart: nextWeek,
-        columnDates: [0, 1, 2, 3, 4, 5, 6].map((day) => addDays(nextWeek, day)),
+        windowStart: nextWindow,
+        columnDates: [0, 1, 2, 3, 4, 5, 6].map((day) => addDays(nextWindow, day)),
       });
     });
     expect(harness.hook.result.current.isDragging).toBe(true);

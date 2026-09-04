@@ -30,6 +30,20 @@
 /** One day of minutes — the content canvas spans exactly this much time. */
 export const MINUTES_PER_DAY = 1440;
 
+/** FR-278's floor — never fewer day columns than this, however narrow. */
+export const MIN_COLUMN_COUNT = 3;
+
+/** FR-277's cap — the wall tablet's seven, the widest the week is ever drawn. */
+export const MAX_COLUMN_COUNT = 7;
+
+/**
+ * Columns rendered before the grid has measured itself — server render and
+ * first client paint. It lives here, beside the bounds, because the SERVER
+ * fetches this many days too (`calendar/page.tsx`): the seeded rows only land
+ * in the window the client first mounts if the two spans agree.
+ */
+export const DEFAULT_COLUMN_COUNT = MAX_COLUMN_COUNT;
+
 /**
  * A measurement snapshot of the mounted grid, in CSS px. Produced by the
  * grid's ResizeObserver/scroll wiring (T027), consumed pure — geometry never
@@ -117,7 +131,7 @@ export function blockOffsets(
  *
  * The planners speak GRID SPACE — a column index and wall minutes after that
  * column's midnight — never dates or instants. Converting a column index to
- * a date (through the rendered slice) and wall minutes to an instant (through
+ * a date (through the rendered window) and wall minutes to an instant (through
  * the household zone) is the adapter's job, which is what keeps zone policy
  * in `recurrence/zone.ts` and this module arithmetic.
  *

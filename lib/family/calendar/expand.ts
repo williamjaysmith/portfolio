@@ -27,7 +27,7 @@ import {
 } from "../recurrence/expand";
 import { parseRule, type RuleUntil } from "../recurrence/grammar";
 import { DAY_MS } from "../recurrence/plain-date";
-import { addDays, diffDays, localDateOf, type WeekWindow } from "./dates";
+import { addDays, diffDays, localDateOf, type DateWindow } from "./dates";
 import type { Event, EventTimes, Occurrence, RepeatChoice } from "../types";
 
 /**
@@ -55,7 +55,7 @@ function untilDateOf(until: RuleUntil | null, householdTz: string): string | nul
 
 export function expandWindow(
   events: readonly Event[],
-  window: WeekWindow,
+  window: DateWindow,
   householdTz: string,
 ): Occurrence[] {
   const occurrences: Occurrence[] = [];
@@ -69,7 +69,7 @@ export function expandWindow(
 function pushOneOff(
   out: Occurrence[],
   event: Event,
-  window: WeekWindow,
+  window: DateWindow,
   householdTz: string,
 ): void {
   if (!intersectsWindow(event.times, window)) return;
@@ -89,7 +89,7 @@ function pushSeries(
   out: Occurrence[],
   event: Event,
   rrule: string,
-  window: WeekWindow,
+  window: DateWindow,
   householdTz: string,
 ): void {
   const series: SeriesInput = {
@@ -126,7 +126,7 @@ function pushSeries(
  * occurrence anchored before the window is still walked. No magic number —
  * the pad is derived from the duration (+1 day absorbs DST stretch).
  */
-function walkRangeOf(times: EventTimes, window: WeekWindow): LocalDateRange {
+function walkRangeOf(times: EventTimes, window: DateWindow): LocalDateRange {
   const padDays = times.allDay
     ? diffDays(times.startDate, times.endDate)
     : Math.ceil((Date.parse(times.endsAt) - Date.parse(times.startsAt)) / DAY_MS) + 1;
@@ -142,7 +142,7 @@ function walkRangeOf(times: EventTimes, window: WeekWindow): LocalDateRange {
 function movedInOccurrences(
   series: SeriesInput,
   walk: LocalDateRange,
-  window: WeekWindow,
+  window: DateWindow,
   householdTz: string,
 ): SeriesOccurrence[] {
   const moved: SeriesOccurrence[] = [];
@@ -157,7 +157,7 @@ function movedInOccurrences(
   return moved;
 }
 
-function intersectsWindow(times: EventTimes, window: WeekWindow): boolean {
+function intersectsWindow(times: EventTimes, window: DateWindow): boolean {
   if (times.allDay) {
     // Inclusive date pair against inclusive window dates (FR-225).
     return times.startDate <= window.endDate && times.endDate >= window.startDate;

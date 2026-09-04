@@ -2,7 +2,7 @@
  * Pure week-grid layout (spec 002, T022) — the lingua franca of the grid.
  * Every presentational component (`EventBlock`, `MoreOverflow`, `AllDayBand`,
  * `DayColumn`) renders exactly what this module returns and computes no
- * geometry of its own. Occurrences + the visible slice's column dates + the
+ * geometry of its own. Occurrences + the displayed window's column dates + the
  * measured metrics in; positioned timed segments, "+n more" overflow groups
  * and all-day lanes out. Output is deterministic (columns left-to-right,
  * top-down, ties by event id) for stable memoization.
@@ -21,7 +21,7 @@
  *   inflated to the FR-218 minimum also refuse to draw over each other.
  * - **FR-206 / FR-207 all-day lanes** — one spanning bar per all-day event
  *   across every visible day it covers, first-fit into lanes; a bar cut by
- *   the slice edge is clipped, with the cut edge flagged so the visible
+ *   the window edge is clipped, with the cut edge flagged so the visible
  *   portion keeps its title (spec edge case).
  * - **FR-218 minimum height** — one line of the block's own title type plus
  *   its vertical padding, never under the FR-263 touch floor;
@@ -121,9 +121,9 @@ export interface AllDayBar {
   startColumn: number;
   /** Last covered column, inclusive. */
   endColumn: number;
-  /** The event started before the visible slice — left edge is a cut, not a start. */
+  /** The event started before the window — left edge is a cut, not a start. */
   clippedStart: boolean;
-  /** The event continues past the visible slice — right edge is a cut. */
+  /** The event continues past the window — right edge is a cut. */
   clippedEnd: boolean;
 }
 
@@ -133,7 +133,7 @@ export interface AllDayLayout {
   laneCount: number;
 }
 
-/** Everything the grid draws for one visible slice of one week. */
+/** Everything the grid draws for one displayed window. */
 export interface WeekLayout {
   /** Timed segments, column by column, top-down. */
   timed: TimedSegment[];
@@ -156,9 +156,9 @@ export function abreastCapOf(columnWidth: number): 2 | 3 {
 }
 
 /**
- * Lay out one visible slice. `columnDates` are the slice's consecutive
- * household-local dates (FR-289 tiling decides them); `householdZone` is the
- * one zone every render works in (FR-219/FR-284).
+ * Lay out one displayed window. `columnDates` are its consecutive
+ * household-local dates (the anchor and the column count decide them);
+ * `householdZone` is the one zone every render works in (FR-219/FR-284).
  */
 export function layoutWeek(
   occurrences: readonly Occurrence[],
@@ -377,7 +377,7 @@ function layoutAllDay(
   return { bars, laneCount: laneEnds.length };
 }
 
-/** Visible spans, clipped to the slice with the cut edges flagged (FR-206). */
+/** Visible spans, clipped to the window with the cut edges flagged (FR-206). */
 function allDaySpansOf(
   occurrences: readonly Occurrence[],
   columnDates: readonly string[],
@@ -387,7 +387,7 @@ function allDaySpansOf(
   const spans: AllDaySpan[] = [];
   for (const occurrence of occurrences) {
     if (!occurrence.times.allDay) continue;
-    // Inclusive date pair (FR-225) against the slice's column offsets.
+    // Inclusive date pair (FR-225) against the window's column offsets.
     const startOffset = diffDays(firstDate, occurrence.times.startDate);
     const endOffset = diffDays(firstDate, occurrence.times.endDate);
     if (endOffset < 0 || startOffset > lastIndex) continue;

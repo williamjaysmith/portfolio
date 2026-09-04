@@ -221,7 +221,7 @@ describe("a drag does not open the create form on the slot it ends over", () => 
     const { surface, viewportRef } = useEventDrag({
       metrics: METRICS,
       columnDates: [MONDAY, TUESDAY],
-      weekStart: MONDAY,
+      windowStart: MONDAY,
       occurrences: [PIANO],
       measureMetrics: () => METRICS,
     });

@@ -21,7 +21,7 @@
 
 import type { z } from "zod";
 
-import { addDays, diffDays, localDateOf, type WeekWindow } from "../calendar/dates";
+import { addDays, diffDays, localDateOf, type DateWindow } from "../calendar/dates";
 import { expandWindow } from "../calendar/expand";
 import { ActionFailure, runAction, type ActionResult } from "../errors";
 import { requireActor } from "../guards";
@@ -237,7 +237,7 @@ function assertRuleReachable(rrule: string | null, times: EventTimes, zone: stri
  * Occurrences — judged by the shared expander, never by a private walk.
  * ------------------------------------------------------------------------- */
 
-function dateWindow(zone: string, from: string, to: string): WeekWindow {
+function dateWindow(zone: string, from: string, to: string): DateWindow {
   return {
     startDate: from,
     endDate: to,
