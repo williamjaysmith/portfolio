@@ -101,7 +101,7 @@ function dialogTitle(
 }
 
 export function CategoryForm({ mode, kind, existing, forceParent, onClose }: CategoryFormProps) {
-  const { categories, profiles, withActor } = useFamily();
+  const { categories, profiles, withActor, refresh } = useFamily();
 
   const dialogRef = useModalDialog(true, true);
   const isProfile = kind === "profile";
@@ -134,6 +134,11 @@ export function CategoryForm({ mode, kind, existing, forceParent, onClose }: Cat
 
     setPending(false);
     if (result.ok) {
+      // The bootstrap path bypasses `withActor`, whose success path is what
+      // refetches. Without this the new profile is invisible until a reload,
+      // and the household retries the create — which by then legitimately
+      // demands a punch-in nobody can satisfy yet.
+      if (bootstrap) await refresh();
       onClose();
       return;
     }

@@ -34,6 +34,7 @@ describe("CategoryForm — the first profile in an empty household", () => {
       categories: [],
       actor: null,
       withActor: vi.fn(async () => fail("NO_ACTOR")),
+      refresh: vi.fn(async () => {}),
     });
   }
 
@@ -71,6 +72,25 @@ describe("CategoryForm — the first profile in an empty household", () => {
 
     await waitFor(() => expect(createCategory).toHaveBeenCalled());
     expect(context.withActor).not.toHaveBeenCalled();
+  });
+
+  it("refetches after the bootstrap save, so the new profile is not invisible", async () => {
+    // Regression, found on the live household: `withActor`'s success path is
+    // what refreshes, and bootstrap skips it. The profile was written but the
+    // screen still showed none, so the household created it again — and that
+    // second attempt legitimately demanded a punch-in nobody could satisfy.
+    const context = emptyHousehold();
+    render(
+      withFamily(
+        context,
+        <CategoryForm mode="create" kind="profile" forceParent onClose={vi.fn()} />,
+      ),
+    );
+
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Dad" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(context.refresh).toHaveBeenCalled());
   });
 
   it("still demands an actor once the household has a parent", async () => {
