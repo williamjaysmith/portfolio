@@ -3,7 +3,12 @@
 import { useCallback, useRef, useState } from "react";
 
 import type { LayoutMetrics } from "@/lib/family/calendar/layout";
-import type { GridMetrics } from "@/lib/family/week-geometry";
+import {
+  DEFAULT_COLUMN_COUNT,
+  MAX_COLUMN_COUNT,
+  MIN_COLUMN_COUNT,
+  type GridMetrics,
+} from "@/lib/family/week-geometry";
 
 /**
  * T027: the grid measures ITSELF (spec Contradiction 5) — a `ResizeObserver`
@@ -21,10 +26,10 @@ import type { GridMetrics } from "@/lib/family/week-geometry";
  * columns; otherwise as many whole reference-width columns as fit in the
  * grid's content width, floored at three, capped at seven. The rendered
  * columns then stretch to share the content width equally — the reference
- * width decides only HOW MANY fit. A rotation fires the observer, the count
- * changes, and the slice index survives clamped because `useWeekAnchor`
- * resolves its slice against the new tiling (its `resolveSlice` clamp) — no
- * effect here needs to reach into anchor state.
+ * width decides only HOW MANY fit. A rotation fires the observer and the count
+ * changes; nothing here reaches into anchor state, because the count IS the
+ * window's width and its paging step — the anchored first day is unaffected,
+ * the window simply grows or shrinks to its right.
  *
  * `GridMetrics.scrollTopPx` is the offset AT THE LAST MEASUREMENT — the hook
  * deliberately does not re-render per scrolled pixel. US1 renders in content
@@ -47,16 +52,6 @@ import type { GridMetrics } from "@/lib/family/week-geometry";
 
 /** FR-277's breakpoint: at least this many CSS px wide, in landscape → 7. */
 const SEVEN_COLUMN_MIN_WIDTH = 1024;
-/** FR-278's floor — never fewer day columns than this. */
-const MIN_COLUMNS = 3;
-/** A week — FR-289 slices are cut from it, never more columns than days. */
-const MAX_COLUMNS = 7;
-/**
- * Columns rendered before the first measurement lands (server render and
- * first client paint). Seven — the wall tablet FR-277 targets — so the
- * primary device hydrates without a column jump.
- */
-export const DEFAULT_COLUMN_COUNT = 7;
 
 /** The inputs the FR-277/278 column count is decided from, all CSS px. */
 export interface ColumnFitInput {
@@ -102,10 +97,10 @@ export function columnCountFor(input: ColumnFitInput): number {
   }
   // CSS `orientation: landscape` — width STRICTLY greater than height.
   if (input.viewportWidth >= SEVEN_COLUMN_MIN_WIDTH && input.viewportWidth > input.viewportHeight) {
-    return MAX_COLUMNS;
+    return MAX_COLUMN_COUNT;
   }
   const fit = Math.floor((input.gridWidth - input.gutterWidth) / referenceColumnWidth);
-  return Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, fit));
+  return Math.min(MAX_COLUMN_COUNT, Math.max(MIN_COLUMN_COUNT, fit));
 }
 
 /**

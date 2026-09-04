@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
  * The day-header line of the FR-201 grid (T029): one serif "Wed 18" per
  * visible column, with today's numeral inside the filled coral circle
  * (FR-209 — the circle REPLACES the plain numeral; the weekday abbreviation
- * stays un-badged). Purely presentational: the dates arrive as the slice's
+ * stays un-badged). Purely presentational: the dates arrive as the window's
  * `columnDates` and today arrives as `todayDate` from the anchor above —
  * `null` until the client clock's first publish, when no badge is drawn.
  *
@@ -28,7 +28,7 @@ export function headerGridTemplate(columnCount: number): CSSProperties {
 }
 
 export interface WeekHeaderProps {
-  /** The visible slice's consecutive household-local dates (FR-289). */
+  /** The displayed window's consecutive household-local dates. */
   columnDates: readonly string[];
   /** Household-local today; `null` before the clock's first publish. */
   todayDate: string | null;

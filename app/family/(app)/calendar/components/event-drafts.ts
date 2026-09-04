@@ -1,4 +1,4 @@
-import { addDays, diffDays, localDateOf, weekWindowOf } from "@/lib/family/calendar/dates";
+import { addDays, diffDays, localDateOf, zoneMidnightMs } from "@/lib/family/calendar/dates";
 import { repeatChoiceOf } from "@/lib/family/calendar/expand";
 import type {
   Event,
@@ -65,13 +65,13 @@ function wallMinutesFrom(zone: string, date: string, instantMs: number): number 
 }
 
 /**
- * The instant of a household wall time. `weekWindowOf` already knows the
- * zone's midnight of any date; the minutes are added as elapsed time and
+ * The instant of a household wall time. `zoneMidnightMs` is the one reading of
+ * a date's midnight in the zone; the minutes are added as elapsed time and
  * corrected once against the wall clock, so a DST day's missing or repeated
  * hour never lands the slot an hour off its label (FR-235/236).
  */
 export function householdWallInstant(zone: string, date: string, minutes: number): number {
-  const guess = weekWindowOf(date, zone).startMs + minutes * MINUTE_MS;
+  const guess = zoneMidnightMs(zone, date) + minutes * MINUTE_MS;
   return guess + (minutes - wallMinutesFrom(zone, date, guess)) * MINUTE_MS;
 }
 

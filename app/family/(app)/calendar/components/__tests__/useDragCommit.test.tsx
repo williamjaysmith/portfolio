@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { updateEvent } from "@/lib/family/actions/events";
-import { addDays } from "@/lib/family/calendar/dates";
+import { addDays, viewWindowOf } from "@/lib/family/calendar/dates";
 import type { LayoutMetrics, TimedSegment } from "@/lib/family/calendar/layout";
 import { fail } from "@/lib/family/errors";
 import { familyKeys } from "@/lib/family/queries";
@@ -17,7 +17,6 @@ import {
   withFamily,
 } from "../../../components/__tests__/family-test-utils";
 import { GONE_MESSAGE } from "../useCalendarEditor";
-import { slicePageOf } from "../WeekView";
 import {
   dragKeyActionOf,
   dragUpdateOf,
@@ -63,8 +62,10 @@ const updateEventMock = updateEvent as Mock;
 
 const HOUSEHOLD = "household-1";
 const ZONE = "America/Chicago";
-const WEEK_START = "2026-09-06"; // a Sunday — the household's week start
-const COLUMN_DATES = [0, 1, 2, 3, 4, 5, 6].map((day) => addDays(WEEK_START, day));
+const ANCHOR_DATE = "2026-09-06";
+const COLUMN_DATES = [0, 1, 2, 3, 4, 5, 6].map((day) => addDays(ANCHOR_DATE, day));
+/** The displayed window the harness renders — seven columns from the anchor. */
+const WINDOW = viewWindowOf(ANCHOR_DATE, COLUMN_DATES.length, ZONE);
 const MONDAY = COLUMN_DATES[1];
 const TUESDAY = COLUMN_DATES[2];
 
@@ -155,7 +156,7 @@ function Harness({ handle, occurrences, refetch }: HarnessProps) {
     metrics: null,
     layoutMetrics: LAYOUT_METRICS,
     columnDates: COLUMN_DATES,
-    weekStart: WEEK_START,
+    windowStart: WINDOW.startDate,
     occurrences,
   };
   const drag = useEventDrag(options);
@@ -165,14 +166,14 @@ function Harness({ handle, occurrences, refetch }: HarnessProps) {
     dispatch: drag.dispatch,
     dateOfColumn: drag.dateOfColumn,
     sourceOccurrence: drag.sourceOccurrence,
-    weekStart: WEEK_START,
+    window: WINDOW,
     occurrences,
   });
   const announcement = dragAnnouncementOf(drag.state, {
     dateOfColumn: drag.dateOfColumn,
     timeFormat: "12h",
   });
-  useQuery({ queryKey: familyKeys.week(HOUSEHOLD, WEEK_START), queryFn: refetch });
+  useQuery({ queryKey: familyKeys.week(HOUSEHOLD, WINDOW), queryFn: refetch });
 
   return (
     <div>
@@ -210,7 +211,7 @@ function mount(options: MountOptions = {}) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
-  client.setQueryData(familyKeys.week(HOUSEHOLD, WEEK_START), rows);
+  client.setQueryData(familyKeys.week(HOUSEHOLD, WINDOW), rows);
 
   const context = makeContext({
     actor: options.actorPunchedIn === true ? makeActor() : null,
@@ -692,35 +693,6 @@ describe("timedSourceOf", () => {
   });
 });
 
-describe("slicePageOf (R211's edge-hold destination)", () => {
-  const week = { weekStart: WEEK_START, sliceIndex: 1, sliceCount: 3 };
-
-  it("steps to the next slice inside the week", () => {
-    expect(slicePageOf(week, 1)).toEqual({ weekStart: null, sliceIndex: 2 });
-    expect(slicePageOf(week, -1)).toEqual({ weekStart: null, sliceIndex: 0 });
-  });
-
-  it("crosses into the neighbouring week's nearest slice (FR-279)", () => {
-    expect(slicePageOf({ ...week, sliceIndex: 2 }, 1)).toEqual({
-      weekStart: addDays(WEEK_START, 7),
-      sliceIndex: 0,
-    });
-    expect(slicePageOf({ ...week, sliceIndex: 0 }, -1)).toEqual({
-      weekStart: addDays(WEEK_START, -7),
-      sliceIndex: 2,
-    });
-  });
-
-  it("pages whole weeks when the whole week is one slice (FR-277)", () => {
-    const sevenColumns = { weekStart: WEEK_START, sliceIndex: 0, sliceCount: 1 };
-
-    expect(slicePageOf(sevenColumns, 1)).toEqual({
-      weekStart: addDays(WEEK_START, 7),
-      sliceIndex: 0,
-    });
-  });
-});
-
 /**
  * The live measurement, without the injection seam every other drag test
  * uses: `measureMetrics` exists for jsdom's benefit (R213), but the code the
@@ -763,7 +735,7 @@ describe("the drag's own measurement of the mounted grid", () => {
       useEventDrag({
         metrics: options.metrics,
         columnDates: COLUMN_DATES,
-        weekStart: WEEK_START,
+        windowStart: WINDOW.startDate,
         occurrences: [PIANO],
       }),
     );

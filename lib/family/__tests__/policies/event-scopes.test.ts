@@ -29,7 +29,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Pool } from "pg";
 
-import { fetchBoundsOf, localDateOf, type WeekWindow } from "@/lib/family/calendar/dates";
+import { fetchBoundsOf, localDateOf, type DateWindow } from "@/lib/family/calendar/dates";
 import { expandWindow } from "@/lib/family/calendar/expand";
 import type { ActionResult } from "@/lib/family/errors";
 import { fetchWeekEvents } from "@/lib/family/queries";
@@ -187,7 +187,7 @@ const OVERRIDE_TIMES = timedOn(OVERRIDDEN, [18, 0], [18, 45]);
  * of the first occurrence through the week of UNTIL. `expandWindow` is a
  * range walk; nothing in it insists on seven days.
  */
-const SPAN: WeekWindow = {
+const SPAN: DateWindow = {
   startDate: "2026-09-13",
   endDate: "2026-12-19",
   startMs: chicagoMs("2026-09-13", 0, 0),

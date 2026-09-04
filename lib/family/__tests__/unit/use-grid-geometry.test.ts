@@ -3,13 +3,13 @@ import { act } from "react";
 import { describe, expect, it } from "vitest";
 
 import {
-  DEFAULT_COLUMN_COUNT,
   columnCountFor,
   geometryOf,
   useGridGeometry,
   type ColumnFitInput,
   type GridMeasurement,
 } from "@/app/family/(app)/calendar/components/useGridGeometry";
+import { DEFAULT_COLUMN_COUNT } from "@/lib/family/week-geometry";
 
 /**
  * T027 / FR-277 / FR-278: the column count is a MEASUREMENT consequence, not

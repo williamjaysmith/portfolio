@@ -30,6 +30,12 @@ import {
 import { createClient } from "./supabase/client";
 import type { Category, Event, Household, HouseholdSettings } from "./types";
 
+/** What identifies one cached window of events: the days it covers, inclusive. */
+export interface WeekCacheWindow {
+  startDate: string;
+  endDate: string;
+}
+
 /**
  * Prefix-shaped so one `invalidateQueries({ queryKey: familyKeys.all })` from
  * the Realtime channel sweeps every family query.
@@ -40,13 +46,17 @@ export const familyKeys = {
   settings: (householdId: string) => ["family", "settings", householdId] as const,
   household: (householdId: string) => ["family", "household", householdId] as const,
   avatarUrls: (householdId: string) => ["family", "avatar-urls", householdId] as const,
+  /** Every cached window of events, for a prefix sweep. */
+  events: (householdId: string) => ["family", "events", householdId] as const,
   /**
-   * The cache unit is the ANCHORED week, never the phone slice (R207):
-   * `weekStartISO` is the household-start-of-week date as `YYYY-MM-DD` in the
-   * household's timezone — one canonical key per week however it was reached.
+   * The cache unit is the DISPLAYED WINDOW (R207), identified by the
+   * household-local days it covers, `YYYY-MM-DD..YYYY-MM-DD`. Both bounds are
+   * in the key on purpose: a phone's three-day window and a tablet's seven-day
+   * one begin on the same day, and keying on the first day alone would let a
+   * rotation draw seven columns from a three-day fetch.
    */
-  week: (householdId: string, weekStartISO: string) =>
-    ["family", "events", householdId, weekStartISO] as const,
+  week: (householdId: string, window: WeekCacheWindow) =>
+    [...familyKeys.events(householdId), `${window.startDate}..${window.endDate}`] as const,
   /** FR-274's affected-event count for one category's delete confirmation. */
   categoryEventCount: (householdId: string, categoryId: string) =>
     ["family", "category-event-count", householdId, categoryId] as const,
@@ -97,19 +107,19 @@ export async function fetchHousehold(
 }
 
 /**
- * The fetch bounds of one anchored week, derived by the caller
- * (`lib/family/calendar/dates.ts`) from the week-start date and the
- * household's timezone. Instant bounds serve the timed branch, date bounds
+ * The fetch bounds of one displayed window, derived by the caller
+ * (`lib/family/calendar/dates.ts`) from its first day, its width in days and
+ * the household's timezone. Instant bounds serve the timed branch, date bounds
  * the all-day branch — collapsing them would fabricate a
  * midnight-in-some-zone (data-model, "How the week is read").
  */
-export interface WeekFetchBounds {
+export interface WeekFetchBounds extends WeekCacheWindow {
   /**
-   * First day of the week, `YYYY-MM-DD` in the household zone — the cache
-   * identity (R207) and the all-day lower bound.
+   * First day of the window, `YYYY-MM-DD` in the household zone — half of the
+   * cache identity (R207) and the all-day lower bound.
    */
   startDate: string;
-  /** Last day of the week, `YYYY-MM-DD` — inclusive, as `end_date` is (FR-225). */
+  /** Last day of the window, `YYYY-MM-DD` — inclusive, as `end_date` is (FR-225). */
   endDate: string;
   /** ISO instant of the window's opening midnight; timed one-offs must end strictly after it. */
   startsAt: string;
@@ -209,7 +219,7 @@ export function useHousehold(householdId: string, initialData?: Household) {
 
 export function useWeekEvents(householdId: string, weekWindow: WeekFetchBounds, initialData?: Event[]) {
   return useQuery({
-    queryKey: familyKeys.week(householdId, weekWindow.startDate),
+    queryKey: familyKeys.week(householdId, weekWindow),
     queryFn: () => fetchWeekEvents(createClient(), householdId, weekWindow),
     staleTime: STALE_TIME,
     initialData,
@@ -217,10 +227,9 @@ export function useWeekEvents(householdId: string, weekWindow: WeekFetchBounds, 
 }
 
 /**
- * Warms one anchored week's cache entry. Called for each neighbour of a
- * settled anchor (`weekStart` ± 7 days, windows derived by the caller), so a
- * week-boundary swipe lands on data already there (R207/FR-279); a swipe
- * inside the anchored week costs zero fetches by construction.
+ * Warms one displayed window's cache entry. Called for each neighbour of a
+ * settled anchor (one window either side, derived by the caller), so the next
+ * page — by swipe or by arrow — lands on data already there (R207/FR-279).
  */
 export function prefetchWeek(
   queryClient: QueryClient,
@@ -228,7 +237,7 @@ export function prefetchWeek(
   weekWindow: WeekFetchBounds,
 ): Promise<void> {
   return queryClient.prefetchQuery({
-    queryKey: familyKeys.week(householdId, weekWindow.startDate),
+    queryKey: familyKeys.week(householdId, weekWindow),
     queryFn: () => fetchWeekEvents(createClient(), householdId, weekWindow),
     staleTime: STALE_TIME,
   });

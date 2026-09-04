@@ -17,7 +17,7 @@ import {
 } from "react";
 
 import { updateEvent } from "@/lib/family/actions/events";
-import { addDays, diffDays } from "@/lib/family/calendar/dates";
+import { addDays, diffDays, type DateWindow } from "@/lib/family/calendar/dates";
 import { repeatChoiceOf } from "@/lib/family/calendar/expand";
 import type { LayoutMetrics, TimedSegment } from "@/lib/family/calendar/layout";
 import {
@@ -99,10 +99,10 @@ import { GONE_MESSAGE } from "./useCalendarEditor";
  * - **`touch-action: none` on the dragged block** (`handleProps`), the grid
  *   background keeping `pan-y`: the gesture systems partition the surface by
  *   target, so a press on a block is a drag and never a scroll or a swipe
- *   (Assumption 44). The block press also stops propagating, so the slice
+ *   (Assumption 44). The block press also stops propagating, so the week
  *   pager never sees it.
- * - **The frame rebase**: column indices are the RENDERED slice's, so when an
- *   edge-hold page moves the slice under a live gesture the source placement
+ * - **The frame rebase**: column indices are the RENDERED window's, so when an
+ *   edge-hold page moves the window under a live gesture the source placement
  *   is re-pressed shifted by the page distance (the pointer is re-fed at
  *   once, so no second slop crossing is needed). Without it, dragging an
  *   occurrence into the following week would read as a drop where it started
@@ -169,7 +169,7 @@ export interface DragHandle {
   /** Whether the drop must ask the scope question (FR-238/250). */
   isRepeating: boolean;
   /**
-   * Where the block sits NOW, in the rendered slice's grid space: a column
+   * Where the block sits NOW, in the rendered window's grid space: a column
    * index into `columnDates` and wall minutes from that column's midnight.
    * A midnight-crosser's placement is its TRUE range in the grabbed column's
    * frame (an end past 1440 is the next morning — FR-217) — see
@@ -225,13 +225,13 @@ export interface UseEventDragOptions {
   metrics: GridMetrics | null;
   /** The same measurement in layout's terms — the ghost's ruler (T056). */
   layoutMetrics?: LayoutMetrics | null;
-  /** The visible slice's household-local dates (FR-289) — column 0 first. */
+  /** The displayed window's household-local dates — column 0 first. */
   columnDates: readonly string[];
-  /** The anchored week (R207): a page ACROSS weeks is not a vanished source. */
-  weekStart: string;
-  /** The mounted week's occurrences — the source leaving them is `SOURCE_GONE`. */
+  /** The displayed window's first day (R207): a page is not a vanished source. */
+  windowStart: string;
+  /** The mounted window's occurrences — the source leaving them is `SOURCE_GONE`. */
   occurrences: readonly Occurrence[];
-  /** R211's edge-hold: page one slice earlier (-1) or later (+1). */
+  /** R211's edge-hold: page one window earlier (-1) or later (+1). */
   onPage?: (direction: -1 | 1) => void;
   /** Test seam (R213) — jsdom has no layout, so the metrics are injected. */
   measureMetrics?: () => DragMetrics | null;
@@ -269,12 +269,12 @@ export type DragDispatch = (action: DragAction) => void;
 /** A mutable box — what `useRef` hands back, named so the plumbing reads. */
 type Box<T> = { current: T };
 
-/** Where the gesture's column indices are counted from, and in which week. */
+/** Where the gesture's column indices are counted from, and in which window. */
 interface DragFrame {
   /** `columnDates[0]` when the frame was set. */
-  sliceStart: string;
-  /** The anchored week when the frame was set. */
-  weekStart: string;
+  columnStart: string;
+  /** The displayed window's first day when the frame was set. */
+  windowStart: string;
 }
 
 /**
@@ -338,7 +338,7 @@ export function useEventDrag(options: UseEventDragOptions): EventDragController 
   useDragLoop(refs, dispatch, liveGesture !== null);
   useEscapeKey(dispatch, liveGesture !== null);
   useFrameRebase(refs, dispatch, options.columnDates);
-  useSourceWatch(refs, dispatch, liveGesture, options.occurrences, options.weekStart);
+  useSourceWatch(refs, dispatch, liveGesture, options.occurrences, options.windowStart);
 
   const gesture = state.kind === "idle" ? null : state.gesture;
   const { columnDates } = options;
@@ -524,7 +524,7 @@ function useEscapeKey(dispatch: DragDispatch, active: boolean): void {
 }
 
 /**
- * Column indices are the RENDERED slice's, so a page under a live gesture
+ * Column indices are the RENDERED window's, so a page under a live gesture
  * re-frames it (see the module doc: without this, dragging an occurrence into
  * the following week reads as a drop where it started).
  */
@@ -539,10 +539,10 @@ function useFrameRebase(
 }
 
 /**
- * A realtime refetch (R209) can take the dragged block out of the week under
- * the gesture. While the pressed week is still the rendered one that means it
+ * A realtime refetch (R209) can take the dragged block out of the window under
+ * the gesture. While the pressed window is still the rendered one that means it
  * was deleted or re-homed — `SOURCE_GONE`; once an edge-hold page has carried
- * the gesture into another week the source is legitimately absent from what
+ * the gesture into another window the source is legitimately absent from what
  * is rendered, and the gesture carries on.
  */
 function useSourceWatch(
@@ -550,12 +550,12 @@ function useSourceWatch(
   dispatch: DragDispatch,
   gesture: DragGesture | null,
   occurrences: readonly Occurrence[],
-  weekStart: string,
+  windowStart: string,
 ): void {
   useEffect(() => {
-    if (gesture === null || !pressedInWeek(refs, weekStart)) return;
+    if (gesture === null || !pressedInWindow(refs, windowStart)) return;
     if (!isRendered(occurrences, gesture)) dispatch({ type: "SOURCE_GONE" });
-  }, [refs, dispatch, gesture, occurrences, weekStart]);
+  }, [refs, dispatch, gesture, occurrences, windowStart]);
 }
 
 /* ------------------------------------------------------ gesture steps ---- */
@@ -584,7 +584,7 @@ function beginGesture(
   const node = refs.viewport.current;
   const metrics = measureOf(refs);
   if (node === null || metrics === null) return;
-  // R205/R211: the slice pager and any enclosing surface must not see a press
+  // R205/R211: the week pager and any enclosing surface must not see a press
   // that belongs to a block — the surfaces partition by target.
   event.stopPropagation();
   clearSwallow(refs);
@@ -651,20 +651,20 @@ function stepFrame(
   dispatchMoveAt(refs, dispatch, at);
 }
 
-/** The slice moved: record the new frame, and re-press what is mid-gesture. */
+/** The window moved: record the new frame, and re-press what is mid-gesture. */
 function reframe(refs: DragRefs, dispatch: DragDispatch, columnDates: readonly string[]): void {
   const current = refs.frame.current;
-  const sliceStart = columnDates[0];
-  if (current === null || sliceStart === undefined || sliceStart === current.sliceStart) return;
-  // The frame keeps the week the gesture was PRESSED in: once an edge-hold
-  // page has carried the drag into another week the source is legitimately
+  const columnStart = columnDates[0];
+  if (current === null || columnStart === undefined || columnStart === current.columnStart) return;
+  // The frame keeps the window the gesture was PRESSED in: once an edge-hold
+  // page has carried the drag into another window the source is legitimately
   // absent from what is rendered, and `useSourceWatch` must not read that
   // as a block deleted underneath the gesture.
-  refs.frame.current = { sliceStart, weekStart: current.weekStart };
-  rebaseFrame(refs, dispatch, diffDays(current.sliceStart, sliceStart));
+  refs.frame.current = { columnStart, windowStart: current.windowStart };
+  rebaseFrame(refs, dispatch, diffDays(current.columnStart, columnStart));
 }
 
-/** The re-press that carries a live gesture into a slice that has moved. */
+/** The re-press that carries a live gesture into a window that has moved. */
 function rebaseFrame(refs: DragRefs, dispatch: DragDispatch, shiftDays: number): void {
   const gesture = liveGestureOf(refs.state.current);
   const at = refs.point.current;
@@ -694,14 +694,14 @@ function liveGestureOf(state: DragState): DragGesture | null {
 
 function frameOf(options: UseEventDragOptions): DragFrame {
   return {
-    sliceStart: options.columnDates[0] ?? options.weekStart,
-    weekStart: options.weekStart,
+    columnStart: options.columnDates[0] ?? options.windowStart,
+    windowStart: options.windowStart,
   };
 }
 
-function pressedInWeek(refs: DragRefs, weekStart: string): boolean {
+function pressedInWindow(refs: DragRefs, windowStart: string): boolean {
   const frame = refs.frame.current;
-  return frame === null || frame.weekStart === weekStart;
+  return frame === null || frame.windowStart === windowStart;
 }
 
 function isRendered(occurrences: readonly Occurrence[], gesture: DragGesture): boolean {
@@ -713,11 +713,11 @@ function isRendered(occurrences: readonly Occurrence[], gesture: DragGesture): b
 }
 
 function dateOfColumnIn(columnDates: readonly string[], columnIndex: number): string {
-  const sliceStart = columnDates[0];
-  if (sliceStart === undefined) {
+  const columnStart = columnDates[0];
+  if (columnStart === undefined) {
     throw new Error("the drag layer needs at least one rendered column date");
   }
-  return addDays(sliceStart, columnIndex);
+  return addDays(columnStart, columnIndex);
 }
 
 /** Where inside the block the press landed, so a move keeps it under the finger. */
@@ -733,7 +733,7 @@ function grabOf(mode: DragMode, source: SlotPlacement, metrics: DragMetrics, at:
   return { offsetMinutes: 0, offsetDays: column - source.startColumnIndex };
 }
 
-/** The same gesture read in a slice that has moved `shiftDays` days later. */
+/** The same gesture read in a window that has moved `shiftDays` days later. */
 function rebased(gesture: DragGesture, shiftDays: number): DragGesture {
   return { ...gesture, source: shiftPlacement(gesture.source, shiftDays) };
 }
@@ -1246,9 +1246,9 @@ export interface UseDragCommitOptions {
   dateOfColumn: (columnIndex: number) => string;
   /** The dragged occurrence as it was picked up — the cross-week fallback. */
   sourceOccurrence: Occurrence | null;
-  /** The anchored week on show — whose cache entry the write invalidates (R207). */
-  weekStart: string;
-  /** The rendered week's occurrences — a dropped block's own effective fields. */
+  /** The displayed window — whose cache entry the write invalidates (R207). */
+  window: DateWindow;
+  /** The rendered window's occurrences — a dropped block's own effective fields. */
   occurrences: readonly Occurrence[];
 }
 
@@ -1261,7 +1261,7 @@ export interface DragCommitState {
 interface CommitDeps {
   zone: string;
   householdId: string;
-  weekStart: string;
+  window: DateWindow;
   queryClient: QueryClient;
   occurrences: readonly Occurrence[];
   sourceOccurrence: Occurrence | null;
@@ -1271,22 +1271,17 @@ interface CommitDeps {
   setNotice: (notice: string | null) => void;
 }
 
-/** Every cached anchored week (R207), derived from the key itself. */
-function weekQueryPrefix(householdId: string): string[] {
-  return familyKeys.week(householdId, "").slice(0, -1);
-}
-
 /**
- * The dragged event's row, from whichever cached week holds it. Usually the
+ * The dragged event's row, from whichever cached window holds it. Usually the
  * mounted one; after an edge-hold page (R211) a one-off's row belongs to the
- * week the gesture started in, which is still in the cache.
+ * window the gesture started in, which is still in the cache.
  */
 function cachedEventRow(
   queryClient: QueryClient,
   householdId: string,
   eventId: string,
 ): Event | undefined {
-  const weeks = queryClient.getQueriesData<Event[]>({ queryKey: weekQueryPrefix(householdId) });
+  const weeks = queryClient.getQueriesData<Event[]>({ queryKey: familyKeys.events(householdId) });
   for (const [, rows] of weeks) {
     const found = rows?.find((row) => row.id === eventId);
     if (found !== undefined) return found;
@@ -1341,7 +1336,7 @@ async function commitDrag(deps: CommitDeps, intent: CommitIntent): Promise<void>
   // R208/SC-206: the block stays drawn at its target — in flight, never
   // "saved" — until the invalidated week has actually been read back.
   await deps.queryClient.invalidateQueries({
-    queryKey: familyKeys.week(deps.householdId, deps.weekStart),
+    queryKey: familyKeys.week(deps.householdId, deps.window),
   });
   deps.dispatch(COMMIT_SETTLED);
 }
@@ -1408,7 +1403,7 @@ export function useDragCommit({
   dispatch,
   dateOfColumn,
   sourceOccurrence,
-  weekStart,
+  window,
   occurrences,
 }: UseDragCommitOptions): DragCommitState {
   const { householdId, settings, actor, withActor, openPunchIn } = useFamily();
@@ -1424,7 +1419,7 @@ export function useDragCommit({
         {
           zone: settings.timezone,
           householdId,
-          weekStart,
+          window,
           queryClient,
           occurrences,
           sourceOccurrence,
@@ -1439,7 +1434,7 @@ export function useDragCommit({
     [
       settings.timezone,
       householdId,
-      weekStart,
+      window,
       queryClient,
       occurrences,
       sourceOccurrence,

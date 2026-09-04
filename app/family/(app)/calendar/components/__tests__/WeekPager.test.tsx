@@ -2,16 +2,16 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
-  SlicePager,
+  WeekPager,
   beginsOnBlock,
   swipeAxisOf,
   swipeStepOf,
   travelOf,
   type SwipeAxis,
-} from "../SlicePager";
+} from "../WeekPager";
 
 /**
- * T060 — the FR-279 slice swipe.
+ * T060 — the FR-279 paging swipe.
  *
  * Two tiers, per R213. The decisions are pure functions and are tested as
  * such: the FR-280 axis lock, the release step's direction and threshold, and
@@ -20,7 +20,8 @@ import {
  * proves the three rules that only exist once a gesture is real — the lock
  * holds for the whole gesture, a swipe pages EXACTLY once however far it
  * travels, and a press that begins on a block pages not at all (Assumption
- * 44: the drag layer owns those).
+ * 44: the drag layer owns those). How FAR one page moves is the anchor's
+ * business (`useWeekAnchor`: exactly the column count), not this component's.
  *
  * jsdom needs `isPrimary` on every pointer event — framer's pan session drops
  * non-primary pointers, and jsdom's `PointerEvent` defaults it to false.
@@ -70,10 +71,10 @@ async function swipe(node: Element, from: Point, path: readonly Point[]): Promis
 function renderPager() {
   const onPage = vi.fn();
   render(
-    <SlicePager onPage={onPage}>
+    <WeekPager onPage={onPage}>
       <div data-testid="band">Mon Tue Wed</div>
       <button type="button">Piano</button>
-    </SlicePager>,
+    </WeekPager>,
   );
   return { onPage, band: screen.getByTestId("band"), block: screen.getByRole("button") };
 }
@@ -146,8 +147,8 @@ describe("beginsOnBlock", () => {
   });
 });
 
-describe("SlicePager", () => {
-  it("pages one slice later on a swipe left (FR-279)", async () => {
+describe("WeekPager", () => {
+  it("pages one page later on a swipe left (FR-279)", async () => {
     const { onPage, band } = renderPager();
     await swipe(band, { x: 300, y: 200 }, [
       { x: 280, y: 202 },
@@ -157,7 +158,7 @@ describe("SlicePager", () => {
     expect(onPage.mock.calls).toEqual([[1]]);
   });
 
-  it("pages one slice earlier on a swipe right (FR-279)", async () => {
+  it("pages one page earlier on a swipe right (FR-279)", async () => {
     const { onPage, band } = renderPager();
     await swipe(band, { x: 160, y: 200 }, [
       { x: 190, y: 200 },
@@ -166,7 +167,7 @@ describe("SlicePager", () => {
     expect(onPage.mock.calls).toEqual([[-1]]);
   });
 
-  it("advances exactly one slice however far the swipe travels (FR-279)", async () => {
+  it("advances exactly one page however far the swipe travels (FR-279)", async () => {
     const { onPage, band } = renderPager();
     await swipe(band, { x: 900, y: 300 }, [
       { x: 800, y: 300 },

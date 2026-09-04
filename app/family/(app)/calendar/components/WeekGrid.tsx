@@ -29,11 +29,11 @@ function hourLabel(hour: number, timeFormat: TimeFormat): string {
 }
 
 export interface WeekGridProps {
-  /** The visible slice's consecutive household-local dates (FR-289). */
+  /** The displayed window's consecutive household-local dates. */
   columnDates: readonly string[];
   /** Household-local today; `null` before the clock's first publish. */
   todayDate: string | null;
-  /** Everything `layoutWeek` computed for this slice. */
+  /** Everything `layoutWeek` computed for this window. */
   layout: WeekLayout;
   /** Category id → palette colour, for the fills in draw order (FR-227). */
   colorsById: Readonly<Record<string, PaletteColor>>;

@@ -12,14 +12,13 @@ import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { SETTLE_SECONDS } from "./DragPreviewBlock";
 
 /**
- * T060: the slice swipe (FR-279, R211) — a horizontal pan on the grid strip
- * that advances the view by EXACTLY ONE slice of the anchored week.
+ * T060: the paging swipe (FR-279, R211) — a horizontal pan on the grid strip
+ * that advances the view by EXACTLY ONE PAGE, which is however many days the
+ * grid is currently showing.
  *
- * Everything about which slice that is belongs elsewhere: `sliceStarts`
- * tiles the week (FR-289), `slicePageOf` turns a direction into the next
- * slice or the neighbouring week's nearest one (FR-279's cross-week
- * continuation), and `useWeekAnchor` holds it. This component's whole job is
- * to decide, from a gesture, whether a step was asked for and in which
+ * Where that lands belongs elsewhere: `useWeekAnchor` moves its anchor by the
+ * column count, and the arrows call the very same step. This component's whole
+ * job is to decide, from a gesture, whether a step was asked for and in which
  * direction — so it is three pure functions and a thin framer-motion binding
  * over them.
  *
@@ -33,9 +32,9 @@ import { SETTLE_SECONDS } from "./DragPreviewBlock";
  *
  * **Direction** (FR-279, Contradiction 2). Left = later, right = earlier:
  * the content follows the finger. A release is a page only past a travel
- * threshold, which is also what makes ONE swipe one slice — the step is
+ * threshold, which is also what makes ONE swipe one page — the step is
  * decided at `onPanEnd` and nowhere else, so a swipe across the whole width
- * still advances a single slice.
+ * still advances a single page.
  *
  * **Where a swipe may begin** (Assumption 44). A press that lands on a block
  * belongs to the drag layer (`useEventDrag` — R205's surfaces partition by
@@ -49,7 +48,7 @@ import { SETTLE_SECONDS } from "./DragPreviewBlock";
  *
  * **Reduced motion** (FR-252). The strip follows the finger only when motion
  * is allowed; under a reduced-motion preference `travelOf` pins the travel to
- * zero, which turns the whole thing into an instant jump to the new slice.
+ * zero, which turns the whole thing into an instant jump to the new page.
  *
  * The arrows and Today (FR-281) page through the same anchor state without
  * passing through here — they always work however full the grid is.
@@ -58,7 +57,7 @@ import { SETTLE_SECONDS } from "./DragPreviewBlock";
 /** R211: the displacement at which the pan may claim the gesture (FR-280). */
 const SWIPE_LOCK_PX = 10;
 
-/** R211: how far a release must have travelled to advance a slice (FR-279). */
+/** R211: how far a release must have travelled to advance a page (FR-279). */
 const SWIPE_COMMIT_PX = 48;
 
 /** How far the strip follows the finger — capped, so it cannot widen the page. */
@@ -87,7 +86,7 @@ export function swipeAxisOf(axis: SwipeAxis, offset: Offset): SwipeAxis {
 }
 
 /**
- * What a release asks for: one slice later (`1`) for a swipe left, one
+ * What a release asks for: one page later (`1`) for a swipe left, one
  * earlier (`-1`) for a swipe right, or nothing (FR-279). Only a horizontal
  * gesture that travelled past the threshold pages.
  */
@@ -137,7 +136,7 @@ interface SwipePan {
 /**
  * The gesture, held in a ref because none of it is rendered: the strip's
  * position is a motion value (no render per frame) and the step is reported
- * to the anchor, which owns the slice. The one piece of React state a swipe
+ * to the anchor, which owns the window. The one piece of React state a swipe
  * produces lives there.
  */
 function useSwipePan(onPage: (direction: -1 | 1) => void): SwipePan {
@@ -181,14 +180,14 @@ function useSwipePan(onPage: (direction: -1 | 1) => void): SwipePan {
   return { x, handlers };
 }
 
-export interface SlicePagerProps {
-  /** One step: `1` = one slice later, `-1` = one slice earlier (FR-279/289). */
+export interface WeekPagerProps {
+  /** One step: `1` = one page later, `-1` = one page earlier — `columns` days (FR-279). */
   onPage: (direction: -1 | 1) => void;
   /** The day-header band, the notices and the hour grid — the strip that moves. */
   children: ReactNode;
 }
 
-export function SlicePager({ onPage, children }: SlicePagerProps) {
+export function WeekPager({ onPage, children }: WeekPagerProps) {
   const { x, handlers } = useSwipePan(onPage);
 
   // `overflow-x-clip` and not `hidden`: clip leaves the vertical axis

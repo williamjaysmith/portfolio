@@ -176,10 +176,16 @@ describe("week read: the three-branch OR, embeds, and RLS", () => {
     await pool.end();
   });
 
-  it("keys the anchored week under the swept ['family'] prefix", () => {
-    const key = familyKeys.week("hid", "2026-10-04");
-    expect(key).toEqual(["family", "events", "hid", "2026-10-04"]);
+  it("keys the displayed window under the swept ['family'] prefix", () => {
+    const key = familyKeys.week("hid", { startDate: "2026-10-04", endDate: "2026-10-06" });
+    expect(key).toEqual(["family", "events", "hid", "2026-10-04..2026-10-06"]);
     expect(key[0]).toBe(familyKeys.all[0]);
+    // Both bounds are in the key: a three-day and a seven-day window from the
+    // same day are different reads and must not share a cache entry.
+    expect(key).not.toEqual(
+      familyKeys.week("hid", { startDate: "2026-10-04", endDate: "2026-10-10" }),
+    );
+    expect(familyKeys.events("hid")).toEqual(key.slice(0, -1));
   });
 
   it("a series row whose start predates the window still arrives, every exception embedded", async () => {

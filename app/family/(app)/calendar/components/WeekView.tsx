@@ -3,7 +3,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
-import { addDays, sliceStarts } from "@/lib/family/calendar/dates";
+import type { DateWindow } from "@/lib/family/calendar/dates";
 import {
   TOUCH_FLOOR,
   type AllDayLayout,
@@ -13,7 +13,7 @@ import {
 import type { PaletteColor } from "@/lib/family/colors";
 import type { ConfirmStep } from "@/lib/family/drag-state";
 import type { Category, Event, Occurrence, TimeFormat } from "@/lib/family/types";
-import type { GridMetrics } from "@/lib/family/week-geometry";
+import { DEFAULT_COLUMN_COUNT, type GridMetrics } from "@/lib/family/week-geometry";
 
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily } from "../../components/FamilyProvider";
@@ -21,7 +21,6 @@ import { AllDayBand } from "./AllDayBand";
 import { slotSeedOf } from "./event-drafts";
 import { EventEditor } from "./EventEditor";
 import { ScopeDialog } from "./ScopeDialog";
-import { SlicePager } from "./SlicePager";
 import { useCalendarEditor, type CalendarEditor } from "./useCalendarEditor";
 import {
   DragSurfaceContext,
@@ -33,23 +32,24 @@ import {
 } from "./useEventDrag";
 import { useFollowScroll } from "./useFollowScroll";
 import { useGridGeometry } from "./useGridGeometry";
-import { useWeekAnchor, type WeekAnchorState } from "./useWeekAnchor";
+import { useWeekAnchor } from "./useWeekAnchor";
 import { useWeekOccurrences } from "./useWeekOccurrences";
 import { WeekGrid } from "./WeekGrid";
 import { WeekHeader } from "./WeekHeader";
+import { WeekPager } from "./WeekPager";
 
 /**
  * T033: the Week view orchestrator — the FR-201 day-columns-over-hours grid
  * assembled from the US1 pieces, each of which stays ignorant of the others:
  *
  *   useGridGeometry    measures the mounted viewport → columns + metrics
- *   useWeekAnchor      {today | pinned} week + slice state over the clock
+ *   useWeekAnchor      {today | pinned} first day, paged by the column count
  *   useWeekOccurrences fetch → expand → filter → layout memo chain (R206)
  *   useFollowScroll    the FR-290 follow-scroll on the hour viewport (T034)
  *   useCalendarEditor  the US2 write surfaces and their one commit path (T050)
  *   useEventDrag       the US3 gesture over the two pure drag modules (T055)
  *   useDragCommit      what a drop does: scope → punch-in → updateEvent (T057)
- *   SlicePager         the US4 swipe over the same one-slice step (T060)
+ *   WeekPager          the US4 swipe over that same one-page step (T060)
  *
  * The drag's three mounting points are here and nowhere else: the controller
  * goes into `DragSurfaceContext` so the drawn blocks can take hold of it and
@@ -62,17 +62,17 @@ import { WeekHeader } from "./WeekHeader";
  * by the pipeline (FR-248/275).
  *
  * Navigation (FR-281, Contradiction 1): the ‹ / Today / › cluster renders as
- * top-right pills in Phase 1's top-bar pill idiom. The arrows step a WHOLE
- * anchored week whatever the column count; Today returns to the live week's
- * slice containing today AND resumes the follow-scroll (FR-290's second
- * resume path). Those controls always page, however full the grid is.
+ * top-right pills in Phase 1's top-bar pill idiom. Today returns to the live
+ * window — which begins on today — AND resumes the follow-scroll (FR-290's
+ * second resume path). Those controls always page, however full the grid is.
  *
- * The one-slice step (FR-279/289) has two drivers and one implementation:
- * `SlicePager`'s horizontal swipe wraps the strip, and the drag layer's
- * edge-hold (R211) reaches across a boundary mid-gesture. Both call the same
- * `pageSlice` — so "one slice later" means one thing here, and the pager
- * partitions with the drag by target (Assumption 44: a press on a block is
- * always a drag).
+ * The one-page step has THREE drivers and one implementation: the arrows,
+ * `WeekPager`'s horizontal swipe over the strip, and the drag layer's
+ * edge-hold (R211) reaching sideways mid-gesture. All call `anchor.page`,
+ * which moves the first day by exactly the number of columns on show — so
+ * three columns step three days and seven step seven, consecutive pages abut,
+ * and no day is skipped or shown twice. The pager partitions with the drag by
+ * target (Assumption 44: a press on a block is always a drag).
  *
  * Creating has exactly two doors (FR-254): the shell's FAB, which this view
  * registers "Add event" with while mounted, and a tap on an empty slot —
@@ -83,13 +83,11 @@ import { WeekHeader } from "./WeekHeader";
  * Until the grid's first measurement lands, the hour viewport renders with
  * an EMPTY layout rather than not at all — the viewport must mount for the
  * ResizeObserver to ever measure it, and expansion never waits on geometry
- * (R206). The server-fetched week (R207) seeds exactly ITS OWN cache entry:
- * seeding whichever week is mounted would hand a navigated-to week the
- * current week's rows for a whole staleTime.
+ * (R206). The server-fetched rows (R207) seed exactly ITS OWN cache entry —
+ * the same first day AND the same width — because seeding whichever window is
+ * mounted would hand a navigated-to or rotated window the wrong rows for a
+ * whole staleTime.
  */
-
-/** One anchored week — the step an edge-hold page takes across a boundary. */
-const DAYS_PER_WEEK = 7;
 
 const EMPTY_LAYOUT: WeekLayout = {
   timed: [],
@@ -122,47 +120,6 @@ function useCreateDoors(openCreate: CalendarEditor["openCreate"], zone: string) 
   );
 }
 
-/** Where a slice-step lands. `weekStart: null` = still inside this week. */
-export interface SlicePage {
-  weekStart: string | null;
-  sliceIndex: number;
-}
-
-/**
- * One slice later or earlier (FR-279/289): the next slice of this week, or —
- * off either end — the neighbouring week's nearest slice. Used by R211's
- * edge-hold paging during a drag, and by the same step a swipe takes (T060).
- */
-export function slicePageOf(
-  anchor: Pick<WeekAnchorState, "weekStart" | "sliceIndex" | "sliceCount">,
-  direction: -1 | 1,
-): SlicePage {
-  const next = anchor.sliceIndex + direction;
-  if (next >= 0 && next < anchor.sliceCount) return { weekStart: null, sliceIndex: next };
-  return {
-    weekStart: addDays(anchor.weekStart, direction * DAYS_PER_WEEK),
-    sliceIndex: direction === 1 ? 0 : anchor.sliceCount - 1,
-  };
-}
-
-/**
- * The one-slice step both drivers share: the FR-279 swipe (`SlicePager`) and
- * the drag's R211 edge-hold. A step inside the week is slice state only —
- * never a pin (R210); a step across a boundary pins the neighbouring week and
- * lands on its nearest slice.
- */
-function usePageSlice(anchor: WeekAnchorState): (direction: -1 | 1) => void {
-  const { setSliceIndex, pinWeek } = anchor;
-  return useCallback(
-    (direction: -1 | 1) => {
-      const page = slicePageOf(anchor, direction);
-      if (page.weekStart === null) setSliceIndex(page.sliceIndex);
-      else pinWeek(page.weekStart, page.sliceIndex);
-    },
-    [anchor, setSliceIndex, pinWeek],
-  );
-}
-
 /** Everything the view needs from the drag layer, flat — see `useWeekDrag`. */
 interface WeekDrag {
   /** For `DragSurfaceContext`: what the blocks and their columns take hold of. */
@@ -179,13 +136,14 @@ interface WeekDrag {
 }
 
 interface UseWeekDragOptions {
-  anchor: WeekAnchorState;
+  /** The displayed window: its identity guards the source watch, its days key the cache. */
+  window: DateWindow;
   columnDates: readonly string[];
   occurrences: readonly Occurrence[];
   metrics: GridMetrics | null;
   layoutMetrics: LayoutMetrics | null;
   timeFormat: TimeFormat;
-  /** R211's edge-hold reach — the same step the swipe takes (T060). */
+  /** R211's edge-hold reach — the same step the swipe and the arrows take. */
   onPage: (direction: -1 | 1) => void;
 }
 
@@ -196,7 +154,7 @@ interface UseWeekDragOptions {
  * seven plain values instead of assembling three layers itself.
  */
 function useWeekDrag(options: UseWeekDragOptions): WeekDrag {
-  const { anchor, columnDates, occurrences, metrics, layoutMetrics, timeFormat, onPage } = options;
+  const { window, columnDates, occurrences, metrics, layoutMetrics, timeFormat, onPage } = options;
   const {
     state,
     prompt,
@@ -211,7 +169,7 @@ function useWeekDrag(options: UseWeekDragOptions): WeekDrag {
     metrics,
     layoutMetrics,
     columnDates,
-    weekStart: anchor.weekStart,
+    windowStart: window.startDate,
     occurrences,
     onPage,
   });
@@ -222,7 +180,7 @@ function useWeekDrag(options: UseWeekDragOptions): WeekDrag {
     dispatch,
     dateOfColumn,
     sourceOccurrence,
-    weekStart: anchor.weekStart,
+    window,
     occurrences,
   });
 
@@ -237,25 +195,40 @@ function useWeekDrag(options: UseWeekDragOptions): WeekDrag {
   };
 }
 
-/** FR-281's ‹ / Today / › cluster, in Phase 1's top-bar pill idiom. */
+/**
+ * FR-281's ‹ / Today / › cluster, in Phase 1's top-bar pill idiom. The arrows
+ * step one page — `columns` days — so their labels say how far, which is the
+ * only way a screen-reader user can tell a three-day phone from a seven-day
+ * tablet.
+ */
 function WeekNav({
-  onPrevious,
+  columns,
+  onPage,
   onToday,
-  onNext,
 }: {
-  onPrevious: () => void;
+  columns: number;
+  onPage: (direction: -1 | 1) => void;
   onToday: () => void;
-  onNext: () => void;
 }) {
   return (
     <div className="flex shrink-0 items-center justify-end gap-3 px-(--fam-edge-inset) pt-2">
-      <button type="button" aria-label="Previous week" onClick={onPrevious} className={PILL_CLASS}>
+      <button
+        type="button"
+        aria-label={`Previous ${columns} days`}
+        onClick={() => onPage(-1)}
+        className={PILL_CLASS}
+      >
         <ChevronLeft size={20} aria-hidden="true" />
       </button>
       <button type="button" onClick={onToday} className={PILL_CLASS}>
         Today
       </button>
-      <button type="button" aria-label="Next week" onClick={onNext} className={PILL_CLASS}>
+      <button
+        type="button"
+        aria-label={`Next ${columns} days`}
+        onClick={() => onPage(1)}
+        className={PILL_CLASS}
+      >
         <ChevronRight size={20} aria-hidden="true" />
       </button>
     </div>
@@ -312,9 +285,9 @@ function Notice({ message }: { message: string | null }) {
 }
 
 export interface WeekViewProps {
-  /** The server-rendered current week's start, `YYYY-MM-DD` household-local (R207). */
-  initialWeekStart: string;
-  /** The server-fetched rows for that week — the no-flicker first paint (R207). */
+  /** The server-rendered window's first day, `YYYY-MM-DD` household-local (R207). */
+  initialAnchorDate: string;
+  /** The server-fetched rows for that window — the no-flicker first paint (R207). */
   initialEvents: Event[];
 }
 
@@ -324,7 +297,7 @@ export interface WeekViewProps {
  * the two change for different reasons and the cognitive budget is spent on
  * one of them at a time.
  */
-function useWeekViewModel({ initialWeekStart, initialEvents }: WeekViewProps) {
+function useWeekViewModel({ initialAnchorDate, initialEvents }: WeekViewProps) {
   const { householdId, settings, categories } = useFamily();
   const zone = settings.timezone;
 
@@ -339,7 +312,7 @@ function useWeekViewModel({ initialWeekStart, initialEvents }: WeekViewProps) {
     zone,
     startWeekOn: settings.startWeekOn,
     columns: columnCount,
-    initialWeekStart,
+    initialAnchorDate,
   });
 
   const {
@@ -350,16 +323,14 @@ function useWeekViewModel({ initialWeekStart, initialEvents }: WeekViewProps) {
 
   const week = useWeekOccurrences({
     householdId,
-    weekStart: anchor.weekStart,
+    anchorDate: anchor.anchorDate,
     zone,
-    sliceStart: sliceStarts(columnCount)[anchor.sliceIndex],
     columns: columnCount,
     metrics: layoutMetrics,
-    initialData: seedFor(anchor.weekStart, initialWeekStart, initialEvents),
+    initialData: seedFor(anchor.anchorDate, columnCount, initialAnchorDate, initialEvents),
   });
 
-  const editor = useCalendarEditor({ householdId, weekStart: anchor.weekStart, zone });
-  const pageSlice = usePageSlice(anchor);
+  const editor = useCalendarEditor({ householdId, window: week.window, zone });
 
   // Destructured at the call site: what the view reads while rendering must
   // be plain values, and `viewportRef` must keep its identity or the grid's
@@ -373,13 +344,13 @@ function useWeekViewModel({ initialWeekStart, initialEvents }: WeekViewProps) {
     viewportRef: dragViewportRef,
     bandRef: dragBandRef,
   } = useWeekDrag({
-    anchor,
+    window: week.window,
     columnDates: week.columnDates,
     occurrences: week.occurrences,
     metrics,
     layoutMetrics,
     timeFormat: settings.timeFormat,
-    onPage: pageSlice,
+    onPage: anchor.page,
   });
 
   // One node, three consumers: the geometry measurement, the follow-scroll,
@@ -395,7 +366,7 @@ function useWeekViewModel({ initialWeekStart, initialEvents }: WeekViewProps) {
     [measureViewport, followViewport, dragViewportRef],
   );
 
-  const { goToToday: anchorToToday, goToPreviousWeek, goToNextWeek, todayDate } = anchor;
+  const { goToToday: anchorToToday, page, todayDate } = anchor;
   const goToToday = useCallback(() => {
     anchorToToday();
     resume();
@@ -407,12 +378,11 @@ function useWeekViewModel({ initialWeekStart, initialEvents }: WeekViewProps) {
     week,
     editor,
     createFromSlot: useCreateDoors(editor.openCreate, zone),
-    pageSlice,
+    columnCount,
+    page,
     colorsById: useMemo(() => colorMapOf(categories), [categories]),
     layout: week.layout ?? EMPTY_LAYOUT,
     todayDate,
-    goToPreviousWeek,
-    goToNextWeek,
     goToToday,
     attachViewport,
     onScroll,
@@ -425,13 +395,19 @@ function useWeekViewModel({ initialWeekStart, initialEvents }: WeekViewProps) {
   };
 }
 
-/** The server-fetched rows seed only the week they were fetched for (R207). */
+/**
+ * The server-fetched rows seed only the window they were fetched for (R207):
+ * the same first day AND the same width, since the server renders
+ * `DEFAULT_COLUMN_COUNT` days and a measured phone shows fewer.
+ */
 function seedFor(
-  weekStart: string,
-  initialWeekStart: string,
+  anchorDate: string,
+  columns: number,
+  initialAnchorDate: string,
   initialEvents: Event[],
 ): Event[] | undefined {
-  return weekStart === initialWeekStart ? initialEvents : undefined;
+  const isInitialWindow = anchorDate === initialAnchorDate && columns === DEFAULT_COLUMN_COUNT;
+  return isInitialWindow ? initialEvents : undefined;
 }
 
 export function WeekView(props: WeekViewProps) {
@@ -439,16 +415,12 @@ export function WeekView(props: WeekViewProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WeekNav
-        onPrevious={m.goToPreviousWeek}
-        onToday={m.goToToday}
-        onNext={m.goToNextWeek}
-      />
+      <WeekNav columns={m.columnCount} onPage={m.page} onToday={m.goToToday} />
 
       <DragSurfaceContext.Provider value={m.dragSurface}>
         {/* FR-279: the whole strip pages together — the day headers, the
-            all-day band and the hour grid are one slice of one week. */}
-        <SlicePager onPage={m.pageSlice}>
+            all-day band and the hour grid are one window of days. */}
+        <WeekPager onPage={m.page}>
           <DayHeaderBand
             columnDates={m.week.columnDates}
             layout={m.layout.allDay}
@@ -474,7 +446,7 @@ export function WeekView(props: WeekViewProps) {
             onOpen={m.editor.openDetails}
             onSlotTap={m.createFromSlot}
           />
-        </SlicePager>
+        </WeekPager>
       </DragSurfaceContext.Provider>
 
       {/* FR-263: the keyboard drag's running commentary, in slot language. */}

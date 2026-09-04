@@ -15,7 +15,7 @@ import { headerGridTemplate } from "./WeekHeader";
  * gutter first, like `WeekHeader`).
  *
  * FR-207: the band GROWS with its lanes up to three rows, then scrolls, so
- * no all-day event is ever unreachable. A bar cut by the slice edge keeps
+ * no all-day event is ever unreachable. A bar cut by the window edge keeps
  * its title on the visible portion (spec edge case): the title renders in
  * every bar and the cut edge is drawn square instead of rounded.
  *
@@ -31,7 +31,7 @@ import { headerGridTemplate } from "./WeekHeader";
  */
 
 export interface AllDayBandProps {
-  /** The visible slice's consecutive household-local dates (FR-289). */
+  /** The displayed window's consecutive household-local dates. */
   columnDates: readonly string[];
   layout: AllDayLayout;
   /** Category id → palette colour, for the fills in draw order (FR-227). */
@@ -50,7 +50,7 @@ function fillStyle(fills: readonly PaletteColor[]): CSSProperties {
   return fills.length > 1 ? { backgroundImage: stripeBackground(fills) } : {};
 }
 
-// A slice-edge cut is a cut, not an end: square that edge (FR-206).
+// A window-edge cut is a cut, not an end: square that edge (FR-206).
 function clippedEdgeStyle(bar: AllDayBar): CSSProperties {
   const style: CSSProperties = {};
   if (bar.clippedStart) {

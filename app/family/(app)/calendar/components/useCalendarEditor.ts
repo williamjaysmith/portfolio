@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { createEvent, deleteEvent, updateEvent } from "@/lib/family/actions/events";
+import type { DateWindow } from "@/lib/family/calendar/dates";
 import type { ActionResult } from "@/lib/family/errors";
 import { familyKeys } from "@/lib/family/queries";
 import type { Event, EventInput, Occurrence, Scope } from "@/lib/family/types";
@@ -93,8 +94,8 @@ export interface CalendarEditor {
 
 export interface UseCalendarEditorOptions {
   householdId: string;
-  /** The anchored week on show — whose cached rows the tapped occurrences expand from. */
-  weekStart: string;
+  /** The displayed window — whose cached rows the tapped occurrences expand from. */
+  window: DateWindow;
   /** Household IANA zone (FR-284). */
   zone: string;
 }
@@ -138,14 +139,14 @@ function withScopeDismissed(current: EditorSurface): EditorSurface {
   return current;
 }
 
-/** The row a tapped occurrence expands from, out of the week the grid rendered. */
+/** The row a tapped occurrence expands from, out of the window the grid rendered. */
 function findEvent(
   queryClient: QueryClient,
   householdId: string,
-  weekStart: string,
+  window: DateWindow,
   occurrence: Occurrence,
 ): Event | undefined {
-  const rows = queryClient.getQueryData<Event[]>(familyKeys.week(householdId, weekStart));
+  const rows = queryClient.getQueryData<Event[]>(familyKeys.week(householdId, window));
   return rows?.find((row) => row.id === occurrence.eventId);
 }
 
@@ -347,12 +348,12 @@ function useCommits({ zone, surface, setSurface, setNotice, askScope }: CommitOp
 }
 
 export function useCalendarEditor(options: UseCalendarEditorOptions): CalendarEditor {
-  const { householdId, weekStart, zone } = options;
+  const { householdId, window, zone } = options;
   const queryClient = useQueryClient();
 
   const lookup = useCallback(
-    (occurrence: Occurrence) => findEvent(queryClient, householdId, weekStart, occurrence),
-    [queryClient, householdId, weekStart],
+    (occurrence: Occurrence) => findEvent(queryClient, householdId, window, occurrence),
+    [queryClient, householdId, window],
   );
 
   const {

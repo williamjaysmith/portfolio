@@ -19,10 +19,15 @@ import {
 
 /**
  * T028 / R206: the memo chain is fetch → `expandWindow` (ONCE per mounted
- * week) → visibility (`visibleOccurrences`, T061) → `layoutWeek`, so a
- * metrics change, a slice swipe or a filter toggle re-layouts without ever
- * re-expanding. The query is mocked; expansion, filtering and layout run for
- * real, and the hidden set is the real per-device store.
+ * window) → visibility (`visibleOccurrences`, T061) → `layoutWeek`, so a
+ * metrics change or a filter toggle re-layouts without ever re-expanding. The
+ * query is mocked; expansion, filtering and layout run for real, and the
+ * hidden set is the real per-device store.
+ *
+ * The window is the anchored first day plus the measured column count, and it
+ * is what is fetched, expanded AND drawn — so a three-column phone reads three
+ * days, and the next page's window abuts this one rather than overlapping a
+ * seven-day box.
  */
 
 vi.mock("@/lib/family/queries", async (importOriginal) => {
@@ -41,8 +46,8 @@ vi.mock("@/lib/family/calendar/expand", async (importOriginal) => {
 
 const HOUSEHOLD_ID = "household-1";
 const ZONE = "America/Chicago";
-/** Sunday — the household default week start containing Mon 2026-09-07. */
-const WEEK_START = "2026-09-06";
+/** The window's first day — a Sunday, with the fixture event on the Monday. */
+const ANCHOR_DATE = "2026-09-06";
 
 function makeEvent(overrides: Partial<Event> = {}): Event {
   return {
@@ -84,9 +89,8 @@ function stubWeekQuery(stub: { data?: Event[]; isPending?: boolean; error?: Erro
 function makeOptions(overrides: Partial<UseWeekOccurrencesOptions> = {}): UseWeekOccurrencesOptions {
   return {
     householdId: HOUSEHOLD_ID,
-    weekStart: WEEK_START,
+    anchorDate: ANCHOR_DATE,
     zone: ZONE,
-    sliceStart: 0,
     columns: 3,
     metrics: METRICS,
     ...overrides,
@@ -131,22 +135,28 @@ describe("useWeekOccurrences", () => {
     vi.useRealTimers();
   });
 
-  it("derives the anchored week's fetch window and expands it into the slice layout", () => {
+  it("fetches exactly the days it draws and expands them into the layout", () => {
     stubWeekQuery({ data: [makeEvent()] });
     const { result } = renderWeek(makeOptions());
 
-    // The three-branch read gets real instant bounds: Chicago midnight is 05:00Z in September.
+    // Three columns → a three-day window, not a seven-day box the view then
+    // slices. The three-branch read gets real instant bounds: Chicago midnight
+    // is 05:00Z in September.
     expect(vi.mocked(useWeekEvents)).toHaveBeenCalledWith(
       HOUSEHOLD_ID,
       {
         startDate: "2026-09-06",
-        endDate: "2026-09-12",
+        endDate: "2026-09-08",
         startsAt: "2026-09-06T05:00:00.000Z",
-        endsAt: "2026-09-13T05:00:00.000Z",
+        endsAt: "2026-09-09T05:00:00.000Z",
       },
       undefined,
     );
 
+    expect(result.current.window).toMatchObject({
+      startDate: "2026-09-06",
+      endDate: "2026-09-08",
+    });
     expect(result.current.occurrences).toHaveLength(1);
     expect(result.current.occurrences[0].occurrenceDate).toBe("2026-09-07");
     expect(result.current.columnDates).toEqual(["2026-09-06", "2026-09-07", "2026-09-08"]);
@@ -155,6 +165,21 @@ describe("useWeekOccurrences", () => {
     expect(result.current.layout?.timed[0].columnIndex).toBe(1);
     expect(result.current.isPending).toBe(false);
     expect(result.current.error).toBeNull();
+  });
+
+  it("widens the fetch with the column count, so a rotation never draws a short read", () => {
+    stubWeekQuery({ data: [makeEvent()] });
+    const { result, rerender } = renderWeek(makeOptions());
+
+    rerender(makeOptions({ columns: 7 }));
+
+    expect(vi.mocked(useWeekEvents)).toHaveBeenLastCalledWith(
+      HOUSEHOLD_ID,
+      expect.objectContaining({ startDate: "2026-09-06", endDate: "2026-09-12" }),
+      undefined,
+    );
+    expect(result.current.columnDates).toHaveLength(7);
+    expect(result.current.columnDates[6]).toBe("2026-09-12");
   });
 
   it("re-layouts on a metrics change without re-expanding (R206)", () => {
@@ -169,17 +194,18 @@ describe("useWeekOccurrences", () => {
     expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
   });
 
-  it("re-layouts on a slice change without re-expanding (R206)", () => {
+  it("draws the paged-to window's own days, expanded for that window (R206)", () => {
     stubWeekQuery({ data: [makeEvent()] });
     const { result, rerender } = renderWeek(makeOptions());
     expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
 
-    rerender(makeOptions({ sliceStart: 4 }));
+    // One page later at three columns: the anchor moves three days, and the
+    // days drawn are the three that FOLLOW the ones just shown.
+    rerender(makeOptions({ anchorDate: "2026-09-09" }));
 
-    expect(result.current.columnDates).toEqual(["2026-09-10", "2026-09-11", "2026-09-12"]);
-    expect(result.current.layout?.timed).toHaveLength(0); // Monday left the slice
-    expect(result.current.occurrences).toHaveLength(1); // …but not the week
-    expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
+    expect(result.current.columnDates).toEqual(["2026-09-09", "2026-09-10", "2026-09-11"]);
+    expect(result.current.layout?.timed).toHaveLength(0); // Monday is behind us
+    expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(2); // a new window is a new expansion
   });
 
   it("re-filters on a filter toggle without re-expanding (FR-265, R206)", () => {
@@ -210,12 +236,12 @@ describe("useWeekOccurrences", () => {
     expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
   });
 
-  it("re-expands when the anchored week itself changes", () => {
+  it("re-expands when the window itself changes", () => {
     stubWeekQuery({ data: [makeEvent()] });
     const { rerender } = renderWeek(makeOptions());
     expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(1);
 
-    rerender(makeOptions({ weekStart: "2026-09-13" }));
+    rerender(makeOptions({ anchorDate: "2026-09-13" }));
 
     expect(vi.mocked(expandWindow)).toHaveBeenCalledTimes(2);
   });
@@ -241,11 +267,36 @@ describe("useWeekOccurrences", () => {
     expect(result.current.layout?.timed).toHaveLength(0);
   });
 
-  it("prefetches both neighbour weeks once the anchor settles (R207)", () => {
+  it("prefetches the page either side — one window's width away (R207)", () => {
     vi.useFakeTimers();
     stubWeekQuery({ data: [] });
     const { queryClient } = renderWeek(makeOptions());
     expect(vi.mocked(prefetchWeek)).not.toHaveBeenCalled();
+
+    act(() => {
+      vi.advanceTimersByTime(400);
+    });
+
+    // Three columns → the neighbours are three days out, and each is itself
+    // three days wide: exactly what the next page will ask for.
+    const windows = vi
+      .mocked(prefetchWeek)
+      .mock.calls.map(([, , window]) => [window.startDate, window.endDate])
+      .sort();
+    expect(windows).toEqual([
+      ["2026-09-03", "2026-09-05"],
+      ["2026-09-09", "2026-09-11"],
+    ]);
+    for (const [client, householdId] of vi.mocked(prefetchWeek).mock.calls) {
+      expect(client).toBe(queryClient);
+      expect(householdId).toBe(HOUSEHOLD_ID);
+    }
+  });
+
+  it("prefetches a seven-column view's neighbours a week out (R207)", () => {
+    vi.useFakeTimers();
+    stubWeekQuery({ data: [] });
+    renderWeek(makeOptions({ columns: 7 }));
 
     act(() => {
       vi.advanceTimersByTime(400);
@@ -256,13 +307,9 @@ describe("useWeekOccurrences", () => {
       .mock.calls.map(([, , window]) => window.startDate)
       .sort();
     expect(starts).toEqual(["2026-08-30", "2026-09-13"]);
-    for (const [client, householdId] of vi.mocked(prefetchWeek).mock.calls) {
-      expect(client).toBe(queryClient);
-      expect(householdId).toBe(HOUSEHOLD_ID);
-    }
   });
 
-  it("never prefetches for a week abandoned before it settles (R207)", () => {
+  it("never prefetches for a window abandoned before it settles (R207)", () => {
     vi.useFakeTimers();
     stubWeekQuery({ data: [] });
     const { rerender } = renderWeek(makeOptions());
@@ -270,7 +317,7 @@ describe("useWeekOccurrences", () => {
     act(() => {
       vi.advanceTimersByTime(100); // paged away before the settle delay
     });
-    rerender(makeOptions({ weekStart: "2026-09-13" }));
+    rerender(makeOptions({ anchorDate: "2026-09-09" }));
     act(() => {
       vi.advanceTimersByTime(400);
     });
@@ -279,6 +326,6 @@ describe("useWeekOccurrences", () => {
       .mocked(prefetchWeek)
       .mock.calls.map(([, , window]) => window.startDate)
       .sort();
-    expect(starts).toEqual(["2026-09-06", "2026-09-20"]);
+    expect(starts).toEqual(["2026-09-06", "2026-09-12"]);
   });
 });
