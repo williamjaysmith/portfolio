@@ -330,6 +330,34 @@ describe("events schema: the data-model invariants", () => {
     expect(honest.error).toBeNull();
   });
 
+  it("deleting a category that AUTHORED an event nulls only the attribution (FR-274, SC-214)", async () => {
+    // Regression: 011's composite attribution FK said `on delete set null`
+    // with no column list, which for a multi-column key nulls EVERY
+    // referencing column — including household_id, which is not null. A
+    // Profile who had ever created an event could not be deleted at all
+    // (23502). 016 uses the column-list form.
+    const author = await insertCategory(pool, {
+      householdId: householdA,
+      label: `Author ${fx.run}`,
+      color: "#2178AF",
+      isProfile: true,
+    });
+    const eventId = await createEvent({ summary: `Authored ${fx.run}`, created_by: author });
+
+    const removed = await admin.schema("family").from("categories").delete().eq("id", author);
+    expect(removed.error).toBeNull();
+
+    const { data: survivor } = await admin
+      .schema("family")
+      .from("events")
+      .select("created_by, household_id")
+      .eq("id", eventId)
+      .single();
+    expect(survivor).not.toBeNull();
+    expect(survivor?.created_by).toBeNull();
+    expect(survivor?.household_id).toBe(householdA);
+  });
+
   it("deleting a category cascades its links and leaves the event standing (FR-274, SC-214)", async () => {
     const doomedCategory = await insertCategory(pool, {
       householdId: householdA,
