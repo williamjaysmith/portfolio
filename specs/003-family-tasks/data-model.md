@@ -27,7 +27,7 @@ to carry (Assumption 19).
 
 ## Reconciling the two research lanes on Completed Date
 
-The schema lane (`r-schema.md` §3, D303) and the client lane (`r-client.md` R332) both store the
+The schema lane (`r-schema.md` §3, D303) and the client lane (`r-client.md` R332 — that brief's own numbering, not this phase's R301–R326 series; none of the four lane briefs is checked into `specs/003-family-tasks/`) both store the
 Completed Date cursor as `tasks.next_due_date`. The dedicated lane (`r-completed-date.md`) says it
 must not ship. **This document adopts the dedicated lane**, because two of its findings are
 correctness failures rather than preferences, and neither of the other two lanes considers them:
@@ -120,8 +120,11 @@ and requiring no post-push step.
 
 **PostgreSQL 15+ is a hard dependency of 018 and 019** — `unique nulls not distinct`,
 `on delete set null (column_list)` and `security_invoker` views are all PG 15 features. Local
-`config.toml` pins `major_version = 17`; **the hosted project's version must be confirmed before
-018 is written.** The fallbacks, if it were older, are one `coalesce` expression index for the key,
+`config.toml` pins `major_version = 17`; **the hosted project's version is confirmed at T081(a) —
+before migration 022 is written and before any hosted push** (plan §Technical Context, quickstart
+§4.1). It is deliberately NOT confirmed before 018 is authored: 018 is task 4 of 85 and the
+operator's hosted access is not on the critical path that early. Confirming late costs a re-edit of
+018 and 019, a local `db reset` and a re-run of the schema suites, and alters nothing hosted. The fallbacks, if it were older, are one `coalesce` expression index for the key,
 a plain single-column FK for the credit, and a `security definer` view with an explicit
 `is_member()` predicate — all uglier, all avoidable.
 
@@ -178,8 +181,9 @@ create table if not exists family.tasks (
 
   -- REPEAT, mode 1 — a RULE. Scheduled Date (FR-340/341) and every routine's
   -- repeat (FR-334). The Phase 2 column contract verbatim (no 'RRULE:' prefix, no
-  -- COUNT, UNTIL inside the rule, emitted only by the server) plus R304's FREQ
+  -- COUNT, UNTIL inside the rule, emitted only by the server) plus R305's FREQ
   -- whitelist and INTERVAL bound. Identical text to 022's events constraint.
+  -- (R304 is ruleDatesIn, a different decision entirely.)
   rrule         text constraint tasks_rrule_grammar check (
     rrule is null or (
           rrule ~ '^FREQ=(DAILY|WEEKLY|MONTHLY);INTERVAL=([1-9]|[1-9][0-9])(;|$)'
@@ -313,7 +317,7 @@ no RLS — that clause is the tenancy check.
 | `renew_until` | cursor mode only — a rule's end date lives inside its own `UNTIL` (FR-346) |
 | `up_for_grabs` | chores only, and the task must carry no assignee (FR-338, FR-365) |
 | `track_habit` | routines only, on every surface (FR-337) |
-| `reward_points` | reserved; no interface, no index, nothing reads it (FR-329, SC-319) |
+| `reward_points` | reserved; no interface, no index, nothing reads it (FR-329, SC-319) — and **absent from `TASK_COLUMNS` and `TASK_BOX_COLUMNS` and from the `Task` / `TaskBoxItem` row types** (T020), so it cannot reach a component by transcription |
 | `created_by` / `updated_by` | set from the punched-in actor by every action (FR-330) |
 
 ---
@@ -835,6 +839,13 @@ precaution here but the mechanism SC-306 depends on.
 -- Drop it BY DEFINITION rather than by a guessed name: a `drop constraint if
 -- exists events_rrule_check` that silently matches nothing would leave the old
 -- constraint standing beside the new one for ever.
+-- The drop and the add are ONE statement, deliberately. `supabase db push` runs
+-- each migration file in a transaction, but every neighbouring operator step in
+-- quickstart §4 is a Dashboard SQL-editor query, where two top-level statements
+-- commit independently — and a committed DROP beside a failed ADD would leave
+-- family.events.rrule with NO check at all, looser than what shipped, on the
+-- live table, with nothing surfaced to the family. Inside one do block the pair
+-- cannot come apart however it is run.
 do $$
 declare v_name text;
 begin
@@ -847,14 +858,16 @@ begin
   if v_name is not null then
     execute format('alter table family.events drop constraint %I', v_name);
   end if;
-end $$;
 
-alter table family.events add constraint events_rrule_grammar check (
-  rrule is null or (
-        rrule ~ '^FREQ=(DAILY|WEEKLY|MONTHLY);INTERVAL=([1-9]|[1-9][0-9])(;|$)'
-    and rrule !~ '(^|;)COUNT='
-  )
-);
+  execute $add$
+    alter table family.events add constraint events_rrule_grammar check (
+      rrule is null or (
+            rrule ~ '^FREQ=(DAILY|WEEKLY|MONTHLY);INTERVAL=([1-9]|[1-9][0-9])(;|$)'
+        and rrule !~ '(^|;)COUNT='
+      )
+    )
+  $add$;
+end $$;
 ```
 
 **Why this exact regex.** `(;|$)` is what rejects `INTERVAL=100` and `INTERVAL=01`: POSIX
@@ -868,7 +881,7 @@ FREQ values are the whole set the emitter can write and the parser will accept, 
 outside it is unreadable by definition and the whitelist costs nothing that was ever reachable.
 Recorded here as a knowing narrowing of R201 rather than left to be noticed.
 
-**Safety on live rows — the four things that make this a non-event.**
+**Safety on live rows — the five things that make this a non-event.**
 
 1. **It is strictly tighter than what shipped, over a domain the emitter cannot leave.** Every
    stored rule was written by `emitRule`, the sole producer, which always writes
@@ -889,7 +902,12 @@ Recorded here as a knowing narrowing of R201 rather than left to be noticed.
    table. At a household's series count — dozens — that is sub-millisecond, so no
    `NOT VALID` + `VALIDATE CONSTRAINT` dance is warranted. Stated for the record: on a large table
    the two-step form takes only `SHARE UPDATE EXCLUSIVE` for the validating pass.
-4. **It is reversible with no data motion.** The down path is `drop constraint events_rrule_grammar`
+4. **The drop and the add cannot come apart.** They are one `do` block, so the pair is atomic under
+   `supabase db push`'s per-file transaction **and** under a Dashboard SQL-editor run, where two
+   top-level statements would otherwise commit independently. This is the one failure mode that
+   would leave the live table *looser* than what shipped, and it is closed structurally rather than
+   by instruction (quickstart §4.3 states the same rule for anyone running it by hand).
+5. **It is reversible with no data motion.** The down path is `drop constraint events_rrule_grammar`
    and, if the pre-Phase-3 surface is wanted exactly, re-adding 010's predicate. No row is rewritten
    in either direction, and no Phase 2 code reads the constraint.
 
@@ -944,8 +962,15 @@ call to validate an occurrence key, so client and server can never disagree abou
 is (Phase 2's contract, applied to tasks). It shares a newly extracted `ruleDatesIn()` with the
 shipped event expander, so the FR-345 widening produces **one** engine and not two.
 `CARRY_FORWARD_DAYS = 28` lives once, in `lib/family/tasks/dates.ts`, and is consumed by both read
-(3) and the expander's second pass, so the number the read is bounded by and the number the render
-is bounded by are the same number by construction.
+(3) and the expander's second pass, so there is one number and it cannot drift. **The render bound
+is the strict inequality `todayEpochDay − scheduledEpochDay < CARRY_FORWARD_DAYS`** (R316): an
+occurrence scheduled 27 days ago is carried onto today, one scheduled 28 days ago is not, one
+scheduled 29 days ago is not — day 28 is the first day it has stopped, which is FR-357's own wording
+and what the quickstart's "Hoover the stairs" fixture, anchored at exactly `today − 28`, exists to
+pin. Read (3)'s window is deliberately **one day wider** — `[today − 28, weekStart(today) − 1]` —
+because the pass must be able to see that the day-28 occurrence *is* resolved before it declines to
+carry it; one extra day of resolution rows costs nothing. One constant, two consumers, and the read's
+extra day stated here rather than left as a discrepancy for a reviewer to find.
 
 **One occurrence is exempt from that bound, and it is not an oversight** (FR-343 vs FR-357, resolved
 in `research.md` R316). The carry pass skips the 28-day bound for an occurrence whose task has
@@ -1121,10 +1146,11 @@ None beyond `supabase db push`, verified:
   and no replica-identity promotion — `replica identity full` stays prohibited.
 - **No** new buckets, auth providers, hooks, extensions, edge functions or cron entries. The Task Box
   seed runs inside 020 for the seeded household.
-- **Two things to check before writing the files**, both read-only: that the hosted project is
-  **PostgreSQL 15+** (018 and 019 depend on `nulls not distinct`, `on delete set null (…)` and
-  `security_invoker`), and that the hosted `family.events` holds **no** rule outside the widened
-  grammar (022's query above).
+- **Two things to check at T081(a)**, both read-only, both before 022 is written and before any
+  hosted push: that the hosted project is **PostgreSQL 15+** (018 and 019 depend on
+  `nulls not distinct`, `on delete set null (…)` and `security_invoker`), and that the hosted
+  `family.events` holds **no** rule outside the widened grammar (022's query above). Neither is a
+  precondition of *authoring* 016–021 locally — see §018's note on the cost of confirming late.
 - One fallow change the plan must make, which is a boundary widening and not a suppression.
   `.fallowrc.json` confines `lib/family/recurrence/**` to a named set of importers, and
   `lib/family/tasks/**` would otherwise fall into the generic `lib` zone, whose allow list is exactly
@@ -1152,9 +1178,13 @@ None beyond `supabase db push`, verified:
   (`{from: "family-calendar-core", allow: ["family-calendar-core", "family-recurrence", "lib"]}` `[code]`),
   without which `tasks/expand.ts` could not import its own `dates.ts` or `lib/family/types.ts`. `lib`
   gains the zone for the same reason it already lists `family-calendar-core`: `queries.ts` reads
-  `CARRY_FORWARD_DAYS` out of `tasks/dates.ts` to bound read (3). Net effect on confinement:
-  `lib/family/recurrence/**` gains **one** importer zone and loses none — a tightening of the new
-  code's reach, the exact analogue of what Phase 2 did for `family-calendar-core`.
+  `CARRY_FORWARD_DAYS` out of `tasks/dates.ts` to bound read (3). It is **a boundary widening, in
+  config, reviewable in the diff — not a suppression** (the same phrase `plan.md` §I and §IV and
+  `quickstart.md` §Quality gates use, and the label this bullet opens with): without it,
+  `lib/family/tasks/**` would fall in the `lib` zone, whose allow list is exactly
+  `["lib", "family-calendar-core"]`, and could not reach `family-recurrence` at all. The supporting
+  argument — not the label — is that `lib/family/recurrence/**` gains **one** importer zone and loses
+  none, the exact analogue of what Phase 2 did for `family-calendar-core`.
 
 ---
 

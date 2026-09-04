@@ -261,7 +261,7 @@ produce is `NOT_FOUND`, so a stale client cannot delete a phantom.
 |---|---|
 | One-off / Anytime chore | delete the `tasks` row; assignees and resolutions cascade |
 | `this` (repeating chore only) | a **skip** row on that occurrence — the identical write to `skipTaskOccurrence`, one code path (FR-364). On a **Completed Date** chore this *advances* the cycle by the configured delay (FR-362), so the next one arrives in a fortnight rather than never; the confirmation copy must say so, because the alternative reading — a single delete killing the chore for ever — is the one a parent will assume |
-| `this_and_future` | **rule mode**: re-emit the rule with `UNTIL` = the cut − 1 day, through the one emitter. **Cursor mode**: `renew_until` = the open occurrence's date − 1 day, which suppresses it and everything after it. Either way every earlier occurrence and every stored resolution survives (FR-347). On the series' **first** occurrence the scope is promoted to `all` — there is nothing earlier to keep, and an empty leading segment is the thing Phase 2's FR-241 exists to prevent |
+| `this_and_future` | **rule mode**: re-emit the rule with `UNTIL` = the cut − 1 day, through the one emitter. **Cursor mode**: `renew_until` = the open occurrence's date − 1 day, which suppresses it and everything after it. Either way every earlier occurrence and every stored resolution survives (FR-347). On the series' **first** occurrence the scope is promoted to `all` and the `tasks` row is deleted — there is nothing earlier to keep, and an empty leading segment is the thing Phase 2's FR-241 exists to prevent. Truncating instead would set `UNTIL` to the day before `starts_on`, leaving a live row that generates nothing, still appears in the Task list surfaces and still counts against FR-391's assignee arithmetic — a ghost only a parent editing it can clear (delivered by T052; asserted by T048) |
 | `all` | delete the `tasks` row — assignees and resolutions cascade, so no skip ghost can outlive it |
 
 **There is no split.** Phase 2 needed `split_event_series` because a `this_and_future` edit had to
@@ -291,7 +291,15 @@ read, not stored state.
 
 **FR-309's column reorder is not a new action**: it is Phase 1's `reorderCategories`, already
 `requireParent()`, which already satisfies FR-389's restriction. Only the drag surface on the Tasks
-tab is new work.
+tab is new work — and it carries two consequences the caller must handle, because the shipped action
+takes the **complete** ordered id list of every household category and rebalances all of them
+`[code: lib/family/actions/categories.ts:226]`. First, there is **one household order, not a per-tab
+one**: dragging a Tasks column also reorders the calendar's profile chip row and the settings list
+(FR-309). Second, the Tasks board renders a **filtered subset** — Labels never appear, a Profile with
+**Show on Tasks tab** off is absent (FR-313), and per-device hidden profiles are absent (FR-383) — so
+the drag handler must splice the moved profile within the visible subsequence and then re-emit the
+**full** household order, preserving the relative position of every id the board does not render.
+Getting that reconstruction wrong silently reorders or drops Labels.
 
 ---
 
@@ -493,7 +501,7 @@ covering four more tables and one view.
 |---|---|---|
 | `fetchTasks` — every task row, `task_assignees` (with the streak pair) embedded | `familyKeys.tasks(hid)` | none |
 | `fetchTaskResolutions` — the anchored **week** containing the displayed day, plus every `occurrence_date is null` row | `familyKeys.taskWeek(hid, weekStartISO)` | one week |
-| `fetchTaskCarryForward` — `[today − 28, weekStart(today) − 1]`, `enabled` only while the displayed day **is** today | `familyKeys.taskCarry(hid, todayISO)` | the FR-357 tail |
+| `fetchTaskCarryForward` — `[today − 28, weekStart(today) − 1]`, one day wider than the render bound (see the carry pass below), `enabled` only while the displayed day **is** today | `familyKeys.taskCarry(hid, todayISO)` | the FR-357 tail |
 | `fetchTaskCursors` — `family.task_cursors`, the tail of every Completed Date chain | `familyKeys.taskCursors(hid)` | none |
 | `fetchTaskBox` — `enabled` only while the sheet is open | `familyKeys.taskBox(hid)` | none |
 
@@ -515,15 +523,24 @@ same entry point the resolve and delete actions call to validate an occurrence k
   passed (FR-343, SC-307);
 - **the Anytime chore's single undated occurrence**, present every day until it is completed and
   never late (FR-328);
-- **the late carry-forward pass** — a bounded second walk over `[today − CARRY_FORWARD_DAYS, today − 1]`
-  run only when the displayed day is today, placing each unresolved chore occurrence on today while it
-  keeps its own `scheduledDate` as identity and as what the card shows (FR-356/357/358, SC-308).
-  `CARRY_FORWARD_DAYS = 28` lives once, in `lib/family/tasks/dates.ts`, and is consumed by both the
-  carry read's window and this pass, so the two bounds are the same number by construction.
+- **the late carry-forward pass** — a bounded second walk over the past days, run only when the
+  displayed day is today, placing each unresolved chore occurrence on today while it keeps its own
+  `scheduledDate` as identity and as what the card shows (FR-356/357/358, SC-308). **The bound is a
+  strict inequality, not an inclusive range**: an occurrence is carried onto today when
+  `todayEpochDay − scheduledEpochDay < CARRY_FORWARD_DAYS` — so at 28, day 27 is carried, **day 28
+  is not**, day 29 is not, which is FR-357's own wording ("stop carrying it forward onto today
+  **28 days** after its scheduled date") and what the quickstart's `today − 28` fixture pins. The
+  equivalent closed range is `[today − (CARRY_FORWARD_DAYS − 1), today − 1]`; it is written as the
+  inequality because the range form is what produced an off-by-one between this contract and the
+  fixture. `CARRY_FORWARD_DAYS = 28` lives once, in `lib/family/tasks/dates.ts`, consumed by both the
+  carry read's window and this pass, so there is one number and it cannot drift — the **read** window
+  is deliberately one day wider (`[today − 28, weekStart(today) − 1]`), because the pass must see
+  that the day-28 occurrence is resolved before it declines to carry it (R316, data-model §"How the
+  board is read");
   **The pass skips the bound for an occurrence whose task has `renew_after_amount is not null`** — the
   Completed Date open occurrence, which arrives through the unwindowed cursor read rather than the
   carry window. That mode has at most one open occurrence and cannot accumulate, and the occurrence
-  *is* the cursor: bounded literally, a chore neglected 29 days would be on no reachable screen,
+  *is* the cursor: bounded literally, a chore neglected 28 days would be on no reachable screen,
   nothing could resolve it, and no next occurrence could ever be scheduled (FR-343 vs FR-357, resolved
   in `research.md` R316). Rule-mode chores keep the bound exactly as FR-357 states it;
 - **the counters** — each column's ring and completed-of-total — computed in a memo that branches

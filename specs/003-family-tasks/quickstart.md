@@ -92,7 +92,7 @@ What the fixture board must cover, one fixture per hand check below:
 | **Make bed** | Cleo | Routine, **every 2 days**, Morning, anchored so today matches | `INTERVAL=2` on a routine (SC-313's first half) |
 | **Practice piano** | Cleo | Routine, daily, Evening, Track Habit on, 5 days behind it, **today's occurrence skipped** | SC-309 and SC-310's skip — out of the denominator, streak intact, invisible until the Skipped filter is on |
 | **Homework** | Cleo | Routine, weekdays, Afternoon, **Repeats until `today + 14`** | US2-10's end date on a routine (FR-346) |
-| **Shelf pack** (10 anytime chores) | Cleo | no date, no time | SC-315 — Cleo's column crosses **twenty** occurrences, so scrolling and the counters have something to be wrong about |
+| **Shelf pack** (**12** anytime chores) | Cleo | no date, no time | SC-315 — the count is arithmetic, not decoration. Cleo's other fixtures contribute 8 occurrences on the seed day (Feed the cat 1, Sort the recycling 1, Water the plants 1 late, Brush teeth 2 slots, Make bed 1, Practice piano 1 skipped, Homework 1), so **twelve** anytime chores put her column at exactly **twenty**, nineteen of them visible with the skipped one hidden. Ten would give eighteen, and SC-315's "twenty" would be unverifiable on the one fixture built for it |
 | *(nothing)* | Kit | — | FR-316's empty column, from the Phase 1 fixture profiles |
 
 The Phase 1 fixture profiles (Alex, Sam, Kit) and the Phase 2 example household (Ana, Ben, Cleo,
@@ -106,13 +106,30 @@ the Label "Bin day") are unchanged — the Label is seeded precisely so US2-6 ca
 Everything here needs `SUPABASE_ACCESS_TOKEN` or the Dashboard. Expected total: **check, check,
 push, check, check, confirm** — there is no new Dashboard configuration in this phase.
 
-1. **Check the Postgres major version, before pushing.** Migration 018's occurrence key uses
-   `unique nulls not distinct`, which is PG 15+.
+> **Ordering constraint — step 3's push happens BEFORE the branch is merged or deployed, never
+> after.** This phase adds four tables to the **single shared** realtime channel
+> `family:<householdId>` that `FamilyProvider` mounts on **every** `/family` page. A
+> `postgres_changes` binding for a table the hosted database does not have fails the **whole**
+> channel, so an app deployed ahead of the push does not merely have a broken Tasks tab — it
+> silently takes **live updates for the shipped Phase 1 and Phase 2 surfaces, the Week calendar
+> included**, down with it, and `/family/tasks` reads four tables that do not exist with no
+> `error.tsx` under `app/` to catch it. So: **§4.1 → §4.2 → §4.3's `db push` → §4.4 and §4.5 green →
+> then merge and deploy.** The same statement is `tasks.md` Hard ordering 7 and T084, and
+> `plan.md` §Risks.
+
+1. **Check the Postgres major version — the first operator step, before migration 022 is written and
+   before any hosted push.** This is the **one moment** the check happens, stated in the same terms
+   in `plan.md` §Technical Context, `plan.md` §Risks and `tasks.md` T081(a). Migration 018's
+   occurrence key uses `unique nulls not distinct`, which is PG 15+; 018 is authored and applied
+   **locally** long before this step, against `supabase/config.toml`'s pinned `major_version = 17`,
+   so a `false` here has altered nothing hosted.
    ```sql
    select current_setting('server_version_num')::int >= 150000 as ok, version();
    ```
    If this is `false`, stop and say so — the fallback (a `coalesce`-expression unique index) is a
-   data-model decision, not something to improvise at push time.
+   **data-model** decision, not something to improvise at push time, and its cost is stated rather
+   than discovered: re-edit 018, `supabase db reset`, and re-run the schema suites locally
+   (`tasks.md` T009–T012) before returning to this step.
 2. **Prove the `rrule` tightening against the live rows, before writing or pushing 022.** Migration
    022 is the only file in this phase that alters a **shipped Phase 2 table**, and it is an
    `ADD CONSTRAINT` that validates every stored row under `ACCESS EXCLUSIVE`. Do not discover a
@@ -142,6 +159,14 @@ push, check, check, confirm** — there is no new Dashboard configuration in thi
    and their byte-stability corpus are proved against a database nobody has touched first, and the
    constraint lands as a backstop rather than an unblock. Step 2 has already shown every stored rule
    passes; if `ADD CONSTRAINT` fails anyway, stop and explain the row — never loosen the regex.
+
+   **The drop and the add are one unit.** In 022 they sit inside the *same* `do $$ … $$` block
+   (data-model §022), so a failing ADD rolls the DROP back; `supabase db push` gives the same
+   guarantee by running each migration file in a transaction. **Never run them as two separate
+   SQL-editor statements** — every other step in this section is a Dashboard query, and there two
+   top-level statements commit independently: a committed DROP with a failed ADD would leave
+   `family.events.rrule` with **no CHECK at all**, looser than what shipped, on the live table, with
+   nothing surfaced to the family.
 4. **Check the privilege inventory.** Nothing this phase adds may be reachable by `anon`.
    ```sql
    -- tables + the cursor view: SELECT to authenticated, ALL to service_role, nothing to anon
@@ -199,6 +224,10 @@ push, check, check, confirm** — there is no new Dashboard configuration in thi
    019, 020 and 021 makes them visible without a restart.
 9. Verify SC-305's anonymous probe (below), run SC-301 and SC-302 once at the wall with a stopwatch,
    and spot-check SC-316 on the iPad in both orientations and on a phone.
+10. **Only now merge and deploy.** Steps 3–5 must be green first, for the reason stated at the top of
+    this section: the new realtime bindings are additive to a channel Phases 1 and 2 already depend
+    on, and a deploy that lands ahead of the push takes the shipped calendar's live updates down
+    with it, silently (`tasks.md` Hard ordering 7 and T084; `plan.md` §Risks).
 
 ## 5. Run
 
@@ -219,7 +248,7 @@ Unless a row says otherwise, start punched out on `/family/tasks` showing today.
 |---|---|---|
 | **SC-301** tick in <15 s, ≤3 taps after the PIN | A child goes from punched out to a ticked routine | Stopwatch. Tap Cleo's avatar → PIN → tap the circle on her Morning "Brush teeth". Under 15 s from first touch; count the taps after the last PIN digit — no more than three |
 | **SC-302** create in <45 s | A repeating, two-person chore enterable at the wall, punch-in included | Stopwatch. Create control → punch in as Ana → title → assign Cleo **and** Ben → Repeats → Scheduled Date, every 1 week → save. Under 45 s |
-| **SC-303** nothing changes anonymously | Every verb refused with nobody punched in; every resolution names credited **and** actor | Punch out, then attempt each of: complete, un-complete, skip, unskip, claim, create, edit, delete, column reorder. Each demands the punch-in sheet; dismiss it — nothing changed anywhere. Then `select category_id, actor_category_id from family.task_resolutions order by resolved_at desc limit 1`: both populated. The bypass case (calling the action directly, tampered cookie) is the policies suite |
+| **SC-303** nothing changes anonymously | Every verb refused with nobody punched in; every resolution names credited **and** actor | Punch out, then attempt each of: complete, un-complete, skip, unskip, claim, create, edit, delete, column reorder. Each demands the punch-in sheet; dismiss it — nothing changed anywhere. Then `select category_id, created_by from family.task_resolutions order by resolved_at desc limit 1`: both populated — `category_id` is the Profile credited and `created_by` is the punched-in actor (018; contracts §Guards). There is no `actor_category_id` column. The bypass case (calling the action directly, tampered cookie) is the policies suite |
 | **SC-304** a member resolves only their own | Four checks, two of them off-interface | Punch in Cleo: tick "Feed the cat" → completes. Tick Ben's "Take out trash" → refused, card unchanged, message names Ben and says a parent may do it. Punch in Ana: tick Cleo's "Feed the cat" → completes, credited **Cleo**, actor **Ana**. The same four issued directly rather than through the interface are the policies suite |
 | **SC-305** no stranger's data | Other-household reads return nothing on every path | (a) `curl` the REST endpoint for `tasks` with the publishable key and no session → `401`/`42501`; repeat for `task_assignees`, `task_resolutions`, `task_box_items`, `task_cursors`. (b) The exhaustive per-path checks (member, authed non-member `[]`, anonymous) are the policy suite's job — `npm run test:policies` |
 | **SC-306** second device ≤5 s | A tick appears on device B without reload, and survives both reloads | Two devices on today's board. Tick "Feed the cat" on A; B updates within 5 s, untouched. Reload both: still ticked, ring and count agree on both |
@@ -228,10 +257,10 @@ Unless a row says otherwise, start punched out on `/family/tasks` showing today.
 | **SC-309** skip is free and reversible | Out of the denominator, streak intact, hidden, and Unskip restores all three | "Practice piano" is skipped today. Read Cleo's count before and after switching the **Skipped tasks** filter on: the card appears marked skipped, the count does not move. Its streak badge is unchanged. Open it → Unskip → it returns to unresolved, the denominator goes back up by one, and the badge is still unchanged |
 | **SC-310** the counters agree with the column | Ring and count match by hand on a day containing all five shapes, and no filter moves them | Cleo's seeded column has an anytime chore, a late chore, a skipped occurrence, a routine in two slots and the shelf pack. Punch in Cleo, claim and complete "Empty the dishwasher" crediting herself: the Up for Grabs count drops by one and Cleo's **total and completed** each rise by one at that moment. Now count the column by hand and compare with the header. Then toggle each of the five filters, hide a profile, and type in the search box: **no number moves** |
 | **SC-311** one claim wins | Exactly one record, a naming refusal, both screens agree | Two devices punched in (Ana and Ben), both on "Empty the dishwasher". Complete on both within the same second: exactly one `task_resolutions` row exists, the loser sees a refusal naming the credited profile, and both screens show the card in that profile's column within 5 s |
-| **SC-312** streaks are correct across 30 days | Advance, hold across a skip, reset on an unresolved day, and step back on an un-tick | The seeded "Brush teeth" badge reads **eleven**. Complete both of today's slots → twelve. Un-tick the most recent completion → **eleven**. Skip tomorrow's occurrences and advance the clock a day → still eleven. Leave a day ending with one unresolved → **zero**. The full thirty-day table (30 → skip → unresolved) is a unit test |
-| **SC-313** interval repeats survive a year and the DST dates | Right dates, none missing or duplicated; 02:30 renders once | Step "Make bed" (every 2 days) forward across **2026-11-01** and **2027-03-14**: the every-other-day rhythm never doubles or skips a beat. "Cat medicine" (02:30 daily) appears exactly **once** on 2027-03-14, at 03:00, and exactly once on 2026-11-01. Set the *device* to another zone and confirm nothing shifts. The year-long sweep is a unit test |
+| **SC-312** streaks are correct across 30 days | Advance, hold across a skip, reset on an unresolved day, and step back on an un-tick | The seeded "Brush teeth" badge reads **eleven**. Complete both of today's slots → twelve. Un-tick the most recent completion → **eleven**. **Now re-complete that slot before going any further** — leaving it un-ticked means today ends with an occurrence unresolved, and FR-373 resets the streak to zero when the clock advances, whatever tomorrow is set to; a skip cannot protect a day that already has an unresolved occurrence in it. With today complete again (twelve): skip **tomorrow's** occurrences and advance the clock a day → **still twelve**, the skip holding the value rather than advancing or breaking it. Then leave the following day ending with one unresolved → **zero**. The full thirty-day table (30 → skip → unresolved) is a unit test |
+| **SC-313** interval repeats survive a year and the DST dates | Right dates, none missing or duplicated; 02:30 renders once | Step "Make bed" (every 2 days) forward across **2026-11-01** and **2027-03-14** — the next two transitions reachable with **Next** from a 2026-09 seed, which is why this row walks them rather than the spec's own 2026-03-08 pair (that pair is covered by T025's unit table and by T058's US2-16 check): the every-other-day rhythm never doubles or skips a beat. "Cat medicine" (02:30 daily) appears exactly **once** on 2027-03-14, at 03:00, and exactly once on 2026-11-01. Set the *device* to another zone and confirm nothing shifts. The year-long sweep is a unit test |
 | **SC-314** correct next morning | Day, late set and counts all advance untouched | Leave the tablet on today's board overnight (or set the system clock to 23:58 and watch). At midnight: the displayed day is the new one, yesterday's unresolved chores are on it **marked late with yesterday's date**, and every count is the new day's — no reload, no interaction. Then navigate to a past day, wait past a boundary, and confirm the view **stays** where it was put |
-| **SC-315** nothing unreachable | Twenty occurrences in one column, all reachable, page never scrolls sideways | Cleo's column crosses twenty with the shelf pack. At 1920×1080, 1180×820, 820×1180 and 390×844: scroll **inside** her column to the twentieth; the page itself never scrolls horizontally at any width |
+| **SC-315** nothing unreachable | Twenty occurrences in one column, all reachable, page never scrolls sideways | Cleo's column crosses twenty with the shelf pack. At 1920×1080, 1180×820, 820×1180 and 390×844: scroll **inside** her column to the twentieth — the seeded skip means nineteen are visible by default, so switch the **Skipped** filter on to reach the twentieth; the page itself never scrolls horizontally at any width |
 | **SC-316** responsive, 44-pt | No overlaps, all controls ≥44×44, columns as the space allows | Load at each of the four widths. Landscape tablet: four columns stretched to share the width. Portrait tablet: columns **wrap** onto a second row. Phone: one full-width column, Up for Grabs first, swipe to move. Inspect the completion circle and the four header toggles specifically — both draw smaller than the floor and need a larger hit area |
 | **SC-317** deleting a Profile never surprises | Both counts stated; survivors keep their history | Locally: create a throwaway profile, give it one sole-assignee task and one shared with Ana, then delete it. The confirmation states how many tasks **lose an assignee**, how many are **deleted outright**, and the affected-event count Phase 2 added — and says in words that events survive a category deletion while a task with nobody left does not. Afterwards the shared task is still on the board with Ana's history intact. `supabase db reset` + re-seed |
 | **SC-318** exactly seventeen, added in <20 s | The seeded box, and a fast add from it | On a fresh household (`db reset` + seed) open the Task Box: **exactly 17**, split into Chores (9, no emoji) and Routines (8, each with its emoji), titles verbatim per FR-382, filtered live by its own search box. Tap the **Homework** routine template: the ordinary create form opens pre-filled with title, emoji and type, everything else empty and still required. Stopwatch the rest — assignment and schedule only — under 20 s |
@@ -252,7 +281,7 @@ The rules the criteria compress, checked individually:
 | FR-314 no chip row | The Tasks tab goes from the top bar straight into columns. The calendar still shows the chip row |
 | FR-318/332 conversion keeps history | Convert "Sort the recycling" into a routine: the form demands a repeat, weekdays and at least one slot before it saves. Its earlier resolutions are **not deleted** — they simply stop being surfaced. Convert it back |
 | FR-325/328 sub-types | Timed, All-day, Anytime and Late each render as specified; the anytime chore is never marked late however long it sits |
-| FR-326 DST on a due time | 2027-03-14: a 02:30 chore lands at the first valid time, once. 2026-11-01: a 01:30 chore uses the first instant, once |
+| FR-326 DST on a due time | The pair US2-16 and SC-313 name, and the pair T025's unit table asserts: **2026-03-08** — a 02:30 chore lands at the first valid time, once; **2026-11-01** — a 01:30 chore uses the first instant, once. The by-hand walk below uses the next two *forward-reachable* transitions instead (2026-11-01 and 2027-03-14) and must behave identically; the rule is the rule, the dates are just dates |
 | FR-336 slots do not migrate | Complete a Morning routine at 22:00: it is still in Morning, still counted, still shown whenever Morning is on |
 | FR-343/344/362 the cursor | Complete "Clean the bathroom" → one new occurrence at +14 days. Undo it → the new occurrence is **withdrawn** and the original returns unresolved. Resolve the new one first, then try to undo the earlier completion → **refused** with a message. Skip an open occurrence → the cycle advances by the delay rather than ending |
 | FR-347 delete scopes | A repeating chore offers this occurrence / all future / all; a routine offers all future / all. "This occurrence" writes a **skip** (check the Skipped filter). "All future" ends the repeat before that date and leaves every earlier occurrence and its resolutions |
@@ -261,7 +290,7 @@ The rules the criteria compress, checked individually:
 | FR-352 the details action list | Tap a card **body** (not its circle): the sheet offers Mark as Complete / Mark as Incomplete, Edit and Delete, with **Skip only on a routine or a repeating chore** — "Water the plants" (one-off) shows no Skip — and **Unskip only on an already-skipped occurrence** — "Practice piano" today shows Unskip and no Skip, and shows Skip again after unskipping |
 | FR-372 the streak badge | "Brush teeth" carries a **lightning-bolt** badge beside the routine's name on the card reading **11**; complete both of today's slots and it reads 12. A routine with Track Habit off carries no badge at all |
 | FR-351 refusal wording | Cleo tapping Ben's card: nothing stored, card unchanged, message says whose it is and that a parent may do it |
-| FR-357 the 28-day bound, **and its one exemption** | "Hoover the stairs" (Scheduled Date) — the occurrence at `today − 28` is **not** on today's board; the one at `today − 14` is. Both still appear on their own days. Then the exemption (FR-343 vs FR-357, R316): set "Clean the bathroom" (Completed Date) so its open occurrence is **40 days** old — it is still on today's board, still marked late with its own date, and still completable. Bounded like a rule-mode chore it would be unreachable for ever, because that occurrence *is* the cursor |
+| FR-357 the 28-day bound, **and its one exemption** | The bound is `todayEpochDay − scheduledEpochDay < CARRY_FORWARD_DAYS` (R316): day 27 carried, **day 28 not**, day 29 not. "Hoover the stairs" (Scheduled Date) — the occurrence at `today − 28` is **not** on today's board; the one at `today − 14` is. Both still appear on their own days. Then the exemption (FR-343 vs FR-357, R316): set "Clean the bathroom" (Completed Date) so its open occurrence is **40 days** old — it is still on today's board, still marked late with its own date, and still completable. Bounded like a rule-mode chore it would be unreachable for ever, because that occurrence *is* the cursor |
 | FR-358 the late treatment | Late is its own treatment, shows the original due date, and is visibly **not** the destructive-action colour |
 | FR-363/368 up-for-grabs resolutions | Completing "Empty the dishwasher" without choosing a profile is refused. **Skipping** it needs no profile and skips it for the whole household. Cleo choosing Ben as the credited profile is refused; Ana choosing anyone is allowed |
 | FR-376/386 two search boxes | The tab's search filters the board; the Task Box's search filters templates. They are different controls and neither affects the other |
@@ -284,7 +313,7 @@ npm run test:coverage    # Istanbul report for the fallow gate
 | SC-313, FR-326 — `INTERVAL=N` DST tables, the year-long "every 2 days" sweep, the 02:30 gap/fold singletons, `BYMONTHDAY=31` skipping | recurrence + `tasks/expand` tables | unit |
 | **The calendar's contract did not widen** — `eventInputSchema` still rejects `interval: 2`; `ruleFromChoice` still emits `INTERVAL=1` for every event choice | calendar contract test | unit |
 | SC-307, FR-343/344/362 — cursor derivation, "Immediately", undo withdrawal, the refusal when the next cycle is resolved, skip advancing the cycle | `tasks/cursor` tables; end-to-end in the resolve actions | unit + policies |
-| FR-325/328/356/357 — the four sub-types, the carry-forward tail including the day-27 / day-28 / day-29 edge, anytime never late, routines never carried | `tasks/expand` tables (`CARRY_FORWARD_DAYS` names both the read bound and the render bound) | unit |
+| FR-325/328/356/357 — the four sub-types, the carry-forward tail with **day 27 carried, day 28 not, day 29 not**, anytime never late, routines never carried | `tasks/expand` tables (one `CARRY_FORWARD_DAYS`; the render bound is the strict inequality, the read window one day wider) | unit |
 | SC-310, FR-305/384 — the counters as a pure function, SC-310's checklist verbatim plus "no number moves under any filter" | `tasks/counters` table-driven test | unit |
 | SC-309/SC-312, FR-360/371–374 — thirty days containing one skip and one unresolved day; recompute on undo | `tasks/streaks` | unit |
 | SC-320, FR-383/386 — five switches × three states × the search predicate | `tasks/visibility` truth table | unit |
@@ -313,9 +342,10 @@ Two things specific to this phase:
    appended to the allow lists of **`lib`, `components`, `ui-pages`, `family-actions` and `tests`**.
    The literal config fragment, and why the extent is the whole directory rather than three files,
    are in `data-model.md` §"Dashboard / config steps" — copy it from there rather than retyping it.
-   This is the exact analogue of what Phase 2 did for `family-calendar-core`: a **boundary widening**,
-   in config, reviewable in the diff — not a suppression. `lib/family/recurrence/**` gains one
-   importer zone and loses none. Land the zone in the same commit as the first file that needs it, or
+   This is the exact analogue of what Phase 2 did for `family-calendar-core`: **a boundary widening,
+   in config, reviewable in the diff — not a suppression** (the same phrase `plan.md` §I and §IV and
+   `data-model.md` §"Dashboard / config steps" use). The supporting argument, not the label, is that
+   `lib/family/recurrence/**` gains one importer zone and loses none. Land the zone in the same commit as the first file that needs it, or
    the audit reports violations for code that is correct.
 2. **Coverage before complexity.** The new expander, cursor, counters, streaks and layout modules
    are exactly the branchy-pure shape the CRAP gate scores, which is why they are written
@@ -335,6 +365,8 @@ Two things specific to this phase:
 | A routine's two slots collapse into one card, or completing Morning also completes Evening | The occurrence key dropped its slot | The key is (task, assignee, date, **slot**, cycle_prev) — FR-335 and `instance_time` |
 | A tick by Ben moves Ana's due date on a shared chore | A per-task cursor column crept back in | The cycle is per **assignee**; there is no `tasks.next_due_date` |
 | A number in a column header moves when a filter is toggled | The counters were computed **below** the filters in the memo chain | They must branch above every display filter — that is what makes FR-384 a property of the graph rather than a promise |
+| **The calendar's live updates stopped after a deploy** — a tick on one device no longer appears on another anywhere in `/family` | The app was deployed **before** §4.3's `db push`. The four Phase 3 tables join the single shared `family:${householdId}` channel, and a `postgres_changes` binding for a table the server does not have fails the **whole** channel — so Phase 1's and Phase 2's subscriptions go down with it | Run §4.3 (and §4.4/§4.5), then reload. Prevention is the ordering: push before deploy, never after (§4 preamble, `tasks.md` Hard ordering 7) |
+| `/family/tasks` throws instead of rendering, on the hosted project | Same cause: the four reads hit tables that do not exist yet, and there is no `error.tsx` under `app/` | §4.3. The route's own unavailable state (T046) is the degradation path; if it is throwing instead, that state is missing |
 | A delete never reaches the other device | The four task tables were subscribed **with** a `household_id` filter (DELETE payloads carry PKs only), or 021's guarded add was skipped | Subscriptions must be unfiltered; check `pg_publication_tables` (§4.5) |
 | The Task Box is empty and re-running the seed does not fill it | `seed_task_box()` is idempotent by **emptiness** — deliberately, so a deleted template stays deleted (FR-381) | Call `select family.seed_task_box('<household_id>')` only on a genuinely empty box |
 | Authed REST read of `tasks` returns `200` and `[]` for a non-member | **Expected** — RLS filtering; the policy suite asserts it | Nothing |
