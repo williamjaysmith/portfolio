@@ -100,10 +100,9 @@ bars are visible before anything is edited.
 
 ### Load-bearing FR spot-checks
 
-- **FR-405/406**: a late chore completed today credits today's `occurrence_date`… no — it credits
-  the **occurrence's** date for a dated chore and the resolution's day for an anytime one; the
-  pill on the *due* day shows it when navigated to. An unclaimed up-for-grabs occurrence credits
-  nobody until claimed; then the credited Profile.
+- **FR-405/406**: a late chore due Tuesday and ticked Friday credits **Friday** — Friday's pill
+  includes it, Tuesday's does not. An unclaimed up-for-grabs occurrence credits nobody until
+  claimed; then the credited Profile.
 - **FR-407**: the pill reads today's net; Previous shows yesterday's; the balance on Rewards is a
   different number.
 - **FR-408 / Assumption 5**: earn 20, redeem 20, un-tick → balance −20, Redeem hidden, no error.

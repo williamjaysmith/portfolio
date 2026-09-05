@@ -181,8 +181,9 @@ create table if not exists family.star_entries (
   category_id     uuid not null,
   amount          integer not null check (amount <> 0),
   kind            text not null check (kind in ('credit', 'retraction', 'redemption', 'refund', 'adjustment')),
-  -- The household day of the occurrence a credit/retraction is for — what FR-407's pill sums.
-  -- Null on the three kinds that have no occurrence.
+  -- The household day the credit was EARNED — the resolution's `resolved_on`, which for a late
+  -- chore is the day it was ticked, not the day it was due (FR-405, the spec's late-chore edge
+  -- case; 003 FR-354). What FR-407's pill sums. Null on the three kinds that have no occurrence.
   occurrence_date date,
   -- Loose references (no FK): history survives the deletion of what it was for (FR-411, FR-421).
   resolution_id   uuid,
@@ -239,8 +240,9 @@ returns date language sql stable security definer set search_path = '' as $$
 $$;
 revoke all on function family.household_today(uuid) from public;
 
--- R401: a completion credits the task's value AT THAT MOMENT to the Profile credited. A skip, a
--- task worth nothing, or a completion with nobody credited writes nothing.
+-- R401: a completion credits the task's value AT THAT MOMENT to the Profile credited, on the day
+-- it was ticked (resolved_on — a late chore earns today, FR-405). A skip, a task worth nothing,
+-- or a completion with nobody credited writes nothing.
 create or replace function family.credit_task_resolution()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare v_points smallint; v_summary text;
@@ -253,7 +255,7 @@ begin
     (household_id, category_id, amount, kind, occurrence_date, resolution_id, summary, created_by, entered_on)
   values
     (new.household_id, new.category_id, v_points, 'credit',
-     coalesce(new.occurrence_date, new.resolved_on), new.id, v_summary, new.created_by,
+     new.resolved_on, new.id, v_summary, new.created_by,
      family.household_today(new.household_id));
   return new;
 end $$;
@@ -474,7 +476,7 @@ reward's name must not travel in a DELETE payload, the same rule as a deleted ta
 
 | Read | Key | Shape | Why this window |
 |---|---|---|---|
-| `star_entries` for the anchored week | `familyKeys.starWeek(h, weekStart)` | `where occurrence_date between … ` — credits and retractions only | FR-407's pill is the displayed day's net; the week window is `taskWeek`'s, so stepping inside a week costs nothing (R314) |
+| `star_entries` for the anchored week | `familyKeys.starWeek(h, weekStart)` | `where occurrence_date between … ` — credits and retractions only, dated by the day they were earned | FR-407's pill is the displayed day's net; the week window is `taskWeek`'s, so stepping inside a week costs nothing (R314) |
 | `star_balances` | `familyKeys.balances(h)` | one row per Profile | every bar, button and header on the Rewards tab; the delete dialog's forfeited count |
 | `rewards` + `reward_eligibilities` embed | `familyKeys.rewards(h)` | definitions, unwindowed | the tab's cards; the eligibility list on the details |
 | `redemptions` | `familyKeys.redemptions(h)` | all, standing and reversed, ordered by `redeemed_at desc` | standing ones decide a one-time reward's muted card; the Redeemed switch shows them |

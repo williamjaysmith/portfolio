@@ -33,8 +33,8 @@ Phase 3's research (R301–R326) remains in force. Where a decision below **narr
 `family.task_resolutions` and its retraction rows from a **BEFORE DELETE** trigger on the same
 table. A `complete` resolution whose task carries a positive `reward_points` and whose
 `category_id` is not null writes one `credit` entry (amount = the task's value **at that moment**,
-FR-409; `occurrence_date` = the resolution's `occurrence_date`, or its `resolved_on` for an
-anytime chore; `resolution_id` = the row's id, no FK). Deleting that resolution writes one
+FR-409; `occurrence_date` = the resolution's `resolved_on` — the day it was ticked, so a late
+chore earns today, FR-405; `resolution_id` = the row's id, no FK). Deleting that resolution writes one
 `retraction` entry (amount = −credit) if a credit exists for it and no retraction yet. A `skipped`
 resolution writes nothing; a `complete` one with no credited Profile (impossible under
 `task_resolution_credit_shape`, but stated) writes nothing.
