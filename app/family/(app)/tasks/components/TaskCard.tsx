@@ -15,6 +15,7 @@ import { resolutionKeyOf } from "@/lib/family/tasks/resolutions";
 import type { BoardOccurrence, OccurrenceState } from "@/lib/family/types";
 
 import { CompleteCircle } from "./CompleteCircle";
+import { LateBadge } from "./LateBadge";
 
 /**
  * One task on the board (T041) — the first of the three renderers, because
@@ -32,6 +33,12 @@ import { CompleteCircle } from "./CompleteCircle";
  * the card rather than one inside the other, because a button inside a button
  * is invalid and un-tappable, and because FR-352 turns on the two being
  * distinguishable.
+ *
+ * A carried-forward occurrence additionally carries `LateBadge`, which shows
+ * the date it was DUE rather than the day it is drawn on (FR-358, US3-1) —
+ * that date is the occurrence's identity and the whole reason the card is on
+ * today's board (FR-357). An anytime chore has no date, so it can never carry
+ * the badge (FR-328, US3-4).
  *
  * The card is dumb and its props are plain data: the counters it shows are
  * computed above it from the UNFILTERED occurrence list (R317), the accent is
@@ -163,6 +170,10 @@ export function TaskCard({
           )}
         </span>
       </button>
+      {/* Outside the body button on purpose: that button carries an explicit
+          aria-label, so anything inside it is not announced — and the badge's
+          own date is the reason this card is here at all (FR-358). */}
+      <LateBadge dueDate={occurrence.scheduledDate} late={occurrence.isLate} />
       <CompleteCircle
         state={occurrence.state}
         accent={accent}

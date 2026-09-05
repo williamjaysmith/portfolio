@@ -30,11 +30,13 @@ vi.mock("@/lib/family/actions/avatars", () => ({
   signAvatarUrls: vi.fn(),
 }));
 
-// DeleteDialog counts the affected events through React Query (002 FR-274);
-// that read is stubbed here, where the dialog's copy is not the subject.
+// DeleteDialog counts the affected events (002 FR-274) and the affected tasks
+// (003 FR-391) through React Query; both reads are stubbed here, where the
+// dialog's copy is not the subject.
 vi.mock("@/lib/family/queries", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/family/queries")>()),
   useCategoryEventCount: () => ({ data: 0, isError: false }),
+  useCategoryTaskCounts: () => ({ data: { losingAnAssignee: 0, deleted: 0 }, isError: false }),
 }));
 
 const { CategorySection } = await import("../settings/CategorySection");

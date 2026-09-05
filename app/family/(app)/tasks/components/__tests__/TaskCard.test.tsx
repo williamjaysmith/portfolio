@@ -147,6 +147,22 @@ describe("TaskCard", () => {
     expect(card()).toHaveAttribute("data-late", "true");
   });
 
+  it("shows the date it was DUE on the late card, not the day it is drawn on (T063, US3-1)", () => {
+    // Drawn on today, due on the 1st: the badge names the 1st, because that is
+    // the occurrence's own identity and the reason it is here at all.
+    renderCard(
+      occurrence({ isLate: true, scheduledDate: "2026-09-01", displayedDate: TODAY, routine: false }),
+    );
+    const badge = card().querySelector("[data-late-badge]");
+    expect(badge).not.toBeNull();
+    expect(badge).toHaveTextContent("Sep 1");
+  });
+
+  it("draws no late badge on an occurrence due the day it is drawn on", () => {
+    renderCard(occurrence({ routine: false }));
+    expect(card().querySelector("[data-late-badge]")).toBeNull();
+  });
+
   it("never marks an anytime chore late, however long it sits (FR-328)", () => {
     renderCard(occurrence({ routine: false, scheduledDate: null, slot: null, isLate: false }));
     expect(card()).not.toHaveAttribute("data-late");

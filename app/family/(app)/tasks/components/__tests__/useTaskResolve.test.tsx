@@ -3,7 +3,11 @@ import { act, renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import { completeTaskOccurrence, unresolveTaskOccurrence } from "@/lib/family/actions/tasks";
+import {
+  completeTaskOccurrence,
+  skipTaskOccurrence,
+  unresolveTaskOccurrence,
+} from "@/lib/family/actions/tasks";
 import { ACTION_MESSAGES, fail, type ActionResult } from "@/lib/family/errors";
 import type { BoardOccurrence, OccurrenceState } from "@/lib/family/types";
 
@@ -31,10 +35,12 @@ import { occurrenceKeyFrom, resolveVerbOf, useTaskResolve } from "../useTaskReso
 
 vi.mock("@/lib/family/actions/tasks", () => ({
   completeTaskOccurrence: vi.fn(),
+  skipTaskOccurrence: vi.fn(),
   unresolveTaskOccurrence: vi.fn(),
 }));
 
 const completeMock = completeTaskOccurrence as Mock;
+const skipMock = skipTaskOccurrence as Mock;
 const unresolveMock = unresolveTaskOccurrence as Mock;
 
 const CLEO = "11111111-1111-4111-8111-111111111111";
@@ -109,6 +115,7 @@ function deferred<T>() {
 beforeEach(() => {
   vi.clearAllMocks();
   completeMock.mockResolvedValue({ ok: true, data: null });
+  skipMock.mockResolvedValue({ ok: true, data: null });
   unresolveMock.mockResolvedValue({ ok: true, data: null });
 });
 
@@ -242,6 +249,48 @@ describe("useTaskResolve", () => {
     expect(completeMock).not.toHaveBeenCalled();
     expect(unresolveMock).toHaveBeenNthCalledWith(1, { occurrence: occurrenceKeyFrom(done) });
     expect(unresolveMock).toHaveBeenNthCalledWith(2, { occurrence: occurrenceKeyFrom(skipped) });
+  });
+
+  it("skips through skipTaskOccurrence, with the same key and no credit (T063, FR-359)", async () => {
+    const one = occurrence({ isRepeating: true });
+    const { result } = renderResolve();
+
+    await act(async () => {
+      await result.current.resolve({ occurrence: one, verb: "skip" });
+    });
+
+    expect(skipMock).toHaveBeenCalledWith({ occurrence: occurrenceKeyFrom(one) });
+    expect(completeMock).not.toHaveBeenCalled();
+  });
+
+  it("claims through the SAME completion action, carrying the credited Profile (FR-367)", async () => {
+    const grabs = occurrence({ assigneeId: null, upForGrabs: true });
+    const { result } = renderResolve();
+
+    await act(async () => {
+      await result.current.resolve({ occurrence: grabs, verb: "claim", creditProfileId: CLEO });
+    });
+
+    // FR-367: a claim IS a completion — one action, one row, one code path;
+    // the credit is the only thing that makes it a claim.
+    expect(completeMock).toHaveBeenCalledWith({
+      occurrence: occurrenceKeyFrom(grabs),
+      creditProfileId: CLEO,
+    });
+  });
+
+  it("carries the credit on the CLAIM alone — an ordinary completion asserts nobody", async () => {
+    const { result } = renderResolve();
+
+    await act(async () => {
+      await result.current.resolve({
+        occurrence: occurrence(),
+        verb: "complete",
+        creditProfileId: CLEO,
+      });
+    });
+
+    expect(completeMock).toHaveBeenCalledWith({ occurrence: occurrenceKeyFrom(occurrence()) });
   });
 
   it("refuses offline rather than queueing (FR-393)", async () => {

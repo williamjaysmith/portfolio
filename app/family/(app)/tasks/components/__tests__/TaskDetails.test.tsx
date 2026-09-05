@@ -23,9 +23,12 @@ import { TaskDetails, dayInWords, scheduleInWords } from "../TaskDetails";
  *   - Edit and Delete are affordances over `permissions.can` (FR-389), so they
  *     are a parent's and appear only once the surface behind them exists.
  *
- * Skip is absent on purpose: it needs `skipTaskOccurrence`, which arrives with
- * US3 (T063). Unskip is here because the shipped `CompleteCircle` already
- * offers it on a skipped card and it is the same DELETE as un-complete.
+ * T063 adds the third and fourth actions FR-352 lists. **Skip** appears on
+ * routines and repeating chores only, and only while the occurrence is still
+ * outstanding — a one-off has nothing to skip to (FR-359, US3-7), and an
+ * occurrence already settled would collide on its own key. **Unskip** appears
+ * on a skipped occurrence, and is the same DELETE as un-complete (FR-355,
+ * FR-361) — one write, one path, two names.
  */
 
 const CLEO = "11111111-1111-4111-8111-111111111111";
@@ -77,6 +80,7 @@ interface RenderOptions {
 
 function renderDetails(options: RenderOptions = {}) {
   const onResolve = vi.fn();
+  const onSkip = vi.fn();
   const onEdit = vi.fn();
   const onDelete = vi.fn();
   const onClose = vi.fn();
@@ -89,6 +93,7 @@ function renderDetails(options: RenderOptions = {}) {
       busy={options.busy}
       notice={options.notice ?? null}
       onResolve={onResolve}
+      onSkip={onSkip}
       // The write surface arrives at T057; until then the board hands over no
       // handlers and the two controls have nothing to open.
       onEdit={options.writable ? onEdit : undefined}
@@ -96,7 +101,7 @@ function renderDetails(options: RenderOptions = {}) {
       onClose={onClose}
     />,
   );
-  return { onResolve, onEdit, onDelete, onClose };
+  return { onResolve, onSkip, onEdit, onDelete, onClose };
 }
 
 beforeAll(() => {
@@ -191,10 +196,49 @@ describe("TaskDetails", () => {
     expect(screen.queryByRole("button", { name: "Mark as Complete" })).not.toBeInTheDocument();
   });
 
-  it("offers Unskip on a skipped occurrence, and never Skip in this phase (FR-361)", () => {
-    renderDetails({ occurrence: occurrence({ state: "skipped" }) });
+  it("offers Unskip on a skipped occurrence, and no Skip beside it (FR-361)", () => {
+    renderDetails({ occurrence: occurrence({ state: "skipped", isRepeating: true }) });
     expect(screen.getByRole("button", { name: "Unskip" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
+  });
+
+  it("offers Skip on a repeating chore's outstanding occurrence (FR-352, FR-359)", () => {
+    const { onSkip } = renderDetails({ occurrence: occurrence({ isRepeating: true }) });
+    fireEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(onSkip).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Skip on a routine, which is what removes one of its days (FR-359)", () => {
+    renderDetails({
+      occurrence: occurrence({ routine: true, isRepeating: true, slot: "morning" }),
+    });
+    expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument();
+  });
+
+  it("never offers Skip on a one-off chore (FR-359, US3-7)", () => {
+    // Nothing to skip to: skipping it would just be deleting it under another
+    // name, which is why the server refuses it as well.
+    renderDetails({ occurrence: occurrence({ isRepeating: false }) });
+    expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
+  });
+
+  it("never offers Skip on an occurrence that is already complete", () => {
+    renderDetails({
+      occurrence: occurrence({ state: "complete", isRepeating: true, creditedCategoryId: CLEO }),
+    });
+    expect(screen.queryByRole("button", { name: "Skip" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark as Incomplete" })).toBeInTheDocument();
+  });
+
+  it("stops a Skip while another write is in flight (FR-393)", () => {
+    const { onSkip } = renderDetails({
+      occurrence: occurrence({ isRepeating: true }),
+      busy: true,
+    });
+    const skip = screen.getByRole("button", { name: "Skip" });
+    expect(skip).toBeDisabled();
+    fireEvent.click(skip);
+    expect(onSkip).not.toHaveBeenCalled();
   });
 
   it("keeps the completion action rendered with nobody punched in (FR-350)", () => {

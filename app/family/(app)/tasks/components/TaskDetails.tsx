@@ -30,15 +30,17 @@ import { UP_FOR_GRABS_TITLE } from "./UpForGrabsColumn";
  * name. `permissions.can` is used here for **affordance only**, and only over
  * the parent-only verbs (FR-389): Edit and Delete.
  *
- * Those two also need somewhere to go. The write surface is T057's, so the
- * board hands over no handler until then and the controls that would open
- * nothing are not drawn — which is what "offering only the actions that apply"
- * means on a board that cannot yet create anything.
+ * Those two also need somewhere to go, and T057 gave them one: the board hands
+ * over `onEdit` and `onDelete`, which close this sheet and open the edit form
+ * or FR-347's scope question. A control with nowhere to go is still not drawn,
+ * which is what "offering only the actions that apply" means.
  *
- * **Skip is absent on purpose.** It needs `skipTaskOccurrence`, which does not
- * exist until T063. **Unskip is present** because the shipped `CompleteCircle`
- * already names it on a skipped card and it is the same DELETE as un-complete
- * (FR-355, FR-361) — one write, one path, two names.
+ * **Skip and Unskip are the "as applicable" half of FR-352.** Skip is drawn on
+ * routines and repeating chores only, and only while the occurrence is still
+ * outstanding: a one-off has no later occurrence for a skip to make room for
+ * (FR-359, US3-7), and one already settled would collide on its own key.
+ * Unskip is drawn on a skipped occurrence, and is the same DELETE as
+ * un-complete (FR-355, FR-361) — one write, one path, two names.
  *
  * Purely presentational: every write intent leaves through a callback, no
  * action is imported, and the schedule is put into words from the occurrence
@@ -170,6 +172,8 @@ interface DetailsActionsProps {
   /** FR-389's affordance: the two parent-only controls, once they have a surface. */
   onEdit?: () => void;
   onDelete?: () => void;
+  /** FR-359: present only where a skip is a thing this occurrence can be. */
+  onSkip?: () => void;
   onResolve: () => void;
   onClose: () => void;
   closeRef: RefObject<HTMLButtonElement | null>;
@@ -185,6 +189,7 @@ function DetailsActions({
   busy,
   onEdit,
   onDelete,
+  onSkip,
   onResolve,
   onClose,
   closeRef,
@@ -202,6 +207,16 @@ function DetailsActions({
       {onEdit === undefined ? null : (
         <button type="button" onClick={onEdit} className={BUTTON_CLASS}>
           Edit
+        </button>
+      )}
+      {onSkip === undefined ? null : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onSkip}
+          className={BUTTON_CLASS}
+        >
+          Skip
         </button>
       )}
       <button
@@ -222,6 +237,17 @@ function affordance(handler: (() => void) | undefined, mayManage: boolean) {
   return mayManage ? handler : undefined;
 }
 
+/**
+ * FR-359 as a rendering rule. A routine always carries a rule, so `isRepeating`
+ * covers both halves of "routines and repeating chores"; the state test is what
+ * keeps Skip off a card that has already been settled one way or the other.
+ * The SERVER refuses the same row either way (FR-350 forbids the control being
+ * the gate) — this only stops offering an action that cannot mean anything.
+ */
+function skippable(occurrence: BoardOccurrence): boolean {
+  return occurrence.state === "unresolved" && occurrence.isRepeating;
+}
+
 export interface TaskDetailsProps {
   occurrence: BoardOccurrence;
   /** The household's categories, to name who the task is for by name and colour. */
@@ -235,6 +261,8 @@ export interface TaskDetailsProps {
   notice?: string | null;
   /** The one commit path (T044); the board picks the verb from the drawn state. */
   onResolve: () => void;
+  /** FR-359's Skip, through that same path; drawn only where it applies. */
+  onSkip: () => void;
   /** Parent-only (FR-389), and absent until T057 gives them a surface to open. */
   onEdit?: () => void;
   onDelete?: () => void;
@@ -249,6 +277,7 @@ export function TaskDetails({
   busy = false,
   notice = null,
   onResolve,
+  onSkip,
   onEdit,
   onDelete,
   onClose,
@@ -298,6 +327,7 @@ export function TaskDetails({
         busy={busy}
         onEdit={affordance(onEdit, mayManage)}
         onDelete={affordance(onDelete, mayManage)}
+        onSkip={skippable(occurrence) ? onSkip : undefined}
         onResolve={onResolve}
         onClose={onClose}
         closeRef={closeRef}

@@ -32,6 +32,27 @@
  *   - FR-371/373/374: the streak checkpoint moves as the second statement and
  *     steps back by exactly one when the completion is un-ticked.
  *
+ * T059 extends the same file with US3's three states, written red before
+ * `skipTaskOccurrence` and the claim path exist:
+ *   - FR-359: Skip refused on a one-off chore at the ACTION and again by the
+ *     insert trigger, so neither layer is the only thing holding it;
+ *   - FR-363: a skip is per occurrence and per assignee — skipping one person's
+ *     leaves the other's untouched — and a skip of an UNCLAIMED up-for-grabs
+ *     occurrence credits nobody and applies household-wide (FR-368, US3-12);
+ *   - FR-362: a skip advances a Completed Date cycle from the SKIP date by the
+ *     configured delay, proved through the shared expander (US3-8);
+ *   - FR-373: `streak_through` advances while `streak_count` holds;
+ *   - FR-367/FR-368: a claim without a credited Profile is `VALIDATION`, a
+ *     credit on an assigned task is `VALIDATION`, and a member naming anybody
+ *     but themselves is `FORBIDDEN` (US3-13);
+ *   - SC-311: two claims of one occurrence in the same second reach exactly ONE
+ *     row and one `CONFLICT` naming the winner, arbitrated by the occurrence
+ *     key alone — no lock, no RPC;
+ *   - FR-344's `23503` reads onto UNSKIP as well as un-complete, because a skip
+ *     advances a cycle exactly as a completion does;
+ *   - FR-369: an undone claim returns the occurrence to Up for Grabs belonging
+ *     to nobody, and it can be claimed again by somebody else (US3-10).
+ *
  * Fixture rows are created by this file in run-tagged households of its own,
  * never taken from the seed, so nothing here can drift with — or damage — the
  * shared seeded board.
@@ -123,6 +144,10 @@ interface TaskActionsModule {
     occurrence: OccurrenceKey;
     creditProfileId?: string;
   }): Promise<ActionResult<TaskResolution>>;
+  /** T060: the same key, no credit — a skip belongs to nobody by choice (FR-368). */
+  skipTaskOccurrence(input: {
+    occurrence: OccurrenceKey;
+  }): Promise<ActionResult<TaskResolution>>;
   unresolveTaskOccurrence(input: { occurrence: OccurrenceKey }): Promise<ActionResult<null>>;
 }
 
@@ -131,7 +156,7 @@ interface TaskActionsModule {
 // creates the module this await throws and the whole suite is RED — the failing
 // state T036 must leave behind.
 const TASKS_MODULE = ["@", "lib", "family", "actions", "tasks"].join("/");
-const { completeTaskOccurrence, unresolveTaskOccurrence } = (await import(
+const { completeTaskOccurrence, skipTaskOccurrence, unresolveTaskOccurrence } = (await import(
   TASKS_MODULE
 )) as TaskActionsModule;
 
@@ -174,6 +199,10 @@ const ROUTINE_ANCHOR = "2026-08-01";
 const ROUTINE_DATE = "2026-08-20";
 const ROUTINE_RRULE = "FREQ=DAILY;INTERVAL=1";
 const CURSOR_START = "2026-08-05";
+/** A repeating chore two people share — FR-363's "per assignee" needs two chains. */
+const SHARED_DATE = "2026-08-18";
+/** An up-for-grabs chore that REPEATS, so FR-359 lets US3-12 skip it at all. */
+const GRABS_DATE = "2026-08-15";
 /** The join row's own creation date — the Completed Date chain's seed (R309). */
 const CHAIN_STARTED_AT = "2026-01-01T00:00:00Z";
 
@@ -186,13 +215,15 @@ interface TaskSeed {
   rrule?: string | null;
   renewAfterAmount?: number | null;
   renewAfterUnit?: string | null;
+  /** FR-365: no assignee row may exist on one, which is what makes it belong to nobody. */
+  upForGrabs?: boolean;
 }
 
 async function insertTask(pool: Pool, householdId: string, seed: TaskSeed): Promise<string> {
   const { rows } = await pool.query<{ id: string }>(
     "insert into family.tasks (household_id, summary, routine, track_habit, starts_on, " +
-      "times_of_day, rrule, renew_after_amount, renew_after_unit) " +
-      "values ($1, $2, $3, $4, $5, $6::family.time_of_day[], $7, $8, $9) returning id",
+      "times_of_day, rrule, renew_after_amount, renew_after_unit, up_for_grabs) " +
+      "values ($1, $2, $3, $4, $5, $6::family.time_of_day[], $7, $8, $9, $10) returning id",
     [
       householdId,
       seed.summary,
@@ -203,6 +234,7 @@ async function insertTask(pool: Pool, householdId: string, seed: TaskSeed): Prom
       seed.rrule ?? null,
       seed.renewAfterAmount ?? null,
       seed.renewAfterUnit ?? null,
+      seed.upForGrabs ?? false,
     ],
   );
   const [row] = rows;
@@ -264,10 +296,23 @@ describe("task resolutions: the punch-in gate, FR-351 ownership and the stored r
   let benChoreId: string;
   let routineId: string;
   let cursorChoreId: string;
+  /** One repeating chore, TWO chains: Cleo's and Ben's (FR-324, FR-363). */
+  let sharedChoreId: string;
+  /** Up for grabs and repeating: no assignee row, so it belongs to nobody (FR-365). */
+  let grabsChoreId: string;
   let foreignTaskId: string;
 
-  function keyFor(taskId: string, assigneeId: string, date: string | null): OccurrenceKey {
+  function keyFor(
+    taskId: string,
+    assigneeId: string | null,
+    date: string | null,
+  ): OccurrenceKey {
     return { taskId, assigneeId, occurrenceDate: date, slot: null, cyclePrev: null };
+  }
+
+  /** An unclaimed up-for-grabs occurrence's chain owner is nobody (FR-353). */
+  function grabsKey(date: string): OccurrenceKey {
+    return keyFor(grabsChoreId, null, date);
   }
 
   async function storedFor(taskId: string): Promise<StoredResolution[]> {
@@ -283,6 +328,30 @@ describe("task resolutions: the punch-in gate, FR-351 ownership and the stored r
 
   async function clearResolutions(taskId: string): Promise<void> {
     await pool.query("delete from family.task_resolutions where task_id = $1", [taskId]);
+  }
+
+  /** A raw INSERT, so the trigger is the only thing that can refuse it (FR-359). */
+  async function insertResolutionRow(seed: {
+    taskId: string;
+    assigneeId: string | null;
+    categoryId: string | null;
+    occurrenceDate: string | null;
+    status: string;
+  }): Promise<void> {
+    await pool.query(
+      "insert into family.task_resolutions (household_id, task_id, assignee_id, category_id, " +
+        "occurrence_date, status, resolved_on, resolved_at, created_by) " +
+        "values ($1, $2, $3, $4, $5, $6, current_date, now(), $7)",
+      [
+        householdId,
+        seed.taskId,
+        seed.assigneeId,
+        seed.categoryId,
+        seed.occurrenceDate,
+        seed.status,
+        anaId,
+      ],
+    );
   }
 
   async function streakOf(taskId: string, categoryId: string): Promise<{
@@ -384,6 +453,21 @@ describe("task resolutions: the punch-in gate, FR-351 ownership and the stored r
       taskId: cursorChoreId,
       categoryId: cleoId,
       createdAt: CHAIN_STARTED_AT,
+    });
+
+    sharedChoreId = await insertTask(pool, householdId, {
+      summary: `Set the table ${run}`,
+      startsOn: ROUTINE_ANCHOR,
+      rrule: ROUTINE_RRULE,
+    });
+    await insertAssignee(pool, householdId, { taskId: sharedChoreId, categoryId: cleoId });
+    await insertAssignee(pool, householdId, { taskId: sharedChoreId, categoryId: benId });
+
+    grabsChoreId = await insertTask(pool, householdId, {
+      summary: `Empty the dishwasher ${run}`,
+      startsOn: ROUTINE_ANCHOR,
+      rrule: ROUTINE_RRULE,
+      upForGrabs: true,
     });
 
     foreignTaskId = await insertTask(pool, otherHouseholdId, {
@@ -801,6 +885,305 @@ describe("task resolutions: the punch-in gate, FR-351 ownership and the stored r
 
       expectOk(await unresolveTaskOccurrence({ occurrence }));
       expect((await streakOf(routineId, cleoId)).streak_count).toBe(0);
+    });
+  });
+  describe("Skip is offered on routines and repeating chores ONLY (FR-359, US3-7)", () => {
+    beforeEach(async () => {
+      await clearResolutions(cleoChoreId);
+      await punchInAs(cleoId, CLEO_PIN);
+    });
+
+    it("the ACTION refuses a one-off chore, and writes nothing", async () => {
+      expectFailure(
+        await skipTaskOccurrence({ occurrence: keyFor(cleoChoreId, cleoId, CHORE_DATE) }),
+        "VALIDATION",
+      );
+      expect(await storedFor(cleoChoreId)).toHaveLength(0);
+    });
+
+    it("the INSERT TRIGGER refuses the same row, so the action is not the only gate", async () => {
+      await expect(
+        insertResolutionRow({
+          taskId: cleoChoreId,
+          assigneeId: cleoId,
+          categoryId: cleoId,
+          occurrenceDate: CHORE_DATE,
+          status: "skipped",
+        }),
+      ).rejects.toMatchObject({ code: "23514" });
+      expect(await storedFor(cleoChoreId)).toHaveLength(0);
+    });
+
+    it("a repeating chore IS skippable, and the row records the skip in full", async () => {
+      await clearResolutions(sharedChoreId);
+      const created = expectOk(
+        await skipTaskOccurrence({ occurrence: keyFor(sharedChoreId, cleoId, SHARED_DATE) }),
+      );
+      expect(created).toMatchObject({ status: "skipped", categoryId: cleoId });
+
+      const [stored] = await storedFor(sharedChoreId);
+      expect(stored).toMatchObject({
+        assignee_id: cleoId,
+        category_id: cleoId,
+        created_by: cleoId,
+        status: "skipped",
+        occurrence_date: SHARED_DATE,
+      });
+      // FR-354 is not weakened by the status: a skip is dated like a completion.
+      expect(stored?.resolved_on).not.toBeNull();
+    });
+  });
+
+  describe("a skip is per occurrence and per assignee (FR-363, US3-12)", () => {
+    beforeEach(async () => {
+      await clearResolutions(sharedChoreId);
+      await clearResolutions(grabsChoreId);
+    });
+
+    it("skipping Cleo's leaves Ben's occurrence of the SAME task untouched", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      expectOk(await skipTaskOccurrence({ occurrence: keyFor(sharedChoreId, cleoId, SHARED_DATE) }));
+
+      const rows = await storedFor(sharedChoreId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ assignee_id: cleoId, status: "skipped" });
+
+      // Ben's chain is still outstanding, so his own occurrence is still resolvable.
+      await punchInAs(anaId, ANA_PIN);
+      expectOk(
+        await completeTaskOccurrence({ occurrence: keyFor(sharedChoreId, benId, SHARED_DATE) }),
+      );
+      expect(await storedFor(sharedChoreId)).toHaveLength(2);
+    });
+
+    it("a skip of an UNCLAIMED up-for-grabs occurrence credits nobody and is household-wide", async () => {
+      // A member, not a parent: an occurrence that belongs to nobody excludes
+      // nobody, which is exactly what US3-12 says.
+      await punchInAs(cleoId, CLEO_PIN);
+      const created = expectOk(await skipTaskOccurrence({ occurrence: grabsKey(GRABS_DATE) }));
+      expect(created).toMatchObject({ status: "skipped", categoryId: null, assigneeId: null });
+
+      const rows = await storedFor(grabsChoreId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ assignee_id: null, category_id: null, created_by: cleoId });
+
+      // One row settles it for the whole household: nobody else can claim it now.
+      await punchInAs(anaId, ANA_PIN);
+      expectFailure(
+        await completeTaskOccurrence({
+          occurrence: grabsKey(GRABS_DATE),
+          creditProfileId: benId,
+        }),
+        "CONFLICT",
+      );
+      expect(await storedFor(grabsChoreId)).toHaveLength(1);
+    });
+  });
+
+  describe("a skip advances a Completed Date cycle from the SKIP date (FR-362, US3-8)", () => {
+    beforeEach(async () => {
+      await clearResolutions(cursorChoreId);
+      await punchInAs(cleoId, CLEO_PIN);
+    });
+
+    it("the next occurrence is the skip's own resolved_on plus the delay", async () => {
+      const skipped = expectOk(
+        await skipTaskOccurrence({ occurrence: keyFor(cursorChoreId, cleoId, CURSOR_START) }),
+      );
+      expect(skipped.status).toBe("skipped");
+
+      // The chore is not ended: the tail moved, so exactly one new occurrence
+      // exists, one day (the configured delay) after the SKIP was recorded.
+      const nextDate = addDays(skipped.resolvedOn, 1);
+      expectFailure(
+        await completeTaskOccurrence({
+          occurrence: {
+            taskId: cursorChoreId,
+            assigneeId: cleoId,
+            occurrenceDate: addDays(nextDate, 1),
+            slot: null,
+            cyclePrev: skipped.id,
+          },
+        }),
+        "NOT_FOUND",
+      );
+      const next = expectOk(
+        await completeTaskOccurrence({
+          occurrence: {
+            taskId: cursorChoreId,
+            assigneeId: cleoId,
+            occurrenceDate: nextDate,
+            slot: null,
+            cyclePrev: skipped.id,
+          },
+        }),
+      );
+      expect(next.cyclePrev).toBe(skipped.id);
+    });
+
+    it("FR-344's 23503 reads onto UNSKIP too — the skip advanced a cycle just as a tick would", async () => {
+      const skipped = expectOk(
+        await skipTaskOccurrence({ occurrence: keyFor(cursorChoreId, cleoId, CURSOR_START) }),
+      );
+      const nextDate = addDays(skipped.resolvedOn, 1);
+      expectOk(
+        await completeTaskOccurrence({
+          occurrence: {
+            taskId: cursorChoreId,
+            assigneeId: cleoId,
+            occurrenceDate: nextDate,
+            slot: null,
+            cyclePrev: skipped.id,
+          },
+        }),
+      );
+
+      expectFailure(
+        await unresolveTaskOccurrence({ occurrence: keyFor(cursorChoreId, cleoId, CURSOR_START) }),
+        "CONFLICT",
+      );
+      expect(await storedFor(cursorChoreId)).toHaveLength(2);
+    });
+  });
+
+  describe("a skip protects a streak without advancing it (FR-373, US4-7)", () => {
+    const morningKey: OccurrenceKey = {
+      taskId: "",
+      assigneeId: "",
+      occurrenceDate: ROUTINE_DATE,
+      slot: "morning",
+      cyclePrev: null,
+    };
+
+    beforeEach(async () => {
+      await clearResolutions(routineId);
+      await pool.query(
+        "update family.task_assignees set streak_count = 3, streak_through = $3 " +
+          "where task_id = $1 and category_id = $2",
+        [routineId, cleoId, addDays(ROUTINE_DATE, -1)],
+      );
+      await punchInAs(cleoId, CLEO_PIN);
+    });
+
+    it("streak_through advances to the skipped day while streak_count holds", async () => {
+      const occurrence = { ...morningKey, taskId: routineId, assigneeId: cleoId };
+      expectOk(await skipTaskOccurrence({ occurrence }));
+      expect(await streakOf(routineId, cleoId)).toEqual({
+        streak_count: 3,
+        streak_through: ROUTINE_DATE,
+      });
+    });
+  });
+
+  describe("the claim path: who may credit whom (FR-367, FR-368, US3-13)", () => {
+    beforeEach(async () => {
+      await clearResolutions(grabsChoreId);
+      await clearResolutions(cleoChoreId);
+    });
+
+    it("an up-for-grabs occurrence cannot be completed anonymously", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      expectFailure(await completeTaskOccurrence({ occurrence: grabsKey(GRABS_DATE) }), "VALIDATION");
+      expect(await storedFor(grabsChoreId)).toHaveLength(0);
+    });
+
+    it("an ASSIGNED task refuses a credit — the credit is the assignee", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      expectFailure(
+        await completeTaskOccurrence({
+          occurrence: keyFor(cleoChoreId, cleoId, CHORE_DATE),
+          creditProfileId: cleoId,
+        }),
+        "VALIDATION",
+      );
+      expect(await storedFor(cleoChoreId)).toHaveLength(0);
+    });
+
+    it("a member claiming for SOMEONE ELSE is FORBIDDEN, and nothing is written", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      expectFailure(
+        await completeTaskOccurrence({
+          occurrence: grabsKey(GRABS_DATE),
+          creditProfileId: benId,
+        }),
+        "FORBIDDEN",
+      );
+      expect(await storedFor(grabsChoreId)).toHaveLength(0);
+    });
+
+    it("a member claiming for THEMSELVES is credited, and a parent may credit anyone", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const mine = expectOk(
+        await completeTaskOccurrence({
+          occurrence: grabsKey(GRABS_DATE),
+          creditProfileId: cleoId,
+        }),
+      );
+      // FR-367: nothing moves and nothing is reassigned — the CREDIT is the
+      // whole of it, and the chain owner is still nobody.
+      expect(mine).toMatchObject({ categoryId: cleoId, assigneeId: null });
+
+      await punchInAs(anaId, ANA_PIN);
+      expectOk(await unresolveTaskOccurrence({ occurrence: grabsKey(GRABS_DATE) }));
+      const theirs = expectOk(
+        await completeTaskOccurrence({
+          occurrence: grabsKey(GRABS_DATE),
+          creditProfileId: benId,
+        }),
+      );
+      expect(theirs.categoryId).toBe(benId);
+      const [stored] = await storedFor(grabsChoreId);
+      expect(stored).toMatchObject({ category_id: benId, created_by: anaId, assignee_id: null });
+    });
+
+    it("an undone claim returns the occurrence to nobody, and anyone may claim it again (FR-369, US3-10)", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      expectOk(
+        await completeTaskOccurrence({
+          occurrence: grabsKey(GRABS_DATE),
+          creditProfileId: cleoId,
+        }),
+      );
+      expectOk(await unresolveTaskOccurrence({ occurrence: grabsKey(GRABS_DATE) }));
+      // The credit WAS the row, so removing the row removes the credit.
+      expect(await storedFor(grabsChoreId)).toHaveLength(0);
+
+      const reclaimed = expectOk(
+        await completeTaskOccurrence({
+          occurrence: grabsKey(GRABS_DATE),
+          creditProfileId: benId,
+        }),
+      );
+      expect(reclaimed.categoryId).toBe(benId);
+    });
+  });
+
+  describe("SC-311: two devices claim one occurrence in the same second", () => {
+    beforeEach(async () => {
+      await clearResolutions(grabsChoreId);
+      await punchInAs(anaId, ANA_PIN);
+    });
+
+    it("exactly one claim is recorded and the loser is told who got there first", async () => {
+      // Issued together, arbitrated by the occurrence key's unique index alone —
+      // no lock, no RPC, no read-then-write window to lose.
+      const [first, second] = await Promise.all([
+        completeTaskOccurrence({ occurrence: grabsKey(GRABS_DATE), creditProfileId: cleoId }),
+        completeTaskOccurrence({ occurrence: grabsKey(GRABS_DATE), creditProfileId: benId }),
+      ]);
+
+      const rows = await storedFor(grabsChoreId);
+      expect(rows).toHaveLength(1);
+
+      const outcomes = [first, second];
+      expect(outcomes.filter((one) => one.ok)).toHaveLength(1);
+      const [lost] = outcomes.filter((one) => !one.ok);
+      if (lost === undefined || lost.ok) throw new Error("expected exactly one refusal");
+      expect(lost.error).toBe("CONFLICT");
+
+      // The refusal names the Profile the surviving row credited.
+      const winner = rows[0]?.category_id === cleoId ? `Cleo ${run}` : `Ben ${run}`;
+      expect(lost.message).toContain(winner);
     });
   });
 });

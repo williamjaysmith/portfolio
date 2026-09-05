@@ -12,7 +12,13 @@ import {
   type MockedFunction,
 } from "vitest";
 
-import { completeTaskOccurrence } from "@/lib/family/actions/tasks";
+import {
+  completeTaskOccurrence,
+  createTask,
+  deleteTask,
+  skipTaskOccurrence,
+  updateTask,
+} from "@/lib/family/actions/tasks";
 import { PALETTE } from "@/lib/family/colors";
 import { fail } from "@/lib/family/errors";
 import {
@@ -33,6 +39,7 @@ import type {
 import { FabActionProvider, useFabAction } from "../../../components/FabAction";
 import type { FamilyContextValue } from "../../../components/FamilyProvider";
 import {
+  makeActor,
   makeCategory,
   makeContext,
   stubDialog,
@@ -82,10 +89,18 @@ vi.mock("@/lib/family/queries", async (importOriginal) => {
 
 vi.mock("@/lib/family/actions/tasks", () => ({
   completeTaskOccurrence: vi.fn(),
+  skipTaskOccurrence: vi.fn(),
   unresolveTaskOccurrence: vi.fn(),
+  createTask: vi.fn(),
+  updateTask: vi.fn(),
+  deleteTask: vi.fn(),
 }));
 
 const completeMock = completeTaskOccurrence as Mock;
+const skipMock = skipTaskOccurrence as Mock;
+const createMock = createTask as Mock;
+const updateMock = updateTask as Mock;
+const deleteMock = deleteTask as Mock;
 
 const HOUSEHOLD = "household-1";
 /** Friday 2026-09-04, 13:00 in the household's zone — the Afternoon window. */
@@ -200,6 +215,23 @@ const CLAIM: TaskResolution = {
   createdAt: `${TODAY}T12:00:00.000Z`,
 };
 
+/** Cleo's cat chore, skipped: still on the board, out of the day's total (FR-360). */
+const SKIP: TaskResolution = {
+  id: "res-skip",
+  householdId: HOUSEHOLD,
+  taskId: CAT_CHORE,
+  occurrenceDate: TODAY,
+  occurrenceSlot: null,
+  assigneeId: CLEO,
+  categoryId: CLEO,
+  cyclePrev: null,
+  status: "skipped",
+  resolvedOn: TODAY,
+  resolvedAt: `${TODAY}T09:00:00.000Z`,
+  createdBy: CLEO,
+  createdAt: `${TODAY}T09:00:00.000Z`,
+};
+
 interface QueryStub<T> {
   data?: T;
   isPending?: boolean;
@@ -237,10 +269,17 @@ function boardProps(overrides: Partial<TasksBoardProps> = {}): TasksBoardProps {
   };
 }
 
-/** Reads back whatever the mounted board registered with the shell's FAB. */
+/**
+ * Reads back whatever the mounted board registered with the shell's FAB — and
+ * runs it, the way the real Fab does, so T057's create control can be pressed.
+ */
 function FabProbe() {
   const action = useFabAction();
-  return <p data-testid="fab">{action === null ? "none" : action.label}</p>;
+  return (
+    <button type="button" data-testid="fab" onClick={() => action?.run()}>
+      {action === null ? "none" : action.label}
+    </button>
+  );
 }
 
 function renderBoard(options: { context?: Partial<FamilyContextValue> } = {}) {
@@ -287,6 +326,10 @@ beforeEach(() => {
   vi.setSystemTime(NOW);
   stubReads();
   completeMock.mockResolvedValue({ ok: true, data: null });
+  skipMock.mockResolvedValue({ ok: true, data: null });
+  createMock.mockResolvedValue({ ok: true, data: null });
+  updateMock.mockResolvedValue({ ok: true, data: null });
+  deleteMock.mockResolvedValue({ ok: true, data: null });
 });
 
 afterEach(() => {
@@ -428,6 +471,156 @@ describe("TasksBoard", () => {
     expect(screen.getByTestId("fab")).toHaveTextContent("Add Task");
   });
 
+  /**
+   * T057 — the write surface, wired. Every commit goes through the shipped
+   * `withActor` interceptor, the scope question comes before the confirmation
+   * on a repeating task, and a `NOT_FOUND` closes the surface rather than
+   * recreating what another device already deleted (FR-393).
+   */
+  describe("the write surface (T057)", () => {
+    /** Edit and Delete are parent-only affordances (FR-389). */
+    const asParent = { actor: makeActor("parent", { profileId: ANA, label: "Ana" }) };
+
+    /** A card body's name folds its progress in, so a routine is matched by prefix. */
+    async function openDetails(name: string | RegExp): Promise<void> {
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name }));
+      });
+    }
+
+    it("opens the create form from the shell's own control", async () => {
+      renderBoard();
+      await press("Add Task");
+
+      expect(screen.getByRole("heading", { name: "Add a task" })).toBeInTheDocument();
+    });
+
+    it("creates through withActor, and closes on success", async () => {
+      renderBoard({ context: asParent });
+      await press("Add Task");
+
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Sweep the porch" } });
+      fireEvent.click(screen.getByRole("checkbox", { name: "Cleo" }));
+      fireEvent.change(screen.getByLabelText("Due date"), { target: { value: TODAY } });
+      await press("Save");
+
+      expect(createMock).toHaveBeenCalledTimes(1);
+      expect(createMock.mock.calls[0][0]).toMatchObject({
+        summary: "Sweep the porch",
+        assigneeIds: [CLEO],
+        startsOn: TODAY,
+        routine: false,
+      });
+      expect(screen.queryByRole("heading", { name: "Add a task" })).not.toBeInTheDocument();
+    });
+
+    it("opens the edit form on the task the tapped occurrence belongs to", async () => {
+      renderBoard({ context: asParent });
+      await openDetails("Feed the cat");
+      await press("Edit");
+
+      expect(screen.getByRole("heading", { name: "Edit task" })).toBeInTheDocument();
+      expect(screen.getByLabelText("Title")).toHaveValue("Feed the cat");
+      // A create-time choice, so the edit form does not offer it (FR-379).
+      expect(screen.queryByRole("switch", { name: "Save to task box" })).toBeNull();
+    });
+
+    it("sends an edit as a patch of the whole task, with no scope (FR-331)", async () => {
+      renderBoard({ context: asParent });
+      await openDetails("Feed the cat");
+      await press("Edit");
+
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Feed the kitten" } });
+      await press("Save");
+
+      expect(updateMock).toHaveBeenCalledTimes(1);
+      const sent = updateMock.mock.calls[0][0] as { id: string; patch: Record<string, unknown> };
+      expect(sent.id).toBe(CAT_CHORE);
+      expect(sent.patch).toMatchObject({ summary: "Feed the kitten" });
+      expect(sent.patch).not.toHaveProperty("scope");
+      expect(sent.patch).not.toHaveProperty("saveToTaskBox");
+    });
+
+    it("asks the scope BEFORE confirming, on a repeating task (FR-347)", async () => {
+      renderBoard({ context: asParent });
+      // The morning routine is behind its toggle at 13:00.
+      await act(async () => {
+        fireEvent.click(within(column("Cleo")).getByRole("button", { name: "Morning" }));
+      });
+      await openDetails(/^Brush teeth/);
+      await press("Delete");
+
+      // A routine is offered two scopes, never "This one" (FR-359).
+      expect(screen.getByRole("radio", { name: "This and all future ones" })).toBeInTheDocument();
+      expect(screen.queryByRole("radio", { name: "This one" })).toBeNull();
+      expect(deleteMock).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("radio", { name: "All of them" }));
+      await press("Continue");
+      await press("Delete");
+
+      expect(deleteMock).toHaveBeenCalledWith({ id: ROUTINE, confirm: true, scope: "all" });
+    });
+
+    it("carries the occurrence key when the scope needs one", async () => {
+      renderBoard({ context: asParent });
+      await act(async () => {
+        fireEvent.click(within(column("Cleo")).getByRole("button", { name: "Morning" }));
+      });
+      await openDetails(/^Brush teeth/);
+      await press("Delete");
+
+      fireEvent.click(screen.getByRole("radio", { name: "This and all future ones" }));
+      await press("Continue");
+      await press("Delete");
+
+      expect(deleteMock).toHaveBeenCalledWith({
+        id: ROUTINE,
+        confirm: true,
+        scope: "this_and_future",
+        occurrenceKey: {
+          taskId: ROUTINE,
+          assigneeId: CLEO,
+          occurrenceDate: TODAY,
+          slot: "morning",
+          cyclePrev: null,
+        },
+      });
+    });
+
+    it("asks a one-off no scope question at all (FR-347)", async () => {
+      renderBoard({ context: asParent });
+      await openDetails("Feed the cat");
+      await press("Delete");
+
+      expect(screen.queryByRole("radio", { name: "All of them" })).toBeNull();
+      await press("Delete");
+
+      expect(deleteMock).toHaveBeenCalledWith({ id: CAT_CHORE, confirm: true });
+    });
+
+    it("closes the form and says so when another device deleted it first (FR-393)", async () => {
+      updateMock.mockResolvedValue(fail("NOT_FOUND"));
+      renderBoard({ context: asParent });
+      await openDetails("Feed the cat");
+      await press("Edit");
+
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Gone" } });
+      await press("Save");
+
+      expect(screen.queryByRole("heading", { name: "Edit task" })).not.toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("That task is no longer here.");
+    });
+
+    it("offers neither control to a member — the affordance, not the gate (FR-389)", async () => {
+      renderBoard({ context: { actor: makeActor("member", { profileId: CLEO, label: "Cleo" }) } });
+      await openDetails("Feed the cat");
+
+      expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    });
+  });
+
   it("keeps the page from scrolling sideways at any width (FR-394, SC-315)", () => {
     renderBoard();
     const board = document.querySelector("[data-board]");
@@ -473,11 +666,111 @@ describe("boardSeedsOf (R314)", () => {
   });
 });
 
+/**
+ * T063 — US3's three states wired onto the board. What is proved here is the
+ * DIVERSION and the plumbing: an unclaimed up-for-grabs tap asks who did it
+ * rather than writing an anonymous completion the server would refuse; Skip
+ * reaches the third action; and a skipped occurrence stays drawn while leaving
+ * the numbers above it.
+ */
+describe("the US3 states (T063)", () => {
+  /** The key every claim of the fixture's up-for-grabs chore carries. */
+  const GRABS_KEY = {
+    taskId: GRABS_CHORE,
+    assigneeId: null,
+    occurrenceDate: TODAY,
+    slot: null,
+    cyclePrev: null,
+  };
+
+  async function openClaim(): Promise<void> {
+    await press("Complete Empty the dishwasher");
+  }
+
+  it("asks who did it instead of completing an unclaimed one anonymously (FR-367, FR-368)", async () => {
+    renderBoard();
+
+    await openClaim();
+
+    // Nothing is written: a claim without a credited Profile is refused by the
+    // server, so the board does not send one at all.
+    expect(completeMock).not.toHaveBeenCalled();
+    expect(within(screen.getByRole("dialog")).getByRole("radiogroup")).toBeInTheDocument();
+  });
+
+  it("credits the chosen Profile and completes in one write (US3-9)", async () => {
+    renderBoard();
+
+    await openClaim();
+    await act(async () => {
+      fireEvent.click(screen.getByRole("radio", { name: "Cleo" }));
+    });
+    await press("Complete");
+
+    expect(completeMock).toHaveBeenCalledWith({
+      occurrence: GRABS_KEY,
+      creditProfileId: CLEO,
+    });
+    // The claim landed, so the question is finished with.
+    expect(screen.queryByRole("radiogroup")).not.toBeInTheDocument();
+  });
+
+  it("keeps the question open on a lost race, naming who got there first (FR-370, SC-311)", async () => {
+    const message = "Ben already did that one.";
+    renderBoard({ context: { withActor: async () => fail("CONFLICT", message) } });
+
+    await openClaim();
+    await press("Complete");
+
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(message);
+    expect(within(dialog).getByRole("radiogroup")).toBeInTheDocument();
+  });
+
+  it("skips an occurrence from the details sheet, through the one commit path (FR-352, FR-359)", async () => {
+    renderBoard();
+
+    // 13:00 is Afternoon, so the morning routine is behind its own toggle; and
+    // a routine's card body folds its progress into its name.
+    await act(async () => {
+      fireEvent.click(within(column("Cleo")).getByRole("button", { name: "Morning" }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^Brush teeth/ }));
+    });
+    await press("Skip");
+
+    expect(skipMock).toHaveBeenCalledWith({
+      occurrence: {
+        taskId: ROUTINE,
+        assigneeId: CLEO,
+        occurrenceDate: TODAY,
+        slot: "morning",
+        cyclePrev: null,
+      },
+    });
+    expect(completeMock).not.toHaveBeenCalled();
+  });
+
+  it("leaves a skipped occurrence on the board, and out of the count and the ring (FR-360, US4-5)", () => {
+    stubReads([SKIP]);
+    renderBoard();
+
+    // It stays in the expanded list — hiding it is the filter layer's job at
+    // T067, never the expander's (R315) — and the ring reads one, not two.
+    const card = within(column("Cleo")).getByText("Feed the cat").closest("[data-task-card]");
+    expect(card).toHaveAttribute("data-state", "skipped");
+    expect(
+      within(screen.getByRole("group", { name: "Cleo" })).getByText("0/1"),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("boardNoticeOf", () => {
   const quiet = {
     error: null,
     gone: false,
-    detailsOpen: false,
+    sheetOpen: false,
     resolveNotice: null,
     own: null,
   };
@@ -505,7 +798,7 @@ describe("boardNoticeOf", () => {
   it("leaves a refusal to the sheet while the sheet is open (FR-351)", () => {
     const refusal = { ...quiet, resolveNotice: "That's Ben's task." };
     expect(boardNoticeOf(refusal)).toBe("That's Ben's task.");
-    expect(boardNoticeOf({ ...refusal, detailsOpen: true })).toBeNull();
+    expect(boardNoticeOf({ ...refusal, sheetOpen: true })).toBeNull();
   });
 });
 

@@ -52,6 +52,20 @@ import type {
   WeekStart,
 } from "./types";
 
+/** FR-391's two opposite outcomes of deleting a Profile, for its confirmation. */
+export interface CategoryTaskCounts {
+  /** Tasks somebody else is also assigned to: they stay, without this Profile. */
+  losingAnAssignee: number;
+  /** Tasks whose only assignee is this Profile: they go with it. */
+  deleted: number;
+}
+
+/** The two columns the split above counts over. */
+interface AssigneeLinkRow {
+  task_id: string;
+  category_id: string;
+}
+
 /** What identifies one cached window of events: the days it covers, inclusive. */
 export interface WeekCacheWindow {
   startDate: string;
@@ -82,6 +96,9 @@ export const familyKeys = {
   /** FR-274's affected-event count for one category's delete confirmation. */
   categoryEventCount: (householdId: string, categoryId: string) =>
     ["family", "category-event-count", householdId, categoryId] as const,
+  /** FR-391's two task numbers for the same confirmation — the opposite promise. */
+  categoryTaskCounts: (householdId: string, categoryId: string) =>
+    ["family", "category-task-counts", householdId, categoryId] as const,
   /**
    * The board's four reads plus its lazy fifth (R314). None is keyed by the
    * displayed day: task DEFINITIONS do not depend on it (an Anytime chore has
@@ -224,6 +241,67 @@ export function useCategoryEventCount(householdId: string, categoryId: string) {
   return useQuery({
     queryKey: familyKeys.categoryEventCount(householdId, categoryId),
     queryFn: () => fetchCategoryEventCount(createClient(), householdId, categoryId),
+    staleTime: STALE_TIME,
+  });
+}
+
+/**
+ * FR-391's two numbers, and they point in OPPOSITE directions — which is why
+ * both are read and both are stated. Deleting a Profile takes its assignments
+ * with it (018's cascade); a task somebody else is also assigned to survives
+ * without them, and a task nobody is left assigned to is deleted outright,
+ * because a chore becomes up-for-grabs by an explicit choice and never by
+ * attrition (Assumption 24, SC-317).
+ *
+ * Two reads rather than a join: the first is exactly the prefix of
+ * `task_assignees_category_idx` (018), and the second re-reads only those tasks
+ * by primary key. An up-for-grabs task has no assignee at all, so it is in
+ * neither number by construction.
+ */
+export async function fetchCategoryTaskCounts(
+  supabase: SupabaseClient,
+  householdId: string,
+  categoryId: string,
+): Promise<CategoryTaskCounts> {
+  const mine = await supabase
+    .schema("family")
+    .from("task_assignees")
+    .select("task_id")
+    .eq("household_id", householdId)
+    .eq("category_id", categoryId);
+  if (mine.error) throw new Error(mine.error.message);
+  const taskIds = ((mine.data ?? []) as unknown as { task_id: string }[]).map(
+    (row) => row.task_id,
+  );
+  if (taskIds.length === 0) return { losingAnAssignee: 0, deleted: 0 };
+
+  const everyone = await supabase
+    .schema("family")
+    .from("task_assignees")
+    .select("task_id, category_id")
+    .eq("household_id", householdId)
+    .in("task_id", taskIds);
+  if (everyone.error) throw new Error(everyone.error.message);
+  return splitByCompany(taskIds, (everyone.data ?? []) as unknown as AssigneeLinkRow[]);
+}
+
+/** Shared with somebody else, or this Profile's alone — every task lands in one. */
+function splitByCompany(
+  taskIds: readonly string[],
+  links: readonly AssigneeLinkRow[],
+): CategoryTaskCounts {
+  let losingAnAssignee = 0;
+  for (const taskId of taskIds) {
+    const assignees = links.filter((row) => row.task_id === taskId).length;
+    if (assignees > 1) losingAnAssignee += 1;
+  }
+  return { losingAnAssignee, deleted: taskIds.length - losingAnAssignee };
+}
+
+export function useCategoryTaskCounts(householdId: string, categoryId: string) {
+  return useQuery({
+    queryKey: familyKeys.categoryTaskCounts(householdId, categoryId),
+    queryFn: () => fetchCategoryTaskCounts(createClient(), householdId, categoryId),
     staleTime: STALE_TIME,
   });
 }

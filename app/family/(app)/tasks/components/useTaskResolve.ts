@@ -2,7 +2,11 @@
 
 import { useCallback, useRef, useState } from "react";
 
-import { completeTaskOccurrence, unresolveTaskOccurrence } from "@/lib/family/actions/tasks";
+import {
+  completeTaskOccurrence,
+  skipTaskOccurrence,
+  unresolveTaskOccurrence,
+} from "@/lib/family/actions/tasks";
 import type { ActionResult } from "@/lib/family/errors";
 import type { BoardOccurrence, OccurrenceKey, OccurrenceState } from "@/lib/family/types";
 
@@ -30,26 +34,32 @@ import { occurrenceKeyOf } from "./TaskCard";
  *
  * **The payload asserts nothing about identity** (FR-387): the acting Profile
  * comes from the signed punch-in cookie server-side. What travels is FR-353's
- * five-column occurrence key and, at T063, the claim's `creditProfileId` —
- * `occurrenceKeyFrom` exists so the drawn occurrence's other fields (its
- * summary, its state, the day it happens to be drawn on) cannot leak into a
- * `strictObject` payload that would refuse them anyway.
+ * five-column occurrence key and, on a claim alone, the `creditProfileId` the
+ * person chose in `ClaimDialog` — `occurrenceKeyFrom` exists so the drawn
+ * occurrence's other fields (its summary, its state, the day it happens to be
+ * drawn on) cannot leak into a `strictObject` payload that would refuse them
+ * anyway.
  *
- * **One path, shaped for FR-350's five verbs.** Three are wired here: complete,
- * un-complete and unskip — which are two writes, because FR-355's un-complete
- * and FR-361's unskip are the same DELETE and one action serves both. Skip and
- * claim need `skipTaskOccurrence` and a credited Profile, neither of which
- * exists until T063; they join by adding a row to `WRITES` and a verb to the
- * union, and no second commit path is ever authored.
+ * **One path, all five of FR-350's verbs** (T063), and three actions behind
+ * them: FR-355's un-complete and FR-361's unskip are the same DELETE, and
+ * FR-367's claim is a completion carrying a credit — the credit is the only
+ * thing that makes it one, which is why it needs no action of its own. Nothing
+ * else may write a resolution; a second commit path is never authored.
  */
 
-/** FR-350's resolution verbs. `skip` and `claim` join this union at T063. */
-export type ResolveVerb = "complete" | "uncomplete" | "unskip";
+/** FR-350's five resolution verbs, over three actions. */
+export type ResolveVerb = "complete" | "claim" | "skip" | "uncomplete" | "unskip";
 
 export interface TaskResolveIntent {
   occurrence: BoardOccurrence;
   /** What this tap means — `resolveVerbOf` reads it off the drawn state. */
   verb: ResolveVerb;
+  /**
+   * FR-367/FR-368: the Profile a CLAIM credits, chosen in `ClaimDialog`. Read
+   * by the `claim` write and by no other, so an ordinary completion asserts
+   * nobody even if a caller supplies one.
+   */
+  creditProfileId?: string;
 }
 
 /**
@@ -71,6 +81,11 @@ export interface TaskResolveState {
 /**
  * What a tap on the circle means in each drawn state — the same three actions
  * `CompleteCircle` already names, so the label and the write cannot disagree.
+ *
+ * `claim` and `skip` are NOT here, and deliberately: neither is a drawn state.
+ * A claim is a completion the board diverts through `ClaimDialog` because it
+ * needs a Profile named first (FR-367), and a skip is chosen from the details
+ * sheet's own action list (FR-352, FR-359).
  */
 const VERBS: Record<OccurrenceState, ResolveVerb> = {
   unresolved: "complete",
@@ -95,10 +110,15 @@ export function occurrenceKeyFrom(occurrence: BoardOccurrence): OccurrenceKey {
 
 type ResolveWrite = (intent: TaskResolveIntent) => Promise<ActionResult<unknown>>;
 
-/** One row per verb. T063 adds `skip` and `claim` here and nowhere else. */
+/** One row per verb, and the only place a resolution is written from. */
 const WRITES: Record<ResolveVerb, ResolveWrite> = {
   complete: ({ occurrence }) =>
     completeTaskOccurrence({ occurrence: occurrenceKeyFrom(occurrence) }),
+  // FR-367: the same action, plus the credit that makes it a claim. The server
+  // refuses a credit-less claim and a credit on an assigned task (FR-368).
+  claim: ({ occurrence, creditProfileId }) =>
+    completeTaskOccurrence({ occurrence: occurrenceKeyFrom(occurrence), creditProfileId }),
+  skip: ({ occurrence }) => skipTaskOccurrence({ occurrence: occurrenceKeyFrom(occurrence) }),
   uncomplete: ({ occurrence }) =>
     unresolveTaskOccurrence({ occurrence: occurrenceKeyFrom(occurrence) }),
   unskip: ({ occurrence }) =>
