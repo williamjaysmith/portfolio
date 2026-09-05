@@ -31,10 +31,10 @@ import { redeemedOnLabelOf, starsInWords } from "./RewardCard";
  * parent will otherwise assume the opposite of — that it cannot be undone, and
  * that stars already spent on it stay spent (FR-418, FR-421, R405).
  *
- * **Unredeem** is drawn on a redeemed card only, once the board has wired it
- * (T043), and for **whoever** is punched in: FR-424's rule is the server's,
- * and a member tapping another's redemption must reach the refusal by name,
- * not a missing button.
+ * **Unredeem** is drawn on a redeemed card only, when the board hands it
+ * somewhere to go (T043 — `useRedeem`'s put-back), and for **whoever** is
+ * punched in: FR-424's rule is the server's, and a member tapping another's
+ * redemption must reach the refusal by name, not a missing button.
  *
  * Purely presentational: every write intent leaves through a callback and no
  * action is imported. Modality is Phase 1's dialog idiom — native
@@ -290,7 +290,7 @@ export interface RewardDetailsProps {
   onEdit?: () => void;
   /** Called after FR-418's confirmation; the board owns `deleteReward`. */
   onDelete?: () => void;
-  /** FR-431: drawn on a redeemed card only, once T043 wires it; the server decides who may. */
+  /** FR-431: drawn on a redeemed card only; the board owns the put-back and the server decides who may. */
   onUnredeem?: () => void;
   onClose: () => void;
 }

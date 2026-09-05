@@ -35,7 +35,27 @@
  *   - an id in another household is `NOT_FOUND` and never `FORBIDDEN`, on the
  *     edit and the delete path alike (FR-442).
  *
- * T039 (redeem / unredeem) and T045 (adjustStars) extend this file.
+ * T039 — `redeemReward` and `unredeemReward` (contracts §Redeeming), FR-424's
+ * target rule and 026's money rules, every call again off-interface:
+ *   - nobody punched in → `NO_ACTOR`, nothing written;
+ *   - a **member** redeems only for themselves; for anyone else it is
+ *     `FORBIDDEN` naming whose reward it is and that a parent may do it; a
+ *     **parent** redeems for any eligible Profile and the row names both; a
+ *     parent **demoted** on another device is refused at once (R323);
+ *   - the insert carries the reward, the Profile and the punch-in and NOTHING
+ *     else: the strict shape refuses a cost, a name or a day, and the row
+ *     copies the STORED cost, the name and the household day (FR-428, FR-433);
+ *   - `P0005` (not eligible) → `FORBIDDEN`, `P0006` (one-time, standing) and
+ *     `P0007` (short) → `CONFLICT`, each with the contract's words; exactly the
+ *     cost is enough (SC-408); a renewing reward redeems again from what is
+ *     left (FR-430); `P0002` and a foreign or absent Profile → `NOT_FOUND`;
+ *   - SC-409 as two concurrent calls: one row, one debit, one `CONFLICT`;
+ *   - unredeem marks the row reversed and writes the refund exactly once
+ *     (`P0008` → `CONFLICT`), under the same target rule on the redemption's
+ *     Profile, and the one-time reward is redeemable again (FR-431);
+ *   - both push the punch-in's idle expiry forward on success (FR-013).
+ *
+ * T045 (adjustStars) extends this file.
  *
  * Fixture rows live in run-tagged households of this file's own, never in the
  * seed, so nothing here can drift with — or damage — the seeded tab.
@@ -48,8 +68,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Pool } from "pg";
 
+import { signActorToken } from "@/lib/family/actor-token";
+import { localDateOf } from "@/lib/family/calendar/dates";
 import type { ActionError, ActionResult } from "@/lib/family/errors";
-import type { Reward } from "@/lib/family/types";
+import type { Redemption, Reward, Role } from "@/lib/family/types";
 import {
   LOCAL,
   adminClient,
@@ -139,13 +161,24 @@ interface DeleteRewardPayload {
   confirm: boolean;
 }
 
+interface RedeemRewardPayload {
+  rewardId: string;
+  categoryId: string;
+}
+
+interface UnredeemRewardPayload {
+  redemptionId: string;
+}
+
 interface RewardsModule {
   createReward(input: RewardInputPayload): Promise<ActionResult<Reward>>;
   updateReward(input: UpdateRewardPayload): Promise<ActionResult<Reward>>;
   deleteReward(input: DeleteRewardPayload): Promise<ActionResult<null>>;
+  redeemReward(input: RedeemRewardPayload): Promise<ActionResult<Redemption>>;
+  unredeemReward(input: UnredeemRewardPayload): Promise<ActionResult<Redemption>>;
 }
 
-// Joined at runtime so `tsc` stays clean while the three verbs do not exist;
+// Joined at runtime so `tsc` stays clean while a verb does not exist yet;
 // Vitest resolves the `@` alias when the import actually runs.
 const REWARDS_MODULE = ["@", "lib", "family", "actions", "rewards"].join("/");
 const rewards = (await import(REWARDS_MODULE)) as Partial<RewardsModule>;
@@ -154,7 +187,7 @@ const rewards = (await import(REWARDS_MODULE)) as Partial<RewardsModule>;
 function verb<K extends keyof RewardsModule>(name: K): NonNullable<Partial<RewardsModule>[K]> {
   const fn = rewards[name];
   if (fn === undefined) {
-    throw new Error(`lib/family/actions/rewards.ts does not export ${name} yet (T029)`);
+    throw new Error(`lib/family/actions/rewards.ts does not export ${name} yet`);
   }
   return fn;
 }
@@ -169,6 +202,14 @@ function updateReward(input: UpdateRewardPayload): Promise<ActionResult<Reward>>
 
 function deleteReward(input: DeleteRewardPayload): Promise<ActionResult<null>> {
   return verb("deleteReward")(input);
+}
+
+function redeemReward(input: RedeemRewardPayload): Promise<ActionResult<Redemption>> {
+  return verb("redeemReward")(input);
+}
+
+function unredeemReward(input: UnredeemRewardPayload): Promise<ActionResult<Redemption>> {
+  return verb("unredeemReward")(input);
 }
 
 function expectOk<T>(result: ActionResult<T>): T {
@@ -193,6 +234,11 @@ const UNKNOWN_ID = "00000000-0000-4000-8000-0000000000ff";
 const TREAT_COST = 5;
 /** Enough for one redemption with change: the balance afterwards is 5. */
 const STARS_GIVEN = 10;
+/** The fixture household's zone — every `redeemedOn` is judged in it (FR-433). */
+const ZONE = "America/Chicago";
+/** The punch-in cookie, and a life short enough that a touch is visible as `exp` moving. */
+const ACTOR_COOKIE = "family_actor";
+const SHORT_TTL_SECONDS = 90;
 
 interface StoredReward {
   id: string;
@@ -339,6 +385,75 @@ describe("rewards: FR-419's parent-only verbs, FR-415's fields, FR-418/420/421's
       [id],
     );
     return rows[0];
+  }
+
+  async function storedRedemptionsFor(rewardId: string): Promise<StoredRedemption[]> {
+    const { rows } = await pool.query<StoredRedemption>(
+      "select id, reward_id, category_id, point_value, reward_name, reversed_at::text as reversed_at " +
+        "from family.redemptions where reward_id = $1 order by redeemed_at",
+      [rewardId],
+    );
+    return rows;
+  }
+
+  /** The derived balance (025's view) — what every bar and every refusal is judged against. */
+  async function balanceOf(profileId: string): Promise<number> {
+    const { rows } = await pool.query<{ balance: number }>(
+      "select balance from family.star_balances where category_id = $1",
+      [profileId],
+    );
+    return rows[0]?.balance ?? 0;
+  }
+
+  /** A standing redemption in the OTHER household — never reachable from this one. */
+  async function redeemForeign(): Promise<string> {
+    await pool.query(
+      "insert into family.star_entries (household_id, category_id, amount, kind, entered_on) " +
+        "values ($1, $2, $3, 'adjustment', current_date)",
+      [otherHouseholdId, foreignProfileId, STARS_GIVEN],
+    );
+    const { rows } = await pool.query<{ id: string }>(
+      "insert into family.redemptions (household_id, reward_id, category_id, redeemed_by) " +
+        "values ($1, $2, $3, $3) returning id",
+      [otherHouseholdId, foreignRewardId, foreignProfileId],
+    );
+    const [row] = rows;
+    if (!row) throw new Error("insert into family.redemptions returned no row");
+    return row.id;
+  }
+
+  /**
+   * Another device demotes a parent mid-session — the cookie still says
+   * `parent` — and promotes them back afterwards whatever the body decided.
+   */
+  async function whileDemoted(profileId: string, body: () => Promise<void>): Promise<void> {
+    await pool.query("update family.categories set role = 'member' where id = $1", [profileId]);
+    try {
+      await body();
+    } finally {
+      await pool.query("update family.categories set role = 'parent' where id = $1", [profileId]);
+    }
+  }
+
+  /** The `exp` claim of the punch-in cookie now in the jar, in epoch seconds. */
+  function actorCookieExp(): number {
+    const token = state.cookies.get(ACTOR_COOKIE);
+    if (!token) throw new Error("no punch-in cookie in the jar");
+    const [, payload = ""] = token.split(".");
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+      exp: number;
+    };
+    return claims.exp;
+  }
+
+  /** Re-sign the current punch-in with a short life, so a touch shows as `exp` moving forward. */
+  async function shortenPunchIn(profileId: string, role: Role): Promise<void> {
+    const { token } = await signActorToken(
+      { profileId, userId: user.id, householdId, role },
+      process.env.FAMILY_ACTOR_SECRET ?? "",
+      SHORT_TTL_SECONDS,
+    );
+    state.cookies.set(ACTOR_COOKIE, token);
   }
 
   async function storedEntries(): Promise<StoredEntry[]> {
@@ -878,6 +993,368 @@ describe("rewards: FR-419's parent-only verbs, FR-415's fields, FR-418/420/421's
       const [foreign] = await storedRewards(otherHouseholdId);
       expect(foreign?.id).toBe(foreignRewardId);
       expect(await eligibleIds(foreignRewardId)).toEqual([foreignProfileId]);
+    });
+  });
+
+  /* ----------------------------------------------------------------------- *
+   * T039 — redeemReward (contracts §Redeeming, FR-424, FR-428–FR-430)
+   * ----------------------------------------------------------------------- */
+
+  /** The one-time treat, for Cleo — the call every redeem test varies one thing about. */
+  function redeemTreatFor(categoryId: string): Promise<ActionResult<Redemption>> {
+    return redeemReward({ rewardId: treatRewardId, categoryId });
+  }
+
+  async function entriesOfKind(kind: string): Promise<StoredEntry[]> {
+    return (await storedEntries()).filter((row) => row.kind === kind);
+  }
+
+  describe("redeemReward: FR-424's target rule, and the insert that carries nothing but the names (T039)", () => {
+    it("with nobody punched in it is NO_ACTOR, and nothing is written", async () => {
+      await giveStars(cleoId, STARS_GIVEN);
+      expectFailure(await redeemTreatFor(cleoId), "NO_ACTOR");
+      expect(await storedRedemptionsFor(treatRewardId)).toEqual([]);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN);
+    });
+
+    it("a MEMBER redeems for themselves: one row copying cost, name and the household day, one debit (FR-428, FR-433)", async () => {
+      await giveStars(cleoId, STARS_GIVEN);
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = localDateOf(ZONE, Date.now());
+      const redemption = expectOk(await redeemTreatFor(cleoId));
+      const after = localDateOf(ZONE, Date.now());
+
+      expect(redemption).toMatchObject({
+        householdId,
+        rewardId: treatRewardId,
+        categoryId: cleoId,
+        pointValue: TREAT_COST,
+        rewardName: `Ice cream ${run}`,
+        redeemedBy: cleoId,
+        reversedAt: null,
+        reversedBy: null,
+      });
+      // The household's day of the write, never the device's (FR-433).
+      expect([before, after]).toContain(redemption.redeemedOn);
+      expect(redemption.redeemedAt).toEqual(expect.any(String));
+
+      expect(await storedRedemption(redemption.id)).toMatchObject({
+        reward_id: treatRewardId,
+        category_id: cleoId,
+        point_value: TREAT_COST,
+        reward_name: `Ice cream ${run}`,
+        reversed_at: null,
+      });
+      // One debit of exactly the cost, naming the reward by copy (FR-428).
+      expect(await entriesOfKind("redemption")).toEqual([
+        {
+          kind: "redemption",
+          amount: -TREAT_COST,
+          redemption_id: redemption.id,
+          summary: `Ice cream ${run}`,
+        },
+      ]);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN - TREAT_COST);
+    });
+
+    it("the cost is the STORED one at the moment of the write, never the caller's (FR-428)", async () => {
+      await giveStars(cleoId, STARS_GIVEN);
+      await punchInAs(cleoId, CLEO_PIN);
+      // The strict shape refuses a cost, a name or a day in the payload...
+      for (const extra of [{ pointValue: 1 }, { rewardName: "Cheap" }, { redeemedOn: "2026-01-01" }]) {
+        expectFailure(
+          await redeemReward({
+            rewardId: treatRewardId,
+            categoryId: cleoId,
+            ...extra,
+          } as RedeemRewardPayload),
+          "VALIDATION",
+        );
+      }
+      expect(await storedRedemptionsFor(treatRewardId)).toEqual([]);
+
+      // ...and a cost edited underneath the tap is what gets charged.
+      await pool.query("update family.rewards set point_value = 7 where id = $1", [treatRewardId]);
+      const redemption = expectOk(await redeemTreatFor(cleoId));
+      expect(redemption.pointValue).toBe(7);
+      expect((await storedRedemption(redemption.id))?.point_value).toBe(7);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN - 7);
+    });
+
+    it("a MEMBER redeeming for someone else is FORBIDDEN, naming whose reward it is, and nothing is written (FR-424)", async () => {
+      await giveStars(beaId, STARS_GIVEN);
+      await punchInAs(cleoId, CLEO_PIN);
+      const message = expectFailure(await redeemTreatFor(beaId), "FORBIDDEN");
+      expect(message).toBe(
+        `That's Bea ${run}'s reward — only Bea ${run} or a parent can redeem it.`,
+      );
+      expect(await storedRedemptionsFor(treatRewardId)).toEqual([]);
+      expect(await balanceOf(beaId)).toBe(STARS_GIVEN);
+    });
+
+    it("a PARENT redeems for any eligible Profile: the row credits the Profile and names the actor (FR-424)", async () => {
+      await giveStars(cleoId, STARS_GIVEN);
+      await punchInAs(anaId, ANA_PIN);
+      const redemption = expectOk(await redeemTreatFor(cleoId));
+      expect(redemption).toMatchObject({ categoryId: cleoId, redeemedBy: anaId });
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN - TREAT_COST);
+      expect(await balanceOf(anaId)).toBe(0);
+    });
+
+    it("a parent DEMOTED on another device is refused at once — the role is the database's, not the cookie's (R323)", async () => {
+      await giveStars(cleoId, STARS_GIVEN);
+      await punchInAs(beaId, BEA_PIN);
+      await whileDemoted(beaId, async () => {
+        const message = expectFailure(await redeemTreatFor(cleoId), "FORBIDDEN");
+        expect(message).toContain(`Cleo ${run}`);
+        expect(await storedRedemptionsFor(treatRewardId)).toEqual([]);
+        expect(await balanceOf(cleoId)).toBe(STARS_GIVEN);
+      });
+      // Promoted back: the same cookie, the same call, now allowed.
+      expectOk(await redeemTreatFor(cleoId));
+    });
+
+    it("a Profile the reward is not for is FORBIDDEN with the contract's words, even for a parent (P0005)", async () => {
+      await giveStars(anaId, STARS_GIVEN);
+      await punchInAs(anaId, ANA_PIN);
+      const message = expectFailure(await redeemTreatFor(anaId), "FORBIDDEN");
+      expect(message).toBe(`That reward isn't for Ana ${run}.`);
+      expect(await storedRedemptionsFor(treatRewardId)).toEqual([]);
+      expect(await balanceOf(anaId)).toBe(STARS_GIVEN);
+    });
+
+    it("a one-time reward already standing for that Profile is CONFLICT (P0006, FR-430)", async () => {
+      await giveStars(cleoId, STARS_GIVEN * 2);
+      await punchInAs(cleoId, CLEO_PIN);
+      expectOk(await redeemTreatFor(cleoId));
+      const message = expectFailure(await redeemTreatFor(cleoId), "CONFLICT");
+      expect(message).toBe(`Cleo ${run} has already redeemed that.`);
+      expect(await storedRedemptionsFor(treatRewardId)).toHaveLength(1);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN * 2 - TREAT_COST);
+    });
+
+    it("one short is CONFLICT naming the shortfall, and exactly the cost is enough (P0007, SC-408)", async () => {
+      await giveStars(cleoId, TREAT_COST - 1);
+      await punchInAs(cleoId, CLEO_PIN);
+      const message = expectFailure(await redeemTreatFor(cleoId), "CONFLICT");
+      expect(message).toBe(`Cleo ${run} no longer has enough stars for that.`);
+      expect(await storedRedemptionsFor(treatRewardId)).toEqual([]);
+      expect(await balanceOf(cleoId)).toBe(TREAT_COST - 1);
+
+      await giveStars(cleoId, 1);
+      expectOk(await redeemTreatFor(cleoId));
+      expect(await balanceOf(cleoId)).toBe(0);
+    });
+
+    it("a renewing reward redeems again from the remaining balance, until it runs short (FR-430)", async () => {
+      const renewingId = await insertReward(householdId, {
+        name: `Screen time ${run}`,
+        pointValue: 4,
+        respawn: true,
+        categoryIds: [cleoId],
+      });
+      await giveStars(cleoId, STARS_GIVEN);
+      await punchInAs(cleoId, CLEO_PIN);
+      expectOk(await redeemReward({ rewardId: renewingId, categoryId: cleoId }));
+      expectOk(await redeemReward({ rewardId: renewingId, categoryId: cleoId }));
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN - 8);
+      expectFailure(await redeemReward({ rewardId: renewingId, categoryId: cleoId }), "CONFLICT");
+      expect(await storedRedemptionsFor(renewingId)).toHaveLength(2);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN - 8);
+    });
+
+    it("a reward of another household, or none, is NOT_FOUND and never FORBIDDEN (P0002, FR-442)", async () => {
+      await giveStars(cleoId, STARS_GIVEN);
+      await punchInAs(cleoId, CLEO_PIN);
+      expectFailure(await redeemReward({ rewardId: foreignRewardId, categoryId: cleoId }), "NOT_FOUND");
+      expectFailure(await redeemReward({ rewardId: UNKNOWN_ID, categoryId: cleoId }), "NOT_FOUND");
+      expect(await storedRedemptionsFor(foreignRewardId)).toEqual([]);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN);
+    });
+
+    it("a Profile of another household, an unknown id and a Label are NOT_FOUND, even for a parent (FR-442, FR-414)", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      for (const categoryId of [foreignProfileId, UNKNOWN_ID, choresLabelId]) {
+        expectFailure(await redeemTreatFor(categoryId), "NOT_FOUND");
+      }
+      expect(await storedRedemptionsFor(treatRewardId)).toEqual([]);
+    });
+
+    it("a success pushes the punch-in's idle expiry forward; a refusal does not (FR-013)", async () => {
+      await giveStars(cleoId, STARS_GIVEN);
+      await punchInAs(cleoId, CLEO_PIN);
+
+      await shortenPunchIn(cleoId, "member");
+      const beforeRefusal = actorCookieExp();
+      expectFailure(await redeemTreatFor(beaId), "FORBIDDEN");
+      expect(actorCookieExp()).toBe(beforeRefusal);
+
+      const beforeSuccess = actorCookieExp();
+      expectOk(await redeemTreatFor(cleoId));
+      expect(actorCookieExp()).toBeGreaterThan(beforeSuccess);
+    });
+  });
+
+  describe("SC-409: two devices redeem for one Profile in the same second", () => {
+    it("exactly one redemption and one debit; the other is CONFLICT naming the shortfall", async () => {
+      const renewingId = await insertReward(householdId, {
+        name: `Late night ${run}`,
+        pointValue: TREAT_COST,
+        respawn: true,
+        categoryIds: [cleoId],
+      });
+      // Enough for one and not for two, so the loser meets the balance check
+      // and not the one-time rule — SC-409's refusal is the shortfall.
+      await giveStars(cleoId, TREAT_COST + 2);
+      await punchInAs(anaId, ANA_PIN);
+
+      // Issued together, serialised by 026's lock on the Profile's row alone —
+      // no RPC, no read-then-write window to lose.
+      const outcomes = await Promise.all([
+        redeemReward({ rewardId: renewingId, categoryId: cleoId }),
+        redeemReward({ rewardId: renewingId, categoryId: cleoId }),
+      ]);
+      expect(outcomes.filter((one) => one.ok)).toHaveLength(1);
+      const [lost] = outcomes.filter((one) => !one.ok);
+      if (lost === undefined || lost.ok) throw new Error("expected exactly one refusal");
+      expect(lost.error).toBe("CONFLICT");
+      expect(lost.message).toBe(`Cleo ${run} no longer has enough stars for that.`);
+
+      expect(await storedRedemptionsFor(renewingId)).toHaveLength(1);
+      expect(await entriesOfKind("redemption")).toHaveLength(1);
+      expect(await balanceOf(cleoId)).toBe(2);
+    });
+  });
+
+  /* ----------------------------------------------------------------------- *
+   * T039 — unredeemReward (contracts §Redeeming, FR-431)
+   * ----------------------------------------------------------------------- */
+
+  describe("unredeemReward: the same target rule on the redemption's Profile, reversing once (FR-431)", () => {
+    /** Cleo's standing redemption of the treat, made as `postgres`; her balance is 5. */
+    let cleoRedemptionId: string;
+
+    beforeEach(async () => {
+      await giveStars(cleoId, STARS_GIVEN);
+      await giveStars(beaId, STARS_GIVEN);
+      cleoRedemptionId = await redeem(treatRewardId, cleoId);
+    });
+
+    it("with nobody punched in it is NO_ACTOR, and the redemption stands", async () => {
+      expectFailure(await unredeemReward({ redemptionId: cleoRedemptionId }), "NO_ACTOR");
+      expect((await storedRedemption(cleoRedemptionId))?.reversed_at).toBeNull();
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN - TREAT_COST);
+    });
+
+    it("a MEMBER puts back their own: marked reversed, never erased, and the refund is exactly the debit", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const reversed = expectOk(await unredeemReward({ redemptionId: cleoRedemptionId }));
+      expect(reversed).toMatchObject({
+        id: cleoRedemptionId,
+        rewardId: treatRewardId,
+        categoryId: cleoId,
+        pointValue: TREAT_COST,
+        rewardName: `Ice cream ${run}`,
+        redeemedBy: cleoId,
+        reversedBy: cleoId,
+      });
+      expect(reversed.reversedAt).toEqual(expect.any(String));
+
+      // The row stays, marked; the debit stays; the refund is a second row.
+      expect((await storedRedemption(cleoRedemptionId))?.reversed_at).toEqual(expect.any(String));
+      expect(await entriesOfKind("redemption")).toHaveLength(1);
+      expect(await entriesOfKind("refund")).toEqual([
+        {
+          kind: "refund",
+          amount: TREAT_COST,
+          redemption_id: cleoRedemptionId,
+          summary: `Ice cream ${run}`,
+        },
+      ]);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN);
+    });
+
+    it("a second reversal is CONFLICT with the contract's words, and no second refund is written (P0008)", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      expectOk(await unredeemReward({ redemptionId: cleoRedemptionId }));
+      const message = expectFailure(
+        await unredeemReward({ redemptionId: cleoRedemptionId }),
+        "CONFLICT",
+      );
+      expect(message).toBe("That was already put back.");
+      expect(await entriesOfKind("refund")).toHaveLength(1);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN);
+    });
+
+    it("after an unredeem the one-time reward is redeemable again — the card returns to what it was", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      expectOk(await unredeemReward({ redemptionId: cleoRedemptionId }));
+      const again = expectOk(await redeemTreatFor(cleoId));
+      expect(again.id).not.toBe(cleoRedemptionId);
+      expect(await storedRedemptionsFor(treatRewardId)).toHaveLength(2);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN - TREAT_COST);
+    });
+
+    it("a MEMBER putting back someone else's is FORBIDDEN naming whose it is, and nothing changes (FR-424)", async () => {
+      const beaRedemptionId = await redeem(treatRewardId, beaId);
+      await punchInAs(cleoId, CLEO_PIN);
+      const message = expectFailure(
+        await unredeemReward({ redemptionId: beaRedemptionId }),
+        "FORBIDDEN",
+      );
+      expect(message).toContain(`Bea ${run}`);
+      expect(message).toContain("a parent");
+      expect((await storedRedemption(beaRedemptionId))?.reversed_at).toBeNull();
+      expect(await entriesOfKind("refund")).toEqual([]);
+      expect(await balanceOf(beaId)).toBe(STARS_GIVEN - TREAT_COST);
+    });
+
+    it("a PARENT puts back any Profile's, and the row names the parent as the reverser", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      const reversed = expectOk(await unredeemReward({ redemptionId: cleoRedemptionId }));
+      expect(reversed).toMatchObject({ categoryId: cleoId, redeemedBy: cleoId, reversedBy: anaId });
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN);
+    });
+
+    it("a parent DEMOTED on another device is refused the unredeem too (R323)", async () => {
+      await punchInAs(beaId, BEA_PIN);
+      await whileDemoted(beaId, async () => {
+        const message = expectFailure(
+          await unredeemReward({ redemptionId: cleoRedemptionId }),
+          "FORBIDDEN",
+        );
+        expect(message).toContain(`Cleo ${run}`);
+        expect((await storedRedemption(cleoRedemptionId))?.reversed_at).toBeNull();
+      });
+      expectOk(await unredeemReward({ redemptionId: cleoRedemptionId }));
+    });
+
+    it("a redemption of another household, or none, is NOT_FOUND and never FORBIDDEN (FR-442)", async () => {
+      const foreignRedemptionId = await redeemForeign();
+      await punchInAs(anaId, ANA_PIN);
+      expectFailure(await unredeemReward({ redemptionId: foreignRedemptionId }), "NOT_FOUND");
+      expectFailure(await unredeemReward({ redemptionId: UNKNOWN_ID }), "NOT_FOUND");
+      expect((await storedRedemption(foreignRedemptionId))?.reversed_at).toBeNull();
+    });
+
+    it("two devices put back the same redemption in the same second: exactly one refund", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      const outcomes = await Promise.all([
+        unredeemReward({ redemptionId: cleoRedemptionId }),
+        unredeemReward({ redemptionId: cleoRedemptionId }),
+      ]);
+      expect(outcomes.filter((one) => one.ok)).toHaveLength(1);
+      expect(outcomes.filter((one) => !one.ok && one.error === "CONFLICT")).toHaveLength(1);
+      expect(await entriesOfKind("refund")).toHaveLength(1);
+      expect(await balanceOf(cleoId)).toBe(STARS_GIVEN);
+    });
+
+    it("a success pushes the punch-in's idle expiry forward (FR-013)", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      await shortenPunchIn(anaId, "parent");
+      const before = actorCookieExp();
+      expectOk(await unredeemReward({ redemptionId: cleoRedemptionId }));
+      expect(actorCookieExp()).toBeGreaterThan(before);
     });
   });
 });

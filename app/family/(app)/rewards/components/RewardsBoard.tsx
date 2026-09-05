@@ -15,10 +15,12 @@ import { useFamily, type FamilyContextValue } from "../../components/FamilyProvi
 import { settleEdit, useWriteSurface } from "../../components/useWriteSurface";
 import { ColumnPager, useColumnPage } from "../../tasks/components/ColumnPager";
 import { useBoardGeometry } from "../../tasks/components/useBoardGeometry";
-import type { RewardCardTarget } from "./RewardCard";
-import { RewardColumn, type RewardColumnProps } from "./RewardColumn";
+import { RedeemModal } from "./RedeemModal";
+import { rewardCardKeyOf, type RewardCardTarget } from "./RewardCard";
+import { RewardColumn } from "./RewardColumn";
 import { RewardDetails } from "./RewardDetails";
 import { RewardForm } from "./RewardForm";
+import { useRedeem, type RedeemState } from "./useRedeem";
 import { useRewardFilters, type RewardFilterStore } from "./useRewardFilters";
 import { rewardDraftOf, type RewardSubmitOutcome } from "./useRewardForm";
 
@@ -56,9 +58,16 @@ import { rewardDraftOf, type RewardSubmitOutcome } from "./useRewardForm";
  * actions in `lib/family/actions/rewards.ts`; nothing is written to the cache
  * by hand — the tab repaints from the refetch (FR-419, FR-441).
  *
- * **Redeem is not wired here** (T043). The card draws its Redeem button
- * because FR-423 says what the card shows; a tap on it writes nothing and
- * pretends nothing until `useRedeem` arrives.
+ * **Redeem and Unredeem go through `useRedeem`** (T043) — the tab's one commit
+ * path, on the Tasks board's `useTaskResolve` pattern: the card's Redeem button
+ * and the details sheet's Unredeem both call it, the punch-in arrives at the
+ * tap through `withActor`, a refusal is the board's one line (or the sheet's,
+ * while it is open), and a success opens `RedeemModal` FROM THE RETURNED ROW
+ * (FR-424, FR-431, FR-432, FR-441). The celebration is mounted in response to
+ * this device's own write and to nothing else: a redemption that arrives from
+ * another device is data, and data repaints a column — it never celebrates
+ * (R408, Assumption 12). After Done the renewing reward is a bar and the
+ * one-time one a muted card because the refetch says so (FR-425, FR-430).
  *
  * The details sheet holds the card's ADDRESSES rather than its rows, so it
  * re-reads the live lists on every render: an edit made behind it repaints it
@@ -87,12 +96,8 @@ const SWITCH_CLASS =
   "font-medium text-(length:--fam-fs-pill) text-(--fam-text-muted) " +
   "aria-checked:bg-(--fam-text-primary) aria-checked:text-(--fam-app-bg)";
 
-/**
- * T043 replaces this with `useRedeem`. Until then the Redeem button is drawn
- * (FR-423) and a tap on it writes nothing — no pretend celebration, no guessed
- * balance — rather than a client-side imitation of the server's answer.
- */
-const redeemNotWired: RewardColumnProps["onRedeem"] = () => undefined;
+/** The modal's "By <Profile>" when the Profile has left the household underneath the write. */
+const UNKNOWN_PROFILE = "someone";
 
 /* ------------------------------------------------------------------ data -- */
 
@@ -299,18 +304,87 @@ function useRewardSheet(
   return { target, gone: key !== null && target === null, busy, notice, open, close, remove };
 }
 
+/* ------------------------------------------------------------ celebration -- */
+
+/** What the modal is rendered from: the row the local write returned, and the card's emoji. */
+interface Celebration {
+  redemption: Redemption;
+  emoji: string | null;
+}
+
+interface CelebrationState {
+  celebration: Celebration | null;
+  /** R408: called from the local redeem's success and from nowhere else. */
+  celebrate: (reward: Reward, redemption: Redemption) => void;
+  /** Done, or a successful Unredeem from the modal. */
+  dismiss: () => void;
+}
+
+/**
+ * FR-432's modal and FR-438's stars, held as the ROW this device's own write
+ * returned. Nothing here reads the redemptions list: a refetch can add a
+ * hundred redemptions and this stays null, which is the whole of Assumption 12.
+ */
+function useCelebration(): CelebrationState {
+  const [celebration, setCelebration] = useState<Celebration | null>(null);
+  const celebrate = useCallback(
+    (reward: Reward, redemption: Redemption) =>
+      setCelebration({ redemption, emoji: reward.emoji }),
+    [],
+  );
+  const dismiss = useCallback(() => setCelebration(null), []);
+  return { celebration, celebrate, dismiss };
+}
+
+/** The Profile redeemed FOR, by name — the modal's "By <Profile>" (FR-424). */
+function profileNameOf(categories: readonly Category[], categoryId: string): string {
+  return categories.find((category) => category.id === categoryId)?.label ?? UNKNOWN_PROFILE;
+}
+
+/**
+ * The two writes `useRedeem` makes, and what the board does with each answer:
+ * a redeem's success opens the modal from the returned row (FR-432); an
+ * unredeem's success closes the details it was chosen in, the refetch drawing
+ * the card as it was (FR-431). A refusal stays where the tap happened.
+ */
+function useRedeemHandlers(redeem: RedeemState, celebration: CelebrationState, sheet: RewardSheet) {
+  const { redeem: runRedeem, unredeem: runUnredeem } = redeem;
+  const { celebrate } = celebration;
+  const { close: closeSheet } = sheet;
+
+  const onRedeem = useCallback(
+    async (next: RewardCardTarget) => {
+      const outcome = await runRedeem(next);
+      if (outcome !== null && outcome.ok) celebrate(next.reward, outcome.data);
+    },
+    [runRedeem, celebrate],
+  );
+
+  const onUnredeem = useCallback(
+    async (redemption: Redemption) => {
+      const outcome = await runUnredeem(redemption);
+      if (outcome !== null && outcome.ok) closeSheet();
+    },
+    [runUnredeem, closeSheet],
+  );
+
+  return { onRedeem, onUnredeem };
+}
+
 /** The two callbacks that cross between the sheet and the write surface. */
-function useRewardHandlers(sheet: RewardSheet, editor: RewardEditor) {
+function useRewardHandlers(sheet: RewardSheet, editor: RewardEditor, redeem: RedeemState) {
   const { open: openSheet, close: closeSheet, target } = sheet;
   const { clearNotice, openEdit } = editor;
+  const { clearNotice: clearRedeemNotice } = redeem;
 
   const onOpen = useCallback(
     (next: RewardCardTarget) => {
       // A message belongs to the tap that earned it, not to the next card.
       clearNotice();
+      clearRedeemNotice();
       openSheet(next);
     },
-    [clearNotice, openSheet],
+    [clearNotice, clearRedeemNotice, openSheet],
   );
 
   // The details sheet hands over to the edit form: one dialog at a time.
@@ -325,12 +399,20 @@ function useRewardHandlers(sheet: RewardSheet, editor: RewardEditor) {
 
 /**
  * The one line under the chrome. A refused delete is shown IN the sheet,
- * which is modal, so it is not repeated behind it.
+ * which is modal, so it is not repeated behind it — and so is a refused
+ * Unredeem, which the sheet carries itself while it is open. A refused Redeem
+ * comes from a card on the board, and is the board's to say (FR-424).
  */
-function noticeFor(data: RewardsData, sheet: RewardSheet, editor: RewardEditor): string | null {
+function noticeFor(
+  data: RewardsData,
+  sheet: RewardSheet,
+  editor: RewardEditor,
+  redeem: RedeemState,
+): string | null {
   if (data.error !== null) return READ_FAILED;
   if (sheet.gone) return GONE_MESSAGE;
-  return editor.notice;
+  if (editor.notice !== null) return editor.notice;
+  return sheet.target === null ? redeem.notice : null;
 }
 
 /* ----------------------------------------------------------------- model -- */
@@ -346,7 +428,10 @@ function useRewardsBoardModel(props: RewardsBoardProps) {
   const data = useRewardsData(householdId, props);
   const editor = useRewardEditor(withActor);
   const sheet = useRewardSheet(data, withActor, editor.reportGone);
-  const handlers = useRewardHandlers(sheet, editor);
+  const redeem = useRedeem();
+  const celebration = useCelebration();
+  const handlers = useRewardHandlers(sheet, editor, redeem);
+  const redeemHandlers = useRedeemHandlers(redeem, celebration, sheet);
 
   // The shell's one create control, named for this tab while it is mounted.
   useRegisterFabAction(FAB_LABEL, editor.openCreate);
@@ -364,8 +449,11 @@ function useRewardsBoardModel(props: RewardsBoardProps) {
     actor,
     editor,
     sheet,
+    redeem,
+    celebration,
     ...handlers,
-    notice: noticeFor(data, sheet, editor),
+    ...redeemHandlers,
+    notice: noticeFor(data, sheet, editor, redeem),
   };
 }
 
@@ -390,8 +478,9 @@ function drawnColumnsOf(m: RewardsBoardModel): DrawnColumn[] {
         balance={balanceOf(m.balances, profile.id)}
         showRedeemed={m.filters.filters.redeemed}
         photoUrl={m.avatarUrls[profile.id]}
+        busyKeys={m.redeem.busyKeys}
         onOpen={m.onOpen}
-        onRedeem={redeemNotWired}
+        onRedeem={(target) => void m.onRedeem(target)}
       />
     ),
   }));
@@ -467,6 +556,10 @@ function RewardEditorSurface({
 export function RewardsBoard(props: RewardsBoardProps) {
   const m = useRewardsBoardModel(props);
   const open = m.sheet.target;
+  // FR-431: the standing redemption the open sheet stands for, if any — held as
+  // a const so the Unredeem closure below is narrowed with it.
+  const standing = open?.redemption ?? null;
+  const celebrating = m.celebration.celebration;
   // The window the measured layout allows: every column when they all fit,
   // and a page of them when they do not (FR-394, FR-395, FR-396).
   const visible = drawnColumnsOf(m).slice(m.page.start, m.page.end);
@@ -506,11 +599,24 @@ export function RewardsBoard(props: RewardsBoardProps) {
           categories={m.categories}
           redemption={open.redemption}
           actor={m.actor}
-          busy={m.sheet.busy}
-          notice={m.sheet.notice}
+          // FR-441: the sheet's delete, or this card's put-back, is in flight.
+          busy={m.sheet.busy || m.redeem.busyKeys.has(rewardCardKeyOf(open))}
+          // A refused delete or a refused Unredeem, where the tap happened.
+          notice={m.sheet.notice ?? m.redeem.notice}
           onEdit={m.onEdit}
           onDelete={() => void m.sheet.remove()}
+          onUnredeem={standing === null ? undefined : () => void m.onUnredeem(standing)}
           onClose={m.sheet.close}
+        />
+      )}
+
+      {/* R408: rendered from THIS device's returned row, never from the list. */}
+      {celebrating === null ? null : (
+        <RedeemModal
+          redemption={celebrating.redemption}
+          emoji={celebrating.emoji}
+          profileName={profileNameOf(m.categories, celebrating.redemption.categoryId)}
+          onClose={m.celebration.dismiss}
         />
       )}
 

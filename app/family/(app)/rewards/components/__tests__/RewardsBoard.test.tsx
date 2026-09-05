@@ -11,7 +11,13 @@ import {
   type MockedFunction,
 } from "vitest";
 
-import { createReward, deleteReward, updateReward } from "@/lib/family/actions/rewards";
+import {
+  createReward,
+  deleteReward,
+  redeemReward,
+  unredeemReward,
+  updateReward,
+} from "@/lib/family/actions/rewards";
 import { PALETTE } from "@/lib/family/colors";
 import { fail } from "@/lib/family/errors";
 import { useRedemptions, useRewards, useStarBalances } from "@/lib/family/queries";
@@ -47,7 +53,13 @@ import { resetRewardFilters } from "../useRewardFilters";
  *   - the create form from the shell's control and the edit form from details,
  *     every commit through `withActor` and the shipped actions (FR-415, FR-418,
  *     FR-419), a refusal shown in the household's words and a `NOT_FOUND`
- *     closing the surface rather than recreating what another device deleted.
+ *     closing the surface rather than recreating what another device deleted;
+ *   - (T043) Redeem from the card through `useRedeem` to the modal and the
+ *     stars, the punch-in first, a refusal as the board's line, Unredeem from a
+ *     redeemed card's details (FR-424, FR-431, FR-432), the renewing reward
+ *     back to a bar and the one-time one to the muted card FROM THE REFETCH
+ *     (FR-425, FR-430) — and the celebration mounting on the local success
+ *     only, never on a redemption that merely arrived as data (R408).
  */
 
 vi.mock("@/lib/family/queries", async (importOriginal) => {
@@ -64,11 +76,15 @@ vi.mock("@/lib/family/actions/rewards", () => ({
   createReward: vi.fn(),
   updateReward: vi.fn(),
   deleteReward: vi.fn(),
+  redeemReward: vi.fn(),
+  unredeemReward: vi.fn(),
 }));
 
 const createMock = createReward as Mock;
 const updateMock = updateReward as Mock;
 const deleteMock = deleteReward as Mock;
+const redeemMock = redeemReward as Mock;
+const unredeemMock = unredeemReward as Mock;
 
 const HOUSEHOLD = "household-1";
 
@@ -161,6 +177,32 @@ const CLEO_ICE_CREAM: Redemption = {
   reversedBy: null,
 };
 
+/** What the server hands back when Ben redeems Movie night today (T043). */
+const BEN_MOVIE: Redemption = {
+  id: "redemption-2",
+  householdId: HOUSEHOLD,
+  rewardId: MOVIE,
+  categoryId: BEN,
+  pointValue: 15,
+  rewardName: "Movie night",
+  redeemedOn: "2026-09-05",
+  redeemedAt: "2026-09-05T20:00:00.000Z",
+  redeemedBy: BEN,
+  reversedAt: null,
+  reversedBy: null,
+};
+
+/** Cleo's renewing reward, redeemed — the row that leaves a bar behind it (FR-430). */
+const CLEO_COOKIES: Redemption = {
+  ...BEN_MOVIE,
+  id: "redemption-3",
+  rewardId: COOKIES,
+  categoryId: CLEO,
+  pointValue: 20,
+  rewardName: "Bake cookies",
+  redeemedBy: CLEO,
+};
+
 interface QueryStub<T> {
   data?: T;
   error?: Error | null;
@@ -200,15 +242,21 @@ function FabProbe() {
 
 function renderBoard(options: { context?: Partial<FamilyContextValue> } = {}) {
   const context = makeContext({ categories: CATEGORIES, ...options.context });
-  return render(
+  // Built afresh on every call: React bails out of an element it has already
+  // seen, and a refetch must actually re-render the tab.
+  const tree = () =>
     withFamily(
       context,
       <FabActionProvider>
         <RewardsBoard {...boardProps()} />
         <FabProbe />
       </FabActionProvider>,
-    ),
-  );
+    );
+  const view = render(tree());
+  // What a Realtime refetch does to the mounted tab once the stubbed reads
+  // answer differently.
+  const refetch = () => view.rerender(tree());
+  return { ...view, refetch };
 }
 
 /** The columns in the order the tab draws them. */
@@ -294,6 +342,11 @@ beforeEach(() => {
   createMock.mockResolvedValue({ ok: true, data: null });
   updateMock.mockResolvedValue({ ok: true, data: null });
   deleteMock.mockResolvedValue({ ok: true, data: null });
+  redeemMock.mockResolvedValue({ ok: true, data: BEN_MOVIE });
+  unredeemMock.mockResolvedValue({
+    ok: true,
+    data: { ...CLEO_ICE_CREAM, reversedAt: "2026-09-05T20:05:00.000Z", reversedBy: CLEO },
+  });
 });
 
 afterEach(() => {
@@ -585,6 +638,188 @@ describe("RewardsBoard", () => {
 
       expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
       expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    });
+  });
+
+  describe("redeeming (FR-424, FR-430, FR-432, FR-438, R408)", () => {
+    /** The stars, wherever they were mounted. */
+    function confetti(): NodeListOf<Element> {
+      return document.querySelectorAll("[data-star-confetti]");
+    }
+
+    it("redeems from the card's button through withActor, and opens the modal from the returned row", async () => {
+      const withActor = vi.fn(async (run: () => Promise<unknown>) => run());
+      renderBoard({ context: { withActor: withActor as FamilyContextValue["withActor"] } });
+
+      await press("Redeem Movie night for 15 stars", within(column("Ben")));
+
+      expect(withActor).toHaveBeenCalledTimes(1);
+      // The two ids and nothing else: no identity, no cost (FR-424, FR-428).
+      expect(redeemMock).toHaveBeenCalledWith({ rewardId: MOVIE, categoryId: BEN });
+      const modal = screen.getByRole("dialog");
+      expect(
+        within(modal).getByRole("heading", { name: "Great work! Movie night redeemed" }),
+      ).toBeInTheDocument();
+      // The Profile redeemed FOR, the stored cost, the household's day (FR-432, FR-433).
+      expect(within(modal).getByText("By Ben for 15 stars on September 5, 2026")).toBeInTheDocument();
+      expect(within(modal).getByRole("button", { name: "Done" })).toBeInTheDocument();
+      expect(within(modal).getByRole("button", { name: "Unredeem" })).toBeInTheDocument();
+      // The stars fall once, over the whole screen (FR-438).
+      expect(confetti()).toHaveLength(1);
+    });
+
+    it("asks for the punch-in first, and writes and shows nothing when the sheet is dismissed", async () => {
+      const withActor = vi.fn(async () => fail("NO_ACTOR"));
+      renderBoard({ context: { withActor: withActor as FamilyContextValue["withActor"] } });
+
+      await press("Redeem Movie night for 15 stars", within(column("Ben")));
+
+      expect(withActor).toHaveBeenCalledTimes(1);
+      expect(redeemMock).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(confetti()).toHaveLength(0);
+    });
+
+    it("shows a refusal as the board's notice, in the server's words, and celebrates nothing", async () => {
+      const moved = "Ben no longer has enough stars for that.";
+      redeemMock.mockResolvedValue(fail("CONFLICT", moved));
+      renderBoard();
+
+      await press("Redeem Movie night for 15 stars", within(column("Ben")));
+
+      expect(screen.getByRole("alert")).toHaveTextContent(moved);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(confetti()).toHaveLength(0);
+      // The card is left exactly as it was: the refetch, not the client, decides.
+      expect(
+        within(column("Ben")).getByRole("button", { name: "Redeem Movie night for 15 stars" }),
+      ).toBeEnabled();
+    });
+
+    it("mounts the celebration on the LOCAL success only — a redemption that merely arrives is data (R408)", async () => {
+      const { refetch } = renderBoard();
+
+      // Another device redeemed Movie night for Ben: the read changes, nothing plays.
+      stub(vi.mocked(useRedemptions), { data: [CLEO_ICE_CREAM, BEN_MOVIE] });
+      stub(vi.mocked(useStarBalances), { data: [{ categoryId: CLEO, balance: 15 }, { categoryId: BEN, balance: 25 }] });
+      await act(async () => {
+        refetch();
+      });
+
+      expect(confetti()).toHaveLength(0);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      // …and the tab has simply repainted from the data (FR-425).
+      expect(cardTitlesIn("Ben")).toEqual(["Ice cream"]);
+
+      // This device's own redeem is what mounts it.
+      redeemMock.mockResolvedValue({ ok: true, data: { ...BEN_MOVIE, id: "redemption-9", rewardId: ICE_CREAM, rewardName: "Ice cream", pointValue: 25 } });
+      await press("Redeem Ice cream for 25 stars", within(column("Ben")));
+      expect(confetti()).toHaveLength(1);
+    });
+
+    it("returns a renewing reward to its bar from the refetched balance after Done (FR-430)", async () => {
+      stub(vi.mocked(useStarBalances), { data: [{ categoryId: CLEO, balance: 30 }, { categoryId: BEN, balance: 40 }] });
+      redeemMock.mockResolvedValue({ ok: true, data: CLEO_COOKIES });
+      const { refetch } = renderBoard();
+      expect(
+        within(column("Cleo")).getByRole("button", { name: "Redeem Bake cookies for 20 stars" }),
+      ).toBeInTheDocument();
+
+      await press("Redeem Bake cookies for 20 stars", within(column("Cleo")));
+      expect(redeemMock).toHaveBeenCalledWith({ rewardId: COOKIES, categoryId: CLEO });
+      expect(screen.getByRole("heading", { name: "Great work! Bake cookies redeemed" })).toBeInTheDocument();
+
+      // The write's refetch: 30 − 20 = 10, and one more standing redemption.
+      stub(vi.mocked(useStarBalances), { data: [{ categoryId: CLEO, balance: 10 }, { categoryId: BEN, balance: 40 }] });
+      stub(vi.mocked(useRedemptions), { data: [CLEO_ICE_CREAM, CLEO_COOKIES] });
+      await act(async () => {
+        refetch();
+      });
+      await press("Done");
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      // Renewing: the live card is back, as a bar from the remaining balance.
+      const cookies = within(column("Cleo")).getByRole("button", { name: "Bake cookies, ☆ 10/20" });
+      expect(cookies.closest("[data-reward-card]")).toHaveAttribute("data-state", "bar");
+      expect(within(column("Cleo")).getByLabelText("Balance: 10 stars")).toBeInTheDocument();
+      // FR-427 at 10 stars: neither is affordable, so cost ascending — 15 before 20.
+      expect(cardTitlesIn("Cleo")).toEqual(["Movie night", "Bake cookies"]);
+    });
+
+    it("turns a one-time reward into the muted card behind the switch after Done (FR-425)", async () => {
+      const { refetch } = renderBoard();
+
+      await press("Redeem Movie night for 15 stars", within(column("Ben")));
+      stub(vi.mocked(useStarBalances), { data: [{ categoryId: CLEO, balance: 15 }, { categoryId: BEN, balance: 25 }] });
+      stub(vi.mocked(useRedemptions), { data: [CLEO_ICE_CREAM, BEN_MOVIE] });
+      await act(async () => {
+        refetch();
+      });
+      await press("Done");
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      // One-time: gone from Ben's live cards, nobody else's touched (FR-417).
+      expect(cardTitlesIn("Ben")).toEqual(["Ice cream"]);
+      expect(cardTitlesIn("Cleo")).toEqual(["Movie night", "Bake cookies"]);
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("switch", { name: "Redeemed" }));
+      });
+      expect(cardTitlesIn("Ben")).toEqual(["Ice cream", "Movie night"]);
+      expect(within(column("Ben")).getByText("Redeemed on Sep 5")).toBeInTheDocument();
+    });
+
+    it("offers Unredeem on a redeemed card's details, puts it back through withActor, and closes (FR-431)", async () => {
+      const withActor = vi.fn(async (run: () => Promise<unknown>) => run());
+      renderBoard({
+        context: {
+          actor: makeActor("member", { profileId: CLEO, label: "Cleo" }),
+          withActor: withActor as FamilyContextValue["withActor"],
+        },
+      });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("switch", { name: "Redeemed" }));
+      });
+
+      await press(/^Ice cream, Redeemed on/, within(column("Cleo")));
+      const details = screen.getByRole("dialog");
+      expect(within(details).getByText(/Redeemed on September 27, 2026 for 25 stars/)).toBeInTheDocument();
+
+      await press("Unredeem", within(details));
+
+      expect(withActor).toHaveBeenCalledTimes(1);
+      expect(unredeemMock).toHaveBeenCalledWith({ redemptionId: "redemption-1" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("keeps the details open with the refusal when the put-back is refused (FR-424)", async () => {
+      const refusal = "That's Cleo's reward — only Cleo or a parent can redeem it.";
+      unredeemMock.mockResolvedValue(fail("FORBIDDEN", refusal));
+      renderBoard({ context: { actor: makeActor("member", { profileId: BEN, label: "Ben" }) } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole("switch", { name: "Redeemed" }));
+      });
+      await press(/^Ice cream, Redeemed on/, within(column("Cleo")));
+
+      await press("Unredeem");
+
+      const details = screen.getByRole("dialog");
+      expect(within(details).getByRole("alert")).toHaveTextContent(refusal);
+      // Said once, where the tap happened — not repeated on the board behind the sheet.
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+    });
+
+    it("clears the last refusal when another card is opened", async () => {
+      redeemMock.mockResolvedValue(fail("CONFLICT", "Ben no longer has enough stars for that."));
+      renderBoard();
+      await press("Redeem Movie night for 15 stars", within(column("Ben")));
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+
+      await press(/^Ice cream/, within(column("Ben")));
+
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
   });
 

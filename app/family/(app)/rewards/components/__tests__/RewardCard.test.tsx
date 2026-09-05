@@ -173,9 +173,26 @@ describe("RewardCard", () => {
       const overFill = bar().querySelector<HTMLElement>("[data-reward-bar-label='fill']");
       const overTrack = bar().querySelector<HTMLElement>("[data-reward-bar-label='track']");
       expect(fill?.style.width).toBe("75%");
-      expect(overFill?.style.color).toBe(hexToRgb(INK_LIGHT));
       expect(overFill?.style.clipPath).toBe("inset(0 25% 0 0)");
-      expect(overTrack?.style.color).toBe(hexToRgb(INK_DARK));
+      // The fill's ink cannot be decided in CSS (six of the twenty accents flip
+      // to white), so the card sets the token from `inkOn(accent)` — exactly as
+      // TaskCard sets --fam-task-ink — and both labels consume their token.
+      expect(bar().style.getPropertyValue("--fam-reward-bar-fill-ink")).toBe(INK_LIGHT);
+      expect(overFill).toHaveClass("text-(--fam-reward-bar-fill-ink)");
+      expect(overTrack).toHaveClass("text-(--fam-reward-bar-ink)");
+    });
+
+    it("hands a pale accent the dark ink over its fill", () => {
+      renderCard({ balance: 15, accent: SUNSHINE });
+      expect(bar().style.getPropertyValue("--fam-reward-bar-fill-ink")).toBe(INK_DARK);
+    });
+
+    it("draws the bar on the reward tokens: its height, its radius and its fill's transition (R414)", () => {
+      renderCard({ balance: 15 });
+      expect(bar()).toHaveClass("h-(--fam-reward-bar-h)");
+      expect(bar()).toHaveClass("rounded-(--fam-reward-bar-r)");
+      const fill = bar().querySelector<HTMLElement>("[data-reward-bar-fill]");
+      expect(fill).toHaveClass("duration-(--fam-reward-bar-ms)");
     });
   });
 
@@ -187,7 +204,9 @@ describe("RewardCard", () => {
       const redeem = screen.getByRole("button", { name: "Redeem Bake cookies for 20 stars" });
       expect(redeem).toHaveTextContent("Redeem");
       expect(redeem).toHaveTextContent("20");
-      expect(redeem).toHaveClass("min-h-(--fam-touch)");
+      // The bar's slot and pill, floored at --fam-touch inside the token itself (FR-445).
+      expect(redeem).toHaveClass("min-h-(--fam-reward-redeem-h)");
+      expect(redeem).toHaveClass("rounded-(--fam-reward-redeem-r)");
     });
 
     it("names the body control by the title alone, so the two controls are never confusable", () => {
@@ -233,7 +252,11 @@ describe("RewardCard", () => {
     it("is muted, reads the household day it was redeemed on, and offers nothing but its details (FR-425)", () => {
       const { onOpen, onRedeem } = renderCard({ balance: 100, redemption: redemption() });
       expect(card()).toHaveAttribute("data-state", "redeemed");
-      expect(card()).toHaveClass("opacity-(--fam-past-dim)");
+      // Muted by INK, not by opacity (tokens.css): the title and the date still
+      // have to be read, so only the emoji — decoration — takes the dim.
+      expect(card()).toHaveClass("text-(--fam-reward-muted-ink)");
+      expect(card()).not.toHaveClass("opacity-(--fam-past-dim)");
+      expect(card().querySelector("[data-reward-emoji]")).toHaveClass("opacity-(--fam-past-dim)");
       expect(card().querySelector("[data-reward-bar]")).toBeNull();
       expect(screen.queryByRole("button", { name: /^Redeem / })).not.toBeInTheDocument();
       expect(screen.getByText("Redeemed on Sep 27")).toBeInTheDocument();
@@ -260,9 +283,3 @@ describe("RewardCard", () => {
     expect(onRedeem).not.toHaveBeenCalled();
   });
 });
-
-/** jsdom serialises inline colours as `rgb(r, g, b)`. */
-function hexToRgb(hex: string): string {
-  const value = Number.parseInt(hex.slice(1), 16);
-  return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
-}
