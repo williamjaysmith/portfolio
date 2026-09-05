@@ -106,9 +106,11 @@ the Label "Bin day") are unchanged — the Label is seeded precisely so US2-6 ca
 > **State on 2026-09-04**: steps 1 and 2 were run from the dev machine with the logged-in CLI
 > (`supabase db query --linked`) — PG **17.0006** (`ok = true`), the `rrule` audit returned **zero
 > rows** (the live table holds one event, none repeating), and the constraint 023 will replace is
-> `events_rrule_check`. Migration 023 was then written and proved locally. Step 3's push was
-> **not** run: the session's tool permissions refused it, so it starts here. A dry run lists
-> exactly 017–023.
+> `events_rrule_check`. Migration 023 was then written and proved locally. **Step 3's push was run
+> by the operator the same day** (017–023 applied, each in its own transaction), and steps 4–7
+> passed from the CLI straight after: no `anon` row, `seed_task_box` service_role-only,
+> `security_invoker=true`, the four tables published at replica identity default,
+> `America/Chicago`, 9 chores + 8 routines. Step 9's device checks remain.
 
 
 Everything here needs `SUPABASE_ACCESS_TOKEN` or the Dashboard. Expected total: **check, check,
