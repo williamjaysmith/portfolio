@@ -48,4 +48,10 @@ describe("AppShell — the chip row (FR-314)", () => {
     // tab that renders differently.
     expect(screen.getByText("tab content")).toBeInTheDocument();
   });
+
+  it("does not render it on the Rewards tab either (004 FR-422, R409)", () => {
+    renderAt("/family/rewards");
+    expect(screen.queryByRole("group", { name: CHIP_ROW })).not.toBeInTheDocument();
+    expect(screen.getByText("tab content")).toBeInTheDocument();
+  });
 });

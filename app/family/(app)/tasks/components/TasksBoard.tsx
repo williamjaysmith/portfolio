@@ -23,8 +23,10 @@ import type {
 import type { TaskInput } from "@/lib/family/validation";
 
 import { DeleteConfirm } from "../../calendar/components/DeleteConfirm";
+import { BoardStrip } from "../../components/BoardStrip";
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
+import { settleEdit, useWriteSurface } from "../../components/useWriteSurface";
 import { ClaimDialog } from "./ClaimDialog";
 import { ColumnPager, useColumnPage } from "./ColumnPager";
 import { DeleteScopeDialog } from "./DeleteScopeDialog";
@@ -289,8 +291,8 @@ interface UseTaskEditorOptions {
  * there is deliberately no `setQueryData` here (FR-393).
  */
 function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
-  const [surface, setSurface] = useState<TaskEditorSurface>(EDITOR_CLOSED);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { surface, notice, open, setSurface, setNotice, close, clearNotice, reportGone } =
+    useWriteSurface<TaskEditorSurface>(EDITOR_CLOSED, GONE_MESSAGE);
 
   const openOn = useCallback(
     (occurrence: BoardOccurrence, next: (task: Task) => TaskEditorSurface) => {
@@ -300,28 +302,17 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
         setNotice(GONE_MESSAGE);
         return;
       }
-      setNotice(null);
-      setSurface(next(task));
+      open(next(task));
     },
-    [tasks],
+    [tasks, open, setNotice],
   );
 
-  const openCreate = useCallback(() => {
-    setNotice(null);
-    setSurface({ kind: "create" });
-  }, []);
-
-  const openTaskBox = useCallback(() => {
-    setNotice(null);
-    setSurface({ kind: "taskBox" });
-  }, []);
+  const openCreate = useCallback(() => open({ kind: "create" }), [open]);
+  const openTaskBox = useCallback(() => open({ kind: "taskBox" }), [open]);
 
   // FR-378: not an action — the ordinary create form, carrying the template's
   // title, emoji and type, with the assignment and the schedule still to ask.
-  const chooseTemplate = useCallback((seed: TaskFormSeed) => {
-    setNotice(null);
-    setSurface({ kind: "create", seed });
-  }, []);
+  const chooseTemplate = useCallback((seed: TaskFormSeed) => open({ kind: "create", seed }), [open]);
 
   const openEdit = useCallback(
     (occurrence: BoardOccurrence) => openOn(occurrence, (task) => ({ kind: "edit", task })),
@@ -342,14 +333,14 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
     [openOn],
   );
 
-  const chooseScope = useCallback((scope: TaskScope) => {
-    setSurface((current) =>
-      current.kind === "delete" ? { ...current, step: "confirm", scope } : current,
-    );
-  }, []);
-
-  const close = useCallback(() => setSurface(EDITOR_CLOSED), []);
-  const clearNotice = useCallback(() => setNotice(null), []);
+  const chooseScope = useCallback(
+    (scope: TaskScope) => {
+      setSurface((current) =>
+        current.kind === "delete" ? { ...current, step: "confirm", scope } : current,
+      );
+    },
+    [setSurface],
+  );
 
   const confirmDelete = useCallback(async () => {
     if (surface.kind !== "delete" || surface.pending) return;
@@ -364,21 +355,20 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
     );
     setSurface(EDITOR_CLOSED);
     setNotice(deleteNoticeOf(result));
-  }, [surface, withActor]);
+  }, [surface, withActor, setSurface, setNotice]);
 
   const submit = useCallback(
     async (input: TaskInput): Promise<TaskSubmitOutcome> => {
       if (surface.kind === "create") return withActor(() => createTask(input));
       if (surface.kind !== "edit") return null;
-      // FR-331: the whole task, for every assignee, and never a scope.
-      const outcome = await withActor(() => updateTask({ id: surface.task.id, patch: input }));
-      // FR-393: another device deleted it first — close, recreate nothing, say so.
-      if (outcome.ok || outcome.error !== "NOT_FOUND") return outcome;
-      setSurface(EDITOR_CLOSED);
-      setNotice(GONE_MESSAGE);
-      return null;
+      // FR-331: the whole task, for every assignee, and never a scope; FR-393:
+      // another device deleted it first — close, recreate nothing, say so.
+      return settleEdit(
+        () => withActor(() => updateTask({ id: surface.task.id, patch: input })),
+        reportGone,
+      );
     },
-    [surface, withActor],
+    [surface, withActor, reportGone],
   );
 
   return {
@@ -605,65 +595,6 @@ function BoardNav({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * The columns' own element, and the one the geometry measures. It takes the
- * callback ref as a plain parameter — the shipped `WeekGrid`'s idiom — so the
- * ref is never read off an object mid-render.
- *
- * The rows are FR-395's wrap, and they are a CONSEQUENCE of the fit rather than
- * a second layout: the columns on show, laid into `perRow` tracks, take
- * `ceil(count / perRow)` rows of equal height — which is one row on the wall
- * tablet, one row on a paged phone (a page is always full), and the reference's
- * photographed two-by-two on a portrait tablet, with no branch anywhere that
- * names any of those three.
- */
-function BoardStrip({
-  boardRef,
-  perRow,
-  count,
-  reorder,
-  children,
-}: {
-  boardRef: (node: HTMLElement | null) => void;
-  perRow: number;
-  /** How many columns are actually drawn — a page's worth when paging. */
-  count: number;
-  /** FR-309: this element is also the column drag's container and its rows. */
-  reorder: ListReorder;
-  children: ReactNode;
-}) {
-  const rows = Math.max(1, Math.ceil(count / perRow));
-  const { ref: reorderRef, ...gestures } = reorder.containerProps;
-  const setBoard = useCallback(
-    (node: HTMLElement | null) => {
-      boardRef(node);
-      reorderRef(node);
-    },
-    [boardRef, reorderRef],
-  );
-  return (
-    // `.fam-board` is `overflow-x: hidden` (tokens.css): twenty occurrences are
-    // reached by scrolling a COLUMN, and the page never scrolls sideways at any
-    // width (FR-394, SC-315). The columns share the width in equal tracks —
-    // `--fam-task-col-w` is what the fit divides by, never a drawn width — and
-    // the rows share the height, so a wrapped column still scrolls its own body.
-    <div
-      data-board
-      ref={setBoard}
-      {...gestures}
-      style={{
-        gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-        // A carried column follows the finger rather than scrolling the board.
-        ...(reorder.active ? { touchAction: "none" as const } : {}),
-      }}
-      className="fam-board grid min-h-0 flex-1 gap-(--fam-task-col-gap) overflow-y-auto px-(--fam-edge-inset) pb-(--fam-edge-inset)"
-    >
-      {children}
     </div>
   );
 }

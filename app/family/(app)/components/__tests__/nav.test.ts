@@ -39,19 +39,29 @@ describe("nav", () => {
  * FR-314 / R324: the Tasks tab's columns ARE the profiles, so the chip row
  * would repeat them. The flag lives on the tab definition rather than as a
  * route string inside the shell, and the shell reads it from `usePathname()`
- * so the row never paints and then vanishes on hydration.
+ * so the row never paints and then vanishes on hydration. 004 FR-422 / R409:
+ * the Rewards tab is the same board of people, and declines the row the same way.
  */
 describe("showsChipRow", () => {
+  /** The two tabs whose columns are the Profiles themselves. */
+  const COLUMN_TABS = ["tasks", "rewards"];
+
   it("carries the decision on the tab definition, not in the shell", () => {
     expect(NAV_TABS.find((tab) => tab.id === "tasks")?.showsChipRow).toBe(false);
-    expect(NAV_TABS.filter((tab) => tab.id !== "tasks").every((tab) => tab.showsChipRow)).toBe(
-      true,
-    );
+    expect(NAV_TABS.find((tab) => tab.id === "rewards")?.showsChipRow).toBe(false);
+    expect(
+      NAV_TABS.filter((tab) => !COLUMN_TABS.includes(tab.id)).every((tab) => tab.showsChipRow),
+    ).toBe(true);
   });
 
   it("keeps the row off the Tasks route and anything nested under it (FR-314)", () => {
     expect(showsChipRow("/family/tasks")).toBe(false);
     expect(showsChipRow("/family/tasks/anything")).toBe(false);
+  });
+
+  it("keeps the row off the Rewards route too (004 FR-422)", () => {
+    expect(showsChipRow("/family/rewards")).toBe(false);
+    expect(showsChipRow("/family/rewards/anything")).toBe(false);
   });
 
   it("leaves every other route's row exactly as Phase 1 shipped it", () => {

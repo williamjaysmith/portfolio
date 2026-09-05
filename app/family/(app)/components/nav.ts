@@ -27,7 +27,9 @@ export const NAV_TABS: readonly NavTab[] = [
   // The Tasks board's columns ARE the profiles, so the chip row would repeat
   // them in a thinner form (FR-314).
   { id: "tasks", label: "Tasks", href: "/family/tasks", icon: Check, showsChipRow: false },
-  { id: "rewards", label: "Rewards", href: "/family/rewards", icon: Star, showsChipRow: true },
+  // The Rewards tab is the same board of people — one column per Profile — and
+  // declines the row for the same reason (004 FR-422, R409).
+  { id: "rewards", label: "Rewards", href: "/family/rewards", icon: Star, showsChipRow: false },
   { id: "meals", label: "Meals", href: "/family/meals", icon: Utensils, showsChipRow: true },
   { id: "lists", label: "Lists", href: "/family/lists", icon: ListTodo, showsChipRow: true },
 ];
