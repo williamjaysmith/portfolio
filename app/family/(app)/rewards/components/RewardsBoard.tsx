@@ -1,20 +1,23 @@
 "use client";
 
-import { EyeOff } from "lucide-react";
+import { EyeOff, Star } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
-import { createReward, deleteReward, updateReward } from "@/lib/family/actions/rewards";
+import { adjustStars, createReward, deleteReward, updateReward } from "@/lib/family/actions/rewards";
+import { can } from "@/lib/family/permissions";
 import { useRedemptions, useRewards, useStarBalances } from "@/lib/family/queries";
 import { balanceMapOf, balanceOf } from "@/lib/family/rewards/stars";
-import type { Category, Redemption, Reward, StarBalance } from "@/lib/family/types";
+import type { ActorSession, Category, Redemption, Reward, StarBalance } from "@/lib/family/types";
 import type { RewardInput } from "@/lib/family/validation";
 
 import { BoardStrip } from "../../components/BoardStrip";
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
+import type { SubmitOutcome } from "../../components/formSubmit";
 import { settleEdit, useWriteSurface } from "../../components/useWriteSurface";
 import { ColumnPager, useColumnPage } from "../../tasks/components/ColumnPager";
 import { useBoardGeometry } from "../../tasks/components/useBoardGeometry";
+import { GiveStarsSheet, type GiveStarsInput } from "./GiveStarsSheet";
 import { RedeemModal } from "./RedeemModal";
 import { rewardCardKeyOf, type RewardCardTarget } from "./RewardCard";
 import { RewardColumn } from "./RewardColumn";
@@ -73,6 +76,17 @@ import { rewardDraftOf, type RewardSubmitOutcome } from "./useRewardForm";
  * re-reads the live lists on every render: an edit made behind it repaints it
  * from the refetch, and a reward deleted on another device closes it with a
  * message instead of being recreated from a stale copy (FR-393's rule).
+ *
+ * **Give stars lives in the tab's own chrome** (T051), before the Redeemed
+ * switch where the reference photographs it (05 shot13), and is drawn for a
+ * parent's affordance only — `permissions.can` over `stars.adjust`, the rule
+ * the details sheet already applies to Edit and Delete — never for a member
+ * and never while nobody is punched in; the server refuses on every path
+ * regardless (FR-435). Its sheet is handed the household's Profiles and the
+ * balances the tab holds, so the before-and-after table is arithmetic over
+ * numbers already on screen (SC-412), and its commit is `withActor` around
+ * `adjustStars` like every other write here: the sheet closes on success and
+ * the columns repaint from the refetch (FR-434, FR-436, FR-441).
  */
 
 /** What the shell's "+" is called on this tab, and what it opens. */
@@ -98,6 +112,9 @@ const SWITCH_CLASS =
 
 /** The modal's "By <Profile>" when the Profile has left the household underneath the write. */
 const UNKNOWN_PROFILE = "someone";
+
+/** What FR-434's control is called — the reference's own name (05 shot13). */
+const GIVE_STARS = "Give stars";
 
 /* ------------------------------------------------------------------ data -- */
 
@@ -207,6 +224,45 @@ function useRewardEditor(withActor: FamilyContextValue["withActor"]): RewardEdit
   );
 
   return { surface, notice, clearNotice, reportGone, openCreate, openEdit, close, submit };
+}
+
+/* ------------------------------------------------------------ give stars -- */
+
+interface GiveStars {
+  /** The sheet is open. One surface at a time: it is its own boolean, like the details. */
+  open: boolean;
+  show: () => void;
+  close: () => void;
+  /** The sheet's one commit — `withActor` around `adjustStars` (FR-434, FR-435). */
+  submit: (input: GiveStarsInput) => Promise<SubmitOutcome>;
+}
+
+/**
+ * FR-434's sheet and its write. The result goes back to the sheet whole: a
+ * success closes it there, a refusal is shown at its field, and a dismissed
+ * punch-in (`null` from the interceptor's `NO_ACTOR`) shows nothing.
+ */
+function useGiveStars(withActor: FamilyContextValue["withActor"]): GiveStars {
+  const [open, setOpen] = useState(false);
+  const show = useCallback(() => setOpen(true), []);
+  const close = useCallback(() => setOpen(false), []);
+  const submit = useCallback(
+    (input: GiveStarsInput): Promise<SubmitOutcome> => withActor(() => adjustStars(input)),
+    [withActor],
+  );
+  return { open, show, close, submit };
+}
+
+/**
+ * FR-435's affordance, decided the way the details sheet decides Edit and
+ * Delete: `permissions.can` over the parent-only verb, so a member and an
+ * empty punch-in both read false. The gate is the server's.
+ */
+function mayGiveStars(actor: ActorSession | null, categories: readonly Category[]): boolean {
+  const householdHasParent = categories.some(
+    (category) => category.isProfile && category.role === "parent",
+  );
+  return can(actor, "stars.adjust", { householdHasParent }).allowed;
 }
 
 /* ---------------------------------------------------------------- details -- */
@@ -430,6 +486,7 @@ function useRewardsBoardModel(props: RewardsBoardProps) {
   const sheet = useRewardSheet(data, withActor, editor.reportGone);
   const redeem = useRedeem();
   const celebration = useCelebration();
+  const giveStars = useGiveStars(withActor);
   const handlers = useRewardHandlers(sheet, editor, redeem);
   const redeemHandlers = useRedeemHandlers(redeem, celebration, sheet);
 
@@ -442,7 +499,7 @@ function useRewardsBoardModel(props: RewardsBoardProps) {
     // FR-422: one column per Profile this device shows, in the household's order.
     columns: visibleProfiles,
     // The household's Profiles, for the form's picker — a device filter should
-    // not limit who a reward may be for (FR-415).
+    // not limit who a reward may be for (FR-415), nor who may be given stars (FR-434).
     profiles,
     categories,
     avatarUrls,
@@ -451,6 +508,9 @@ function useRewardsBoardModel(props: RewardsBoardProps) {
     sheet,
     redeem,
     celebration,
+    giveStars,
+    // FR-435: the control is drawn for a parent and for nobody else.
+    mayGiveStars: mayGiveStars(actor, categories),
     ...handlers,
     ...redeemHandlers,
     notice: noticeFor(data, sheet, editor, redeem),
@@ -509,12 +569,32 @@ function RedeemedSwitch({ filters }: { filters: RewardFilterStore }) {
   );
 }
 
-/** The tab's chrome: the Redeemed switch and, from T051, the Give-stars control beside it. */
-function RewardsChrome({ filters }: { filters: RewardFilterStore }) {
+/**
+ * FR-434's control, in the same pill as the switch beside it and at the same
+ * touch floor (FR-445). Drawn only when the board has decided the affordance
+ * (`onGiveStars` present); the star is the reference's, in its gold.
+ */
+function GiveStarsButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} className={SWITCH_CLASS}>
+      <Star size={20} aria-hidden="true" fill="currentColor" className="text-(--fam-star-gold)" />
+      {GIVE_STARS}
+    </button>
+  );
+}
+
+/** The tab's chrome: the Give-stars control, when it is offered, then the Redeemed switch. */
+function RewardsChrome({
+  filters,
+  onGiveStars,
+}: {
+  filters: RewardFilterStore;
+  /** Present means "draw it": the board has already applied FR-435's affordance rule. */
+  onGiveStars?: () => void;
+}) {
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-end gap-3 px-(--fam-edge-inset) pt-2">
-      {/* T051 mounts the Give-stars control here, before the switch (FR-434);
-          nothing is drawn in its place until it does. */}
+      {onGiveStars === undefined ? null : <GiveStarsButton onClick={onGiveStars} />}
       <RedeemedSwitch filters={filters} />
       {filters.persistent ? null : (
         <p className="w-full text-right text-(length:--fam-fs-small) text-(--fam-text-secondary)">
@@ -566,7 +646,10 @@ export function RewardsBoard(props: RewardsBoardProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-(--fam-task-col-gap)">
-      <RewardsChrome filters={m.filters} />
+      <RewardsChrome
+        filters={m.filters}
+        onGiveStars={m.mayGiveStars ? m.giveStars.show : undefined}
+      />
 
       {m.notice === null ? null : (
         <p
@@ -621,6 +704,16 @@ export function RewardsBoard(props: RewardsBoardProps) {
       )}
 
       <RewardEditorSurface editor={m.editor} profiles={m.profiles} />
+
+      {/* FR-434: over the household's Profiles and the balances already held (SC-412). */}
+      {m.giveStars.open ? (
+        <GiveStarsSheet
+          profiles={m.profiles}
+          balances={m.balances}
+          onSubmit={m.giveStars.submit}
+          onClose={m.giveStars.close}
+        />
+      ) : null}
     </div>
   );
 }

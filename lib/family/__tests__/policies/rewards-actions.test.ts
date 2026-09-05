@@ -55,7 +55,26 @@
  *     Profile, and the one-time reward is redeemable again (FR-431);
  *   - both push the punch-in's idle expiry forward on success (FR-013).
  *
- * T045 (adjustStars) extends this file.
+ * T045 — `adjustStars` (contracts §Giving stars by hand, FR-434–FR-436,
+ * SC-412), every call off-interface once more:
+ *   - nobody punched in → `NO_ACTOR`; a **member** → `FORBIDDEN`, the same
+ *     call succeeding as a parent; a parent **demoted** elsewhere → `FORBIDDEN`
+ *     (FR-435, R323) — and nothing written on any of them;
+ *   - a parent gives two Profiles the same amount in ONE statement: one
+ *     `adjustment` row each, `summary` null, `created_by` the punch-in,
+ *     `entered_on` the HOUSEHOLD day, no occurrence and no redemption on the
+ *     row; the answer is the resulting `star_balances` rows for exactly the
+ *     chosen Profiles, in id order (FR-436, SC-412);
+ *   - a negative amount takes stars away, and exactly to zero is allowed;
+ *   - an amount that would leave any chosen Profile below zero is `VALIDATION`
+ *     against `amount`, naming the FIRST such Profile in id order — and NOTHING
+ *     is written for ANY of them, the one who could afford it included
+ *     (`P0004`, FR-436, SC-412);
+ *   - `0`, `501`, `−501`, a fraction and an invented key are `VALIDATION`
+ *     against `amount` / the shape; an empty list, a repeat and a Label are
+ *     `VALIDATION` against `categoryIds`; a Profile of another household and
+ *     an unknown id are `NOT_FOUND` — nothing written on any (FR-442);
+ *   - a success pushes the punch-in's idle expiry forward; a refusal does not.
  *
  * Fixture rows live in run-tagged households of this file's own, never in the
  * seed, so nothing here can drift with — or damage — the seeded tab.
@@ -71,7 +90,7 @@ import type { Pool } from "pg";
 import { signActorToken } from "@/lib/family/actor-token";
 import { localDateOf } from "@/lib/family/calendar/dates";
 import type { ActionError, ActionResult } from "@/lib/family/errors";
-import type { Redemption, Reward, Role } from "@/lib/family/types";
+import type { Redemption, Reward, Role, StarBalance } from "@/lib/family/types";
 import {
   LOCAL,
   adminClient,
@@ -170,12 +189,18 @@ interface UnredeemRewardPayload {
   redemptionId: string;
 }
 
+interface AdjustStarsPayload {
+  categoryIds: string[];
+  amount: number;
+}
+
 interface RewardsModule {
   createReward(input: RewardInputPayload): Promise<ActionResult<Reward>>;
   updateReward(input: UpdateRewardPayload): Promise<ActionResult<Reward>>;
   deleteReward(input: DeleteRewardPayload): Promise<ActionResult<null>>;
   redeemReward(input: RedeemRewardPayload): Promise<ActionResult<Redemption>>;
   unredeemReward(input: UnredeemRewardPayload): Promise<ActionResult<Redemption>>;
+  adjustStars(input: AdjustStarsPayload): Promise<ActionResult<StarBalance[]>>;
 }
 
 // Joined at runtime so `tsc` stays clean while a verb does not exist yet;
@@ -210,6 +235,10 @@ function redeemReward(input: RedeemRewardPayload): Promise<ActionResult<Redempti
 
 function unredeemReward(input: UnredeemRewardPayload): Promise<ActionResult<Redemption>> {
   return verb("unredeemReward")(input);
+}
+
+function adjustStars(input: AdjustStarsPayload): Promise<ActionResult<StarBalance[]>> {
+  return verb("adjustStars")(input);
 }
 
 function expectOk<T>(result: ActionResult<T>): T {
@@ -270,6 +299,20 @@ interface StoredEntry {
   amount: number;
   redemption_id: string | null;
   summary: string | null;
+}
+
+/** One hand adjustment as stored — every column FR-436 fixes, and the three it forbids. */
+interface StoredAdjustment {
+  category_id: string;
+  amount: number;
+  summary: string | null;
+  created_by: string | null;
+  entered_on: string;
+  earned_on: string | null;
+  resolution_id: string | null;
+  redemption_id: string | null;
+  /** `now()` is the transaction's: rows of ONE statement share it to the microsecond. */
+  created_at: string;
 }
 
 /** Rewards with their eligibility sets — what "nothing is written" compares. */
@@ -460,6 +503,18 @@ describe("rewards: FR-419's parent-only verbs, FR-415's fields, FR-418/420/421's
     const { rows } = await pool.query<StoredEntry>(
       "select kind, amount, redemption_id, summary from family.star_entries " +
         "where household_id = $1 order by created_at, kind",
+      [householdId],
+    );
+    return rows;
+  }
+
+  /** The household's `adjustment` rows in id order — what T045's "nothing written" counts. */
+  async function storedAdjustments(): Promise<StoredAdjustment[]> {
+    const { rows } = await pool.query<StoredAdjustment>(
+      "select category_id, amount, summary, created_by, entered_on::text as entered_on, " +
+        "earned_on::text as earned_on, resolution_id, redemption_id, created_at::text as created_at " +
+        "from family.star_entries where household_id = $1 and kind = 'adjustment' " +
+        "order by category_id, created_at",
       [householdId],
     );
     return rows;
@@ -1355,6 +1410,207 @@ describe("rewards: FR-419's parent-only verbs, FR-415's fields, FR-418/420/421's
       const before = actorCookieExp();
       expectOk(await unredeemReward({ redemptionId: cleoRedemptionId }));
       expect(actorCookieExp()).toBeGreaterThan(before);
+    });
+  });
+
+  /* ----------------------------------------------------------------------- *
+   * T045 — adjustStars (contracts §Giving stars by hand, FR-434–FR-436, SC-412)
+   * ----------------------------------------------------------------------- */
+
+  describe("adjustStars: parent-only, ONE statement for every chosen Profile, refused whole below zero (T045)", () => {
+    /** Bea and Cleo in the order the INSERT — and the answer — carries them. */
+    function chosen(): string[] {
+      return [beaId, cleoId].sort();
+    }
+
+    /** The name a refusal speaks of, by id. */
+    function nameOf(profileId: string): string {
+      return profileId === beaId ? `Bea ${run}` : `Cleo ${run}`;
+    }
+
+    function overdrawMessage(profileId: string): string {
+      return `That would leave ${nameOf(profileId)} below zero.`;
+    }
+
+    /** The rows ONE call wrote, told apart from the fixture's by the amount. */
+    async function writtenWith(amount: number): Promise<StoredAdjustment[]> {
+      return (await storedAdjustments()).filter((row) => row.amount === amount);
+    }
+
+    it("with nobody punched in it is NO_ACTOR, and nothing is written", async () => {
+      expectFailure(await adjustStars({ categoryIds: [cleoId], amount: 3 }), "NO_ACTOR");
+      expect(await storedAdjustments()).toEqual([]);
+      expect(await balanceOf(cleoId)).toBe(0);
+    });
+
+    it("a MEMBER is FORBIDDEN on every path — for themselves too — and the same call succeeds as a parent (FR-435)", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      expectFailure(await adjustStars({ categoryIds: [cleoId], amount: 3 }), "FORBIDDEN");
+      expectFailure(await adjustStars({ categoryIds: [beaId], amount: 3 }), "FORBIDDEN");
+      expect(await storedAdjustments()).toEqual([]);
+
+      await punchInAs(anaId, ANA_PIN);
+      expectOk(await adjustStars({ categoryIds: [cleoId], amount: 3 }));
+      expect(await balanceOf(cleoId)).toBe(3);
+    });
+
+    it("a parent DEMOTED on another device is refused at once — the role is the database's, not the cookie's (R323)", async () => {
+      await punchInAs(beaId, BEA_PIN);
+      await whileDemoted(beaId, async () => {
+        expectFailure(await adjustStars({ categoryIds: [cleoId], amount: 3 }), "FORBIDDEN");
+        expect(await storedAdjustments()).toEqual([]);
+      });
+      // Promoted back: the same cookie, the same call, now allowed.
+      expectOk(await adjustStars({ categoryIds: [cleoId], amount: 3 }));
+      expect(await balanceOf(cleoId)).toBe(3);
+    });
+
+    it("gives two Profiles the same amount in ONE statement and answers with their resulting balances, in id order (FR-436, SC-412)", async () => {
+      await giveStars(beaId, 4);
+      await punchInAs(anaId, ANA_PIN);
+      const before = localDateOf(ZONE, Date.now());
+      // Sent in one order, carried in the other: the answer is by id, not by payload.
+      const balances = expectOk(await adjustStars({ categoryIds: [cleoId, beaId], amount: 10 }));
+      const after = localDateOf(ZONE, Date.now());
+
+      expect(balances).toEqual(
+        chosen().map((categoryId) => ({ categoryId, balance: categoryId === beaId ? 14 : 10 })),
+      );
+      expect(await balanceOf(beaId)).toBe(14);
+      expect(await balanceOf(cleoId)).toBe(10);
+      // The giver's own balance is not in the answer and did not move.
+      expect(await balanceOf(anaId)).toBe(0);
+
+      const written = await writtenWith(10);
+      expect(written.map((row) => row.category_id)).toEqual(chosen());
+      for (const row of written) {
+        // FR-436's columns: the amount, the actor and the moment; nothing of an
+        // occurrence or a redemption (025's kind shape); no title to copy.
+        expect(row).toMatchObject({
+          amount: 10,
+          summary: null,
+          created_by: anaId,
+          earned_on: null,
+          resolution_id: null,
+          redemption_id: null,
+        });
+        // The household's day of the write, never the device's (FR-433).
+        expect([before, after]).toContain(row.entered_on);
+      }
+      // One statement, one transaction: both rows carry the same `now()`.
+      expect(new Set(written.map((row) => row.created_at)).size).toBe(1);
+    });
+
+    it("a negative amount takes stars away, and exactly to zero is allowed (FR-434, FR-436)", async () => {
+      await giveStars(beaId, 10);
+      await giveStars(cleoId, 4);
+      await punchInAs(anaId, ANA_PIN);
+      const balances = expectOk(await adjustStars({ categoryIds: [beaId, cleoId], amount: -4 }));
+      expect(balances).toEqual(
+        chosen().map((categoryId) => ({ categoryId, balance: categoryId === beaId ? 6 : 0 })),
+      );
+      expect((await writtenWith(-4)).map((row) => row.category_id)).toEqual(chosen());
+      expect(await balanceOf(cleoId)).toBe(0);
+    });
+
+    it("an amount that would leave one chosen Profile below zero is VALIDATION against `amount` naming them, and NOTHING is written for anyone (P0004, FR-436, SC-412)", async () => {
+      await giveStars(beaId, 10);
+      await giveStars(cleoId, 3);
+      const before = await storedAdjustments();
+      await punchInAs(anaId, ANA_PIN);
+
+      const result = await adjustStars({ categoryIds: [beaId, cleoId], amount: -5 });
+      expectFieldError(result, "amount");
+      expect(expectFailure(result, "VALIDATION")).toBe(overdrawMessage(cleoId));
+      expect(result.ok ? undefined : result.fieldErrors).toEqual({
+        amount: [overdrawMessage(cleoId)],
+      });
+
+      // Bea could afford it; her row rolls back with Cleo's — one statement.
+      expect(await storedAdjustments()).toEqual(before);
+      expect(await balanceOf(beaId)).toBe(10);
+      expect(await balanceOf(cleoId)).toBe(3);
+    });
+
+    it("when more than one would overdraw, the refusal names the FIRST in id order — the row the database refused", async () => {
+      await giveStars(beaId, 2);
+      await giveStars(cleoId, 3);
+      const before = await storedAdjustments();
+      await punchInAs(anaId, ANA_PIN);
+      const [first] = chosen();
+      if (first === undefined) throw new Error("expected two chosen Profiles");
+
+      const message = expectFailure(
+        await adjustStars({ categoryIds: [cleoId, beaId], amount: -5 }),
+        "VALIDATION",
+      );
+      expect(message).toBe(overdrawMessage(first));
+      expect(await storedAdjustments()).toEqual(before);
+    });
+
+    it("a Profile who has never had a star cannot be taken below zero either", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      const message = expectFailure(
+        await adjustStars({ categoryIds: [cleoId], amount: -1 }),
+        "VALIDATION",
+      );
+      expect(message).toBe(overdrawMessage(cleoId));
+      expect(await storedAdjustments()).toEqual([]);
+    });
+
+    it("0, 501, −501, a fraction and an invented key are VALIDATION, and nothing is written (FR-436)", async () => {
+      await giveStars(cleoId, 10);
+      const before = await storedAdjustments();
+      await punchInAs(anaId, ANA_PIN);
+      for (const amount of [0, 501, -501, 2.5]) {
+        expectFieldError(await adjustStars({ categoryIds: [cleoId], amount }), "amount");
+      }
+      // An adjustment carries no title (025: `summary` is null on the kind) — a
+      // client that sends one is refused, not stripped.
+      expectFailure(
+        await adjustStars({
+          categoryIds: [cleoId],
+          amount: 3,
+          summary: "Tidy room",
+        } as AdjustStarsPayload),
+        "VALIDATION",
+      );
+      expect(await storedAdjustments()).toEqual(before);
+      expect(await balanceOf(cleoId)).toBe(10);
+    });
+
+    it("an empty list, a repeat and a Label are VALIDATION against `categoryIds`; a foreign or unknown id is NOT_FOUND (FR-414, FR-442)", async () => {
+      const foreignBefore = await balanceOf(foreignProfileId);
+      await punchInAs(anaId, ANA_PIN);
+      expectFieldError(await adjustStars({ categoryIds: [], amount: 3 }), "categoryIds");
+      expectFieldError(await adjustStars({ categoryIds: [cleoId, cleoId], amount: 3 }), "categoryIds");
+      expectFieldError(
+        await adjustStars({ categoryIds: [cleoId, choresLabelId], amount: 3 }),
+        "categoryIds",
+      );
+      // Never FORBIDDEN: nothing confirms a row exists somewhere else.
+      expectFailure(
+        await adjustStars({ categoryIds: [cleoId, foreignProfileId], amount: 3 }),
+        "NOT_FOUND",
+      );
+      expectFailure(await adjustStars({ categoryIds: [UNKNOWN_ID], amount: 3 }), "NOT_FOUND");
+
+      // Cleo was in three of those lists and got nothing from any of them.
+      expect(await storedAdjustments()).toEqual([]);
+      expect(await balanceOf(cleoId)).toBe(0);
+      expect(await balanceOf(foreignProfileId)).toBe(foreignBefore);
+    });
+
+    it("a success pushes the punch-in's idle expiry forward; a refusal does not (FR-013)", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      await shortenPunchIn(anaId, "parent");
+      const beforeRefusal = actorCookieExp();
+      expectFailure(await adjustStars({ categoryIds: [cleoId], amount: -1 }), "VALIDATION");
+      expect(actorCookieExp()).toBe(beforeRefusal);
+
+      const beforeSuccess = actorCookieExp();
+      expectOk(await adjustStars({ categoryIds: [cleoId], amount: 1 }));
+      expect(actorCookieExp()).toBeGreaterThan(beforeSuccess);
     });
   });
 });

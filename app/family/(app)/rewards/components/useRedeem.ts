@@ -1,25 +1,21 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import { redeemReward, unredeemReward } from "@/lib/family/actions/rewards";
 import type { ActionResult } from "@/lib/family/errors";
 import type { Redemption } from "@/lib/family/types";
 
-import { useFamily } from "../../components/FamilyProvider";
+import { useSerialisedWrites } from "../../components/useSerialisedWrites";
 import { rewardCardKeyOf, type RewardCardTarget } from "./RewardCard";
 
 /**
  * 004 T040 — the Rewards tab's **one** commit path, and the only place a
  * redemption is ever written or put back from (FR-424, FR-431, FR-441). It is
- * `useTaskResolve` with two verbs instead of five, and deliberately so: the
- * same interceptor, the same pessimism, the same queue.
- *
- * Every write goes `withActor(() => action(payload))` through Phase 1's shipped
- * interceptor, unchanged: it produces the punch-in **at the moment of the tap**
- * when nobody is punched in, retries once on a lapsed cookie, extends the idle
- * expiry on success and invalidates `familyKeys.all`, which is how the tab's
- * three reads refresh. This hook adds no plumbing of its own.
+ * `useTaskResolve` with two verbs instead of five, and literally so since
+ * T048: both are `useSerialisedWrites` — the same interceptor at the tap, the
+ * same pessimism, the same queue, `NO_ACTOR` the same silence — with their
+ * own verbs and keys on top.
  *
  * **Pessimistic, with no optimistic cache write anywhere** (FR-441): the tapped
  * card shows busy for one round trip and then paints from the refetch. Nothing
@@ -64,62 +60,18 @@ export interface RedeemState {
   unredeem: (redemption: Redemption) => Promise<RedeemOutcome>;
 }
 
-/**
- * What a refusal says on the board. `NO_ACTOR` is the one silence: it means the
- * punch-in sheet was dismissed, which is a decision rather than a failure, and
- * FR-424's promise is that the card is simply left as it was.
- */
-function noticeOf(result: ActionResult<Redemption>): string | null {
-  if (result.ok) return null;
-  return result.error === "NO_ACTOR" ? null : result.message;
-}
-
 /** A redemption's card is the reward in the Profile's column — the key the column reads (FR-441). */
 function keyOfRedemption(redemption: Redemption): string {
   return rewardCardKeyOf({ reward: { id: redemption.rewardId }, categoryId: redemption.categoryId });
 }
 
-const NO_KEYS: ReadonlySet<string> = new Set();
-
 export function useRedeem(): RedeemState {
-  const { withActor } = useFamily();
-  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(NO_KEYS);
-  const [notice, setNotice] = useState<string | null>(null);
-  // Refs, not `busyKeys`: two taps landing in one tick would both read the
-  // same rendered state. `waiting` is every card with a write queued or in
-  // flight; `chain` is the queue itself.
-  const waiting = useRef(new Set<string>());
-  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const { busyKeys, notice, clearNotice, commit } = useSerialisedWrites();
 
-  const clearNotice = useCallback(() => setNotice(null), []);
-
-  // Writes are serialised, never dropped. A tap on a SECOND card while the
-  // first is writing waits its turn — one punch-in sheet at a time, and the
-  // actor the first tap earned serves the second — and shows busy while it
-  // waits. A second tap on the SAME card while it is waiting or writing is the
-  // same tap twice, and is ignored.
-  const commit = useCallback(
-    async (key: string, write: () => Promise<ActionResult<Redemption>>): Promise<RedeemOutcome> => {
-      if (waiting.current.has(key)) return null;
-      waiting.current.add(key);
-      setBusyKeys(new Set(waiting.current));
-      const turn = chain.current.then(() => withActor(write));
-      // The queue moves on whatever this write's fate; the caller still sees it.
-      chain.current = turn.catch(() => undefined);
-      try {
-        const result = await turn;
-        setNotice(noticeOf(result));
-        return result;
-      } finally {
-        waiting.current.delete(key);
-        setBusyKeys(waiting.current.size === 0 ? NO_KEYS : new Set(waiting.current));
-      }
-    },
-    [withActor],
-  );
-
+  // `async` so the queue's synchronous refusal of a repeated tap (`null`)
+  // arrives the same way its answer does: as this promise's value.
   const redeem = useCallback(
-    (target: Pick<RewardCardTarget, "reward" | "categoryId">) =>
+    async (target: Pick<RewardCardTarget, "reward" | "categoryId">): Promise<RedeemOutcome> =>
       commit(rewardCardKeyOf(target), () =>
         redeemReward({ rewardId: target.reward.id, categoryId: target.categoryId }),
       ),
@@ -127,7 +79,7 @@ export function useRedeem(): RedeemState {
   );
 
   const unredeem = useCallback(
-    (redemption: Redemption) =>
+    async (redemption: Redemption): Promise<RedeemOutcome> =>
       commit(keyOfRedemption(redemption), () => unredeemReward({ redemptionId: redemption.id })),
     [commit],
   );

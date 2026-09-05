@@ -12,6 +12,7 @@ import {
 } from "vitest";
 
 import {
+  adjustStars,
   createReward,
   deleteReward,
   redeemReward,
@@ -59,7 +60,11 @@ import { resetRewardFilters } from "../useRewardFilters";
  *     redeemed card's details (FR-424, FR-431, FR-432), the renewing reward
  *     back to a bar and the one-time one to the muted card FROM THE REFETCH
  *     (FR-425, FR-430) — and the celebration mounting on the local success
- *     only, never on a redemption that merely arrived as data (R408).
+ *     only, never on a redemption that merely arrived as data (R408);
+ *   - (T051) the Give-stars control in the tab's own chrome, before the
+ *     switch, drawn for a parent's affordance and never for a member's, its
+ *     sheet over the balances the tab holds and its commit through `withActor`
+ *     to `adjustStars` (FR-434, FR-435, SC-412).
  */
 
 vi.mock("@/lib/family/queries", async (importOriginal) => {
@@ -78,6 +83,7 @@ vi.mock("@/lib/family/actions/rewards", () => ({
   deleteReward: vi.fn(),
   redeemReward: vi.fn(),
   unredeemReward: vi.fn(),
+  adjustStars: vi.fn(),
 }));
 
 const createMock = createReward as Mock;
@@ -85,6 +91,7 @@ const updateMock = updateReward as Mock;
 const deleteMock = deleteReward as Mock;
 const redeemMock = redeemReward as Mock;
 const unredeemMock = unredeemReward as Mock;
+const adjustMock = adjustStars as Mock;
 
 const HOUSEHOLD = "household-1";
 
@@ -347,6 +354,7 @@ beforeEach(() => {
     ok: true,
     data: { ...CLEO_ICE_CREAM, reversedAt: "2026-09-05T20:05:00.000Z", reversedBy: CLEO },
   });
+  adjustMock.mockResolvedValue({ ok: true, data: [] });
 });
 
 afterEach(() => {
@@ -820,6 +828,95 @@ describe("RewardsBoard", () => {
       await press(/^Ice cream/, within(column("Ben")));
 
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("giving stars (FR-434, FR-435, SC-412)", () => {
+    const AS_MEMBER = { actor: makeActor("member", { profileId: CLEO, label: "Cleo" }) };
+
+    function giveStarsControl(): HTMLElement | null {
+      return screen.queryByRole("button", { name: "Give stars" });
+    }
+
+    /** Tick a Profile in the open sheet's picker. */
+    function choose(name: string): void {
+      const picker = screen.getByRole("group", { name: "Profiles" });
+      fireEvent.click(within(picker).getByRole("checkbox", { name }));
+    }
+
+    it("draws the control for a parent, in the chrome before the Redeemed switch", () => {
+      renderBoard({ context: AS_PARENT });
+
+      const control = giveStarsControl();
+      expect(control).not.toBeNull();
+      const toggle = screen.getByRole("switch", { name: "Redeemed" });
+      // FR-434 as photographed (05 shot13): the control, then the switch.
+      expect(control?.compareDocumentPosition(toggle)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(control?.parentElement).toBe(toggle.parentElement);
+    });
+
+    it("draws nothing for a member, and nothing while nobody is punched in — the affordance, not the gate", () => {
+      const { unmount } = renderBoard({ context: AS_MEMBER });
+      expect(giveStarsControl()).toBeNull();
+      unmount();
+
+      renderBoard();
+      expect(giveStarsControl()).toBeNull();
+    });
+
+    it("opens the sheet over the household's Profiles and the balances the tab holds", async () => {
+      const [cleo] = CATEGORIES;
+      renderBoard({ context: { ...AS_PARENT, visibleProfiles: [cleo] } });
+
+      await press("Give stars");
+
+      const sheet = screen.getByRole("dialog");
+      expect(within(sheet).getByRole("heading", { name: "Give stars" })).toBeInTheDocument();
+      // The whole household, not only this device's columns; never the Label.
+      const picker = within(sheet).getByRole("group", { name: "Profiles" });
+      expect(within(picker).getByRole("checkbox", { name: "Ben" })).toBeInTheDocument();
+      expect(within(picker).queryByRole("checkbox", { name: "Bin day" })).toBeNull();
+
+      choose("Ben");
+      // Ben's 40 from the stubbed read — the table's "before" is the tab's balance (R402).
+      const row = within(sheet).getByRole("row", { name: /Ben/ });
+      expect(within(row).getAllByRole("cell").map((cell) => cell.textContent)).toEqual([
+        "Ben",
+        "40",
+        "40",
+      ]);
+    });
+
+    it("gives through withActor to adjustStars with the chosen Profiles and the amount, and closes", async () => {
+      const withActor = vi.fn(async (run: () => Promise<unknown>) => run());
+      renderBoard({ context: { ...AS_PARENT, withActor: withActor as FamilyContextValue["withActor"] } });
+
+      await press("Give stars");
+      choose("Ben");
+      choose("Cleo");
+      fireEvent.change(screen.getByLabelText("Stars"), { target: { value: "5" } });
+      await press("Confirm");
+
+      expect(withActor).toHaveBeenCalledTimes(1);
+      // The ids in the household's order and the amount as a number, nothing else.
+      expect(adjustMock).toHaveBeenCalledTimes(1);
+      expect(adjustMock).toHaveBeenCalledWith({ categoryIds: [CLEO, BEN], amount: 5 });
+      // Closed on success: the refetch repaints the columns (FR-441).
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("keeps the sheet open with the server's refusal at the amount field", async () => {
+      const message = "That would leave Cleo below zero.";
+      adjustMock.mockResolvedValue(fail("VALIDATION", message, { amount: [message] }));
+      renderBoard({ context: AS_PARENT });
+
+      await press("Give stars");
+      choose("Cleo");
+      fireEvent.change(screen.getByLabelText("Stars"), { target: { value: "-10" } });
+      await press("Confirm");
+
+      const sheet = screen.getByRole("dialog");
+      expect(within(sheet).getByText(message)).toHaveAttribute("role", "alert");
     });
   });
 

@@ -6,6 +6,7 @@ import {
   expandTaskDay,
   routineOccurrences,
   scheduledChoreOccurrences,
+  scheduledDaysInWeek,
   type ExpandOptions,
   type TaskContext,
 } from "@/lib/family/tasks/expand";
@@ -679,5 +680,74 @@ describe("expandTaskDay — the one entry point (R315)", () => {
     ];
     const occurrences = expandTaskDay(tasks, [], [], options());
     expect(occurrences.map((one) => one.taskId)).toEqual(["chore", "anytime", "routine", "cursor"]);
+  });
+});
+
+/* ------------------------------------------------------------ 004 T049 -- */
+
+describe("scheduledDaysInWeek (004 FR-440, R408)", () => {
+  const WEEK_START = "2026-08-30"; // a Sunday
+  const WEEK = [
+    "2026-08-30",
+    "2026-08-31",
+    "2026-09-01",
+    "2026-09-02",
+    "2026-09-03",
+    "2026-09-04",
+    "2026-09-05",
+  ];
+  const daily = task({
+    routine: true,
+    summary: "Brush teeth",
+    startsOn: "2026-08-01",
+    rrule: "FREQ=DAILY;INTERVAL=1",
+    timesOfDay: ["morning"],
+  });
+
+  it("lists every day of the week for a daily routine, oldest first", () => {
+    expect(scheduledDaysInWeek(daily, WEEK_START, CHICAGO)).toEqual(WEEK);
+  });
+
+  it("lists only the rule's weekdays for a weekly routine", () => {
+    const weekdays = task({ ...daily, rrule: "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR" });
+    expect(scheduledDaysInWeek(weekdays, WEEK_START, CHICAGO)).toEqual([
+      "2026-08-31",
+      "2026-09-02",
+      "2026-09-04",
+    ]);
+  });
+
+  it("begins at startsOn when the routine starts mid-week", () => {
+    const fromWednesday = task({ ...daily, startsOn: "2026-09-02" });
+    expect(scheduledDaysInWeek(fromWednesday, WEEK_START, CHICAGO)).toEqual(WEEK.slice(3));
+  });
+
+  it("ends at UNTIL when the routine ends mid-week", () => {
+    const untilTuesday = task({ ...daily, rrule: "FREQ=DAILY;INTERVAL=1;UNTIL=20260901" });
+    expect(scheduledDaysInWeek(untilTuesday, WEEK_START, CHICAGO)).toEqual(WEEK.slice(0, 3));
+  });
+
+  it("is empty for a chore, whatever its rule — a routine's scheduled days only", () => {
+    const chore = task({ ...daily, routine: false, timesOfDay: [] });
+    expect(scheduledDaysInWeek(chore, WEEK_START, CHICAGO)).toEqual([]);
+    expect(scheduledDaysInWeek(task({ startsOn: "2026-09-01" }), WEEK_START, CHICAGO)).toEqual([]);
+  });
+
+  it("counts a day once however many slots and assignees the routine has", () => {
+    const busy = task({
+      ...daily,
+      timesOfDay: ["morning", "afternoon", "evening"],
+      assignees: [assignee(ANA), assignee(BEN)],
+    });
+    expect(scheduledDaysInWeek(busy, WEEK_START, CHICAGO)).toEqual(WEEK);
+  });
+
+  it("is exactly the set of days the routine generator emits an occurrence on", () => {
+    const weekdays = task({ ...daily, rrule: "FREQ=WEEKLY;INTERVAL=1;BYDAY=TU,SA" });
+    const expected = WEEK.filter(
+      (date) => routineOccurrences(weekdays, context([], [], { displayedDate: date })).length > 0,
+    );
+    expect(expected).toEqual(["2026-09-01", "2026-09-05"]);
+    expect(scheduledDaysInWeek(weekdays, WEEK_START, CHICAGO)).toEqual(expected);
   });
 });

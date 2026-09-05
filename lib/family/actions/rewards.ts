@@ -2,8 +2,9 @@
 
 /**
  * Rewards — Phase 4 (specs/004-family-rewards, contracts/server-actions.md
- * §Rewards and §Redeeming): `createReward`, `updateReward` and `deleteReward`;
- * `redeemReward` and `unredeemReward`.
+ * §Rewards, §Redeeming and §Giving stars by hand): `createReward`,
+ * `updateReward` and `deleteReward`; `redeemReward` and `unredeemReward`;
+ * `adjustStars`.
  *
  * The first three are `requireParent()` — FR-419: creating, editing and deleting a
  * reward are parent-only, and refused on the server, so a request that bypasses
@@ -50,24 +51,41 @@
  * second ledger row, never an erasure (FR-431). The three refusals that speak
  * of a Profile (`P0005`–`P0007`) are re-worded here with their name.
  *
- * T045 (`adjustStars`) joins this module below.
+ * **Giving stars by hand is ONE multi-row INSERT** (R403, contracts §Giving
+ * stars by hand, FR-434–FR-436). `adjustStars` is `requireParent()` — FR-435:
+ * a member is refused on every path, for themselves included — and writes one
+ * `adjustment` row per chosen Profile, in id order, in one statement. 025's
+ * `assert_star_adjustment` locks each Profile's row and refuses the row that
+ * would end below zero with `P0004`; a multi-row INSERT is one statement, so
+ * that refusal rolls back EVERY chosen Profile's row — the one who could have
+ * afforded it included (SC-412). The action re-words `P0004` with the name of
+ * the FIRST Profile in id order whose balance would end below zero, against the
+ * `amount` field, so the sheet's before-and-after table can flag the row. The
+ * answer is the chosen Profiles' rows of `star_balances` — the truth the
+ * table's arithmetic (`beforeAndAfterOf`) is checked against.
  */
 
 import type { PostgrestError } from "@supabase/supabase-js";
 
+import { localDateOf } from "../calendar/dates";
 import { ActionFailure, runAction, type ActionResult } from "../errors";
 import { requireParent, requireVerifiedActor } from "../guards";
 import { mayRedeemFor } from "../permissions";
+import { balanceMapOf, beforeAndAfterOf } from "../rewards/stars";
 import {
   REDEMPTION_COLUMNS,
+  STAR_BALANCE_COLUMNS,
   rewardsSelect,
   toRedemption,
   toReward,
+  toStarBalance,
   type RedemptionRow,
   type RewardWithEligibilitiesRow,
+  type StarBalanceRow,
 } from "../rows";
-import type { Actor, Category, Redemption, Reward } from "../types";
+import type { Actor, Category, Redemption, Reward, StarBalance } from "../types";
 import {
+  adjustStarsSchema,
   deleteRewardSchema,
   parseOrThrow,
   redeemRewardSchema,
@@ -77,9 +95,10 @@ import {
   validateRewardPatch,
   type RewardInput,
 } from "../validation";
-import { adminFamily, loadProfile, mapDbError, touchActor } from "./shared";
+import { adminFamily, loadHouseholdZone, loadProfile, mapDbError, touchActor } from "./shared";
 
 const LABEL_NOT_ELIGIBLE = "A reward can only be for a person, not for a label.";
+const LABEL_GETS_NO_STARS = "Stars can only be given to a person, not to a label.";
 
 // One embed, joined rather than concatenated, for the reason `tasksSelect` is.
 const REWARD_SELECT = rewardsSelect();
@@ -115,51 +134,73 @@ async function loadReward(householdId: string, id: string): Promise<Reward> {
   return toReward(data as unknown as RewardWithEligibilitiesRow);
 }
 
-/** What one of the household's categories is — a Profile, or a Label. */
-type CategoryKind = "profile" | "label";
+/** What one of the household's categories is — a Profile, or a Label — and what it is called. */
+interface HouseholdCategory {
+  kind: "profile" | "label";
+  label: string;
+}
 
-/**
- * Every category of this household by kind — a handful of rows, read whole
- * rather than probed by id, so the eligibility check below can judge each
- * requested id against the same map. An id from another household is simply
- * absent: under the service role there is no RLS, so the household filter here
- * is the tenancy check (FR-442).
- */
-async function householdCategoryKinds(householdId: string): Promise<Map<string, CategoryKind>> {
-  const { data, error } = await adminFamily()
-    .from("categories")
-    .select("id, is_profile")
-    .eq("household_id", householdId);
-  if (error) throw mapDbError(error);
-  const kinds = new Map<string, CategoryKind>();
-  for (const row of (data ?? []) as unknown as { id: string; is_profile: boolean }[]) {
-    kinds.set(row.id, row.is_profile ? "profile" : "label");
-  }
-  return kinds;
+/** A Profile a write is about to name: the id the row carries, the label a refusal speaks of. */
+interface NamedProfile {
+  id: string;
+  label: string;
 }
 
 /**
- * FR-414 / FR-415: a reward may be for a Profile and never for a Label, and an
- * id from another household is `NOT_FOUND` rather than `FORBIDDEN` — nothing
- * confirms that a row exists somewhere else. Judged per id, in the order the
- * form sent them. Runs BEFORE the reward row is written, so a refused create
- * leaves no reward eligible for nobody (data-model invariant 7); 024's trigger
- * is the second line.
+ * Every category of this household by kind and name — a handful of rows, read
+ * whole rather than probed by id, so the checks below can judge each requested
+ * id against the same map. An id from another household is simply absent:
+ * under the service role there is no RLS, so the household filter here is the
+ * tenancy check (FR-442).
+ */
+async function householdCategories(householdId: string): Promise<Map<string, HouseholdCategory>> {
+  const { data, error } = await adminFamily()
+    .from("categories")
+    .select("id, label, is_profile")
+    .eq("household_id", householdId);
+  if (error) throw mapDbError(error);
+  const categories = new Map<string, HouseholdCategory>();
+  const rows = (data ?? []) as unknown as { id: string; label: string; is_profile: boolean }[];
+  for (const row of rows) {
+    categories.set(row.id, { kind: row.is_profile ? "profile" : "label", label: row.label });
+  }
+  return categories;
+}
+
+/**
+ * The requested ids as Profiles of this household, or the refusal: an id from
+ * another household is `NOT_FOUND` rather than `FORBIDDEN` — nothing confirms
+ * that a row exists somewhere else (FR-442) — and a Label is `VALIDATION`
+ * against `categoryIds` in the caller's words (FR-414). Judged per id, in the
+ * order the form sent them; the Profiles come back in that order too.
+ */
+async function requireProfiles(
+  householdId: string,
+  ids: readonly string[],
+  labelRefusal: string,
+): Promise<NamedProfile[]> {
+  const categories = await householdCategories(householdId);
+  return ids.map((id) => {
+    const category = categories.get(id);
+    if (category === undefined) throw new ActionFailure("NOT_FOUND");
+    if (category.kind === "label") {
+      throw new ActionFailure("VALIDATION", labelRefusal, { categoryIds: [labelRefusal] });
+    }
+    return { id, label: category.label };
+  });
+}
+
+/**
+ * FR-414 / FR-415: a reward may be for a Profile and never for a Label. Runs
+ * BEFORE the reward row is written, so a refused create leaves no reward
+ * eligible for nobody (data-model invariant 7); 024's trigger is the second
+ * line.
  */
 async function assertEligibleAreProfiles(
   householdId: string,
   ids: readonly string[],
 ): Promise<void> {
-  const kinds = await householdCategoryKinds(householdId);
-  for (const id of ids) {
-    const kind = kinds.get(id);
-    if (kind === undefined) throw new ActionFailure("NOT_FOUND");
-    if (kind === "label") {
-      throw new ActionFailure("VALIDATION", LABEL_NOT_ELIGIBLE, {
-        categoryIds: [LABEL_NOT_ELIGIBLE],
-      });
-    }
-  }
+  await requireProfiles(householdId, ids, LABEL_NOT_ELIGIBLE);
 }
 
 /**
@@ -471,5 +512,114 @@ export async function unredeemReward(input: {
     const reversed = await reverseRedemption(actor, redemption.id);
     await touchActor(actor);
     return reversed;
+  });
+}
+
+/* ------------------------------------------------------------------------- *
+ * FR-434–FR-436: giving stars by hand — one statement for every chosen Profile.
+ * ------------------------------------------------------------------------- */
+
+function overdrawMessage(name: string): string {
+  return `That would leave ${name} below zero.`;
+}
+
+/** The chosen Profiles in id order — the INSERT's order, the trigger's, and the answer's. */
+function inIdOrder(profiles: readonly NamedProfile[]): NamedProfile[] {
+  return [...profiles].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+/**
+ * The chosen Profiles' rows of `star_balances`, in id order — the action's
+ * answer, and the balances a `P0004` is re-worded from (SC-412). Every Profile
+ * has a row: the view sums over `categories`, so a Profile who has never had a
+ * star reads 0 rather than nothing.
+ */
+async function loadBalances(householdId: string, ids: readonly string[]): Promise<StarBalance[]> {
+  const { data, error } = await adminFamily()
+    .from("star_balances")
+    .select(STAR_BALANCE_COLUMNS)
+    .eq("household_id", householdId)
+    .in("category_id", [...ids])
+    .order("category_id");
+  if (error) throw mapDbError(error);
+  return ((data ?? []) as unknown as StarBalanceRow[]).map(toStarBalance);
+}
+
+/**
+ * `P0004` re-worded with the Profile it refused (contracts §Shared result
+ * shape), against `amount` so the sheet flags the row. The trigger judges the
+ * rows in INSERT order — id order — and raises at the first that would end
+ * below zero; nothing was written, so the same arithmetic over the balances as
+ * they stand (`beforeAndAfterOf`, the sheet's own table) finds that row again.
+ * Should another device have moved a balance in the meantime so that no row
+ * reads below zero any more, the refusal is reported as the database's plain
+ * `VALIDATION` rather than pinned on a Profile it no longer fits.
+ */
+async function overdrawFailure(
+  error: PostgrestError,
+  householdId: string,
+  chosen: readonly NamedProfile[],
+  amount: number,
+): Promise<ActionFailure> {
+  const ids = chosen.map((one) => one.id);
+  const balances = balanceMapOf(await loadBalances(householdId, ids));
+  const at = beforeAndAfterOf(balances, ids, amount).rows.findIndex((row) => row.belowZero);
+  const refused = chosen[at];
+  if (refused === undefined) return mapDbError(error);
+  const message = overdrawMessage(refused.label);
+  return new ActionFailure("VALIDATION", message, { amount: [message] });
+}
+
+/**
+ * Contracts §adjustStars: ONE multi-row INSERT — one `adjustment` row per
+ * Profile carrying the amount, the punch-in and the household day, and nothing
+ * of an occurrence, a redemption or a title (025's kind shape). One statement
+ * is one transaction: 025's trigger refusing any row rolls back every row, so
+ * a parent giving −5 to two children never takes from the one who could
+ * afford it (FR-436, SC-412).
+ */
+async function insertAdjustments(
+  actor: Actor,
+  chosen: readonly NamedProfile[],
+  amount: number,
+  enteredOn: string,
+): Promise<void> {
+  const rows = chosen.map((one) => ({
+    household_id: actor.householdId,
+    category_id: one.id,
+    amount,
+    kind: "adjustment",
+    summary: null,
+    created_by: actor.profileId,
+    entered_on: enteredOn,
+  }));
+  const { error } = await adminFamily().from("star_entries").insert(rows);
+  if (!error) return;
+  if (error.code !== "P0004") throw mapDbError(error);
+  throw await overdrawFailure(error, actor.householdId, chosen, amount);
+}
+
+/**
+ * FR-434–FR-436: a parent, one whole amount in −500…500 and never 0 (the
+ * schema's refusal, 025's CHECK the second line), one or more Profiles of this
+ * household judged per id, the household's day — never the device's (FR-433) —
+ * then one statement. Returns the resulting balances of exactly the chosen
+ * Profiles, in id order, so the sheet redraws from what the database holds.
+ */
+export async function adjustStars(input: {
+  categoryIds: string[];
+  amount: number;
+}): Promise<ActionResult<StarBalance[]>> {
+  return runAction(async () => {
+    const actor = await requireParent();
+    const parsed = parseOrThrow(adjustStarsSchema, input);
+    const chosen = inIdOrder(
+      await requireProfiles(actor.householdId, parsed.categoryIds, LABEL_GETS_NO_STARS),
+    );
+    const { zone } = await loadHouseholdZone(actor.householdId);
+
+    await insertAdjustments(actor, chosen, parsed.amount, localDateOf(zone, Date.now()));
+    await touchActor(actor);
+    return loadBalances(actor.householdId, chosen.map((one) => one.id));
   });
 }
