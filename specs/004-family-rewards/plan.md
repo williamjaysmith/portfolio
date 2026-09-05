@@ -208,5 +208,5 @@ in the same commit — a move inside one sub-app, no §I question.
 - [x] Phase 0 — research complete ([research.md](./research.md): R401–R418, no open unknowns, zero new dependencies)
 - [x] Constitution check — pass, before and after design, no deviation claimed
 - [x] Phase 1 — design complete: [data-model.md](./data-model.md) (024–027 in full SQL, invariants, the privilege delta, the fallow zone), [contracts/server-actions.md](./contracts/server-actions.md) (six actions, four amendments, the trigger table, the SQLSTATE map), [quickstart.md](./quickstart.md)
-- [ ] Phase 2 — `/speckit.tasks`
+- [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 59 tasks, test-first, US1 as the MVP)
 - [ ] Phase 3 — implementation per the phasing table above
