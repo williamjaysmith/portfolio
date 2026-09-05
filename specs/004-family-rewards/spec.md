@@ -1,0 +1,303 @@
+# Feature Specification: Family Rewards
+
+**Feature Branch**: `004-family-rewards`
+**Created**: 2026-09-05
+**Status**: Draft
+**Input**: Phase 4 of the `/family` Skylight Calendar clone — the Rewards tab and everything star-facing that Phase 3 reserved but did not build: star values on chores, routines and Task Box templates with the star chip on the card face; stars earned on completion and reversed on un-completion, per Profile, as a ledger; a Profile's balance and the column's stars for the day; a parent's manual give-and-take; reward cards on the Rewards tab; redeeming with the confirmation modal and unredeeming; and the three celebrations Phase 3 held back — the redemption confetti, the whole-list emoji rain and the "Amazing Week" message. Phases 1 (household access, punch-in PINs, the shell, Profiles & Labels, tokens, PWA), 2 (the Week calendar) and 3 (the Tasks tab through migration 023 — chores, routines, resolutions, streaks, filters, search, the Task Box, the measured column fit) are shipped and deployed, and are the foundation this stacks on.
+
+**Authoritative sources**: `docs/research/skylight/00-master-map.md` (§1 scope, §3 design system, §4.4 rewards, §5.2/§5.3 the Tasks and Rewards tabs, §6 permissions, §9 phasing, §11 divergence ledger — rows 2 and 6 are this phase's — and §12 unknowns) and the source-tagged dossiers beside it, principally `02-tasks-and-rewards.md` (stars, the Rewards tab, creating and redeeming, recurring rewards, unredeeming, the device-versus-app split, open questions 1, 3–6, 9–11, 14), `05-mobile-app.md` §7/§8 and its two screenshots `shot06`/`shot13`, `06-api-and-data-model.md` (`reward_points` on a chore, the `reward_points` per-category balance, the `reward` resource, redeem and unredeem), `07-visual-design-system.md` §4.10–4.13, §6.4 and §7.1, and `08-ux-behaviors-and-reviews.md` §Celebrations. Phase 3's own record of what it deferred — `specs/003-family-tasks/spec.md` Out of Scope, FR-329, FR-360, FR-375, FR-380, SC-319, Contradictions 4 and 9 and Assumption 21 — binds the shape this phase inherits. The operator's Phase 4 scoping decisions were settled on **2026-09-05** and are final for this specification.
+
+**The governing rule for this phase**, from the operator on 2026-09-04 and unchanged: *match the reference product wherever the research says what it does.* A behaviour tagged `[V]` or `[V-photo]` is adopted, not weighed and not improved. A decision is taken only where the research is `[?]`/`[I]`, or where the thing has no equivalent in the reference at all. Two of the reference's own rules are knowingly not matched, and both were settled before this phase in the master map's divergence ledger: stars are set wherever a parent is punched in rather than only on the phone (row 2), and the star economy is an append-only ledger rather than a pair of mutable counters (row 6).
+
+**Evidence tags** — per constitution §VIII this spec asserts as fact only what a source verifies. Every requirement carries its tag:
+
+| Tag | Meaning |
+|---|---|
+| `[V](id)` | Verified against a Skylight source. A bare number is a help-centre article id, resolvable as `https://skylight.zendesk.com/hc/en-us/articles/<id>`; named artifacts (`skylight-api`, `pyskylight`, `release-log`) are the live API captures and the dated release log. |
+| `[V-photo]` | Verified by reading or pixel-sampling a product photograph or a store screenshot. Real, but a measurement, not a document. Phase 3's Contradiction 9 established that the redeem modal's copy and the redemption confetti are `[V-photo]` and not `[V]`, whatever the master map says; this spec inherits that correction. |
+| `[ESTIMATED]` | A proportional estimate from a photograph, ~±10 %. |
+| `[I]` | The dossiers' `[INFERRED]` grade carried through unchanged. Adopted as a decision where it appears, never asserted as fact. |
+| `[?]` | Not in any source. Resolved here as a decision, never asserted. |
+| `[OURS 2026-09-05 #n]` | A decision the operator took, or delegated and had recorded, on that date; `#n` is its number in the Assumptions list below. |
+| `[P1]` / `[P2]` / `[P3]` | Already built and shipped in that phase; inherited, not rebuilt. Where a shipped *mechanism* is extended to this phase's records, the tag says so and names the new work. |
+
+Requirement numbers are stable labels, not an order.
+
+---
+
+## Clarifications
+
+### Session 2026-09-05
+
+- Q: Is anything star-facing still deferred? → A: **No.** This phase ships the whole star economy the master map assigned to Phase 3 and Phase 3 held back: star values, chips, the column pill, balances, the ledger, manual give-and-take, rewards, redeem, unredeem, and all three celebrations. Assumption 1.
+- Q: What does the star pill on a Tasks column header count? → A: **Stars earned on the displayed day** by that Profile, not the balance — the Tasks tab is about a day; the balance lives on the Rewards tab. FR-407, Assumption 6.
+- Q: Who may redeem? → A: **A punched-in member for themselves, a parent for anyone** — Phase 3's ownership rule, applied to a reward. Giving and taking stars by hand, and every reward's create, edit and delete, are parent-only. FR-424, FR-435, Assumption 3.
+- Q: Does Unredeem give the stars back? → A: **Yes, exactly, and the reward returns to where it was.** The reference's unredeem is a verified path with an inferred effect; the ledger makes the symmetric reading the cheap one. FR-431, Assumption 9.
+
+---
+
+## User Scenarios & Testing *(mandatory)*
+
+The same example household as Phases 2 and 3, so the specifications read as one product and the scenarios can be run by hand: profiles **Ana** (parent), **Ben** (parent) and **Cleo** (child), plus the Label **Bin day**. Household timezone `America/Chicago`. Cleo's routine "Brush teeth" is worth 5 stars; her chore "Feed the cat" is worth 10; Ben's "Take out trash" is worth 20.
+
+### User Story 1 — Stars on the board (Priority: P1)
+
+Ana punches in and edits Cleo's "Brush teeth", and the form now has a fourth field: Stars. She enters 5. The card on the Tasks tab grows a small gold chip — ⭐ 5 — and when Cleo ticks it that evening her column's star pill reads ⭐ 5 beside her ✓ 1/3. She ticks "Feed the cat" too and the pill reads ⭐ 15. She untaps "Feed the cat" by mistake and it drops back to ⭐ 5; she taps it again and it is ⭐ 15 once more, and nothing has been double-counted. On the Rewards tab her balance under her face reads the same 15 plus whatever she had before.
+
+**Why this priority**: Stars are what make the chore board work on a child, and every other surface in this phase is downstream of a star being earned. If earning and retracting are not exactly right — one entry per tick, one reversal per un-tick, nothing on a skip — then balances, rewards and redemption are all built on sand.
+
+**Independent Test**: Seed a day with, for one Profile, a 5-star routine in two slots, a 10-star chore and a 0-star chore. Punch in as that Profile and tick each; read the column's star pill and the Rewards-tab balance after every tap, un-tap and skip, and compare with the ledger by hand.
+
+**Acceptance Scenarios**:
+
+1. **Given** Ana is punched in and editing a task, **When** the form renders, **Then** it offers a Stars field after the fields Phase 3 shipped, accepts a whole number from 0 upward, and shows the reference's guidance for what a chore and a big chore are worth.
+2. **Given** "Brush teeth" is worth 5 stars, **When** its card renders, **Then** a gold star chip reading 5 sits on the card face; **and given** "Sort the recycling" is worth nothing, **Then** its card carries no chip and is the height it was in Phase 3.
+3. **Given** Cleo is punched in with nothing earned today, **When** she completes "Brush teeth", **Then** her column's star pill reads 5, her Rewards-tab balance rises by exactly 5, and one entry crediting 5 stars to Cleo for that occurrence exists in the ledger.
+4. **Given** that completion, **When** she un-completes it, **Then** the pill returns to 0, the balance falls by exactly 5, and the ledger holds a second entry reversing the first — the first is not erased.
+5. **Given** "Brush teeth" is in Morning and Evening, **When** she completes both, **Then** she has earned 10, not 5 — each occurrence earns the task's value.
+6. **Given** Cleo skips "Feed the cat", **When** the skip is recorded, **Then** no stars are credited, the pill does not move, and unskipping it later credits nothing either.
+7. **Given** Ana (a parent) completes Cleo's "Feed the cat" for her, **When** the entry is written, **Then** the stars are credited to **Cleo**, and the entry records Ana as the actor.
+8. **Given** Cleo's balance is 12 and Ana changes "Feed the cat" from 10 stars to 3, **When** the change saves, **Then** Cleo's balance is still 12 — an entry keeps the value it was written with — and the next completion of that chore earns 3.
+9. **Given** a completion on the tablet, **When** the phone shows the same board, **Then** the phone's star pill and balance agree within 5 seconds with no reload.
+10. **Given** the Task Box, **When** Ana edits a template, **Then** the form offers **four** fields — title, emoji, type and stars — and adding a task from that template pre-fills the star value with the rest.
+
+---
+
+### User Story 2 — The Rewards tab (Priority: P2)
+
+Ana opens the Rewards tab. Three columns, one per person, each headed by a face, a name and a star balance. Under Cleo's face: a card for "Bake cookies" 🍪 with a bar reading ☆ 15/20, and one for "Movie night" 🍿 with a Redeem button because she has enough. Ana taps + and creates "Ice cream" 🍨 for Cleo and Ben at 25 stars, one-time. Cleo's column gains the card at ☆ 15/25; Ben's at ☆ 40/25 with a Redeem button — each person's progress is their own.
+
+**Why this priority**: The tab is where a child sees what the stars are *for*. It reads before it writes — a tab with correct balances and honest progress is worth having even before redeeming works — and its cards are the thing redemption acts on.
+
+**Independent Test**: Seed two Profiles with different balances and three rewards — one for both, one for each. Load `/family/rewards` at tablet-landscape and read every column, balance, bar and button against the seed by hand; then create, edit and delete a reward as a parent and attempt each as a member.
+
+**Acceptance Scenarios**:
+
+1. **Given** Ana, Ben and Cleo are on the Rewards tab, **When** it opens, **Then** there is one column per Profile in the household's order, each headed by that Profile's avatar, name and current balance, holding only the rewards that Profile is eligible for, and the shell's profile chip row does not render.
+2. **Given** Cleo has 15 stars and "Bake cookies" costs 20, **When** her column renders, **Then** the card shows the emoji, the title and a progress bar filled three quarters with ☆ 15/20 centred on it, and no Redeem button.
+3. **Given** Cleo has 15 stars and "Movie night" costs 15, **When** her column renders, **Then** the card shows a Redeem button and no bar — enough is enough.
+4. **Given** Ana is punched in, **When** she taps + on the Rewards tab, **Then** a form asks for a title, an optional description, an optional emoji, the star cost, whether it renews after redeeming, and at least one eligible Profile — and refuses to save with none.
+5. **Given** "Ice cream" is for Cleo and Ben, **When** it saves, **Then** it appears in both columns with each person's own progress against its cost, and Ana's column does not show it.
+6. **Given** a reward's card body is tapped, **When** the details open, **Then** they show the title, description, emoji, cost, whether it renews, who it is for, and — for a parent — Edit and Delete.
+7. **Given** Cleo (a member) is punched in, **When** she tries to create, edit or delete a reward, **Then** she cannot reach the controls and any request that bypasses them is refused.
+8. **Given** Ana changes "Bake cookies" from 20 to 30 stars, **When** it saves, **Then** Cleo's bar reads ☆ 15/30 — progress is the balance against the cost, never a separate counter.
+9. **Given** the tab at phone width, **When** it renders, **Then** as many whole columns as fit are shown — one on a narrow phone — and the rest are reached by swiping, exactly as the Tasks tab pages.
+10. **Given** nobody is punched in, **When** a person reads the tab, **Then** every balance and every card is visible and no PIN is requested.
+
+---
+
+### User Story 3 — Redeeming (Priority: P3)
+
+Cleo has 20 stars and "Bake cookies" costs 20. She punches in and taps Redeem. A modal fills the middle of the screen — 🍪, "Great work! Bake cookies redeemed", "By Cleo for 20 stars on September 5, 2026" — and gold stars fall across the whole screen while the columns behind take on a warm wash. She taps Done. Her balance reads 0 and the card, a one-time reward, now reads "Redeemed on Sep 5". Her dad is not so sure about cookies on a school night: he opens the card and taps Unredeem, the 20 stars come back, and the card is a bar again.
+
+**Why this priority**: Redeeming is the pay-off of the whole system and the only place stars leave a balance. It must be exact, atomic and reversible, and it carries the one celebration the reference photographs.
+
+**Independent Test**: Seed a Profile with exactly one reward's worth of stars, one recurring reward and one one-time reward at that cost. Redeem each, read the modal, the balance and the card; unredeem each; redeem the same reward from two devices in the same second.
+
+**Acceptance Scenarios**:
+
+1. **Given** nobody is punched in, **When** Redeem is tapped, **Then** the "Who's here?" prompt appears before anything is recorded, and dismissing it leaves the balance and the card unchanged.
+2. **Given** Cleo is punched in with 20 stars, **When** she taps Redeem on the 20-star "Bake cookies", **Then** her balance is 0, a redemption exists naming Cleo, the reward, 20 stars and the moment, and the modal shows the reward's emoji, "Great work! Bake cookies redeemed", "By Cleo for 20 stars on September 5, 2026", Done and Unredeem.
+3. **Given** Cleo is punched in, **When** she taps Redeem on Ben's reward, **Then** nothing is recorded and a message says the reward is Ben's and only Ben or a parent may redeem it.
+4. **Given** Ana is punched in, **When** she redeems "Bake cookies" for Cleo, **Then** the stars leave **Cleo's** balance, the modal says "By Cleo", and the redemption records Ana as the actor.
+5. **Given** the modal is open and motion is allowed, **When** it appears, **Then** gold stars scatter and fall across the **whole** screen, the backdrop is not dimmed but warmed, and the effect ends on its own within a few seconds; **and given** the device prefers reduced motion, **Then** the modal appears with no falling stars.
+6. **Given** "Bake cookies" renews after redeeming, **When** Cleo taps Done, **Then** the card is back at ☆ 0/20 and can be earned again.
+7. **Given** "Ice cream" is one-time, **When** Cleo taps Done, **Then** her card reads "Redeemed on Sep 5" and offers nothing further, while Ben — also eligible — still sees his own progress toward it.
+8. **Given** the modal, **When** Unredeem is tapped, **Then** the 20 stars return to Cleo's balance exactly, the redemption is reversed rather than erased, and the card is what it was before — a bar, or a Redeem button.
+9. **Given** a redeemed one-time reward, **When** its card is opened later, **Then** a parent — or the Profile it was redeemed for — can still unredeem it from there.
+10. **Given** Cleo has 20 stars and taps Redeem on two 20-star rewards from two devices in the same second, **When** both requests land, **Then** exactly one redemption exists, her balance is 0, and the other device says she no longer has enough.
+11. **Given** a redemption on the tablet, **When** the phone shows the same tab, **Then** the balance and the card agree within 5 seconds with no reload — and the falling stars play only on the tablet.
+12. **Given** a balance of 19 and a 20-star reward, **When** any request tries to redeem it without the interface, **Then** it is refused and nothing changes.
+
+---
+
+### User Story 4 — Giving stars by hand, and the celebrations (Priority: P4)
+
+Cleo brought home a good report. Ana opens the Rewards tab, taps Give stars, picks Cleo and Ben, enters 10, reads the before-and-after — Cleo 0 → 10, Ben 40 → 50 — and confirms. A week later Ben has been awarded stars he did not earn, and Ana enters −5 for him the same way. That evening Cleo ticks the last thing in her column and the screen bursts into emoji; on Sunday her "Brush teeth" streak reaches seven and the board tells her it was an amazing week.
+
+**Why this priority**: These are the surfaces around the economy — the escape hatch for real life, and the two celebrations Phase 3 explicitly held back to ship together with the third. Each is verified, each is small, and none is needed for stars to be correct.
+
+**Independent Test**: As a parent, give and take stars from two Profiles at once and read the before-and-after against the resulting balances; as a member, attempt the same. Complete the last outstanding occurrence in one column with motion allowed and again with reduced motion; drive a tracked routine's streak to seven.
+
+**Acceptance Scenarios**:
+
+1. **Given** Ana is punched in on the Rewards tab, **When** she taps Give stars, **Then** she can choose one or more Profiles, enter a whole number — negative to take away — and see a before-and-after table for every chosen Profile before confirming.
+2. **Given** the table shows Cleo 0 → 10 and Ben 40 → 50, **When** Ana confirms, **Then** both balances read exactly that, and each Profile has one ledger entry naming the amount, Ana as the actor and the moment.
+3. **Given** Ben has 50, **When** Ana enters −5 for him and confirms, **Then** he has 45 and the entry records −5.
+4. **Given** Ben has 3, **When** Ana enters −5 for him, **Then** the table shows 3 → −2 and the confirmation is refused: a hand adjustment may not take a balance below zero.
+5. **Given** Cleo (a member) is punched in, **When** she looks for Give stars, **Then** it is not offered, and a request that bypasses the interface is refused.
+6. **Given** Cleo has two occurrences outstanding on the displayed day and motion is allowed, **When** the second is completed on this device, **Then** a shower of random emoji falls across the screen once and ends on its own; **and given** she then un-completes one and completes it again, **Then** it plays again — the trigger is the list becoming complete.
+7. **Given** the same board with reduced motion preferred, **When** her list completes, **Then** nothing falls; **and given** her last outstanding occurrence is **skipped** rather than completed, **Then** nothing plays — a skip finishes nothing.
+8. **Given** Cleo's tracked routine reads a streak of 6, **When** the completion that makes it 7 is recorded, **Then** a message on the board congratulates her on an amazing week, once, and again at 14, 21 and every further full week.
+9. **Given** the emoji rain is playing on the tablet, **When** the phone shows the same board, **Then** the phone's board updates and the phone shows no rain — a celebration belongs to the device that earned it.
+
+---
+
+### Edge Cases
+
+- **Un-completing after spending.** Cleo earns 20, redeems a 20-star reward, then un-completes the chore. The retraction is written, her balance reads −20, the Redeem buttons hide, and the redemption stands: a retraction never fails and a redemption is never silently undone. The balance climbs back as she earns (FR-408, Assumption 5).
+- **Deleting a task that earned stars.** The stars stay earned and the entries stay: they name the task by its title and value at the time, not by a link that the deletion would break. The same for deleting a reward that was redeemed (FR-411, FR-421).
+- **Deleting a Profile.** Their balance, their entries and their redemptions go with them, as their resolutions do in Phase 3; a reward eligible only for them is deleted; a reward with other eligible Profiles loses that eligibility and keeps the rest. The Phase 3 delete confirmation gains a third sentence: how many stars are forfeited (FR-440).
+- **A reward's cost is raised above the balance after a Redeem button was showing.** The button becomes a bar on the next paint; a redeem request that raced the edit is checked against the stored cost at the moment of the write and refused if short (FR-428, FR-429).
+- **Two Profiles, one one-time reward.** Each redeems it once, independently; one redeeming does not touch the other's progress (FR-417, FR-430).
+- **A cost or a value at the edge.** A reward costs 1 to 500 inclusive; a task or template is worth 0 to 500, where 0 and blank both mean no stars and no chip (FR-402, FR-416).
+- **Hand adjustment races a completion.** Two entries, two balances in sequence; the before-and-after table is advisory and the write is refused only if the stored balance would end below zero (FR-436).
+- **Midnight.** The column's star pill counts entries whose occurrence is on the displayed day, so it rolls to zero with the board at midnight and reads yesterday's stars when yesterday is navigated to (FR-407).
+- **"Redeemed on" across timezones.** The date shown is the household's day of the redemption, never the device's (FR-433).
+- **Offline.** Every write here is refused rather than queued, exactly as Phase 3's (FR-441).
+- **A late chore completed today.** It earns its stars today — the entry's day is the resolution's day, matching Phase 3's rule that a late completion counts on the day it was ticked (FR-405).
+- **A claimed up-for-grabs chore.** The credited Profile earns the stars; nobody earns anything for an unclaimed one (FR-406).
+
+## Requirements *(mandatory)*
+
+### Functional Requirements
+
+**Star values on tasks and templates**
+
+- **FR-401**: The system MUST let a parent set a star value when creating or editing a chore or a routine, as one field on the ordinary task form after the fields Phase 3 shipped, and MUST let the same be set on a Task Box template as the fourth field of its edit form. `[V](36846200077723, 30486916645531 — a Stars textbox on the task form; 39074226341659 — the template's fourth editable field)`; that it is settable anywhere a parent is punched in, rather than only on the phone, is the master map's divergence 2 `[V](00-master-map §11)` `[OURS 2026-09-05 #2]`.
+- **FR-402**: The system MUST accept a whole number from **0 to 500** as a task's or a template's star value, treat blank and 0 alike as no stars, and show the reference's guidance beside the field — a handful of stars for a daily routine, up to a hundred for a big chore. The guidance is `[V](36846200077723)`; the reference states no upper bound for a task `[?]`, and the bound is `[OURS 2026-09-05 #4]`.
+- **FR-403**: The system MUST show a task's star value as a **gold star chip** on the card face, beside the title, on every surface that draws the card — the board, the details view and the search results — and MUST draw no chip at all on a card worth nothing. The chip on the face is `[V-photo]` (05 `shot06`, 07 §4.11 — "⭐ 10" on the card in both the device and the phone); Phase 3's Contradiction 4 left the question open for this phase, and it is now settled by the photograph `[OURS 2026-09-05 #1]`.
+- **FR-404**: The system MUST pre-fill the star value when a task is added from a Task Box template, with the title, emoji and type Phase 3 already carries over. `[V](39074226341659)` extends `[P3]` FR-378.
+
+**Earning and retracting**
+
+- **FR-405**: The system MUST credit a task's star value to the Profile credited when one of its occurrences is completed, once per occurrence, on the household-local day of the completion, and MUST record the punched-in actor separately from the Profile credited. Per-task, on completion, at that task's value is `[V](36846200077723)`; a late chore counting on the day it was ticked is `[P3]` FR-354; the actor is `[P1]`/`[P3]`.
+- **FR-406**: The system MUST credit nothing for a skipped occurrence, for an unclaimed up-for-grabs occurrence, or for an occurrence whose task is worth nothing. `[V](36846381293979 — "The Profile for the task receives no stars")` for the skip; the other two follow from `[P3]` FR-363/FR-368.
+- **FR-407**: The system MUST show, in each Tasks column header beside the completed-of-total pill, a star pill reading the stars that Profile has earned on the **displayed day** — credits less retractions for occurrences dated that day — and MUST show no such pill on the Up for Grabs column. The pill's existence and place are `[V-photo]` (07 §4.10 "✓ 2/20 · ⭐ 10"; 05 `shot06` "1/20 · ⭐ 10"); what it counts is dossier 02's open question 1 `[?]`, decided `[OURS 2026-09-05 #6]`.
+- **FR-408**: The system MUST retract exactly the stars an occurrence earned when its completion is undone — as a second, reversing entry, never by erasing the first — even where that leaves the balance below zero, and MUST credit nothing when a skip is reversed. `[V](30453883731739 — "The stars associated with un-checked or uncompleted chores will not be counted towards Rewards")`; the compensating entry is the master map's divergence 6 `[V](00-master-map §11)`; the negative balance is `[OURS 2026-09-05 #5]`.
+- **FR-409**: The system MUST credit the value the task carries **at the moment of the completion**, and MUST leave every earlier entry unchanged when a task's or a template's star value is later edited. `[I]` from the ledger model `[OURS 2026-09-05 #5]`.
+- **FR-410**: The system MUST make every completion, undo, redemption, unredemption and hand adjustment visible on other devices within seconds without a reload — the balance, the pill, the bar and the button alike. `[P1]` channel extended to this phase's records `[OURS 2026-09-05]`.
+- **FR-411**: The system MUST keep every ledger entry after the task, the reward or the occurrence it came from is deleted, carrying the title and the amount as they were, so a balance is always the sum of its history. `[OURS 2026-09-05 #5]`.
+
+**Balances**
+
+- **FR-412**: The system MUST hold, for every Profile, a **balance** equal to the sum of every entry credited to that Profile — completions, retractions, redemptions, unredemptions and hand adjustments — and MUST derive it from those entries rather than keep a counter that can drift from them. The per-Profile balance is `[V](skylight-api — reward_points keyed by category_id, current_point_balance)`; deriving it is divergence 6 `[V](00-master-map §11)`.
+- **FR-413**: The system MUST show each Profile's balance under their avatar and name at the head of their Rewards column. `[V](45763229367451 — "under each Profile picture and name")`, `[V-photo]` (07 §4.12 "⭐ 55").
+- **FR-414**: The system MUST NOT hold a balance for a Label, and MUST refuse to credit, adjust or redeem against one. `[P3]` FR-323's reasoning — a Label has nobody to credit — carried to stars `[OURS 2026-09-05]`.
+
+**Rewards**
+
+- **FR-415**: The system MUST let a parent create a reward with a **title** (required), a **description** (optional, shown in the details view and not on the card), an **emoji** (optional, shown on the card), a **star cost**, a **renew after redeeming** switch, and **at least one eligible Profile**, and MUST refuse a reward with no eligible Profile. `[V](44739096640667, 30453626667547)`.
+- **FR-416**: The system MUST accept a star cost from **1 to 500** inclusive and nothing else. `[V](44739096640667, 36846200077723)`.
+- **FR-417**: The system MUST track progress and redemption **per eligible Profile**: a reward for two people is two separate goals against two separate balances, and one person's redemption does not touch the other's. `[V](44739096640667, 30453626667547 — "progress toward it is tracked separately per profile")`; that it is one reward record with several eligibilities rather than the reference's one record per Profile `[V](skylight-api — category_ids fan-out)` is `[OURS 2026-09-05 #7]`.
+- **FR-418**: The system MUST let a parent edit every field of a reward, including its eligible Profiles, and MUST let a parent delete a reward after a confirmation that says it cannot be undone. Edit and delete are `[V](44739096640667, 45763229367451)`; the confirmation wording is `[?]` `[OURS 2026-09-05]`.
+- **FR-419**: The system MUST restrict creating, editing and deleting rewards to **parents**, and MUST refuse a member on every path, not only by hiding the controls. The reference's own answer is an app-versus-device split `[V](30453280620187)` that the project discarded `[V](00-master-map §11)`; the role rule is `[P3]` FR-389's pattern `[OURS 2026-09-05 #3]`.
+- **FR-420**: The system MUST make a reward's progress the Profile's **balance against the reward's cost** — never a per-reward counter — so a change to the cost or to the balance is reflected on every card at once. `[V](36846860676123 — progress shown until affordable)`; the arithmetic is `[I]` `[OURS 2026-09-05 #7]`.
+- **FR-421**: The system MUST keep a deleted reward's redemptions in the ledger (FR-411) and MUST remove the reward from every column. Deletion removing it is `[V](30453438405531 — "visible … unless deleted")`.
+
+**The Rewards tab**
+
+- **FR-422**: The system MUST present the Rewards tab as one column per Profile in the household's order — the same fit rule, wrap and swipe as the Tasks tab — each headed by the Profile's avatar, name and balance, each listing the rewards that Profile is eligible for; MUST show no column for a Label; and MUST NOT render the shell's profile chip row on this tab. Per-Profile columns are `[V](36846860676123, 45763229367451)`, `[V-photo]` (07 §6.4); the swipe between columns is `[V](36846860676123)`; the fit rule and the absent chip row are `[P3]` FR-394–396 and FR-314 applied here `[OURS 2026-09-05 #8]`.
+- **FR-423**: The system MUST show each reward card with its emoji, its title and **either** a progress bar with the Profile's balance over the cost centred on it, when the balance is below the cost, **or** a Redeem button, when the balance meets or exceeds the cost — never both. `[V](36846860676123, 45763229367451 — "will only show the Redeem button on Rewards you have enough stars for")`, `[V-photo]` (07 §4.12, 05 `shot13` — "☆ 55/150", "Redeem ⭐25"); the bar's exact string is dossier 02's open question `[?]`, settled by the photograph `[OURS 2026-09-05 #8]`.
+- **FR-424**: The system MUST require a punched-in actor to redeem, MUST let a **member** redeem only a reward they are eligible for, for themselves, and MUST let a **parent** redeem any reward for any eligible Profile; a refused tap MUST leave everything unchanged and say plainly whose reward it is and that a parent may do it. The gate is `[P3]` FR-350/351 applied here `[OURS 2026-09-05 #3]`.
+- **FR-425**: The system MUST show a redeemed **one-time** reward on its Profile's column as a muted card reading "Redeemed on" and the household-local date, offering nothing but its details, and MUST keep it there until it is unredeemed or deleted. `[V-photo]` (05 `shot13` — "Redeemed on Sep 27", greyed); persistence until deleted is `[V](30453438405531)`.
+- **FR-426**: The system MUST show a per-device **Redeemed** switch on the Rewards tab that shows and hides those redeemed cards, alongside the shipped filter sheet's Profile toggles, which apply to this tab's columns as they do to the Tasks tab. The switch is `[V-photo]` (05 `shot13`, 07 §8 — a "Redeemed" toggle beside "Give stars"); that it is a device preference like Phase 3's filters is `[OURS 2026-09-05 #8]`.
+- **FR-427**: The system MUST order a Profile's reward cards with affordable ones first, then by cost ascending, then by creation, and MUST place redeemed cards last. `[?]` in every source `[OURS 2026-09-05 #8]`.
+
+**Redeeming and unredeeming**
+
+- **FR-428**: The system MUST, on Redeem, check the Profile's balance against the reward's **stored** cost at the moment of the write and refuse if it is short, MUST write one redemption naming the reward, the Profile, the cost as it was, the moment and the actor, and MUST debit exactly that cost from the balance as one ledger entry — all as one act that either wholly happens or wholly does not. The debit and its permanence are `[V](44739096640667 — "removed from that person's Profile and cannot be used for another reward")`; the atomicity is `[OURS 2026-09-05 #9]`.
+- **FR-429**: The system MUST ensure two redemptions of the same reward for the same Profile cannot both succeed against one balance: the second, from any device, MUST be refused and told the Profile no longer has enough. `[OURS 2026-09-05 #9]`, the same posture as `[P3]` FR-370.
+- **FR-430**: The system MUST, after a redemption of a reward that **renews**, return the card to progress from the Profile's remaining balance, and after a redemption of a **one-time** reward, show the redeemed card (FR-425) for that Profile only. Renewing is `[V](30453829370011 — "Recurring Rewards reset after each redemption")`, the switch is `[V](44739096640667)`; the one-time reading is `[I]` `[OURS 2026-09-05 #7]`.
+- **FR-431**: The system MUST offer **Unredeem** on the confirmation modal and on a redeemed card's details, restricted by FR-424's rule, and on Unredeem MUST reverse the redemption — a reversing ledger entry crediting exactly the debited amount, the redemption marked reversed rather than erased — and return the card to what it was. The button is `[V-photo]` (07 §4.13); the path is `[V](skylight-api — `/rewards/{id}/unredeem`)`; the refund is `[I]` `[OURS 2026-09-05 #9]`.
+- **FR-432**: The system MUST show, on a successful redemption, a modal carrying the reward's emoji, the line **"Great work! <Reward> redeemed"**, the line **"By <Profile> for N stars on <date>"**, a primary **Done** and a secondary **Unredeem** — on the device that redeemed, and on that device only. Copy and layout are `[V-photo]` (07 §4.13 — 540×700, serif title, two stacked buttons), corrected from `[V]` by Phase 3's Contradiction 9.
+- **FR-433**: The system MUST write every date it shows for a redemption — in the modal and on a redeemed card — as the household's day of the redemption. `[P2]` FR-284 discipline `[OURS 2026-09-05]`.
+
+**Giving stars by hand**
+
+- **FR-434**: The system MUST offer a **Give stars** control on the Rewards tab that lets a parent choose one or more Profiles, enter one whole amount — a negative number to take stars away — and review a **before-and-after** table of every chosen Profile's balance before confirming. `[V](30456865333403, 30479963424667 — the flow, the table, the negative value; "there is no separate remove-stars control")`; `[V-photo]` (05 `shot13` — the control's name).
+- **FR-435**: The system MUST restrict Give stars to **parents** and refuse a member on every path. `[V](30453280620187)` via divergence 2 `[OURS 2026-09-05 #3]`.
+- **FR-436**: The system MUST write one ledger entry per chosen Profile carrying the amount, the actor and the moment, MUST refuse the whole adjustment if any chosen Profile's balance would end below zero, and MUST accept an amount between −500 and 500 excluding 0. The refusal below zero is `[?]` `[OURS 2026-09-05 #10]`.
+- **FR-437**: The system MUST NOT offer a ledger history screen, a "reset all stars" action or a lifetime-earned figure anywhere. None exists in the reference `[?]` (dossier 02 open questions 9 and 10) `[OURS 2026-09-05 #11]`.
+
+**Celebrations**
+
+- **FR-438**: The system MUST, when a redemption succeeds on a device, scatter gold five-pointed stars across that device's **whole** screen — over the columns as well as the modal — while the screen behind takes a warm wash rather than a dim, ending on its own within a few seconds; MUST play it only on that device; and MUST replace it with nothing under a reduced-motion preference. The look is `[V-photo]` (07 §4.13, §7.1 — `--star-gold`, 28–48 px, whole screen, backdrop warms); its durations are `[ESTIMATED]`; device-locality follows the reference's own "only on the Calendar" `[V](51738602243739)` `[OURS 2026-09-05 #12]`.
+- **FR-439**: The system MUST, when the completion recorded on a device makes **every** occurrence in one Profile's column for the displayed day complete — the denominator being Phase 3's count, so skipped occurrences do not count and a skip cannot finish a list — shower random emoji across that device's screen once, ending on its own; MUST play it again if the list is later un-completed and completed again; MUST play nothing for a list completed by a skip, and nothing on any other device; and MUST replace it with nothing under a reduced-motion preference. The trigger and the name are `[V](myskylight.com/how-to-manage-chores… — "once every chore in someone's list is checked off, the screen will burst into a fun explosion of emojis"; …introducing-skylight-disney-mode — "Skylight's randomized emoji rain")`; the denominator is `[P3]` FR-305; the re-fire and the skip rule are `[?]` `[OURS 2026-09-05 #12]`.
+- **FR-440**: The system MUST, when a completion advances a tracked routine's streak to **seven** — and to each further multiple of seven — show a message on that device's board congratulating the Profile on an amazing week, once per such completion, and MUST show it nowhere else and never for a skipped day. The celebration at a full week is `[V](50672917447067 — "a full week of completed routine tasks earns an Amazing Week celebration")`; the count, the repeat at every week and the copy are `[?]` `[OURS 2026-09-05 #13]`.
+
+**Shared rules**
+
+- **FR-441**: The system MUST refuse — never queue, never optimistically show — a write it cannot complete: offline, a balance that changed underneath, a reward or task that another device deleted first. `[P2]`/`[P3]` posture `[OURS 2026-09-05]`.
+- **FR-442**: The system MUST keep every star-facing record inside the household: another household's balances, entries, rewards and redemptions MUST be invisible on every path that reads, and unwritable on every path that writes, without a client-side write path of any kind. `[P1]` tenancy and the no-client-write rule applied to four new kinds of record `[OURS 2026-09-05]`.
+- **FR-443**: The system MUST amend the Profile delete confirmation to state, alongside Phase 3's task counts, how many stars that Profile forfeits, and MUST delete their entries, redemptions and eligibilities with them — deleting a reward outright when it was eligible for nobody else. `[P3]` FR-391's dialog extended `[OURS 2026-09-05 #14]`.
+- **FR-444**: The system MUST replace the Phase 1 placeholder behind the shipped Rewards navigation tab with this tab, keeping the tab's place, label and star icon. `[P1]` FR-029 fulfilled.
+- **FR-445**: The system MUST make every new control keyboard-operable with a visible focus indicator and a touch target of at least 44×44 points, the Redeem button and the Give-stars confirmation included, and MUST respect a reduced-motion preference in every animation this phase adds — the two showers, the modal's entrance and the bar's fill. `[P1]` FR-035/039, `[P3]` FR-397.
+
+### Key Entities
+
+- **Star value** — how many stars a task, or a Task Box template, is worth: a whole number from nothing to 500, set by a parent, shown as a chip on the card and copied from a template into a task. It is a property of the task, so every assignee earns the same for the same occurrence.
+- **Ledger entry** — one movement of stars for one Profile: a completion's credit, an undo's retraction, a redemption's debit, an unredemption's refund, or a hand adjustment. It carries the amount, the Profile, the punched-in actor, the moment, the household's day, why it was written, and — loosely, by title and value at the time — what it was for. Entries are never edited or deleted; a reversal is a second entry.
+- **Balance** — the sum of a Profile's entries. It is a derived number, shown under the Profile on the Rewards tab and used for every progress bar and every Redeem check; it may read below zero only after a retraction of stars already spent.
+- **Stars today** — the entries for one Profile whose occurrence falls on the displayed day, netted; the Tasks column's star pill. A different number from the balance, deliberately.
+- **Reward** — something a family member can spend stars on: a title, an optional description and emoji, a cost from 1 to 500, whether it renews after redeeming, and the Profiles eligible for it — at least one, never a Label. Its progress is not stored: it is each eligible Profile's balance against its cost.
+- **Redemption** — that one Profile redeemed one reward: the cost as it was, the household's day and moment, the actor, and whether it has since been reversed. A renewing reward may have many; a one-time reward has at most one standing redemption per eligible Profile.
+- **Celebration** — a transient effect on one device: the redemption's falling stars, the whole-list emoji rain, the amazing-week message. Nothing about a celebration is stored; each is a consequence of a write the device itself made.
+
+## Success Criteria *(mandatory)*
+
+### Measurable Outcomes
+
+- **SC-401**: A parent can give a chore a star value in **one** additional field of the form they already use, in under **10 seconds** more than Phase 3's create; and adding from a Task Box template carries the template's star value without being asked.
+- **SC-402**: Every star movement is exact and reversible: across a day containing a completion, an undo, a re-completion, a skip, an unskip, a claim, a late completion and a completion by a parent on a child's behalf, the child's balance equals the sum of the ledger entries, checked by hand, and every entry names the right Profile and the right actor.
+- **SC-403**: A skipped occurrence earns nothing, an unskipped one earns nothing, and neither moves any balance or pill — proved on the same day as SC-402.
+- **SC-404**: A completion on one device changes the star pill and the balance on a second device **within 5 seconds** with no reload; so do an undo, a redemption, an unredemption and a hand adjustment.
+- **SC-405**: Editing a task's star value never rewrites history: a Profile's balance is identical before and after the edit, and only the next completion earns the new value.
+- **SC-406**: Nothing star-facing moves without someone identifying themselves: every redemption, unredemption, hand adjustment and reward create, edit and delete is refused when nobody is punched in — including when the request bypasses the interface — and every one of them is refused for a member where the requirements say parent, including when the request bypasses the interface.
+- **SC-407**: A member can redeem only their own: an attempt on another Profile's reward is refused with a message on every path, and the same attempt by a parent succeeds and credits the right Profile.
+- **SC-408**: Nobody redeems what they cannot afford: with a balance one short of the cost, Redeem is not offered, and a request that bypasses the interface is refused with nothing written; with a balance exactly the cost it succeeds and leaves zero.
+- **SC-409**: A reward redeemed from two devices in the same second ends with **exactly one** redemption, one debit, a refusal on the other device naming the shortfall, and both screens agreeing within 5 seconds.
+- **SC-410**: The two reward kinds are provably different, side by side: after redeeming, a renewing reward is back at progress from the remaining balance and can be redeemed again once affordable; a one-time reward reads "Redeemed on" with the household's date, offers no Redeem, and is still available to another eligible Profile.
+- **SC-411**: Unredeem returns exactly the debited amount, restores the card to what it was, leaves the original redemption and its reversal both on record, and works from both the modal and the card's details.
+- **SC-412**: A hand adjustment's before-and-after table equals the balances that result, for two Profiles adjusted at once and for a negative amount; an adjustment that would leave any chosen Profile below zero is refused with nothing written for anyone.
+- **SC-413**: No celebration plays under a reduced-motion preference — the falling stars, the emoji rain and the amazing-week message's motion — and every one of them, with motion allowed, plays only on the device that made the write, once, and ends on its own within **6 seconds** without a tap.
+- **SC-414**: The emoji rain fires exactly when a Profile's list for the day becomes complete by a completion — not by a skip, not when a filter hides the last outstanding card, and not on the other device — and fires again after an undo and a re-completion.
+- **SC-415**: A tracked routine driven from six to seven consecutive completed days shows the amazing-week message once; driven to fourteen it shows it again; a skipped seventh day shows nothing and the streak holds at six.
+- **SC-416**: The tab never shows a stranger's data: a request for another household's balances, entries, rewards or redemptions returns nothing on every path that reads, and every write path refuses it — proved by an explicit test per path.
+- **SC-417**: The Rewards tab renders with no overlapping controls, every control at least 44×44 points and the columns the space allows at tablet-landscape, tablet-portrait and phone widths; on the phone, one column fills the width and a swipe reaches the next.
+- **SC-418**: Phase 3's SC-319 inverts cleanly: an audit finds a star chip on every card whose task is worth something and none on any card worth nothing; a star pill on every Profile column of the Tasks tab and none on Up for Grabs; four fields on the template edit form; and the Rewards tab live behind the shipped navigation tab, with the placeholder gone.
+- **SC-419**: Deleting a Profile that holds stars states the forfeited count in the confirmation, and afterwards every reward they shared with another Profile is still on that Profile's column with that Profile's own progress intact.
+
+## Assumptions
+
+Decisions the operator took on **2026-09-05**, or delegated and had recorded under the governing rule, wherever the research was inferred, unknown, contradictory, or had no equivalent in the reference product. Recorded here rather than asserted as fact, per constitution §VIII. The numbers are the reference used by the `[OURS 2026-09-05 #n]` tags above.
+
+1. **Everything star-facing ships, and the chip is on the card.** Phase 3 deferred the whole economy and left one question genuinely open — whether a task card carries a star chip — because no article says so. Two photographs do: the device's task card at 186 points with "⭐10" on its face, and the phone app's "Brush teeth ⭐ 10". Under the governing rule a photograph is evidence, so the chip ships on the card face and nowhere is it hidden behind a details view. `[OURS]`
+2. **A parent sets stars wherever they are punched in.** The reference locks the Stars field out of its wall device because the device has no idea who is standing at it; Phase 1 gave ours an identity, and the master map's divergence 2 settled the consequence before this phase. So the task form, the template form and Give stars are one experience on every device — gated by the punch-in, not by the screen. `[OURS]`
+3. **Roles follow Phase 3's split.** Creating, editing and deleting rewards, and giving or taking stars by hand, are parent-only — the things a parent does *to* the economy. Redeeming is the thing a child does *with* it, so a member redeems their own and a parent redeems for anyone, which is FR-351's ownership rule word for word. Unredeem follows the redemption it reverses. `[OURS]`
+4. **A task is worth 0 to 500.** The reference states a cost bound for rewards (1–500) and only guidance for tasks ("five to ten for a daily routine", "one hundred for a big chore"). A task worth more than the dearest possible reward is meaningless, so the reward's own bound is the task's bound too, and zero — which the stored field already allows — means no stars and no chip. `[OURS]`
+5. **The ledger is the truth, and it may go negative once.** Balances are sums of immutable entries, never counters, which is the master map's divergence 6: an undo is a reversing entry, history survives every deletion by carrying its own title and value, and editing a task's worth changes nothing already earned. The one consequence worth naming: un-completing a chore whose stars were already spent leaves the balance below zero, because the reference says un-checked stars "will not be counted" and says nothing about refusing the un-check. Refusing it would make the Tasks tab lie about what was done; letting the balance dip and hiding Redeem until it recovers does not. A hand adjustment, by contrast, may not push a balance below zero (Assumption 10). `[OURS]`
+6. **The Tasks column's star pill counts today.** The reference photographs "⭐ 10" beside "✓ 2/20" and never says what it counts. The phone screenshot is the tiebreaker: one task done, that task worth ten, the pill reading ten. A day's earnings belong on the day's board; the running balance belongs on the Rewards tab, where the reference verifiably puts it. `[OURS]`
+7. **One reward, several eligibilities.** The reference's own store makes one reward row per Profile, so "edit the cookies reward" would mean editing three records that have already drifted. Here a reward is one thing that several people are eligible for, each with their own progress — the balance against the cost, never a stored counter — and their own redemptions. A one-time reward is therefore one-time *per Profile*: Cleo redeeming it leaves Ben's card as it was, which is what the reference's per-row model does anyway. `[OURS]`
+8. **The Rewards tab is the Tasks tab's layout, with one device switch.** Per-Profile columns and a swipe between them are verified; the column fit, the portrait wrap, the phone pager and the absent chip row are Phase 3's measured rules and are reused rather than re-decided. The phone app's "Redeemed" toggle shows redeemed cards; it is a device preference like Phase 3's filters, kept in the tab's own chrome beside Give stars. Card order — affordable first, then cheapest, then oldest, redeemed last — is ours, chosen so the card a child can act on is the first one they see. `[OURS]`
+9. **Redeem is atomic, single, and reversible.** The check-and-debit is one act against the stored cost, so a raced edit or a second device cannot overspend; the same reward cannot be redeemed twice for one Profile against one balance. Unredeem refunds exactly and returns the card, because the reference verifiably has the path and the ledger makes the symmetric reading the cheap one; the redemption is marked reversed and kept, so the modal's "Unredeem" and a later change of heart are the same act. `[OURS]`
+10. **A hand adjustment may not overdraw.** The reference lets a parent enter a negative number and shows a before-and-after table; it does not say what happens when the result is negative. A child seeing "−5" for something they did not do is the wrong lesson, so the table shows the result and the confirmation refuses it. The one legitimate negative balance is Assumption 5's. `[OURS]`
+11. **No ledger screen, no reset, no lifetime figure.** None is in any source; dossier 02 lists the first two as open questions and the API alone carries a lifetime counter. The ledger exists as storage and as the before-and-after table, which is the only history the reference shows. `[OURS]`
+12. **Celebrations belong to the device that earned them.** The reference states its special celebrations play only on the Calendar and not in the app; the same principle, stated for a system where every device is the same app, is that a celebration is a consequence of a write *this* device made. So the falling stars, the emoji rain and the amazing-week message play where the tap happened and nowhere else, and the live update that reaches other devices carries the numbers and not the party. Under reduced motion each is replaced by nothing — the modal and the board already say what happened. `[OURS]`
+13. **"Amazing Week" is the seventh day, and every seventh after.** The article says a full week of completed routine tasks earns the message and no more. Seven consecutive completed days is the streak Phase 3 already keeps, so the message fires when a completion carries a tracked routine's streak to a multiple of seven, once per such completion, and a skipped day — which holds the streak — earns nothing. The copy is ours. `[OURS]`
+14. **Deleting a Profile forfeits their stars, and the dialog says so.** Phase 3's dialog already states task counts and the delete's two opposite promises; a third sentence names the stars forfeited. A reward with nobody left eligible is deleted with them, by the same reasoning as a task left with no assignee. `[OURS]`
+
+Smaller calls are carried by the requirement that makes them and each states its reasoning inline: FR-402 (blank and zero are the same), FR-407 (no pill on Up for Grabs), FR-414 (no balance for a Label), FR-418 (the delete confirmation's wording), FR-433 (household-local dates), FR-436 (the amount's bounds), FR-443 (rewards with nobody left eligible).
+
+## Contradictions in the research, and how each is resolved
+
+1. **The redeem modal's copy and the confetti.** The master map tags both `[V]`; dossier 02 lists both as open questions 3 and 5; dossier 07 reads them off two marketing photographs. **Resolution**: as Phase 3's Contradiction 9 already ruled — they are `[V-photo]`, adopted as such, and the copy is specified from the photograph (FR-432, FR-438). `[OURS 2026-09-05 #1]`
+2. **What "Unredeem" is.** Dossier 02's fetched article on unredeemed rewards describes only rewards not yet redeemed remaining visible, and its open question 4 asks whether a button reverses a completed redemption; dossier 07 photographs an "Unredeem" button on the modal; dossier 06 verifies an `unredeem` path with an inferred effect. **Resolution**: the button and the path are real, the refund is inferred and adopted (FR-431, Assumption 9). `[OURS 2026-09-05 #9]`
+3. **Where rewards are managed.** One article puts creation on the mobile app and edit/delete on the desktop app; another puts all three on the desktop app and give/remove stars on the mobile app; the capability table locks every management verb out of the wall device. **Resolution**: moot — the surface split was discarded in Phase 1 and the master map's divergence 2 replaces it with a role rule (FR-419, FR-435, Assumption 2). `[OURS 2026-09-05 #2]`
+4. **What the column star pill counts.** Dossier 02's open question 1; the master map lists "a star total" in the header without saying of what; the phone screenshot's numbers fit "today". **Resolution**: today (FR-407, Assumption 6). `[OURS 2026-09-05 #6]`
+5. **Whether redemption has a baseline celebration.** Dossier 02 confirms only the task-list emoji explosion and marks a redemption animation unconfirmed; dossier 08 finds third-party titles mentioning "confetti"; dossier 07 photographs gold stars over the whole screen behind the redeem modal. **Resolution**: the photograph wins — falling gold stars on redeem, `[V-photo]` (FR-438). `[OURS 2026-09-05 #12]`
+6. **Whether the emoji rain is per task or per list.** An owner review describes stars dancing on a single tick; the product's own article says the burst comes "once every chore in someone's list is checked off". **Resolution**: per list, as Phase 3's Assumption 21 already ruled; a single tick's feedback stays the card darkening (FR-439). `[OURS 2026-09-05 #12]`
+
+## Dependencies
+
+- Phase 1 (`001-family-foundation`) shipped and deployed: household sign-in, the punch-in actor model and PIN flow, Profiles and Labels, the shell with its Rewards navigation tab and placeholder route, the filter sheet, the create control, the design tokens including `--star-gold`, live updates, and the installed PWA.
+- Phase 2 (`002-family-week-calendar`) shipped and deployed: the household timezone and the discipline of working every date in it; the server-action contract and its refusal posture; the modal and confirmation patterns.
+- Phase 3 (`003-family-tasks`) shipped and deployed: the task and template records with their **reserved star value** (FR-329), the resolution record every credit hangs off, the credited-Profile and actor distinction, the skip rule, the late-completion day rule, the streak the amazing-week message reads, the column counters' denominator the emoji rain reads, the measured column fit and pager the Rewards tab reuses, the per-device filter store, and the Profile delete dialog this phase amends.
+- Five shipped surfaces this phase **changes** rather than inherits: the task create/edit form and the template edit form (a fourth field, FR-401); the task card (a chip, and the height that comes with it, FR-403); the Tasks column header (a star pill, FR-407); the completion path (every completion and undo now also writes a ledger entry, FR-405/408); and the Profile delete confirmation (FR-443). One shipped placeholder is replaced (FR-444).
+- The research dossiers and master map in `docs/research/skylight/`, which this specification treats as the product definition, and the operator's Phase 4 decisions of 2026-09-05 recorded above.
+
+## Out of Scope
+
+Deferred to a later phase of this project: **Lists** and **Meals** (Phase 5 of the locked plan, `family-lists-meals`); **notifications and reminders** of any kind, including any "you earned stars" or "reward redeemed" notice, which belong to the notifications phase; the **home screen**; a **star ledger history screen**, a **reset-all-stars** action and a **lifetime-earned** figure (none exist in the reference; Assumption 11); **sounds** on any celebration (unknown in every source, and the wall display is silent by Phase 1's choice); the **Disney-mode** themed celebrations and stickers; and an offline cache.
+
+Excluded from the project entirely: subscription tiers, of which this project has none — the reference gates rewards behind its paid tier and here they are simply present; companion hardware and its own reward surface; weather; external calendar synchronisation; all AI features; the photo screensaver and sleep mode; themed character modes; grocery-ordering integrations; multi-device linking; and guest invitations.
