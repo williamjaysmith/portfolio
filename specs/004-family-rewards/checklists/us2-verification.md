@@ -23,16 +23,16 @@ PINs are never seeded — set Ana's and Cleo's in Settings first.
 
 | # | Scenario | What to do | What must happen |
 |---|---|---|---|
-| [ ] 1 | Columns | Open Rewards | One column per Profile in household order, avatar + name + balance; no Label; no chip row |
-| [ ] 2 | The bar | Cleo at 15, Bake cookies 20 | Bar three-quarters, "☆ 15/20" on it, no Redeem |
-| [ ] 3 | The button | Movie night 15 | "Redeem ⭐ 15", no bar |
+| [x] 1 | Columns | Open Rewards | One column per Profile in household order, avatar + name + balance; no Label; no chip row |
+| [x] 2 | The bar | Cleo at 15, Bake cookies 20 | Bar three-quarters, "☆ 15/20" on it, no Redeem |
+| [x] 3 | The button | Movie night 15 | "Redeem ⭐ 15", no bar |
 | [ ] 4 | Create | Ana taps + | Six fields; refused with no Profile |
-| [ ] 5 | Two Profiles | Ice cream for Cleo and Ben | Each column shows its own progress; Ana's does not |
+| [x] 5 | Two Profiles | Ice cream for Cleo and Ben | Each column shows its own progress; Ana's does not |
 | [ ] 6 | Details | Tap a card body | Title, description, emoji, cost, renews?, who; Edit/Delete for a parent |
 | [ ] 7 | Member refused | As Cleo | No create/edit/delete controls; a direct call refused |
 | [ ] 8 | Cost edit | Bake cookies 20 → 30 | Every bar re-reads at once |
 | [ ] 9 | Phone | 390×844 | One column, swipe to the next |
-| [ ] 10 | Punched out | Read the tab | Everything visible, no PIN asked |
+| [x] 10 | Punched out | Read the tab | Everything visible, no PIN asked |
 
 ## Where each row is already proved
 

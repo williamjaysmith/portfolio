@@ -23,17 +23,17 @@ PINs are never seeded — set Ana's and Cleo's in Settings first.
 
 | # | Scenario | What must happen |
 |---|---|---|
-| [ ] 1 | Punched out taps Redeem | "Who's here?" first; dismissing changes nothing |
-| [ ] 2 | Cleo redeems Bake cookies at 20 | Balance 0; one redemption; the modal's two lines, Done, Unredeem |
+| [x] 1 | Punched out taps Redeem | "Who's here?" first; dismissing changes nothing |
+| [x] 2 | Cleo redeems Bake cookies at 20 | Balance 0; one redemption; the modal's two lines, Done, Unredeem |
 | [ ] 3 | Cleo taps Ben's reward | Refused, names Ben |
-| [ ] 4 | Ana redeems for Cleo | Cleo's balance; "By Cleo"; actor Ana |
-| [ ] 5 | Motion allowed / reduced | Gold stars over the whole screen, backdrop warmed / nothing |
-| [ ] 6 | Renewing after Done | Back at ☆ 0/20 |
-| [ ] 7 | One-time after Done | Muted "Redeemed on <date>" for Cleo; Ben's card untouched |
-| [ ] 8 | Unredeem from the modal | Balance back exactly; redemption kept as reversed; card restored |
+| [x] 4 | Ana redeems for Cleo | Cleo's balance; "By Cleo"; actor Ana |
+| [x] 5 | Motion allowed / reduced | Gold stars over the whole screen, backdrop warmed / nothing |
+| [x] 6 | Renewing after Done | Back at ☆ 0/20 |
+| [x] 7 | One-time after Done | Muted "Redeemed on <date>" for Cleo; Ben's card untouched |
+| [x] 8 | Unredeem from the modal | Balance back exactly; redemption kept as reversed; card restored |
 | [ ] 9 | Unredeem later from the card | Same, from details |
 | [ ] 10 | Two devices, same second | Exactly one redemption; the other told "no longer has enough" |
-| [ ] 11 | Second device | Balance and card follow within 5 s; no stars fall there |
+| [x] 11 | Second device | Balance and card follow within 5 s; no stars fall there |
 | [ ] 12 | Balance 19, cost 20, off-interface | Refused, nothing written |
 
 ## Where each row is already proved

@@ -24,13 +24,13 @@ PINs are never seeded — set Ana's and Cleo's in Settings first.
 | # | Scenario | What to do | What must happen |
 |---|---|---|---|
 | [ ] 1 | Stars field | Edit a task as Ana | A **Stars** field after Phase 3's fields, 0–500, with the guidance line |
-| [ ] 2 | Chip present / absent | Read Brush teeth (5) and Sort the recycling (none) | A gold chip on the first; none on the second, same card height |
-| [ ] 3 | Tick earns | As Cleo, complete Brush teeth | Her column's star pill reads 5; the Rewards balance rises by 5; one credit row |
-| [ ] 4 | Un-tick retracts | Un-tick it | Pill back; balance back by 5; a second reversing row, the first kept |
+| [x] 2 | Chip present / absent | Read Brush teeth (5) and Sort the recycling (none) | A gold chip on the first; none on the second, same card height |
+| [x] 3 | Tick earns | As Cleo, complete Brush teeth | Her column's star pill reads 5; the Rewards balance rises by 5; one credit row |
+| [x] 4 | Un-tick retracts | Un-tick it | Pill back; balance back by 5; a second reversing row, the first kept |
 | [ ] 5 | Both slots | Complete both Brush teeth slots | 10, not 5 |
 | [ ] 6 | Skip earns nothing | Skip Feed the cat, then unskip | Nothing credited either way |
 | [ ] 7 | Parent on behalf | Ana completes Cleo's Feed the cat | Credited to Cleo; actor Ana |
-| [ ] 8 | Value edit | Change Feed the cat 10 → 3 after a credit | Balance unchanged; the next tick earns 3 |
+| [x] 8 | Value edit | Change Feed the cat 10 → 3 after a credit | Balance unchanged; the next tick earns 3 |
 | [ ] 9 | Second device | Tick on A | B's pill and balance agree within 5 s |
 | [ ] 10 | Template's fourth field | Edit a Task Box template; add from it | Four fields; the value pre-filled |
 

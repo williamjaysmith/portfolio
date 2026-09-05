@@ -204,6 +204,7 @@ in the same commit — a move inside one sub-app, no §I question.
 | Deploy before push takes the channel down | Phase 3's ordering rule, restated in quickstart §4 and the tasks file |
 | The two per-device stores trip `fallow:dupes` | Extract `useDeviceSwitches` the moment it is flagged; never a threshold lift |
 | `deleteCategory`'s second cleanup (rewards left for nobody) is a second statement | Phase 3's posture, restated: a crash between the cascade and the cleanup leaves a reward card in no column — retained, not lost, and repairable by re-running the cleanup; a `SECURITY DEFINER` function would be the fix if it ever bites (R405) |
+| The punch-in prompt arrives at the write, after a form is filled | Raised by the operator during T055: Skylight's Parental Lock gates the action before the form and never asks to tick; ours asks at Save/tick and stays punched in for the timeout. An open UX choice, not changed in this phase — moving the prompt to the tap that opens Add/Edit/Give stars is a small change in the shell's `usePunchInPrompt` consumers |
 | A cascade delete fires the retraction trigger | The trigger writes only while the task and the credited Profile still exist (data-model §025, invariant 4b); the policies suite asserts a task delete keeps the credit and a Profile delete succeeds |
 
 ## Progress

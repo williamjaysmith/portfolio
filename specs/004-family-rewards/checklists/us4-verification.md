@@ -23,12 +23,12 @@ PINs are never seeded — set Ana's and Cleo's in Settings first.
 
 | # | Scenario | What must happen |
 |---|---|---|
-| [ ] 1 | Give stars | Profiles, an amount (negative allowed), the before-and-after table |
-| [ ] 2 | 10 to Cleo and Ben | Both balances exact; one entry each naming Ana |
+| [x] 1 | Give stars | Profiles, an amount (negative allowed), the before-and-after table |
+| [x] 2 | 10 to Cleo and Ben | Both balances exact; one entry each naming Ana |
 | [ ] 3 | −5 from Ben at 50 | 45 |
 | [ ] 4 | −5 from Ben at 3 | Refused: 3 → −2 shown, Confirm disabled; nothing written |
-| [ ] 5 | As Cleo | No Give stars; a direct call refused |
-| [ ] 6 | Last outstanding completed | Emoji rain once; again after undo + re-tick |
+| [x] 5 | As Cleo | No Give stars; a direct call refused |
+| [x] 6 | Last outstanding completed | Emoji rain once; again after undo + re-tick |
 | [ ] 7 | Reduced motion / completed by skip | Nothing |
 | [ ] 8 | A full week / one missed / two missed | Amazing / Strong / nothing, at the next week's first paint |
 | [ ] 9 | Second device | Data only, no rain |
