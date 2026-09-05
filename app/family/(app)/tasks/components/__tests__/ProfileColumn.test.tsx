@@ -54,6 +54,7 @@ let sequence = 0;
 function occurrence(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   sequence += 1;
   return {
+    rewardPoints: null,
     taskId: `task-${sequence}`,
     assigneeId: CLEO,
     scheduledDate: TODAY,
@@ -81,6 +82,7 @@ function renderColumn(options: {
   all: readonly BoardOccurrence[];
   visible?: readonly BoardOccurrence[];
   toggles?: SectionToggles;
+  starsToday?: number;
 }) {
   const onToggleSection = vi.fn();
   const onOpen = vi.fn();
@@ -90,6 +92,7 @@ function renderColumn(options: {
       category={profile()}
       allOccurrences={options.all}
       occurrences={options.visible ?? options.all}
+      starsToday={options.starsToday ?? 0}
       toggles={options.toggles ?? ALL_ON}
       onToggleSection={onToggleSection}
       onOpen={onOpen}
@@ -137,6 +140,15 @@ describe("ProfileColumn", () => {
     const ring = header().querySelector("[data-progress-ring]");
     expect(ring).not.toBeNull();
     expect(Number(ring?.getAttribute("data-fraction"))).toBeCloseTo(1 / 3, 5);
+  });
+
+  it("shows the day's stars beside the count — handed down, never counted here (FR-407, R317)", () => {
+    // The column is given the number the board's counters memo computed, the
+    // same way it is given nothing else to count the stars from: there is no
+    // list of entries in reach, so it cannot sum the wrong day.
+    renderColumn({ all: [occurrence()], starsToday: 15 });
+
+    expect(within(header()).getByLabelText("15 stars earned")).toHaveTextContent("15");
   });
 
   it("counts the UNFILTERED board, never the list it draws (R317, FR-384, SC-310)", () => {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { INK_DARK, PALETTE, inkOn, mixWithWhite, type PaletteColor } from "@/lib/family/colors";
@@ -24,6 +24,7 @@ const TODAY = "2026-09-04";
 
 function occurrence(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   return {
+    rewardPoints: null,
     taskId: "task-brush",
     assigneeId: "cleo",
     scheduledDate: TODAY,
@@ -222,5 +223,52 @@ describe("TaskCard", () => {
       "aria-busy",
       "true",
     );
+  });
+
+  describe("the star chip (FR-403, SC-418)", () => {
+    function chip(): HTMLElement | null {
+      const found = document.querySelector("[data-star-chip]");
+      return found instanceof HTMLElement ? found : null;
+    }
+
+    it("draws a gold star chip reading 5 beside the title of a card worth 5", () => {
+      renderCard(occurrence({ rewardPoints: 5 }));
+
+      const drawn = chip();
+      expect(drawn).not.toBeNull();
+      expect(drawn).toHaveTextContent("5");
+      // Beside the TITLE, inside the body control — where the photograph puts
+      // it — rather than out at the card's edge with the late pill.
+      expect(drawn?.closest("button")).toBe(body("Brush teeth, worth 5 stars"));
+    });
+
+    it("folds the value into the body's accessible name, said once", () => {
+      renderCard(occurrence({ rewardPoints: 5 }));
+
+      expect(body("Brush teeth, worth 5 stars")).toBeInTheDocument();
+      // The chip itself is hidden, so the digits are not read a second time
+      // after the name has already said them.
+      expect(chip()).toHaveAttribute("aria-hidden", "true");
+    });
+
+    it("draws no chip on a card worth nothing — null and 0 alike (FR-402)", () => {
+      renderCard(occurrence({ rewardPoints: null }));
+      expect(chip()).toBeNull();
+      expect(body("Brush teeth")).toBeInTheDocument();
+
+      cleanup();
+
+      renderCard(occurrence({ rewardPoints: 0 }));
+      expect(chip()).toBeNull();
+      expect(body("Brush teeth")).toBeInTheDocument();
+    });
+
+    it("says the value after the marks the card already spoke", () => {
+      renderCard(occurrence({ rewardPoints: 5 }), SUNSHINE, {
+        progress: { complete: 1, total: 3 },
+      });
+
+      expect(body("Brush teeth, 1 of 3 complete, worth 5 stars")).toBeInTheDocument();
+    });
   });
 });

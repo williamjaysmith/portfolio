@@ -34,9 +34,17 @@ const DB_ERROR_CODES: Record<string, ActionFailure["code"]> = {
   "23505": "CONFLICT", // unique violation
   "23503": "CONFLICT", // foreign key violation
   "22023": "VALIDATION", // malformed PIN, raised by set_pin
-  P0002: "NOT_FOUND", // no such profile, raised by the PIN functions
+  P0002: "NOT_FOUND", // no such profile (PIN functions) or reward (assert_redemption)
   PGRST116: "NOT_FOUND", // .single() found no row
   "42501": "FORBIDDEN", // privilege / not a member
+  // 004 R403 — the money rules the ledger triggers raise (025, 026). The
+  // actions that meet them override the copy with the Profile's name where the
+  // contract says so (FR-429, FR-436); the code alone is decided here.
+  P0004: "VALIDATION", // a hand adjustment would leave the balance below zero
+  P0005: "FORBIDDEN", // the reward is not for this Profile
+  P0006: "CONFLICT", // a one-time reward already redeemed by this Profile
+  P0007: "CONFLICT", // not enough stars — the balance moved under the tap
+  P0008: "CONFLICT", // already unredeemed — a second reversal
 };
 
 /**

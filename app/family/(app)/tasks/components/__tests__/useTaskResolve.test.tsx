@@ -50,6 +50,7 @@ const REFUSAL = "That's Ben's task — only Ben or a parent can do it.";
 
 function occurrence(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   return {
+    rewardPoints: null,
     taskId: "22222222-2222-4222-8222-222222222222",
     assigneeId: CLEO,
     scheduledDate: TODAY,

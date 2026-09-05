@@ -48,6 +48,7 @@ function task(overrides: Partial<Task> = {}): Task {
     renewAfterAmount: null,
     renewAfterUnit: null,
     renewUntil: null,
+    rewardPoints: null,
     assignees: [assignee(ANA)],
     createdBy: null,
     updatedBy: null,
@@ -501,6 +502,56 @@ describe("carryForwardPass (FR-356, FR-357, FR-358)", () => {
     const occurrences = carryForwardPass(upForGrabs, context());
     expect(occurrences).toHaveLength(1);
     expect(occurrences[0].assigneeId).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------- 004 T017 ----- */
+
+describe("rewardPoints rides every occurrence (004 FR-403, R406)", () => {
+  // The chip reads the task's value AS IT IS NOW from the occurrence; what a
+  // past completion actually earned is the ledger's business (FR-409). One
+  // assertion per generator, so a generator that forgot the field fails by
+  // name rather than through whichever card happened to render first.
+  const WORTH = 15;
+
+  it("routineOccurrences carries it onto every slot", () => {
+    const routine = task({
+      routine: true,
+      startsOn: "2026-09-01",
+      rrule: "FREQ=DAILY;INTERVAL=1",
+      timesOfDay: ["morning", "evening"],
+      rewardPoints: WORTH,
+    });
+    expect(routineOccurrences(routine, context()).map((one) => one.rewardPoints)).toEqual([
+      WORTH,
+      WORTH,
+    ]);
+  });
+
+  it("scheduledChoreOccurrences carries it", () => {
+    expect(scheduledChoreOccurrences(task({ rewardPoints: WORTH }), context())[0].rewardPoints).toBe(
+      WORTH,
+    );
+  });
+
+  it("anytimeChoreOccurrences carries it", () => {
+    expect(
+      anytimeChoreOccurrences(task({ startsOn: null, rewardPoints: WORTH }), context())[0]
+        .rewardPoints,
+    ).toBe(WORTH);
+  });
+
+  it("cursorChoreOccurrences carries it", () => {
+    const cursor = task({ renewAfterAmount: 14, renewAfterUnit: "day", rewardPoints: WORTH });
+    expect(cursorChoreOccurrences(cursor, context())[0].rewardPoints).toBe(WORTH);
+  });
+
+  it("carryForwardPass carries it, and a task worth nothing stays null", () => {
+    expect(
+      carryForwardPass(task({ startsOn: "2026-09-01", rewardPoints: WORTH }), context())[0]
+        .rewardPoints,
+    ).toBe(WORTH);
+    expect(carryForwardPass(task({ startsOn: "2026-09-01" }), context())[0].rewardPoints).toBeNull();
   });
 });
 

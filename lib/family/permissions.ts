@@ -12,6 +12,11 @@
  * decision is affordance ONLY — FR-350 puts the gate on the server "rather than
  * by hiding controls", so the completion circle stays rendered and tappable and
  * nothing here ever pre-refuses a tap.
+ *
+ * Phase 4 adds the second record-dependent rule (FR-424, R410): a redemption
+ * names the Profile it credits, and `mayRedeemFor` is FR-351 applied to that
+ * noun — a member for themselves, a parent for anyone. The four things a parent
+ * does TO the economy (FR-419, FR-435) are plain parent-only verbs.
  */
 
 import type { Category, Role } from "./types";
@@ -32,7 +37,15 @@ export type Operation =
   | "manage_tasks"
   | "manage_task_box"
   | "resolve_occurrence"
-  | "reorder_routines";
+  | "reorder_routines"
+  // Phase 4's verbs (R410): the first four are a parent's (FR-419, FR-435); the
+  // last two are decided by `mayRedeemFor` on the Profile the redemption credits.
+  | "reward.create"
+  | "reward.edit"
+  | "reward.delete"
+  | "stars.adjust"
+  | "reward.redeem"
+  | "reward.unredeem";
 
 /**
  * The record a target-aware operation touches (FR-351) — the first rule in this
@@ -58,6 +71,11 @@ export interface PermissionContext {
   householdHasParent: boolean;
   /** Read only by the target-aware operations; every other one ignores it. */
   target?: OccurrenceTarget;
+  /**
+   * The Profile a redemption or unredemption would credit (FR-424) — read only
+   * by `reward.redeem` and `reward.unredeem`; every other operation ignores it.
+   */
+  redeemFor?: string;
 }
 
 /** A member's answer depends on the record, so the actor carries its identity. */
@@ -112,20 +130,49 @@ export function ownsOccurrence(
   return target.assigneeId === actor.profileId && credited === actor.profileId;
 }
 
+/** The two verbs FR-424 decides on the Profile a redemption credits. */
+const REDEEM_OPERATIONS: ReadonlySet<Operation> = new Set<Operation>([
+  "reward.redeem",
+  "reward.unredeem",
+]);
+
 /**
- * A member is refused every verb FR-389 reserves, and every target-aware one
- * whose record is not theirs — including one the caller supplied no record for,
- * since a decision with nothing to own cannot be an allowance.
+ * FR-424, stated once: a member may redeem (and unredeem, FR-431) only for
+ * their own Profile, a parent for anyone, and nobody without an actor. An actor
+ * whose identity the caller does not know owns no Profile, so a member without
+ * a `profileId` is refused — a redemption is never anonymous.
+ */
+export function mayRedeemFor(actor: PermissionActor | null, targetCategoryId: string): boolean {
+  if (actor === null) return false;
+  if (actor.role === "parent") return true;
+  return actor.profileId !== undefined && actor.profileId === targetCategoryId;
+}
+
+/** FR-351 for a member: the record must be theirs, and the caller must have supplied one. */
+function memberOwnsTarget(actor: PermissionActor, ctx: PermissionContext): boolean {
+  if (ctx.target === undefined || actor.profileId === undefined) return false;
+  return ownsOccurrence({ profileId: actor.profileId }, ctx.target);
+}
+
+/** FR-424 for a member: the redemption must credit them, and the caller must have named a Profile. */
+function memberMayRedeem(actor: PermissionActor, ctx: PermissionContext): boolean {
+  return ctx.redeemFor !== undefined && mayRedeemFor(actor, ctx.redeemFor);
+}
+
+/**
+ * A member is refused every verb FR-389 and R410 reserve, and every target-aware
+ * one whose record is not theirs — including one the caller supplied no record
+ * for, since a decision with nothing to own cannot be an allowance.
  */
 function decideForMember(
   actor: PermissionActor,
   op: Operation,
   ctx: PermissionContext,
 ): Decision {
-  const refused: Decision = { allowed: false, reason: "FORBIDDEN" };
-  if (!TARGET_AWARE.has(op)) return refused;
-  if (ctx.target === undefined || actor.profileId === undefined) return refused;
-  return ownsOccurrence({ profileId: actor.profileId }, ctx.target) ? { allowed: true } : refused;
+  let allowed = false;
+  if (REDEEM_OPERATIONS.has(op)) allowed = memberMayRedeem(actor, ctx);
+  else if (TARGET_AWARE.has(op)) allowed = memberOwnsTarget(actor, ctx);
+  return allowed ? { allowed: true } : { allowed: false, reason: "FORBIDDEN" };
 }
 
 export function can(

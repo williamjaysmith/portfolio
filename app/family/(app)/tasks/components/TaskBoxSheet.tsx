@@ -16,7 +16,8 @@ import type { TaskBoxItem } from "@/lib/family/types";
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
 import { FIELD, LABEL } from "../../components/settings/CategoryFields";
 import { useModalDialog } from "../../components/useModalDialog";
-import type { TaskFormSeed } from "./useTaskForm";
+import { StarsField } from "./TaskForm";
+import { starsOf, starsTextOf, type TaskFormSeed } from "./useTaskForm";
 
 /**
  * T072 — the Task Box (FR-376…FR-381), reached from the tab's create control:
@@ -34,24 +35,25 @@ import type { TaskFormSeed } from "./useTaskForm";
  *     typed. That is a different control from the board's task search (FR-386),
  *     which filters occurrences by title or description; the two never meet.
  *   - **Choosing one is not an action** (FR-378). It hands the board a
- *     `TaskFormSeed` carrying the template's three values, and the ordinary
- *     create form opens pre-filled — with the assignment and the schedule empty
- *     and still required, because a template cannot hold either (FR-377). The
- *     save is `createTask` like any other, which is what keeps SC-318's "asks
- *     only for the assignment and the schedule" true by construction.
- *   - **Editing offers exactly three fields** — title, emoji, type — and
- *     deleting warns first that it cannot be undone, and that tasks already
- *     made from the template are unaffected (FR-380, FR-381, US4-11/12). There
- *     is **no star value** on this surface or in the record it sends: the
- *     reference's fourth editable field is deferred with the rest of the star
- *     surface (FR-329, SC-319).
+ *     `TaskFormSeed` carrying the template's four values — title, emoji, type
+ *     and star value (004 FR-404) — and the ordinary create form opens
+ *     pre-filled, with the assignment and the schedule empty and still
+ *     required, because a template cannot hold either (FR-377). The save is
+ *     `createTask` like any other, which is what keeps SC-318's "asks only for
+ *     the assignment and the schedule" true by construction.
+ *   - **Editing offers exactly four fields** — title, emoji, type, and the
+ *     star value that is the reference's fourth editable field (FR-380,
+ *     004 FR-401) — and deleting warns first that it cannot be undone, and
+ *     that tasks already made from the template are unaffected (FR-381,
+ *     US4-11/12). The star field is the task form's own `StarsField`, so the
+ *     two surfaces cannot drift (FR-402's rules, once).
  *
  * **New template** is here for the same reason, on the same form: FR-389 makes
  * "managing Task Box templates" a parent's verb and the contract gives the box
  * three actions, of which `createTaskBoxItem` is one — FR-379's *Save to task
  * box* is a flag on `createTask` and so is not its caller. A template that can
- * be edited and deleted here can be made here, with the same three fields and
- * no fourth.
+ * be edited and deleted here can be made here, with the same four fields and
+ * no fifth.
  *
  * And what it is not: the gate. Edit and Delete are drawn for a parent only as
  * an affordance (FR-389); `lib/family/actions/task-box.ts` refuses a member's
@@ -59,7 +61,7 @@ import type { TaskFormSeed } from "./useTaskForm";
  */
 
 export interface TaskBoxSheetProps {
-  /** FR-378: the chosen template's three values, for the ordinary create form. */
+  /** FR-378 / 004 FR-404: the chosen template's four values, for the ordinary create form. */
   onChoose: (seed: TaskFormSeed) => void;
   /** Back to where the sheet was opened from — the create form (FR-376). */
   onClose: () => void;
@@ -89,27 +91,36 @@ export function matchingTemplates(
 }
 
 /**
- * FR-378's prefill, and the whole of it: a title, an emoji and a type. Every
- * other field of the draft is left at its blank default, so the assignment and
- * the schedule are asked for exactly as they are on an empty form (US4-10).
+ * FR-378's prefill, and the whole of it: a title, an emoji, a type and the
+ * star value (004 FR-404). Every other field of the draft is left at its blank
+ * default, so the assignment and the schedule are asked for exactly as they
+ * are on an empty form (US4-10).
  */
 function templateSeedOf(item: TaskBoxItem): TaskFormSeed {
   return {
     summary: item.summary,
     emoji: item.emoji ?? "",
     type: item.routine ? "routine" : "chore",
+    rewardPoints: starsTextOf(item.rewardPoints),
   };
 }
 
-/** FR-377's three fields, as the edit form hands them back. */
+/** FR-377's fields, plus 004's fourth, as the edit form hands them back. */
 interface TemplateFields {
   summary: string;
   emoji: string | null;
   routine: boolean;
+  /** 004 FR-401/FR-402: a number 0–500, or null for none; never the typed text. */
+  rewardPoints: number | null;
 }
 
-/** What a brand-new template starts as: a chore with no title and no emoji. */
-const BLANK_TEMPLATE: TemplateFields = { summary: "", emoji: null, routine: false };
+/** What a brand-new template starts as: a chore with no title, no emoji and no stars. */
+const BLANK_TEMPLATE: TemplateFields = {
+  summary: "",
+  emoji: null,
+  routine: false,
+  rewardPoints: null,
+};
 
 /* ----------------------------------------------------------- the writes -- */
 
@@ -233,8 +244,9 @@ function TemplateRow({
 }
 
 /**
- * FR-380's three fields, and there is no fourth: the star value the reference
- * edits on this same form is deferred whole (FR-329, SC-319).
+ * FR-380's three fields and 004 FR-401's fourth, the star value, on the task
+ * form's own `StarsField`. A refusal is the sheet's notice (FR-393), so the
+ * field carries no error slot of its own here.
  */
 function TemplateEditor({
   title,
@@ -253,10 +265,16 @@ function TemplateEditor({
   const [summary, setSummary] = useState(initial.summary);
   const [emoji, setEmoji] = useState(initial.emoji ?? "");
   const [routine, setRoutine] = useState(initial.routine);
+  const [stars, setStars] = useState(starsTextOf(initial.rewardPoints));
 
   function submit(): void {
     const trimmed = emoji.trim();
-    onSave({ summary: summary.trim(), emoji: trimmed === "" ? null : trimmed, routine });
+    onSave({
+      summary: summary.trim(),
+      emoji: trimmed === "" ? null : trimmed,
+      routine,
+      rewardPoints: starsOf(stars),
+    });
   }
 
   return (
@@ -295,6 +313,7 @@ function TemplateEditor({
         />
         Routine
       </label>
+      <StarsField value={stars} onChange={setStars} />
       <div className="flex justify-end gap-2">
         <button
           type="button"
@@ -359,9 +378,14 @@ function DeleteWarning({
   );
 }
 
-/** FR-377's three fields, read off a stored template. */
+/** FR-377's fields and 004's fourth, read off a stored template. */
 function fieldsOf(item: TaskBoxItem): TemplateFields {
-  return { summary: item.summary, emoji: item.emoji, routine: item.routine };
+  return {
+    summary: item.summary,
+    emoji: item.emoji,
+    routine: item.routine,
+    rewardPoints: item.rewardPoints,
+  };
 }
 
 /** What a template surface is open over — `null` when this row is at rest. */
@@ -436,8 +460,7 @@ function TemplateSection({
 
 /**
  * The box's own create path (FR-389): a control until it is tapped, then the
- * very form an edit uses, with the same three fields and the same absent
- * fourth.
+ * very form an edit uses, with the same four fields.
  */
 function NewTemplate({ writes }: { writes: TemplateWrites }) {
   if (writes.open?.kind === "new") {
@@ -560,7 +583,7 @@ export function TaskBoxSheet({ onChoose, onClose }: TaskBoxSheetProps) {
         </p>
       )}
 
-      {/* FR-389's third parent-only verb, on the same three-field form. */}
+      {/* FR-389's third parent-only verb, on the same four-field form. */}
       {handlers.mayManage ? <NewTemplate writes={writes} /> : null}
 
       <TaskBoxBody

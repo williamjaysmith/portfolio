@@ -12,6 +12,7 @@ import type {
   ActorSession,
   BoardOccurrence,
   Category,
+  StarEntry,
   Task,
   TaskCursor,
   TaskResolution,
@@ -64,7 +65,7 @@ import {
  *
  *   useDayAnchor          {today | pinned} displayed day over the shared clock
  *   useBoardGeometry      measures the mounted board → how many columns fit
- *   useBoardOccurrences   the four reads → expand → the counter branch (R317)
+ *   useBoardOccurrences   the five reads → expand → the counter branch (R317)
  *   useSectionToggles     the clock's window, with per-column overrides (R322)
  *   useTaskResolve        the one `withActor` commit path (R323)
  *
@@ -83,10 +84,11 @@ import {
  * Nothing here filters, and the board holds the day TWICE for that reason:
  * `occurrences` is the drawn slice, below `useBoardOccurrences`'s filter layer,
  * and `allOccurrences` is the whole day above it. Every number a column shows —
- * FR-305's ring, FR-312's per-routine indicator, FR-308's count — is computed
- * from the second, and only the cards are partitioned out of the first, which
- * is what makes "filters and search never move the counters" structural rather
- * than remembered (FR-384, FR-386, SC-310, SC-320, R317).
+ * FR-305's ring, FR-312's per-routine indicator, FR-308's count, and FR-407's
+ * star pill (004 T027, summed from the week's entries in the same memo) — is
+ * computed from the second, and only the cards are partitioned out of the
+ * first, which is what makes "filters and search never move the counters"
+ * structural rather than remembered (FR-384, FR-386, SC-310, SC-320, R317).
  *
  * **An unclaimed Up for Grabs tap is diverted** rather than written (T063):
  * FR-368 forbids an anonymous completion, so the circle opens `ClaimDialog`,
@@ -158,21 +160,23 @@ export function boardColumnsOf(
   return { upForGrabs, byProfile };
 }
 
-/** The four seeds, each offered only to the cache entry it was fetched for. */
+/** The five seeds, each offered only to the cache entry it was fetched for. */
 export interface BoardSeeds {
   initialTasks: Task[];
   initialResolutions?: TaskResolution[];
   initialCarry?: TaskResolution[];
   initialCursors: TaskCursor[];
+  /** 004 R407: windowed by the SAME week as the resolutions, and withheld with them. */
+  initialStarWeek?: StarEntry[];
 }
 
 /**
  * R314's seeding rule. Definitions and cursor tails are unwindowed, so they
- * seed their one key always; the resolutions are keyed by the anchored week and
- * the carry tail by today's date, so each is withheld the moment the board has
- * navigated away from the day the server fetched for — seeding whichever window
- * happens to be mounted would hand it another window's rows for a whole
- * `staleTime`.
+ * seed their one key always; the resolutions and the star week are keyed by
+ * the anchored week and the carry tail by today's date, so each is withheld
+ * the moment the board has navigated away from the day the server fetched
+ * for — seeding whichever window happens to be mounted would hand it another
+ * window's rows for a whole `staleTime`.
  */
 export function boardSeedsOf(
   props: TasksBoardProps,
@@ -187,6 +191,7 @@ export function boardSeedsOf(
     initialCursors: props.initialCursors,
     initialResolutions: sameWeek ? props.initialResolutions : undefined,
     initialCarry: displayed.todayDate === props.initialDate ? props.initialCarry : undefined,
+    initialStarWeek: sameWeek ? props.initialStarWeek : undefined,
   };
 }
 
@@ -684,6 +689,8 @@ export interface TasksBoardProps {
   initialResolutions: TaskResolution[];
   initialCarry: TaskResolution[];
   initialCursors: TaskCursor[];
+  /** The fifth read (004 R407): the anchored week's star entries, for FR-407's pill. */
+  initialStarWeek: StarEntry[];
 }
 
 /**
@@ -917,6 +924,9 @@ function useTasksBoardModel(props: TasksBoardProps) {
     // The whole day, for the numbers above the cards; the drawn slice reaches
     // the columns already partitioned, as `columns` (R317, R318).
     allOccurrences: board.allOccurrences,
+    // FR-407's pill per Profile, from the same memo as every other number —
+    // handed down as a closure over the week's entries, never the entries.
+    starsToday: board.counters.starsToday,
     columns,
     drawnProfiles,
     reorder,
@@ -971,6 +981,7 @@ function drawnColumnsOf(m: TasksBoardModel): DrawnColumn[] {
           category={profile}
           allOccurrences={m.allOccurrences}
           occurrences={m.columns.byProfile[profile.id] ?? []}
+          starsToday={m.starsToday(profile.id)}
           toggles={m.toggles.sectionsFor(profile.id)}
           onToggleSection={(section) => m.toggles.toggleSection(profile.id, section)}
           photoUrl={m.avatarUrls[profile.id]}

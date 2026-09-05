@@ -19,6 +19,10 @@ import { useFamilyRealtime } from "../useFamilyRealtime";
  * so a filter here would not merely miss a rare delete but the commonest write
  * of the phase. The status callback is the other half — a channel that never
  * subscribes fails silently, and the wall tablet would go on showing yesterday.
+ *
+ * 004 FR-410 / R411 adds the four rewards tables on the same terms: an un-tick
+ * writes a ledger row and a reward's deletion is a DELETE, and both must reach
+ * the other device's balance, pill, bar and button within seconds.
  */
 
 type CapturedSubscription = {
@@ -65,6 +69,10 @@ const UNFILTERED_TABLES = [
   "task_assignees",
   "task_resolutions",
   "task_box_items",
+  "rewards",
+  "reward_eligibilities",
+  "star_entries",
+  "redemptions",
 ] as const;
 
 function renderRealtime() {

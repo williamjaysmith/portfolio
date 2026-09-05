@@ -47,6 +47,7 @@ function taskRow(overrides: Partial<TaskWithAssigneesRow> = {}): TaskWithAssigne
     renew_after_amount: null,
     renew_after_unit: null,
     renew_until: null,
+    reward_points: null,
     created_by: null,
     updated_by: null,
     created_at: "2026-09-01T10:00:00.000Z",
@@ -72,9 +73,9 @@ describe("task column lists (no select('*'))", () => {
     }
   });
 
-  it("never selects the reserved star value (FR-329, SC-319)", () => {
-    expect(TASK_COLUMNS).not.toContain("reward_points");
-    expect(TASK_BOX_COLUMNS).not.toContain("reward_points");
+  it("selects the star value Phase 3 reserved, on both tables (004 R406, SC-418)", () => {
+    expect(TASK_COLUMNS.split(", ")).toContain("reward_points");
+    expect(TASK_BOX_COLUMNS.split(", ")).toContain("reward_points");
   });
 
   it("keeps the two created_at columns the derivations depend on", () => {
@@ -137,6 +138,11 @@ describe("toTask", () => {
     expect(cursor.renewAfterUnit).toBe("day");
     expect(cursor.renewUntil).toBe("2026-12-31");
   });
+
+  it("carries the star value as stored, null when the task is worth nothing (FR-403)", () => {
+    expect(toTask(taskRow({ reward_points: 5 })).rewardPoints).toBe(5);
+    expect(toTask(taskRow({ reward_points: null })).rewardPoints).toBeNull();
+  });
 });
 
 describe("toTaskResolution / toTaskCursor / toTaskBoxItem", () => {
@@ -183,13 +189,14 @@ describe("toTaskResolution / toTaskCursor / toTaskBoxItem", () => {
     });
   });
 
-  it("maps a template's three fields and its attribution", () => {
+  it("maps a template's four fields and its attribution (FR-401)", () => {
     const item = toTaskBoxItem({
       id: "box-1",
       household_id: "house",
       summary: "Brush teeth",
       emoji: "🪥",
       routine: true,
+      reward_points: 5,
       created_by: null,
       updated_by: null,
       created_at: "2026-09-01T10:00:00.000Z",
@@ -198,5 +205,6 @@ describe("toTaskResolution / toTaskCursor / toTaskBoxItem", () => {
     expect(item.summary).toBe("Brush teeth");
     expect(item.emoji).toBe("🪥");
     expect(item.routine).toBe(true);
+    expect(item.rewardPoints).toBe(5);
   });
 });

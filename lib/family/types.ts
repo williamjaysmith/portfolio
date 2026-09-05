@@ -356,9 +356,6 @@ export interface TaskAssignee {
  * Occurrences are computed, never stored. The four chore sub-types fall out of
  * `startsOn` and `dueTime` (FR-325); the repeat mode is which of `rrule` and
  * `renewAfterAmount` is populated (FR-339).
- *
- * `rewardPoints` is deliberately absent: the reserved star value is read by
- * nothing this phase (FR-329, SC-319).
  */
 export interface Task {
   id: string;
@@ -382,6 +379,13 @@ export interface Task {
   renewAfterAmount: number | null;
   renewAfterUnit: RenewUnit | null;
   renewUntil: string | null;
+  /**
+   * The star value a completion credits (004 FR-401, FR-405), 0–500; null =
+   * worth nothing, which draws no chip (FR-403). Read by the credit trigger at
+   * the moment of the completion, so a later edit changes nothing already
+   * earned (FR-409).
+   */
+  rewardPoints: number | null;
   assignees: TaskAssignee[];
   createdBy: string | null;
   updatedBy: string | null;
@@ -429,9 +433,10 @@ export interface TaskCursor {
 }
 
 /**
- * One Task Box template. FR-377 fixes the field set exactly: a title, an
- * optional emoji and a type — no description, date, repeat or assignment, and
- * no star value on any surface (FR-329, SC-319).
+ * One Task Box template. FR-377 fixes the field set: a title, an optional
+ * emoji and a type — no description, date, repeat or assignment — and Phase 4
+ * adds the fourth field, the star value a task made from it starts with
+ * (004 FR-401, FR-404).
  */
 export interface TaskBoxItem {
   id: string;
@@ -439,6 +444,8 @@ export interface TaskBoxItem {
   summary: string;
   emoji: string | null;
   routine: boolean;
+  /** 0–500; null = worth nothing. Copied onto the create form's Stars field (FR-404). */
+  rewardPoints: number | null;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: string;
@@ -500,6 +507,12 @@ export interface BoardOccurrence {
   state: OccurrenceState;
   /** The Profile a resolution credited — an up-for-grabs claim (FR-367); null while unresolved. */
   creditedCategoryId: string | null;
+  /**
+   * The task's star value as it is NOW, carried unchanged by `expandTaskDay`
+   * (004 FR-403): the card's chip when > 0, nothing otherwise. What a past
+   * completion actually earned lives in the ledger, not here (FR-409).
+   */
+  rewardPoints: number | null;
 }
 
 /**
@@ -512,4 +525,106 @@ export interface TaskFilters {
   late: boolean;
   skipped: boolean;
   upForGrabs: boolean;
+}
+
+/* ------------------------------------------------------------------------- *
+ * Rewards (Phase 4 — specs/004-family-rewards)
+ * ------------------------------------------------------------------------- */
+
+/**
+ * The five movements of stars (025 `star_entries.kind`). Credits and
+ * retractions hang off a resolution and carry `earnedOn`; redemptions and
+ * refunds hang off a redemption; an adjustment is a parent's hand (FR-436).
+ * The sign is the kind's: credit and refund positive, retraction and
+ * redemption negative, an adjustment either way.
+ */
+export type StarEntryKind = "credit" | "retraction" | "redemption" | "refund" | "adjustment";
+
+/**
+ * One `family.rewards` row with its eligibilities embedded (024): something a
+ * Profile can spend stars on. One record, several eligible Profiles, progress
+ * derived per Profile from their balance against `pointValue` (FR-417,
+ * FR-420, Assumption 7) — there is no per-reward counter.
+ */
+export interface Reward {
+  id: string;
+  householdId: string;
+  name: string;
+  /** Shown in the details view, never on the card (FR-415). */
+  description: string | null;
+  emoji: string | null;
+  /** The cost, 1–500 (FR-416). Editing it changes no redemption's stored cost (FR-420). */
+  pointValue: number;
+  /** FR-430: "Renew after redeeming" — the reference's field name. */
+  respawnOnRedemption: boolean;
+  /** The eligible Profiles, in a pinned order; never a Label (FR-414). At least one (FR-415). */
+  categoryIds: string[];
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One movement of stars for one Profile (025) — append-only; a reversal is a
+ * second row, never an edit (FR-408, FR-412, Assumption 5). The Profile
+ * credited is `categoryId`; the punched-in actor is `createdBy` (FR-405).
+ */
+export interface StarEntry {
+  id: string;
+  householdId: string;
+  categoryId: string;
+  /** Never 0; signed by kind. */
+  amount: number;
+  kind: StarEntryKind;
+  /** The household day the stars were EARNED — what the column pill sums (FR-407). Null off a resolution. */
+  earnedOn: string | null;
+  /** Loose references, no FK: history survives what it was for (FR-411, FR-421). */
+  resolutionId: string | null;
+  redemptionId: string | null;
+  /** The task's or reward's title as it was; null on an adjustment. */
+  summary: string | null;
+  createdBy: string | null;
+  /** The household day of the write. */
+  enteredOn: string;
+  createdAt: string;
+}
+
+/**
+ * One row of the `family.star_balances` view: a Profile's balance, the sum of
+ * their entries (FR-412). May be negative after an un-tick of spent stars
+ * (Assumption 5); a Label never has one (FR-414).
+ */
+export interface StarBalance {
+  categoryId: string;
+  balance: number;
+}
+
+/**
+ * That one Profile redeemed one reward (026), with the cost and the name AS
+ * THEY WERE (FR-428) and the household day (FR-433). Reversible, never erased:
+ * `reversedAt` set means unredeemed (FR-431); one standing (unreversed) row per
+ * one-time reward and Profile (FR-430).
+ */
+export interface Redemption {
+  id: string;
+  householdId: string;
+  rewardId: string;
+  categoryId: string;
+  pointValue: number;
+  rewardName: string;
+  redeemedOn: string;
+  redeemedAt: string;
+  /** The punched-in actor, who may be a parent redeeming on the Profile's behalf (FR-424). */
+  redeemedBy: string | null;
+  reversedAt: string | null;
+  reversedBy: string | null;
+}
+
+/**
+ * The Rewards tab's one per-device switch (FR-426, R409), on the `TaskFilters`
+ * pattern: off by default, so only unredeemed rewards show until it is on.
+ */
+export interface RewardFilters {
+  redeemed: boolean;
 }

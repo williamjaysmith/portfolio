@@ -82,6 +82,11 @@ export interface TaskDraft {
   timesOfDay: TimeOfDay[];
   /** FR-379, and a create-time choice only. */
   saveToTaskBox: boolean;
+  /**
+   * 004 FR-401's star value as typed — text, so a half-typed number is not
+   * silently repaired. `""` is none; `starsOf` sends a number or null (FR-402).
+   */
+  rewardPoints: string;
 }
 
 /** Prefill — the task being edited (T057), or a Task Box template (T072). */
@@ -119,6 +124,7 @@ function blankDraft(): TaskDraft {
     renewUnit: "day",
     timesOfDay: [],
     saveToTaskBox: false,
+    rewardPoints: "",
   };
 }
 
@@ -135,6 +141,23 @@ function orNull(value: string): string | null {
  */
 function intOf(value: string): number {
   return value.trim() === "" ? Number.NaN : Number(value);
+}
+
+/**
+ * The star value as the schema will judge it (004 FR-402): a blank box is none,
+ * and anything else is sent as a NUMBER — never as the typed text, which the
+ * schema refuses — so `0` and blank both reach the store as null, and a
+ * malformed entry is refused against its own field rather than repaired.
+ * Shared with the Task Box's template form, which holds the same field.
+ */
+export function starsOf(value: string): number | null {
+  const trimmed = value.trim();
+  return trimmed === "" ? null : Number(trimmed);
+}
+
+/** The reverse, for a pre-fill: a stored value as the text the box shows. */
+export function starsTextOf(value: number | null): string {
+  return value === null ? "" : String(value);
 }
 
 /** Sunday-first, matching `WKST=SU` — a stable order however the boxes were ticked. */
@@ -196,6 +219,7 @@ function draftToTaskInput(
     dueTime: routine || draft.dueTime === "" ? null : draft.dueTime,
     timesOfDay: routine ? sortedSlots(draft.timesOfDay) : [],
     repeat: repeatOf(draft),
+    rewardPoints: starsOf(draft.rewardPoints),
     // "Save to task box" is a create-time choice, and `updateTask` refuses it.
     ...(mode === "create" ? { saveToTaskBox: draft.saveToTaskBox } : {}),
   };
@@ -222,6 +246,7 @@ export function taskDraftOf(task: Task, zone: string): TaskFormSeed {
     startsOn: task.startsOn ?? "",
     dueTime: task.dueTime ?? "",
     timesOfDay: [...task.timesOfDay],
+    rewardPoints: starsTextOf(task.rewardPoints),
     ...repeatSeedOf(repeat),
   };
 }

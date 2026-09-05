@@ -411,6 +411,9 @@ function occurrenceOf(task: Task, context: TaskContext, part: OccurrencePart): B
     taskCreatedAt: task.createdAt,
     state: row?.status ?? "unresolved",
     creditedCategoryId: row?.categoryId ?? null,
+    // The value as it is NOW, for the chip (004 FR-403); what a completion
+    // earned is the ledger's, read by the trigger at that moment (FR-409).
+    rewardPoints: task.rewardPoints,
   };
 }
 

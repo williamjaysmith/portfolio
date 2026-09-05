@@ -93,9 +93,9 @@ describe("fetchTasks — read 1, unwindowed", () => {
     expect(tasksSelect()).toContain("updated_at,task_assignees(");
   });
 
-  it("never embeds the cursor view and never names the reserved star value", () => {
+  it("never embeds the cursor view, and now selects the star value (004 SC-418)", () => {
     expect(tasksSelect()).not.toContain("task_cursors");
-    expect(tasksSelect()).not.toContain("reward_points");
+    expect(tasksSelect()).toContain("reward_points");
   });
 });
 
@@ -170,7 +170,7 @@ describe("fetchTaskBox — read 5, lazy", () => {
 
     expect(fake.from).toHaveBeenCalledWith("task_box_items");
     expect(fake.select).toHaveBeenCalledWith(TASK_BOX_COLUMNS);
-    expect(TASK_BOX_COLUMNS).not.toContain("reward_points");
+    expect(TASK_BOX_COLUMNS).toContain("reward_points");
     expect(fake.calls).toEqual([
       ["eq", "household_id", HOUSEHOLD],
       ["order", "routine", { ascending: true }],

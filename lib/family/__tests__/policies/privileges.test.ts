@@ -17,6 +17,16 @@
  * functions are callable by nobody. Both arrays below grow, so any new `anon`
  * grant and any function added to the schema without a decision fail here
  * (FR-390, SC-305).
+ *
+ * T010 — the Phase 4 delta (004's data-model "Privilege matrix (delta)"): the
+ * four star tables (`rewards`, `reward_eligibilities`, `star_entries`,
+ * `redemptions`) take the same shape; `family.star_balances`, the second view,
+ * is SELECT for authenticated and service_role and nothing for anon, and is
+ * `security_invoker` so it sums under the caller's own RLS; `household_today`
+ * and the six trigger functions of 024–026 are callable by nobody — they run
+ * only inside `security definer` trigger bodies; and the four tables sit on
+ * `supabase_realtime` at the default replica identity, so a DELETE payload
+ * carries a key and never a reward's name (FR-442, SC-416, R411).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -36,26 +46,40 @@ const TABLES = [
   "task_assignees",
   "task_resolutions",
   "task_box_items",
+  "rewards",
+  "reward_eligibilities",
+  "star_entries",
+  "redemptions",
 ] as const;
 type Table = (typeof TABLES)[number];
 
-/** The one relation in the schema that is a view, so it is checked on its own. */
-const CURSOR_VIEW = "family.task_cursors";
+/** The two relations in the schema that are views, so they are checked on their own. */
+const VIEWS = ["family.task_cursors", "family.star_balances"] as const;
+
+/** Realtime: the four Phase 4 tables join the channel (027), replica identity left at default. */
+const REWARD_TABLES = ["rewards", "reward_eligibilities", "star_entries", "redemptions"] as const;
 
 const FUNCTIONS = [
   "assert_event_timezone",
   "assert_profile_account_is_member",
+  "assert_redemption",
+  "assert_reward_eligibility",
   "assert_settings_timezone",
+  "assert_star_adjustment",
   "assert_task_assignee",
   "assert_task_resolution",
   "assert_up_for_grabs_is_unassigned",
   "can_read_avatar",
   "claim_membership",
   "clear_pin",
+  "credit_task_resolution",
   "guard_last_parent",
   "hook_restrict_signup",
+  "household_today",
   "is_member",
   "my_household",
+  "record_redemption",
+  "retract_task_resolution",
   "seed_task_box",
   "set_pin",
   "split_event_series",
@@ -64,6 +88,19 @@ const FUNCTIONS = [
   "verify_pin",
 ] as const;
 type Fn = (typeof FUNCTIONS)[number];
+
+/** 024–026: one helper and six trigger bodies, each `revoke all … from public`. */
+const REWARD_FUNCTIONS: readonly Fn[] = [
+  "household_today",
+  "assert_reward_eligibility",
+  "credit_task_resolution",
+  "retract_task_resolution",
+  "assert_star_adjustment",
+  "assert_redemption",
+  "record_redemption",
+];
+
+const API_ROLES = ["anon", "authenticated", "service_role", "supabase_auth_admin"] as const;
 
 interface TablePrivileges {
   select: boolean;
@@ -169,6 +206,10 @@ describe("privileges: the grant matrix", () => {
         task_assignees: READ,
         task_resolutions: READ,
         task_box_items: READ,
+        rewards: READ,
+        reward_eligibilities: READ,
+        star_entries: READ,
+        redemptions: READ,
       }),
     );
     expect(await executePrivileges(pool, "authenticated")).toEqual(
@@ -191,6 +232,10 @@ describe("privileges: the grant matrix", () => {
         task_assignees: ALL,
         task_resolutions: ALL,
         task_box_items: ALL,
+        rewards: ALL,
+        reward_eligibilities: ALL,
+        star_entries: ALL,
+        redemptions: ALL,
       }),
     );
     expect(await executePrivileges(pool, "service_role")).toEqual(
@@ -240,20 +285,69 @@ describe("privileges: the grant matrix", () => {
     }
   });
 
-  it("task_cursors: SELECT for authenticated and service_role, nothing for anon", async () => {
-    expect(await relationPrivileges(pool, "anon", CURSOR_VIEW)).toEqual(NONE);
-    expect(await relationPrivileges(pool, "authenticated", CURSOR_VIEW)).toEqual(READ);
-    expect((await relationPrivileges(pool, "service_role", CURSOR_VIEW)).select).toBe(true);
+  it("the seven reward functions execute for nobody — trigger bodies and their one helper (T010)", async () => {
+    // 004's privilege matrix: `household_today` is called only from
+    // `security definer` trigger bodies, which run as the owner, so it needs
+    // no grant; the six trigger functions are the write path's second line
+    // and must never be addressable by an API role. PostgreSQL grants EXECUTE
+    // to PUBLIC on creation, so the migrations' explicit `revoke all … from
+    // public` is what this asserts.
+    for (const role of API_ROLES) {
+      const inventory = await executePrivileges(pool, role);
+      for (const fn of REWARD_FUNCTIONS) {
+        expect(inventory[fn], `${role} ${fn}`).toBe(false);
+      }
+    }
+  });
 
-    // 001's `alter default privileges … on tables` reaches views as well, so
-    // service_role's write bits here are inherited rather than granted — and
-    // they are inert: `distinct on` makes the view non-updatable, so no role
-    // writes through it whatever the catalogue says.
-    const { rows } = await pool.query<{ updatable: number }>(
-      "select pg_relation_is_updatable($1::regclass, false) as updatable",
-      [CURSOR_VIEW],
+  it("the two views: SELECT for authenticated and service_role, nothing for anon, security_invoker", async () => {
+    for (const view of VIEWS) {
+      expect(await relationPrivileges(pool, "anon", view), view).toEqual(NONE);
+      expect(await relationPrivileges(pool, "authenticated", view), view).toEqual(READ);
+      expect((await relationPrivileges(pool, "service_role", view)).select, view).toBe(true);
+
+      // 001's `alter default privileges … on tables` reaches views as well, so
+      // service_role's write bits here are inherited rather than granted — and
+      // they are inert: `distinct on` (task_cursors) and `group by`
+      // (star_balances) make both views non-updatable, so no role writes
+      // through them whatever the catalogue says.
+      const { rows } = await pool.query<{ updatable: number; reloptions: string[] | null }>(
+        "select pg_relation_is_updatable($1::regclass, false) as updatable, " +
+          "(select reloptions from pg_class where oid = $1::regclass) as reloptions",
+        [view],
+      );
+      expect(rows[0]?.updatable, view).toBe(0);
+      // Without it a view is read with its OWNER's privileges, which would hand
+      // every household's chain tails and balances to any authenticated caller.
+      expect(rows[0]?.reloptions, view).toContain("security_invoker=true");
+    }
+  });
+
+  it("the four reward tables are on supabase_realtime at the default replica identity (R411)", async () => {
+    // A FOR ALL TABLES publication covers the schema without per-table rows
+    // (the 009/022/027 guard), so the membership check allows either form.
+    const { rows: publication } = await pool.query<{ puballtables: boolean }>(
+      "select puballtables from pg_publication where pubname = 'supabase_realtime'",
     );
-    expect(rows[0]?.updatable).toBe(0);
+    expect(publication).toHaveLength(1);
+    const { rows: published } = await pool.query<{ tablename: string }>(
+      "select tablename from pg_publication_tables " +
+        "where pubname = 'supabase_realtime' and schemaname = 'family' and tablename = any($1::text[])",
+      [[...REWARD_TABLES]],
+    );
+    const covered = publication[0]?.puballtables === true || published.length === REWARD_TABLES.length;
+    expect(covered, published.map((row) => row.tablename).join(",")).toBe(true);
+
+    // `d` = default (the primary key only): a DELETE payload must never carry a
+    // deleted reward's name, the same rule 022 states for a deleted task's title.
+    const { rows: identities } = await pool.query<{ relname: string; relreplident: string }>(
+      "select c.relname, c.relreplident from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+        "where n.nspname = 'family' and c.relname = any($1::text[]) order by c.relname",
+      [[...REWARD_TABLES]],
+    );
+    expect(identities).toEqual(
+      [...REWARD_TABLES].sort().map((relname) => ({ relname, relreplident: "d" })),
+    );
   });
 
   it("supabase_auth_admin: usage, SELECT on the allowlist, execute on the signup hook only", async () => {

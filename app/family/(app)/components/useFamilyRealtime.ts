@@ -42,6 +42,17 @@ const TABLES: readonly TableSubscription[] = [
   { table: "task_assignees" },
   { table: "task_resolutions" },
   { table: "task_box_items" },
+  // Rewards (004 FR-410, R411). Unfiltered for the same reason: a reward's
+  // deletion and a Profile's cascade are DELETEs, and every un-tick's ledger
+  // row is what moves the other device's balance, pill, bar and button. The
+  // bare sweep below reaches the four new keys (`starWeek`, `balances`,
+  // `rewards`, `redemptions`) because they are prefix-shaped under
+  // `familyKeys.all` (R407). Replica identity is left at default, so a DELETE
+  // payload carries a primary key and never a reward's name.
+  { table: "rewards" },
+  { table: "reward_eligibilities" },
+  { table: "star_entries" },
+  { table: "redemptions" },
 ];
 
 /** `CLOSED` is the ordinary unmount; only these two mean nothing will arrive. */

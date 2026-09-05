@@ -15,16 +15,24 @@ import { addDays } from "./calendar/dates";
 import {
   CATEGORY_COLUMNS,
   HOUSEHOLD_COLUMNS,
+  REDEMPTION_COLUMNS,
   SETTINGS_COLUMNS,
+  STAR_BALANCE_COLUMNS,
+  STAR_ENTRY_COLUMNS,
   TASK_BOX_COLUMNS,
   TASK_CURSOR_COLUMNS,
   TASK_RESOLUTION_COLUMNS,
   eventsSelect,
+  rewardsSelect,
   tasksSelect,
   toCategory,
   toEvent,
   toHousehold,
+  toRedemption,
+  toReward,
   toSettings,
+  toStarBalance,
+  toStarEntry,
   toTask,
   toTaskBoxItem,
   toTaskCursor,
@@ -33,6 +41,10 @@ import {
   type EventWithRelationsRow,
   type HouseholdRow,
   type HouseholdSettingsRow,
+  type RedemptionRow,
+  type RewardWithEligibilitiesRow,
+  type StarBalanceRow,
+  type StarEntryRow,
   type TaskBoxItemRow,
   type TaskCursorRow,
   type TaskResolutionRow,
@@ -45,6 +57,10 @@ import type {
   Event,
   Household,
   HouseholdSettings,
+  Redemption,
+  Reward,
+  StarBalance,
+  StarEntry,
   Task,
   TaskBoxItem,
   TaskCursor,
@@ -52,13 +68,26 @@ import type {
   WeekStart,
 } from "./types";
 
-/** FR-391's two opposite outcomes of deleting a Profile, for its confirmation. */
+/**
+ * FR-391's two opposite outcomes of deleting a Profile, for its confirmation —
+ * and, from 004 on, the third sentence's number (FR-443).
+ */
 export interface CategoryTaskCounts {
   /** Tasks somebody else is also assigned to: they stay, without this Profile. */
   losingAnAssignee: number;
   /** Tasks whose only assignee is this Profile: they go with it. */
   deleted: number;
+  /**
+   * The Profile's SIGNED balance from `star_balances`, which goes with them
+   * (004 FR-443): positive is forfeited, negative is a debt the deletion
+   * clears (Assumption 5), and the dialog words each. 0 for a Label, which
+   * has no row in the view (FR-414).
+   */
+  starsForfeited: number;
 }
+
+/** Phase 3's half of the answer: the two task numbers, before the stars are read. */
+type CategoryTaskSplit = Omit<CategoryTaskCounts, "starsForfeited">;
 
 /** The two columns the split above counts over. */
 interface AssigneeLinkRow {
@@ -117,6 +146,20 @@ export const familyKeys = {
   taskCursors: (householdId: string) => ["family", "task-cursors", householdId] as const,
   /** The Task Box templates; fetched only while the sheet is open. */
   taskBox: (householdId: string) => ["family", "task-box", householdId] as const,
+  /**
+   * The rewards reads (004 R407) — R314's discipline again: definitions and
+   * balances unwindowed, the one day-dependent row kind windowed by the SAME
+   * anchored week as `taskWeek`, so stepping inside a week costs nothing and
+   * the board's fifth read rolls with its second.
+   */
+  starWeek: (householdId: string, weekStartDate: string) =>
+    ["family", "star-week", householdId, weekStartDate] as const,
+  /** The `star_balances` view: one row per Profile, the sum of their entries. */
+  balances: (householdId: string) => ["family", "star-balances", householdId] as const,
+  /** Every reward with its eligibilities embedded. */
+  rewards: (householdId: string) => ["family", "rewards", householdId] as const,
+  /** Every redemption, standing and reversed — the history card needs all of them. */
+  redemptions: (householdId: string) => ["family", "redemptions", householdId] as const,
 };
 
 const STALE_TIME = 30_000;
@@ -256,13 +299,25 @@ export function useCategoryEventCount(householdId: string, categoryId: string) {
  * Two reads rather than a join: the first is exactly the prefix of
  * `task_assignees_category_idx` (018), and the second re-reads only those tasks
  * by primary key. An up-for-grabs task has no assignee at all, so it is in
- * neither number by construction.
+ * neither number by construction. Phase 4 adds a third read for the third
+ * sentence: the stars that go with the Profile (FR-443, R405).
  */
 export async function fetchCategoryTaskCounts(
   supabase: SupabaseClient,
   householdId: string,
   categoryId: string,
 ): Promise<CategoryTaskCounts> {
+  const split = await splitTasksOf(supabase, householdId, categoryId);
+  const starsForfeited = await fetchStarsForfeited(supabase, householdId, categoryId);
+  return { ...split, starsForfeited };
+}
+
+/** Phase 3's two reads, unchanged: the second only when the first found anything. */
+async function splitTasksOf(
+  supabase: SupabaseClient,
+  householdId: string,
+  categoryId: string,
+): Promise<CategoryTaskSplit> {
   const mine = await supabase
     .schema("family")
     .from("task_assignees")
@@ -285,11 +340,33 @@ export async function fetchCategoryTaskCounts(
   return splitByCompany(taskIds, (everyone.data ?? []) as unknown as AssigneeLinkRow[]);
 }
 
+/**
+ * The third number (004 FR-443): this Profile's row of the `star_balances`
+ * view, signed. The view is `security_invoker` (025), so this is the caller's
+ * own RLS on `star_entries`; `maybeSingle` because a Label has no row there at
+ * all (FR-414) and forfeits nothing.
+ */
+async function fetchStarsForfeited(
+  supabase: SupabaseClient,
+  householdId: string,
+  categoryId: string,
+): Promise<number> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from("star_balances")
+    .select("balance")
+    .eq("household_id", householdId)
+    .eq("category_id", categoryId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? (data as unknown as Pick<StarBalanceRow, "balance">).balance : 0;
+}
+
 /** Shared with somebody else, or this Profile's alone — every task lands in one. */
 function splitByCompany(
   taskIds: readonly string[],
   links: readonly AssigneeLinkRow[],
-): CategoryTaskCounts {
+): CategoryTaskSplit {
   let losingAnAssignee = 0;
   for (const taskId of taskIds) {
     const assignees = links.filter((row) => row.task_id === taskId).length;
@@ -553,17 +630,158 @@ export function useTaskBox(householdId: string) {
 /**
  * Warms one neighbouring week's resolutions when the anchor settles, so a
  * Previous/Next tap across the week boundary lands on data already there — the
- * shipped `prefetchWeek` shape. Only read 2 is windowed, so only read 2 needs
- * warming.
+ * shipped `prefetchWeek` shape. Only the windowed reads need warming: read 2,
+ * and from 004 on the star week beside it (R407), so the column's star pill
+ * lands right on the first paint of the next week rather than flickering from
+ * 0 while its own read catches up.
  */
 export function prefetchTaskWeek(
   queryClient: QueryClient,
   householdId: string,
   weekStartDate: string,
 ): Promise<void> {
-  return queryClient.prefetchQuery({
-    queryKey: familyKeys.taskWeek(householdId, weekStartDate),
-    queryFn: () => fetchTaskResolutions(createClient(), householdId, weekStartDate),
+  return Promise.all([
+    queryClient.prefetchQuery({
+      queryKey: familyKeys.taskWeek(householdId, weekStartDate),
+      queryFn: () => fetchTaskResolutions(createClient(), householdId, weekStartDate),
+      staleTime: STALE_TIME,
+    }),
+    queryClient.prefetchQuery({
+      queryKey: familyKeys.starWeek(householdId, weekStartDate),
+      queryFn: () => fetchStarWeek(createClient(), householdId, weekStartDate),
+      staleTime: STALE_TIME,
+    }),
+  ]).then(() => undefined);
+}
+
+/* ------------------------------------------------------------------------- *
+ * Rewards (Phase 4 — contracts/server-actions.md "Read path", research R407)
+ * ------------------------------------------------------------------------- */
+
+// One embed, joined rather than concatenated, for the reason `tasksSelect` is.
+const REWARD_SELECT = rewardsSelect();
+
+/** The two kinds that carry a day — the only ones FR-407's pill can sum. */
+const DATED_KINDS = ["credit", "retraction"] as const;
+
+/**
+ * The board's fifth read (004 FR-407): the ledger entries EARNED in the
+ * anchored week containing the displayed day — credits and retractions only,
+ * windowed on `earned_on`, which for a late chore is the day it was ticked and
+ * not the day it was due (FR-405). The window is `taskWeek`'s (`TASK_WEEK_DAYS`
+ * from the same first day), so the two rolls together and stepping inside a
+ * week costs nothing. The other three kinds have no day and are the balance's
+ * business, not the pill's — they are left out here rather than filtered
+ * client-side so the partial index `star_entries_day_idx` (025) serves the read.
+ */
+export async function fetchStarWeek(
+  supabase: SupabaseClient,
+  householdId: string,
+  weekStartDate: string,
+): Promise<StarEntry[]> {
+  const weekEndDate = addDays(weekStartDate, TASK_WEEK_DAYS - 1);
+  const { data, error } = await supabase
+    .schema("family")
+    .from("star_entries")
+    .select(STAR_ENTRY_COLUMNS)
+    .eq("household_id", householdId)
+    .gte("earned_on", weekStartDate)
+    .lte("earned_on", weekEndDate)
+    .in("kind", [...DATED_KINDS]);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as StarEntryRow[]).map(toStarEntry);
+}
+
+/**
+ * The `family.star_balances` view (FR-412): one row per Profile, the sum of
+ * their entries, which may be negative (Assumption 5). **Its own query, never a
+ * PostgREST embed on `categories`**: a view has no foreign key to embed on, so
+ * an embed would silently return nothing — the `task_cursors` finding (R309),
+ * met again (R407).
+ */
+export async function fetchStarBalances(
+  supabase: SupabaseClient,
+  householdId: string,
+): Promise<StarBalance[]> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from("star_balances")
+    .select(STAR_BALANCE_COLUMNS)
+    .eq("household_id", householdId);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as StarBalanceRow[]).map(toStarBalance);
+}
+
+/**
+ * Every reward with its eligibilities embedded (FR-417): unwindowed, oldest
+ * first — the order `orderRewardCards` falls back to after affordability and
+ * cost (FR-427). A card is drawn per eligible Profile from this one row.
+ */
+export async function fetchRewards(supabase: SupabaseClient, householdId: string): Promise<Reward[]> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from("rewards")
+    .select(REWARD_SELECT)
+    .eq("household_id", householdId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as RewardWithEligibilitiesRow[]).map(toReward);
+}
+
+/**
+ * Every redemption, standing AND reversed, newest first (FR-426, FR-431): the
+ * standing ones decide a one-time reward's muted card, the Redeemed switch
+ * shows them, and the history reads them all. Unwindowed on purpose — at a
+ * household's scale that is a few hundred rows a year (R407), and the index
+ * `redemptions_profile_idx` is already in this order.
+ */
+export async function fetchRedemptions(
+  supabase: SupabaseClient,
+  householdId: string,
+): Promise<Redemption[]> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from("redemptions")
+    .select(REDEMPTION_COLUMNS)
+    .eq("household_id", householdId)
+    .order("redeemed_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as RedemptionRow[]).map(toRedemption);
+}
+
+/** Seeded by `/family/tasks`'s page beside `taskWeek` (data-model "How the tab and the board are read"). */
+export function useStarWeek(householdId: string, weekStartDate: string, initialData?: StarEntry[]) {
+  return useQuery({
+    queryKey: familyKeys.starWeek(householdId, weekStartDate),
+    queryFn: () => fetchStarWeek(createClient(), householdId, weekStartDate),
     staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+export function useStarBalances(householdId: string, initialData?: StarBalance[]) {
+  return useQuery({
+    queryKey: familyKeys.balances(householdId),
+    queryFn: () => fetchStarBalances(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+export function useRewards(householdId: string, initialData?: Reward[]) {
+  return useQuery({
+    queryKey: familyKeys.rewards(householdId),
+    queryFn: () => fetchRewards(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+export function useRedemptions(householdId: string, initialData?: Redemption[]) {
+  return useQuery({
+    queryKey: familyKeys.redemptions(householdId),
+    queryFn: () => fetchRedemptions(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
   });
 }

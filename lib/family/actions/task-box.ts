@@ -11,13 +11,14 @@
  * request that bypasses the sheet is refused exactly as a tap on a hidden
  * control would be.
  *
- * **Exactly three fields, on create and on edit** (FR-377, FR-380): a title, an
- * optional emoji and a type. A template holds no description, date, repeat or
- * assignment — those are what FR-378's create form asks for when a template is
- * chosen — and **no star value is accepted, returned or shown**: the reserved
- * `reward_points` column exists, is absent from `TASK_BOX_COLUMNS` and from the
- * `TaskBoxItem` row type, and is refused rather than stripped if a payload
- * carries it (FR-329, SC-319).
+ * **Exactly four fields, on create and on edit** (FR-377, FR-380, and 004
+ * FR-401 for the fourth): a title, an optional emoji, a type and a star value.
+ * A template holds no description, date, repeat or assignment — those are what
+ * FR-378's create form asks for when a template is chosen. The star value is
+ * the column Phase 3 reserved and refused (its SC-319); Phase 4 made it the
+ * template's fourth field — stored, returned and editable, with blank and 0
+ * both stored as null and 501 refused by the schema (004 FR-402, SC-418) — and
+ * it is what FR-378's form pre-fills alongside the other three (004 FR-404).
  *
  * Two things this module deliberately does NOT do:
  *
@@ -28,13 +29,13 @@
  *   - **A delete follows no link** (FR-381, US4-12). Tasks already created from
  *     a template are untouched structurally rather than by an ordering this
  *     function remembers: nothing in `family.tasks` references
- *     `family.task_box_items`, because `createTask` copies three values and
- *     keeps no reference. What the delete needs, then, is only FR-381's
- *     confirmation — the irreversible-deletion warning's answer.
+ *     `family.task_box_items`, because `createTask` copies the template's
+ *     values and keeps no reference. What the delete needs, then, is only
+ *     FR-381's confirmation — the irreversible-deletion warning's answer.
  *
  * The edit parses the MERGED template through the create schema rather than a
  * patch schema of its own, which is `updateTask`'s discipline: there is one
- * list of allowed fields, so a `scope`, a star value or anything else a client
+ * list of allowed fields, so a `scope`, a date or anything else a client
  * invents is refused by the same strict object, and a refusal lands against its
  * own top-level field for the form to show (FR-330).
  */
@@ -67,12 +68,19 @@ const deleteTaskBoxItemSchema = z.strictObject({
   confirm: z.literal(true, { error: CONFIRM_REQUIRED }),
 });
 
-/** The three columns an insert or an update writes — FR-377's whole field set. */
-function templateColumns(input: TaskBoxItemInput): Record<string, string | boolean | null> {
+/** The columns a template write carries: FR-377's three and 004 FR-401's fourth. */
+type TemplateWrite = Record<string, string | number | boolean | null>;
+
+/**
+ * The four columns an insert or an update writes — the whole field set. The
+ * schema has already folded a blank or 0 star value into null (004 FR-402).
+ */
+function templateColumns(input: TaskBoxItemInput): TemplateWrite {
   return {
     summary: input.summary,
     emoji: input.emoji ?? null,
     routine: input.routine,
+    reward_points: input.rewardPoints ?? null,
   };
 }
 
@@ -95,14 +103,17 @@ async function loadTemplate(householdId: string, id: string): Promise<TaskBoxIte
 
 /**
  * The stored template with the patch laid over it, judged as a whole template.
- * An unknown key — a star value, a date, an assignment — survives the spread
- * into `taskBoxItemSchema`'s strict object and is refused there (SC-319).
+ * The stored star value is part of the base, so a patch of another field keeps
+ * it (004 FR-401); an unknown key — a date, an assignment, the raw column name
+ * — survives the spread into `taskBoxItemSchema`'s strict object and is refused
+ * there (FR-330).
  */
 function mergedTemplate(item: TaskBoxItem, patch: Record<string, unknown>): TaskBoxItemInput {
   return parseOrThrow(taskBoxItemSchema, {
     summary: item.summary,
     emoji: item.emoji,
     routine: item.routine,
+    rewardPoints: item.rewardPoints,
     ...patch,
   });
 }
@@ -110,7 +121,7 @@ function mergedTemplate(item: TaskBoxItem, patch: Record<string, unknown>): Task
 /** Both writes return the stored row, so the sheet redraws from the database. */
 async function writeTemplate(
   actor: Actor,
-  columns: Record<string, string | boolean | null>,
+  columns: TemplateWrite,
   id: string | null,
 ): Promise<TaskBoxItem> {
   const table = adminFamily().from("task_box_items");
@@ -133,8 +144,9 @@ async function writeTemplate(
 }
 
 /**
- * FR-377's three fields and nothing else. `created_by` and `updated_by` are the
- * punch-in, never anything in the payload (FR-330, Assumption 3).
+ * FR-377's three fields, 004 FR-401's fourth, and nothing else. `created_by`
+ * and `updated_by` are the punch-in, never anything in the payload (FR-330,
+ * Assumption 3).
  */
 export async function createTaskBoxItem(
   input: TaskBoxItemInput,
@@ -150,9 +162,10 @@ export async function createTaskBoxItem(
 }
 
 /**
- * FR-380's edit: the title, the emoji and the type — the three fields the form
- * offers, and the same three the create takes. The reserved star value is not
- * among them and is not read, written or returned (SC-319).
+ * FR-380's edit: the title, the emoji, the type and the star value — the four
+ * fields the form offers (004 FR-401), and the same four the create takes.
+ * Editing a template's value touches no ledger row: templates earn nothing
+ * themselves, and a task already made from one keeps its own value.
  */
 export async function updateTaskBoxItem(input: {
   id: string;

@@ -6,11 +6,13 @@ import { useEffect, useMemo } from "react";
 import { addDays, weekStartOf } from "@/lib/family/calendar/dates";
 import {
   prefetchTaskWeek,
+  useStarWeek,
   useTaskCarryForward,
   useTaskCursors,
   useTaskResolutions,
   useTasks,
 } from "@/lib/family/queries";
+import { starsTodayOf } from "@/lib/family/rewards/stars";
 import {
   columnCountersOf,
   routineProgressOf,
@@ -21,6 +23,7 @@ import { expandTaskDay } from "@/lib/family/tasks/expand";
 import { visibleTaskOccurrences } from "@/lib/family/tasks/visibility";
 import type {
   BoardOccurrence,
+  StarEntry,
   Task,
   TaskCursor,
   TaskResolution,
@@ -41,11 +44,12 @@ import { useTaskFilters } from "./useTaskFilters";
  *                                                  ▼
  *                          expandTaskDay(...) → BoardOccurrence[]   ── memo
  *                                                  │
- *                    ┌─────────────────────────────┴──────────────┐
+ *   useStarWeek (week) ──────────────────┐         │
+ *                    ┌───────────────────┴─────────┴──────────────┐
  *                    ▼                                            ▼
  *        the counters, over the UNFILTERED list         visibleTaskOccurrences
- *        — ring, "n of m", Up for Grabs, per-routine    — the two per-device
- *                                                        stores + the query
+ *        — ring, "n of m", Up for Grabs, per-routine,   — the two per-device
+ *          and the day's stars per Profile (FR-407)       stores + the query
  *
  * **The counters branch off the unfiltered list, and that is the whole point.**
  * FR-384 ("filters never move the counters"), FR-386's same promise for
@@ -67,14 +71,23 @@ import { useTaskFilters } from "./useTaskFilters";
  * the opposite and arrives as a parameter — it is the board's own component
  * state, dies with the view, and is never persisted.
  *
- * The four reads are R314's, and none of them is keyed by the displayed day:
- * task DEFINITIONS do not depend on it (an Anytime chore has no date, a
+ * The first four reads are R314's, and none of them is keyed by the displayed
+ * day: task DEFINITIONS do not depend on it (an Anytime chore has no date, a
  * Completed Date chore's only occurrence is a cursor, a routine is a rule, a
  * late chore belongs on today), so stepping Previous/Next inside a week costs
  * zero fetches. Only the resolutions are windowed, by the anchored week, and
  * the FR-357 carry tail is a disjoint read enabled only while the displayed
  * day IS today. Neighbouring weeks are warmed once the day SETTLES, so the
  * pages flicked past while stepping never fetch.
+ *
+ * The fifth read (004 R407) is the anchored week's star entries — credits and
+ * retractions, dated by the day they were EARNED — keyed by the SAME week as
+ * the resolutions, so it rolls with them and costs nothing inside a week.
+ * FR-407's pill is the displayed day's net per Profile, summed HERE in the
+ * counters memo and not from the balance view (R402, Assumption 6): that is
+ * what makes it roll to zero with the board at midnight and read yesterday's
+ * stars on yesterday — and what puts it above the filter layer with every
+ * other number, so no switch or query can move it.
  */
 
 /** How long a day must stay displayed before its neighbouring weeks are warmed. */
@@ -86,6 +99,7 @@ const WEEK_DAYS = 7;
 const NO_OCCURRENCES: BoardOccurrence[] = [];
 const NO_RESOLUTIONS: TaskResolution[] = [];
 const NO_CURSORS: TaskCursor[] = [];
+const NO_ENTRIES: StarEntry[] = [];
 
 export interface UseBoardOccurrencesOptions {
   householdId: string;
@@ -108,17 +122,26 @@ export interface UseBoardOccurrencesOptions {
   initialResolutions?: TaskResolution[];
   initialCarry?: TaskResolution[];
   initialCursors?: TaskCursor[];
+  /** The fifth seed (004 R407): the anchored week's star entries, beside the resolutions. */
+  initialStarWeek?: StarEntry[];
 }
 
 /**
  * FR-305's numbers, bound to the day's whole occurrence list. `column` and
  * `routine` take the PROFILE's category id; Up for Grabs has no profile and no
  * ring — it belongs to nobody (FR-308).
+ *
+ * `starsToday` is FR-407's pill: the stars a Profile EARNED on the displayed
+ * day, credits less retractions, bound to the week's entries the same way. It
+ * is a closure for the same reason the others are — no caller is handed the
+ * entries, so no caller can sum the wrong day. Up for Grabs has none: stars
+ * are credited to a Profile, and it belongs to nobody.
  */
 export interface BoardCounters {
   column: (profileId: string) => TaskCounters;
   routine: (taskId: string, profileId: string) => TaskCounters;
   upForGrabs: number;
+  starsToday: (profileId: string) => number;
 }
 
 export interface BoardOccurrencesState {
@@ -145,6 +168,35 @@ export interface BoardOccurrencesState {
   error: Error | null;
 }
 
+/**
+ * The five cached reads, taken together so the chain below them is a chain of
+ * memos and nothing else. Each is keyed exactly as R314 and R407 say: the
+ * definitions and the cursor tails by the household alone, the resolutions and
+ * the star week by the anchored week, the carry tail by today and only while
+ * the displayed day IS today. The seeds go to the key each was fetched for.
+ */
+function useBoardReads(
+  options: UseBoardOccurrencesOptions,
+  weekStartDate: string,
+  isToday: boolean,
+) {
+  const { householdId, todayDate, startWeekOn } = options;
+  const tasks = useTasks(householdId, options.initialTasks);
+  const week = useTaskResolutions(householdId, weekStartDate, options.initialResolutions);
+  const carry = useTaskCarryForward(
+    householdId,
+    todayDate,
+    startWeekOn,
+    isToday,
+    options.initialCarry,
+  );
+  const cursors = useTaskCursors(householdId, options.initialCursors);
+  // The fifth read (004 R407), keyed by the SAME anchored week as the
+  // resolutions so the two roll together and stepping inside a week is free.
+  const stars = useStarWeek(householdId, weekStartDate, options.initialStarWeek);
+  return { tasks, week, carry, cursors, stars };
+}
+
 export function useBoardOccurrences(
   options: UseBoardOccurrencesOptions,
 ): BoardOccurrencesState {
@@ -159,16 +211,8 @@ export function useBoardOccurrences(
     [displayedDate, startWeekOn],
   );
 
-  const tasks = useTasks(householdId, options.initialTasks);
-  const week = useTaskResolutions(householdId, weekStartDate, options.initialResolutions);
-  const carry = useTaskCarryForward(
-    householdId,
-    todayDate,
-    startWeekOn,
-    isToday,
-    options.initialCarry,
-  );
-  const cursors = useTaskCursors(householdId, options.initialCursors);
+  const { tasks, week, carry, cursors, stars } = useBoardReads(options, weekStartDate, isToday);
+  const entries = stars.data ?? NO_ENTRIES;
 
   // The two resolution reads are disjoint by construction (R314), so this is a
   // concatenation and never a merge: the carry tail ends the day before the
@@ -190,13 +234,17 @@ export function useBoardOccurrences(
     [tasks.data, resolutions, cursors.data, displayedDate, todayDate, zone],
   );
 
+  // FR-407's pill lives HERE, in the counters memo, and not in a layer of its
+  // own: it is bound to the displayed day the same way the others are bound to
+  // the day's occurrences, and it sits above the filter branch with them.
   const counters = useMemo<BoardCounters>(
     () => ({
       column: (profileId) => columnCountersOf(occurrences, profileId),
       routine: (taskId, profileId) => routineProgressOf(occurrences, taskId, profileId),
       upForGrabs: upForGrabsCountOf(occurrences),
+      starsToday: (profileId) => starsTodayOf(entries, profileId, displayedDate),
     }),
-    [occurrences],
+    [occurrences, entries, displayedDate],
   );
 
   // The filter layer (T068), and the whole point of its position: it reads the
@@ -217,8 +265,8 @@ export function useBoardOccurrences(
     occurrences: visible,
     allOccurrences: occurrences,
     counters,
-    isPending: pendingOf({ tasks, week, carry, cursors, isToday }),
-    error: tasks.error ?? week.error ?? carry.error ?? cursors.error ?? null,
+    isPending: pendingOf({ tasks, week, carry, cursors, stars, isToday }),
+    error: tasks.error ?? week.error ?? carry.error ?? cursors.error ?? stars.error ?? null,
   };
 }
 
@@ -233,6 +281,8 @@ interface BoardReads {
   week: ReadState;
   carry: ReadState;
   cursors: ReadState;
+  /** The star week (004 R407): a board painting 0 stars before they arrive is a wrong board. */
+  stars: ReadState;
   isToday: boolean;
 }
 
@@ -242,7 +292,8 @@ interface BoardReads {
  * a loading state that can never resolve (US3-3).
  */
 function pendingOf(reads: BoardReads): boolean {
-  if (reads.tasks.isPending || reads.week.isPending || reads.cursors.isPending) return true;
+  const always = [reads.tasks, reads.week, reads.cursors, reads.stars];
+  if (always.some((read) => read.isPending)) return true;
   return reads.isToday && reads.carry.isPending;
 }
 

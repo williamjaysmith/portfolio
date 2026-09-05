@@ -22,6 +22,7 @@ let sequence = 0;
 function occurrence(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   sequence += 1;
   return {
+    rewardPoints: null,
     taskId: `task-${sequence}`,
     assigneeId: "cleo",
     scheduledDate: TODAY,

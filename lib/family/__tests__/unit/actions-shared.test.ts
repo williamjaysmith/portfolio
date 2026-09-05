@@ -11,8 +11,8 @@
  *      a timer input that cannot outlive the cookie (D12).
  *
  * The messages used as fixtures are the real ones the migrations raise
- * (supabase/migrations/001, 003, 004), so a change to a constraint that
- * renames "LAST_PARENT" fails here rather than in production.
+ * (supabase/migrations/001, 003, 004, and 004's 025, 026), so a change to a
+ * constraint that renames "LAST_PARENT" fails here rather than in production.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -87,6 +87,14 @@ describe("mapDbError", () => {
     ["P0002", "NOT_FOUND", "query returned no rows"],
     ["PGRST116", "NOT_FOUND", "JSON object requested, multiple (or no) rows returned"],
     ["42501", "FORBIDDEN", "permission denied for schema family"],
+    // 004 R403 / contracts "Error-handling contract (delta)": the five money
+    // rules the triggers raise. The Profile's name is the ACTION's to add
+    // (FR-429, FR-436); here the code is enough and the copy is the household's.
+    ["P0004", "VALIDATION", "that would leave the balance below zero"],
+    ["P0005", "FORBIDDEN", "that reward is not for this Profile"],
+    ["P0006", "CONFLICT", "already redeemed"],
+    ["P0007", "CONFLICT", "not enough stars"],
+    ["P0008", "CONFLICT", "already unredeemed"],
   ];
 
   for (const [code, expected, raw] of MAPPED) {

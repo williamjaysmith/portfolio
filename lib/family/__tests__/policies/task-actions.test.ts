@@ -61,6 +61,14 @@
  *     successful drop writes **one** `sort_order` and leaves every other row's
  *     alone.
  *
+ *   - **004 T022 / FR-401 / FR-402 / SC-405 / SC-418**: the star value Phase 3
+ *     reserved (SC-319's refusal) is now the one field `createTask` and
+ *     `updateTask` grew — stored, returned and editable, with 0 and blank both
+ *     NULL, 501 and a numeric string `VALIDATION`, a member refused as before,
+ *     the value carried into a template saved from the create, and an edit of
+ *     the value writing **no** `star_entries` row, asserted by counting them
+ *     around a credit 025's trigger already wrote.
+ *
  * The Task Box's three verbs are FR-389's fourth parent-only surface and are
  * asserted in `task-box.test.ts` (T071), which owns `lib/family/actions/task-box.ts`.
  *
@@ -174,6 +182,8 @@ interface TaskInputPayload {
   dueTime?: string | null;
   timesOfDay?: TimeOfDay[];
   repeat: TaskRepeatChoice;
+  /** Phase 4's one new field (004 FR-401): 0–500, blank and 0 both meaning no stars. */
+  rewardPoints?: number | null;
   saveToTaskBox?: boolean;
 }
 
@@ -333,8 +343,16 @@ interface StoredTask {
   routine: boolean;
   rrule: string | null;
   starts_on: string | null;
+  reward_points: number | null;
   created_by: string | null;
   updated_by: string | null;
+}
+
+/** One `family.star_entries` row as SC-405's assertions read it. */
+interface StoredEntry {
+  kind: string;
+  amount: number;
+  summary: string | null;
 }
 
 describe("task writes: FR-389's parent-only rule and the shapes the actions refuse (T048)", () => {
@@ -370,8 +388,8 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
 
   async function storedTasks(): Promise<StoredTask[]> {
     const { rows } = await pool.query<StoredTask>(
-      "select id, summary, routine, rrule, starts_on::text as starts_on, created_by, updated_by " +
-        "from family.tasks where household_id = $1 order by created_at",
+      "select id, summary, routine, rrule, starts_on::text as starts_on, reward_points, " +
+        "created_by, updated_by from family.tasks where household_id = $1 order by created_at",
       [householdId],
     );
     return rows;
@@ -387,6 +405,32 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
       [taskId],
     );
     return rows.map((row) => row.category_id);
+  }
+
+  /** A tick as the store records it — 025's trigger writes the credit (004 FR-405). */
+  async function completeByHand(taskId: string, occurrenceDate: string): Promise<void> {
+    await pool.query(
+      "insert into family.task_resolutions (household_id, task_id, occurrence_date, assignee_id, " +
+        "category_id, status, resolved_on, created_by) values ($1, $2, $3, $4, $4, 'complete', $3, $5)",
+      [householdId, taskId, occurrenceDate, cleoId, anaId],
+    );
+  }
+
+  async function starEntriesOf(profileId: string): Promise<StoredEntry[]> {
+    const { rows } = await pool.query<StoredEntry>(
+      "select kind, amount, summary from family.star_entries where category_id = $1 order by created_at",
+      [profileId],
+    );
+    return rows;
+  }
+
+  /** The Rewards tab's number: `family.star_balances`, one derived sum per Profile (004 FR-412). */
+  async function balanceOf(profileId: string): Promise<number> {
+    const { rows } = await pool.query<{ balance: number }>(
+      "select balance from family.star_balances where category_id = $1",
+      [profileId],
+    );
+    return rows[0]?.balance ?? 0;
   }
 
   async function setZone(zone: string): Promise<void> {
@@ -609,13 +653,12 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
       expect((await storedTasks()).map((row) => row.summary)).not.toContain(`Spoofed ${run}`);
     });
 
-    it("the reserved star value is refused too, never stored (FR-329, SC-319)", async () => {
-      const payload = {
-        ...choreInput({ summary: `Starred ${run}` }),
-        rewardPoints: 5,
-      } as unknown as TaskInputPayload;
-      expectFailure(await createTask(payload), "VALIDATION");
-      expect((await storedTasks()).map((row) => row.summary)).not.toContain(`Starred ${run}`);
+    it("the star value Phase 3 reserved is stored and returned (004 FR-401, SC-418)", async () => {
+      // SC-319's refusal, inverted: the same payload Phase 3 refused is now the
+      // one field the form grew, and the value comes back on the task.
+      const task = expectOk(await createTask(choreInput({ summary: `Starred ${run}`, rewardPoints: 5 })));
+      expect(task.rewardPoints).toBe(5);
+      expect(await storedTask(task.id)).toMatchObject({ summary: `Starred ${run}`, reward_points: 5 });
     });
 
     it("an empty title is VALIDATION on `summary` alone, and nothing is stored (US2-4)", async () => {
@@ -671,6 +714,108 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
       expect((await storedTasks()).map((row) => row.summary)).not.toContain(
         `Foreign assignee ${run}`,
       );
+    });
+  });
+
+  describe("the star value: stored, returned, edited, never rewriting history (T022, 004 US1)", () => {
+    beforeEach(async () => {
+      await punchInAs(anaId, ANA_PIN);
+    });
+
+    it("0, blank and absent all store NULL — no stars and no chip (FR-402, SC-418)", async () => {
+      const worthNothing: Partial<TaskInputPayload>[] = [{ rewardPoints: 0 }, { rewardPoints: null }, {}];
+      for (const overrides of worthNothing) {
+        const task = expectOk(
+          await createTask(choreInput({ summary: `Worth nothing ${run}`, ...overrides })),
+        );
+        expect(task.rewardPoints).toBeNull();
+        expect((await storedTask(task.id))?.reward_points).toBeNull();
+      }
+    });
+
+    it("501 and a numeric string are VALIDATION on `rewardPoints`, and nothing is stored (FR-402)", async () => {
+      const before = await storedTasks();
+      expectFieldError(
+        await createTask(choreInput({ summary: `Too many ${run}`, rewardPoints: 501 })),
+        "rewardPoints",
+      );
+      expectFieldError(
+        await createTask({
+          ...choreInput({ summary: `Stringly ${run}` }),
+          rewardPoints: "5",
+        } as unknown as TaskInputPayload),
+        "rewardPoints",
+      );
+      expect(await storedTasks()).toEqual(before);
+    });
+
+    it("a member is refused a starred create exactly as before (FR-389)", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = await storedTasks();
+      expectFailure(
+        await createTask(choreInput({ summary: `Member stars ${run}`, rewardPoints: 5 })),
+        "FORBIDDEN",
+      );
+      expect(await storedTasks()).toEqual(before);
+    });
+
+    it("saving to the Task Box carries the value into the template's fourth field (FR-379, FR-401)", async () => {
+      expectOk(
+        await createTask(
+          choreInput({ summary: `Boxed ${run}`, rewardPoints: 5, saveToTaskBox: true }),
+        ),
+      );
+      const { rows } = await pool.query<{ reward_points: number | null }>(
+        "select reward_points from family.task_box_items where household_id = $1 and summary = $2",
+        [householdId, `Boxed ${run}`],
+      );
+      expect(rows).toEqual([{ reward_points: 5 }]);
+    });
+
+    it("updateTask edits the value, clears it at 0, refuses 501, and keeps it when unnamed", async () => {
+      const task = expectOk(
+        await createTask(choreInput({ summary: `Edited ${run}`, rewardPoints: 5 })),
+      );
+
+      // The merge's base is the stored task, so a patch of another field
+      // carries the value through unchanged (contracts step 3).
+      const renamed = expectOk(
+        await updateTask({ id: task.id, patch: { summary: `Renamed ${run}` } }),
+      );
+      expect(renamed.rewardPoints).toBe(5);
+
+      const raised = expectOk(await updateTask({ id: task.id, patch: { rewardPoints: 10 } }));
+      expect(raised.rewardPoints).toBe(10);
+      expect((await storedTask(task.id))?.reward_points).toBe(10);
+
+      const cleared = expectOk(await updateTask({ id: task.id, patch: { rewardPoints: 0 } }));
+      expect(cleared.rewardPoints).toBeNull();
+      expect((await storedTask(task.id))?.reward_points).toBeNull();
+
+      const before = await storedTasks();
+      expectFieldError(
+        await updateTask({ id: task.id, patch: { rewardPoints: 501 } }),
+        "rewardPoints",
+      );
+      expect(await storedTasks()).toEqual(before);
+    });
+
+    it("editing the value writes NO ledger row and leaves the earned credit alone (SC-405, FR-409)", async () => {
+      const task = expectOk(
+        await createTask(choreInput({ summary: `Ledger ${run}`, rewardPoints: 5 })),
+      );
+      await completeByHand(task.id, SERIES_START);
+      const earned = [{ kind: "credit", amount: 5, summary: `Ledger ${run}` }];
+      expect(await starEntriesOf(cleoId)).toEqual(earned);
+      expect(await balanceOf(cleoId)).toBe(5);
+
+      expectOk(await updateTask({ id: task.id, patch: { rewardPoints: 10 } }));
+
+      // History is untouched — the same one row at the same amount, and the
+      // same balance. Only the next completion earns the new value.
+      expect(await starEntriesOf(cleoId)).toEqual(earned);
+      expect(await balanceOf(cleoId)).toBe(5);
+      expect((await storedTask(task.id))?.reward_points).toBe(10);
     });
   });
 

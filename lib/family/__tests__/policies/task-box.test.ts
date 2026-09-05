@@ -1,7 +1,8 @@
 /**
  * T071 — the Task Box's three verbs: FR-389's fourth parent-only surface, the
- * exact three fields FR-377 fixes, and FR-381's warned, irreversible deletion
- * that leaves the tasks already made from a template standing.
+ * exact fields FR-377 fixes — three, plus the star value Phase 4 made the
+ * fourth (004 FR-401, T022) — and FR-381's warned, irreversible deletion that
+ * leaves the tasks already made from a template standing.
  *
  * Same plumbing as `task-actions.test.ts` — Next's cookie store is an in-memory
  * jar, the request's Supabase session is a real signed-in client, and
@@ -15,15 +16,17 @@
  *     tampered cookie is the same refusal; nothing is written;
  *   - FR-389 / SC-304: a punched-in **member** is `FORBIDDEN` on all three, and
  *     the refusal is the DATABASE role — the same calls succeed as a parent;
- *   - FR-377 / SC-319: create stores **exactly** `summary`, `emoji` and
- *     `routine` (plus household, attribution and timestamps); a description, a
- *     date, a repeat, an assignment **or a star value** in the payload is
- *     `VALIDATION`, not silently stripped, and no star value is ever returned;
+ *   - FR-377 / 004 FR-401 / SC-418: create stores **exactly** `summary`,
+ *     `emoji`, `routine` and `rewardPoints` (plus household, attribution and
+ *     timestamps); a description, a date, a repeat or an assignment in the
+ *     payload is `VALIDATION`, not silently stripped; the star value is stored
+ *     and returned, 0 and blank both as NULL, and 501 is `VALIDATION`
+ *     (004 FR-402) — SC-319's refusal, inverted;
  *   - FR-330 / Assumption 3: `created_by` and `updated_by` come from the
  *     punch-in and are never accepted from the payload;
- *   - FR-380: the edit form's three fields are the three the action takes; a
- *     stored `reward_points` survives an edit **untouched and unreturned**,
- *     which is the reserved-column half of SC-319;
+ *   - FR-380 / 004 FR-401: the edit form's four fields are the four the action
+ *     takes; a stored `reward_points` survives an edit that does not name it
+ *     and comes back on the item, and a patch that names it is stored;
  *   - FR-381 / US4-12: `confirm: true` is required (`VALIDATION` otherwise) and
  *     a template's deletion leaves a task created from it **untouched** — with
  *     the structural reason asserted beside the behaviour: no constraint
@@ -123,6 +126,8 @@ interface TaskBoxItemInputPayload {
   summary: string;
   emoji?: string | null;
   routine: boolean;
+  /** The fourth field (004 FR-401): 0–500, blank and 0 both meaning no stars. */
+  rewardPoints?: number | null;
 }
 
 interface UpdateTaskBoxItemPayload {
@@ -197,9 +202,6 @@ function tamper(token: string): string {
   return `${header}.${forged}.${signature}`;
 }
 
-/** SC-319: nothing star-shaped may reach a caller, whatever the column holds. */
-const STAR_SHAPED = /reward|point|star/i;
-
 const UNKNOWN_ID = "00000000-0000-4000-8000-0000000000ff";
 
 interface StoredTemplate {
@@ -212,7 +214,7 @@ interface StoredTemplate {
   updated_by: string | null;
 }
 
-describe("the Task Box: FR-389's parent-only templates and FR-377's three fields (T071)", () => {
+describe("the Task Box: FR-389's parent-only templates and FR-377's fields, four since 004 (T071, T022)", () => {
   const fx = fixtures();
   const run = fx.run;
   const ANA_PIN = "6161";
@@ -404,7 +406,7 @@ describe("the Task Box: FR-389's parent-only templates and FR-377's three fields
     });
   });
 
-  describe("create holds exactly three fields (FR-377, FR-330, SC-319)", () => {
+  describe("create holds exactly four fields (FR-377, 004 FR-401, FR-330)", () => {
     beforeEach(async () => {
       await punchInAs(anaId, ANA_PIN);
     });
@@ -430,13 +432,29 @@ describe("the Task Box: FR-389's parent-only templates and FR-377's three fields
         created_by: anaId,
         updated_by: anaId,
       });
-      // FR-329: the column exists and nothing writes it.
+      // 004 FR-402: a template never given a value is worth nothing — NULL.
       expect(stored?.reward_points).toBeNull();
+      expect(item.rewardPoints).toBeNull();
     });
 
-    it("returns no star value on the item it hands back (SC-319)", async () => {
-      const item = expectOk(await createTaskBoxItem({ summary: `Dishes ${run}`, routine: false }));
-      expect(Object.keys(item).filter((key) => STAR_SHAPED.test(key))).toEqual([]);
+    it("stores and returns the star value, the fourth field (004 FR-401, SC-418)", async () => {
+      // SC-319's refusal, inverted: the payload Phase 3 refused is the field
+      // the template form grew, and the value comes back on the item.
+      const item = expectOk(
+        await createTaskBoxItem({ summary: `Dishes ${run}`, routine: false, rewardPoints: 5 }),
+      );
+      expect(item.rewardPoints).toBe(5);
+      expect((await storedTemplate(item.id))?.reward_points).toBe(5);
+    });
+
+    it("0 and blank both store NULL — no stars (004 FR-402)", async () => {
+      for (const rewardPoints of [0, null]) {
+        const item = expectOk(
+          await createTaskBoxItem({ summary: `Worth nothing ${run}`, routine: false, rewardPoints }),
+        );
+        expect(item.rewardPoints).toBeNull();
+        expect((await storedTemplate(item.id))?.reward_points).toBeNull();
+      }
     });
 
     it("an emoji is optional, and a template without one stores NULL", async () => {
@@ -451,14 +469,20 @@ describe("the Task Box: FR-389's parent-only templates and FR-377's three fields
       expect(await storedTemplates()).toEqual(before);
     });
 
-    it("a star value in the payload is REFUSED, not stripped (FR-329, SC-319)", async () => {
+    it("501, a numeric string and the raw column name are VALIDATION, and nothing is stored (004 FR-402)", async () => {
       const before = await storedTemplates();
-      for (const extra of [{ rewardPoints: 5 }, { reward_points: 5 }]) {
+      expectFieldError(
+        await createTaskBoxItem({ summary: `Too many ${run}`, routine: false, rewardPoints: 501 }),
+        "rewardPoints",
+      );
+      // The strict object still refuses what the form does not send: a string
+      // where a number belongs, and the column's own name.
+      for (const extra of [{ rewardPoints: "5" }, { reward_points: 5 }]) {
         const result = await createTaskBoxItem({
           summary: `Starred ${run}`,
           routine: false,
           ...extra,
-        } as TaskBoxItemInputPayload);
+        } as unknown as TaskBoxItemInputPayload);
         expectFailure(result, "VALIDATION");
       }
       expect(await storedTemplates()).toEqual(before);
@@ -485,7 +509,7 @@ describe("the Task Box: FR-389's parent-only templates and FR-377's three fields
     });
   });
 
-  describe("edit offers those same three fields and no fourth (FR-380, SC-319)", () => {
+  describe("edit offers those same four fields and no fifth (FR-380, 004 FR-401, SC-418)", () => {
     beforeEach(async () => {
       await punchInAs(beaId, BEA_PIN);
     });
@@ -520,24 +544,37 @@ describe("the Task Box: FR-389's parent-only templates and FR-377's three fields
       expect((await storedTemplate(routineTemplateId))?.emoji).toBeNull();
     });
 
-    it("leaves a stored star value untouched and unreturned (FR-329, SC-319)", async () => {
+    it("keeps a stored star value an edit does not name, and returns it (FR-380, 004 FR-401)", async () => {
       await pool.query("update family.task_box_items set reward_points = 3 where id = $1", [
         choreTemplateId,
       ]);
+      // The merge's base is the stored template, so the patch of another field
+      // carries the value through unchanged — and the item hands it back.
       const item = expectOk(
         await updateTaskBoxItem({ id: choreTemplateId, patch: { summary: `Kept ${run}` } }),
       );
-      expect(Object.keys(item).filter((key) => STAR_SHAPED.test(key))).toEqual([]);
+      expect(item.rewardPoints).toBe(3);
       expect((await storedTemplate(choreTemplateId))?.reward_points).toBe(3);
     });
 
-    it("a star value in the patch is REFUSED and nothing changes (SC-319)", async () => {
+    it("a star value in the patch is stored, 0 clears it, and 501 changes nothing (004 FR-402)", async () => {
+      const raised = expectOk(
+        await updateTaskBoxItem({ id: choreTemplateId, patch: { rewardPoints: 5 } }),
+      );
+      expect(raised.rewardPoints).toBe(5);
+      expect((await storedTemplate(choreTemplateId))?.reward_points).toBe(5);
+
+      const cleared = expectOk(
+        await updateTaskBoxItem({ id: choreTemplateId, patch: { rewardPoints: 0 } }),
+      );
+      expect(cleared.rewardPoints).toBeNull();
+      expect((await storedTemplate(choreTemplateId))?.reward_points).toBeNull();
+
       const before = await storedTemplates();
-      const result = await updateTaskBoxItem({
-        id: choreTemplateId,
-        patch: { rewardPoints: 5 } as Partial<TaskBoxItemInputPayload>,
-      });
-      expectFailure(result, "VALIDATION");
+      expectFieldError(
+        await updateTaskBoxItem({ id: choreTemplateId, patch: { rewardPoints: 501 } }),
+        "rewardPoints",
+      );
       expect(await storedTemplates()).toEqual(before);
     });
 
@@ -587,7 +624,7 @@ describe("the Task Box: FR-389's parent-only templates and FR-377's three fields
 
     it("a task already created from the template is untouched (US4-12)", async () => {
       // FR-378's add: the ordinary create form, pre-filled with the template's
-      // three values and given the assignment and schedule it still requires.
+      // values (004 FR-404) and given the assignment and schedule it still requires.
       const task = expectOk(
         await createTask({
           summary: `Vacuum ${run}`,
@@ -609,7 +646,7 @@ describe("the Task Box: FR-389's parent-only templates and FR-377's three fields
 
     it("structurally: nothing in `family.tasks` references a template (FR-381)", async () => {
       // The behaviour above is a consequence of the schema, not of an ordering
-      // the delete remembers: `createTask` copies three values and keeps no link.
+      // the delete remembers: `createTask` copies the values and keeps no link.
       const { rows } = await pool.query<{ conname: string }>(
         "select c.conname from pg_constraint c " +
           "join pg_class child on child.oid = c.conrelid " +

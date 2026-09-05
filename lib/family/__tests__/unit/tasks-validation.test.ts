@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { ActionFailure } from "@/lib/family/errors";
 import type { TaskRepeatChoice } from "@/lib/family/types";
-import { parseOrThrow, taskInputSchema, taskRepeatChoiceSchema } from "@/lib/family/validation";
+import {
+  parseOrThrow,
+  taskBoxItemSchema,
+  taskInputSchema,
+  taskRepeatChoiceSchema,
+} from "@/lib/family/validation";
 
 /**
  * T026 — the task write boundary (`contracts/server-actions.md` → "Zod rules").
@@ -262,8 +267,67 @@ describe("no client may send a rule string in any shape (R201)", () => {
     expect(accepts(input)).toBe(false);
   });
 
-  it("never accepts a reserved star value (FR-329, SC-319)", () => {
-    expect(accepts(chore({ rewardPoints: 5 }))).toBe(false);
+});
+
+/**
+ * 004 T014 — the star value Phase 3 reserved is now a field (FR-401, FR-402):
+ * a whole number from 0 to 500, where blank and 0 alike mean "no stars" and
+ * store null, so a card worth nothing and a card never given a value are the
+ * same card (FR-403). The 500 ceiling is this schema's — 017's CHECK stops at
+ * `>= 0` and is not tightened (data-model, Assumption 4).
+ */
+describe("the star value (FR-402)", () => {
+  it.each([1, 5, 100, 500])("accepts %i and keeps it", (rewardPoints) => {
+    expect(parseOrThrow(taskInputSchema, chore({ rewardPoints })).rewardPoints).toBe(rewardPoints);
+  });
+
+  it.each([
+    ["null", null],
+    ["blank", ""],
+    ["zero", 0],
+  ])("stores %s as null — no stars, no chip", (_label, rewardPoints) => {
+    expect(parseOrThrow(taskInputSchema, chore({ rewardPoints })).rewardPoints).toBeNull();
+  });
+
+  it("is optional, and absent stays absent rather than becoming null", () => {
+    expect(accepts(chore())).toBe(true);
+    expect("rewardPoints" in parseOrThrow(taskInputSchema, chore())).toBe(false);
+  });
+
+  it.each([501, -1, 2.5, "5", "abc", true])("refuses %p naming the field", (rewardPoints) => {
+    const failure = refusalOf(chore({ rewardPoints }));
+    expect(failure.code).toBe("VALIDATION");
+    expect(failure.fieldErrors?.rewardPoints).toEqual(["Stars must be a whole number from 0 to 500."]);
+  });
+
+  it("holds on a routine exactly as on a chore", () => {
+    expect(parseOrThrow(taskInputSchema, routine({ rewardPoints: 5 })).rewardPoints).toBe(5);
+    expect(refusedFields(routine({ rewardPoints: 501 }))).toContain("rewardPoints");
+  });
+});
+
+/** FR-401: the template's FOURTH field, under the same rules as a task's (FR-380 inherited). */
+describe("the template's star value (FR-401, FR-404)", () => {
+  const template = (overrides: Draft = {}): Draft => ({ summary: "Brush teeth", routine: true, ...overrides });
+
+  it("accepts a value and normalises blank and 0 to null", () => {
+    expect(taskBoxItemSchema.parse(template({ rewardPoints: 5 })).rewardPoints).toBe(5);
+    expect(taskBoxItemSchema.parse(template({ rewardPoints: 0 })).rewardPoints).toBeNull();
+    expect(taskBoxItemSchema.parse(template({ rewardPoints: "" })).rewardPoints).toBeNull();
+    expect(taskBoxItemSchema.parse(template({ rewardPoints: null })).rewardPoints).toBeNull();
+    expect(taskBoxItemSchema.safeParse(template()).success).toBe(true);
+  });
+
+  it.each([501, -1, 2.5, "5"])("refuses %p naming the field", (rewardPoints) => {
+    const result = taskBoxItemSchema.safeParse(template({ rewardPoints }));
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.path).toEqual(["rewardPoints"]);
+  });
+
+  it("still has no fifth field: a description, a date or an assignment is refused", () => {
+    expect(taskBoxItemSchema.safeParse(template({ description: "x" })).success).toBe(false);
+    expect(taskBoxItemSchema.safeParse(template({ startsOn: "2026-09-14" })).success).toBe(false);
+    expect(taskBoxItemSchema.safeParse(template({ assigneeIds: [PROFILE_A] })).success).toBe(false);
   });
 });
 

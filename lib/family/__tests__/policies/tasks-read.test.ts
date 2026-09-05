@@ -237,9 +237,10 @@ describe("the tasks board reads: unwindowed definitions, windowed resolutions, i
       resolvedOn: CURSOR_TAIL_ON,
     });
 
+    // One template worth something and one worth nothing (004 FR-401, FR-402).
     await pool.query(
-      "insert into family.task_box_items (household_id, summary, emoji, routine) " +
-        "values ($1, $2, $3, $4), ($1, $5, null, false)",
+      "insert into family.task_box_items (household_id, summary, emoji, routine, reward_points) " +
+        "values ($1, $2, $3, $4, 5), ($1, $5, null, false, null)",
       [fx.householdId, `Make bed ${fx.run}`, "🛏️", true, `Take out trash ${fx.run}`],
     );
 
@@ -342,16 +343,14 @@ describe("the tasks board reads: unwindowed definitions, windowed resolutions, i
     }
   });
 
-  it("reads the Task Box templates without a star value", async () => {
+  it("reads the Task Box templates with their star value, the fourth field (004 FR-401)", async () => {
+    // SC-319's "no star value on a template" inverted into SC-418: the value
+    // rides the same read, NULL where the template is worth nothing.
     const templates = await fetchTaskBox(member, fx.householdId);
-    expect(templates).toHaveLength(2);
-    expect(templates.map((template) => template.summary)).toEqual([
-      `Take out trash ${fx.run}`,
-      `Make bed ${fx.run}`,
+    expect(templates.map((template) => [template.summary, template.rewardPoints])).toEqual([
+      [`Take out trash ${fx.run}`, null],
+      [`Make bed ${fx.run}`, 5],
     ]);
-    for (const template of templates) {
-      expect(Object.keys(template)).not.toContain("rewardPoints");
-    }
   });
 
   it("answers an authenticated non-member with nothing on all five reads", async () => {

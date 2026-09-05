@@ -18,9 +18,14 @@ import type {
   ExceptionAction,
   Household,
   HouseholdSettings,
+  Redemption,
   RenewUnit,
   ResolutionStatus,
+  Reward,
   Role,
+  StarBalance,
+  StarEntry,
+  StarEntryKind,
   Task,
   TaskAssignee,
   TaskBoxItem,
@@ -285,7 +290,7 @@ export function toEvent(row: EventWithRelationsRow): Event {
  * Tasks (Phase 3 — specs/003-family-tasks)
  * ------------------------------------------------------------------------- */
 
-/** `reward_points` is absent by design — nothing this phase reads it (FR-329, SC-319). */
+/** `reward_points` (017, reserved by Phase 3) is read and written from Phase 4 on (004 R406). */
 export interface TaskRow {
   id: string;
   household_id: string;
@@ -302,6 +307,7 @@ export interface TaskRow {
   renew_after_amount: number | null;
   renew_after_unit: RenewUnit | null;
   renew_until: string | null;
+  reward_points: number | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -348,13 +354,14 @@ export interface TaskCursorRow {
   tail_resolved_on: string;
 }
 
-/** `reward_points` is absent by design (FR-377, SC-319). */
+/** `reward_points` (021, reserved by Phase 3) is the template's fourth field from Phase 4 on (004 FR-401). */
 export interface TaskBoxItemRow {
   id: string;
   household_id: string;
   summary: string;
   emoji: string | null;
   routine: boolean;
+  reward_points: number | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -364,7 +371,7 @@ export interface TaskBoxItemRow {
 export const TASK_COLUMNS =
   "id, household_id, summary, description, emoji, routine, up_for_grabs, track_habit, " +
   "starts_on, due_time, times_of_day, rrule, renew_after_amount, renew_after_unit, " +
-  "renew_until, created_by, updated_by, created_at, updated_at";
+  "renew_until, reward_points, created_by, updated_by, created_at, updated_at";
 
 export const TASK_ASSIGNEE_COLUMNS =
   "household_id, task_id, category_id, sort_order, streak_count, streak_through, created_at";
@@ -377,7 +384,8 @@ export const TASK_CURSOR_COLUMNS =
   "household_id, task_id, assignee_id, tail_id, tail_resolved_on";
 
 export const TASK_BOX_COLUMNS =
-  "id, household_id, summary, emoji, routine, created_by, updated_by, created_at, updated_at";
+  "id, household_id, summary, emoji, routine, reward_points, created_by, updated_by, " +
+  "created_at, updated_at";
 
 /**
  * The tasks select with its one embed, built as a joined list rather than
@@ -427,6 +435,7 @@ export function toTask(row: TaskWithAssigneesRow): Task {
     renewAfterAmount: row.renew_after_amount,
     renewAfterUnit: row.renew_after_unit,
     renewUntil: row.renew_until,
+    rewardPoints: row.reward_points,
     // PostgREST embed order is unspecified and the expander's output order
     // follows this one, so it is pinned rather than inherited.
     assignees: [...row.task_assignees]
@@ -474,9 +483,159 @@ export function toTaskBoxItem(row: TaskBoxItemRow): TaskBoxItem {
     summary: row.summary,
     emoji: row.emoji,
     routine: row.routine,
+    rewardPoints: row.reward_points,
     createdBy: row.created_by,
     updatedBy: row.updated_by,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+/* ------------------------------------------------------------------------- *
+ * Rewards (Phase 4 — specs/004-family-rewards, data-model 024–026)
+ * ------------------------------------------------------------------------- */
+
+export interface RewardRow {
+  id: string;
+  household_id: string;
+  name: string;
+  description: string | null;
+  emoji: string | null;
+  point_value: number;
+  respawn_on_redemption: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RewardEligibilityRow {
+  household_id: string;
+  reward_id: string;
+  category_id: string;
+  created_at: string;
+}
+
+/** The rewards read always embeds the eligibilities — a card is drawn per eligible Profile (R407). */
+export interface RewardWithEligibilitiesRow extends RewardRow {
+  reward_eligibilities: RewardEligibilityRow[];
+}
+
+export interface StarEntryRow {
+  id: string;
+  household_id: string;
+  category_id: string;
+  amount: number;
+  kind: StarEntryKind;
+  earned_on: string | null;
+  resolution_id: string | null;
+  redemption_id: string | null;
+  summary: string | null;
+  created_by: string | null;
+  entered_on: string;
+  created_at: string;
+}
+
+/** `family.star_balances` — a view, read filtered by household; the two columns the tab needs. */
+export interface StarBalanceRow {
+  category_id: string;
+  balance: number;
+}
+
+export interface RedemptionRow {
+  id: string;
+  household_id: string;
+  reward_id: string;
+  category_id: string;
+  point_value: number;
+  reward_name: string;
+  redeemed_on: string;
+  redeemed_at: string;
+  redeemed_by: string | null;
+  reversed_at: string | null;
+  reversed_by: string | null;
+}
+
+export const REWARD_COLUMNS =
+  "id, household_id, name, description, emoji, point_value, respawn_on_redemption, " +
+  "created_by, updated_by, created_at, updated_at";
+
+export const REWARD_ELIGIBILITY_COLUMNS = "household_id, reward_id, category_id, created_at";
+
+export const STAR_ENTRY_COLUMNS =
+  "id, household_id, category_id, amount, kind, earned_on, resolution_id, redemption_id, " +
+  "summary, created_by, entered_on, created_at";
+
+export const STAR_BALANCE_COLUMNS = "category_id, balance";
+
+export const REDEMPTION_COLUMNS =
+  "id, household_id, reward_id, category_id, point_value, reward_name, redeemed_on, " +
+  "redeemed_at, redeemed_by, reversed_at, reversed_by";
+
+/**
+ * The rewards select with its one embed, built as a joined list rather than
+ * adjacent template literals — the production bundler folds those and drops the
+ * separator between them, which shipped as PGRST100 on every client-side read
+ * (see `eventsSelect`).
+ */
+export function rewardsSelect(): string {
+  return [REWARD_COLUMNS, `reward_eligibilities(${REWARD_ELIGIBILITY_COLUMNS})`].join(",");
+}
+
+export function toReward(row: RewardWithEligibilitiesRow): Reward {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    name: row.name,
+    description: row.description,
+    emoji: row.emoji,
+    pointValue: row.point_value,
+    respawnOnRedemption: row.respawn_on_redemption,
+    // PostgREST embed order is unspecified and eligibilities carry no position
+    // of their own, so the order is pinned rather than inherited (as `toTask`).
+    categoryIds: [...row.reward_eligibilities]
+      .sort((a, b) => a.category_id.localeCompare(b.category_id))
+      .map((link) => link.category_id),
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toStarEntry(row: StarEntryRow): StarEntry {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    categoryId: row.category_id,
+    amount: row.amount,
+    kind: row.kind,
+    earnedOn: row.earned_on,
+    resolutionId: row.resolution_id,
+    redemptionId: row.redemption_id,
+    summary: row.summary,
+    createdBy: row.created_by,
+    enteredOn: row.entered_on,
+    createdAt: row.created_at,
+  };
+}
+
+export function toStarBalance(row: StarBalanceRow): StarBalance {
+  return { categoryId: row.category_id, balance: row.balance };
+}
+
+export function toRedemption(row: RedemptionRow): Redemption {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    rewardId: row.reward_id,
+    categoryId: row.category_id,
+    pointValue: row.point_value,
+    rewardName: row.reward_name,
+    redeemedOn: row.redeemed_on,
+    redeemedAt: row.redeemed_at,
+    redeemedBy: row.redeemed_by,
+    reversedAt: row.reversed_at,
+    reversedBy: row.reversed_by,
   };
 }

@@ -28,6 +28,7 @@ const NOBODY_HIDDEN: ReadonlySet<string> = new Set<string>();
 
 function occurrenceOf(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   return {
+    rewardPoints: null,
     taskId: "task-1",
     assigneeId: ANA,
     scheduledDate: "2026-09-04",
