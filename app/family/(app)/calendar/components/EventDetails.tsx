@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode } from "react";
+import { useRef } from "react";
 
 import { localDateOf } from "@/lib/family/calendar/dates";
 import type {
@@ -13,6 +13,7 @@ import type {
 } from "@/lib/family/types";
 
 import { useModalDialog } from "../../components/useModalDialog";
+import { DetailRow } from "../../components/DetailRow";
 
 /**
  * The event-details surface (T047, FR-256): tapping a block or a "+n more"
@@ -147,16 +148,6 @@ function assignedOf(
     .filter((category): category is Category => category !== undefined);
 }
 
-function DetailRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="mt-3">
-      <span className="block text-(length:--fam-fs-small) font-medium text-(--fam-text-secondary)">
-        {label}
-      </span>
-      <div className="mt-1 text-(length:--fam-fs-body)">{children}</div>
-    </div>
-  );
-}
 
 export interface EventDetailsProps {
   /** The tapped occurrence — effective fields, any override already merged. */

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { ActionFailure, type ActionResult, type FieldErrors } from "@/lib/family/errors";
+import type { FieldErrors } from "@/lib/family/errors";
 import {
   WEEKDAYS,
   type Category,
@@ -12,6 +12,14 @@ import {
   type Weekday,
 } from "@/lib/family/types";
 import { validateEventInput } from "@/lib/family/validation";
+
+import {
+  settleSubmit,
+  toggled,
+  useSubmission,
+  type Settled,
+  type SubmitOutcome,
+} from "../../components/formSubmit";
 
 /**
  * Draft state + submit machinery for the event form (T046).
@@ -36,7 +44,7 @@ export type RepeatKind = RepeatChoice["kind"];
  * caller already took the outcome over (FR-288's "no longer exists" closes
  * the form itself) — and the form stays exactly as it is, saying nothing.
  */
-export type SubmitOutcome = ActionResult<unknown> | null;
+export type { SubmitOutcome };
 
 export interface EventDraft {
   summary: string;
@@ -182,43 +190,19 @@ function startWeekday(startDate: string): Weekday {
   return WEEKDAYS[index] ?? WEEKDAYS[0];
 }
 
-function toggled<T>(list: T[], value: T): T[] {
-  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
-}
-
-/** How a submit settled: saved and done, refused with what to show, or abandoned with nothing to show. */
-type Settled =
-  | { kind: "saved" }
-  | { kind: "abandoned" }
-  | { kind: "refused"; message: string; fieldErrors?: FieldErrors };
-
 /**
  * Validate locally with the actions' own module, then hand the parsed input
- * to the caller. A refusal is what the form must show, leaving every other
- * entry exactly as typed (FR-262).
+ * to the caller (`settleSubmit`). A refusal is what the form must show,
+ * leaving every other entry exactly as typed (FR-262).
  */
-async function validateAndSubmit(
-  draft: EventDraft,
-  options: UseEventFormOptions,
-): Promise<Settled> {
+function validateAndSubmit(draft: EventDraft, options: UseEventFormOptions): Promise<Settled> {
   const orderedIds = options.categories
     .filter((category) => draft.categoryIds.includes(category.id))
     .map((category) => category.id);
-
-  let input: EventInput;
-  try {
-    input = validateEventInput(draftToEventInput(draft, orderedIds), options.householdTimezone);
-  } catch (error) {
-    if (error instanceof ActionFailure) {
-      return { kind: "refused", message: error.message, fieldErrors: error.fieldErrors };
-    }
-    throw error;
-  }
-
-  const outcome = await options.onSubmit(input);
-  if (outcome === null) return { kind: "abandoned" };
-  if (outcome.ok) return { kind: "saved" };
-  return { kind: "refused", message: outcome.message, fieldErrors: outcome.fieldErrors };
+  return settleSubmit(
+    () => validateEventInput(draftToEventInput(draft, orderedIds), options.householdTimezone),
+    options.onSubmit,
+  );
 }
 
 export interface UseEventFormOptions {
@@ -251,9 +235,7 @@ export interface EventFormState {
 
 export function useEventForm(options: UseEventFormOptions): EventFormState {
   const [draft, setDraft] = useState<EventDraft>(() => initialDraft(options.seed));
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [message, setMessage] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { errors, message, pending, submit: run } = useSubmission(options.onClose);
 
   function set<K extends keyof EventDraft>(key: K, value: EventDraft[K]): void {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -287,21 +269,7 @@ export function useEventForm(options: UseEventFormOptions): EventFormState {
     setDraft((current) => ({ ...current, categoryIds: toggled(current.categoryIds, id) }));
   }
 
-  async function submit(): Promise<void> {
-    setPending(true);
-    setErrors({});
-    setMessage(null);
-    const settled = await validateAndSubmit(draft, options);
-    setPending(false);
-    if (settled.kind === "saved") {
-      options.onClose();
-      return;
-    }
-    if (settled.kind === "refused") {
-      setErrors(settled.fieldErrors ?? {});
-      setMessage(settled.message);
-    }
-  }
+  const submit = (): Promise<void> => run(() => validateAndSubmit(draft, options));
 
   return {
     draft,

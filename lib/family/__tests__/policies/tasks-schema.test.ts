@@ -148,6 +148,30 @@ describe("tasks schema: the data-model invariants", () => {
       .select("id")
       .single();
 
+
+  /**
+   * T082 / migration 023: the SAME grammar the tasks carry, on the shipped
+   * events column. The timed shape and `timezone` are what 010's own CHECKs
+   * demand of any event row; nothing here is about the event itself.
+   */
+  const insertEvent = (row: Record<string, unknown>) =>
+    admin
+      .schema("family")
+      .from("events")
+      .insert({
+        household_id: householdA,
+        summary: `Probe ${fx.run}`,
+        timezone: "UTC",
+        all_day: false,
+        starts_at: "2026-10-06T17:00:00Z",
+        ends_at: "2026-10-06T17:45:00Z",
+        start_date: null,
+        end_date: null,
+        ...row,
+      })
+      .select("id")
+      .single();
+
   async function createTask(row: Record<string, unknown>): Promise<string> {
     const { data, error } = await insertTask(row);
     if (error) throw error;
@@ -341,6 +365,107 @@ describe("tasks schema: the data-model invariants", () => {
       const result = await insertTask({ starts_on: "2026-09-01", rrule });
       expect(result.error, rrule).toBeNull();
     }
+  });
+
+
+  // ── migration 023: the events column carries the identical constraint ─────
+
+  it("events_rrule_grammar (023): the same accept/reject table as the tasks (FR-345)", async () => {
+    const refused = [
+      "FREQ=DAILY;INTERVAL=0",
+      "FREQ=DAILY;INTERVAL=01",
+      "FREQ=DAILY;INTERVAL=100",
+      "FREQ=DAILY;INTERVAL=1;COUNT=5",
+      "RRULE:FREQ=DAILY;INTERVAL=1",
+      "FREQ=YEARLY;INTERVAL=1",
+      "FREQ=DAILY",
+    ];
+    for (const rrule of refused) {
+      const result = await insertEvent({ rrule });
+      expectRefusal(result.error, "23514", "events_rrule_grammar");
+    }
+
+    const accepted = [
+      "FREQ=DAILY;INTERVAL=1",
+      "FREQ=WEEKLY;INTERVAL=2;WKST=SU;BYDAY=TU",
+      "FREQ=MONTHLY;INTERVAL=99;BYMONTHDAY=15",
+      "FREQ=WEEKLY;INTERVAL=1;UNTIL=20261215;WKST=SU;BYDAY=MO,TU",
+    ];
+    for (const rrule of accepted) {
+      const result = await insertEvent({ rrule });
+      expect(result.error, rrule).toBeNull();
+    }
+  });
+
+  it("events_rrule_grammar (023): the FR-233 reference rule is accepted and read back byte-identical", async () => {
+    // The verified Skylight capture minus the RRULE: prefix and array wrapper.
+    const reference = "FREQ=WEEKLY;INTERVAL=1;UNTIL=20260106T235959Z;WKST=SU;BYDAY=MO,TU";
+    const inserted = await insertEvent({ rrule: reference });
+    expect(inserted.error).toBeNull();
+    const { rows } = await pool.query<{ rrule: string }>(
+      "select rrule from family.events where id = $1",
+      [(inserted.data as { id: string }).id],
+    );
+    expect(rows[0]?.rrule).toBe(reference);
+  });
+
+  it("023 dropped 010's unnamed rule check by definition, and the two tables now agree", async () => {
+    const { rows } = await pool.query<{ table: string; name: string; def: string }>(
+      `select c.conrelid::regclass::text as "table", c.conname as name,
+              pg_get_constraintdef(c.oid) as def
+         from pg_constraint c
+        where c.conrelid in ('family.events'::regclass, 'family.tasks'::regclass)
+          and c.contype = 'c'
+          and pg_get_constraintdef(c.oid) like '%FREQ=%'
+        order by 1`,
+    );
+    // Exactly one GRAMMAR check per table (the tasks' shape constraints also
+    // name the column, but only the grammar spells FREQ): the old unnamed one
+    // is gone, not standing beside the new one.
+    const events = rows.filter((row) => row.table === "family.events");
+    const tasks = rows.filter((row) => row.table === "family.tasks");
+    expect(events.map((row) => row.name)).toEqual(["events_rrule_grammar"]);
+    expect(tasks.map((row) => row.name)).toEqual(["tasks_rrule_grammar"]);
+    // "Identical text": the same definition, character for character.
+    expect(events[0]?.def).toBe(tasks[0]?.def);
+  });
+
+  it("split_event_series is still correct at INTERVAL=2 under the new constraint", async () => {
+    const rule = "FREQ=WEEKLY;INTERVAL=2;WKST=SU;BYDAY=TU";
+    const head = await insertEvent({ rrule: rule });
+    expect(head.error).toBeNull();
+    const headId = (head.data as { id: string }).id;
+
+    // The cut is the third fortnightly occurrence (Oct 6 → Oct 20 → Nov 3):
+    // the head keeps its rule truncated to the day before, the tail restarts
+    // on the cut with the same INTERVAL=2 rule, re-anchored.
+    const headRule = "FREQ=WEEKLY;INTERVAL=2;UNTIL=20261102T235959Z;WKST=SU;BYDAY=TU";
+    const { rows: split } = await pool.query<{ tail: string }>(
+      "select family.split_event_series($1, $2, null, $3, $4, $5::jsonb, '{}'::uuid[]) as tail",
+      [
+        householdA,
+        headId,
+        headRule,
+        "2026-11-03",
+        JSON.stringify({
+          summary: `Probe tail ${fx.run}`,
+          all_day: false,
+          starts_at: "2026-11-03T17:00:00Z",
+          ends_at: "2026-11-03T17:45:00Z",
+          timezone: "UTC",
+          rrule: rule,
+        }),
+      ],
+    );
+    const tailId = split[0]?.tail;
+    expect(tailId).toBeTruthy();
+
+    const { rows } = await pool.query<{ id: string; rrule: string; starts_at: string }>(
+      "select id, rrule, starts_at::text from family.events where id = any($1::uuid[]) order by starts_at",
+      [[headId, tailId]],
+    );
+    expect(rows.map((row) => row.rrule)).toEqual([headRule, rule]);
+    expect(rows[1]?.starts_at.startsWith("2026-11-03")).toBe(true);
   });
 
   it("summary, description, emoji and the reserved star value are bounded (23514)", async () => {

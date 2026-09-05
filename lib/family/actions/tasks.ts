@@ -85,10 +85,15 @@ import type {
   TaskResolution,
   TaskScope,
   TimeOfDay,
-  WeekStart,
 } from "../types";
 import { parseOrThrow, taskInputSchema, type TaskInput } from "../validation";
-import { adminFamily, loadProfile, mapDbError, touchActor } from "./shared";
+import {
+  adminFamily,
+  loadHouseholdZone,
+  loadProfile,
+  mapDbError,
+  touchActor,
+} from "./shared";
 
 const INVALID_ID = "Invalid id.";
 const CREDIT_REQUIRED = "Choose who this one is for.";
@@ -165,26 +170,6 @@ const moveRoutineSchema = z.strictObject({
  * check under the service role (FR-390).
  * ------------------------------------------------------------------------- */
 
-/** What every expansion and every rule emission needs from the household. */
-interface TaskHousehold {
-  zone: string;
-  /** `WKST` on weekly rules — the household's start-of-week (R303). */
-  wkst: RuleWeekday;
-}
-
-const WKST_OF: Record<WeekStart, RuleWeekday> = { 0: "SU", 1: "MO" };
-
-async function loadHousehold(householdId: string): Promise<TaskHousehold> {
-  const { data, error } = await adminFamily()
-    .from("household_settings")
-    .select("timezone, start_week_on")
-    .eq("household_id", householdId)
-    .maybeSingle();
-  if (error) throw mapDbError(error);
-  if (!data) throw new ActionFailure("NOT_FOUND", "This household has no settings row.");
-  const row = data as unknown as { timezone: string; start_week_on: WeekStart };
-  return { zone: row.timezone, wkst: WKST_OF[row.start_week_on] };
-}
 
 /** An id outside the caller's household is `NOT_FOUND`, never `FORBIDDEN`. */
 async function loadTask(householdId: string, taskId: string): Promise<Task> {
@@ -268,7 +253,7 @@ async function loadOccurrence(
   householdId: string,
   key: OccurrenceKey,
 ): Promise<OccurrenceContext> {
-  const { zone } = await loadHousehold(householdId);
+  const { zone } = await loadHouseholdZone(householdId);
   const at = new Date();
   const todayDate = localDateOf(zone, at.getTime());
   const task = await loadTask(householdId, key.taskId);
@@ -1229,7 +1214,7 @@ export async function createTask(input: TaskInput): Promise<ActionResult<Task>> 
     const actor = await requireParent();
     const parsed = parseOrThrow(taskInputSchema, input);
     await assertAssigneesAreProfiles(actor.householdId, parsed.assigneeIds);
-    const household = await loadHousehold(actor.householdId);
+    const household = await loadHouseholdZone(actor.householdId);
 
     const { data, error } = await adminFamily()
       .from("tasks")
@@ -1268,7 +1253,7 @@ export async function updateTask(input: {
     const actor = await requireParent();
     const parsed = parseOrThrow(updateTaskSchema, input);
     const task = await loadTask(actor.householdId, parsed.id);
-    const household = await loadHousehold(actor.householdId);
+    const household = await loadHouseholdZone(actor.householdId);
 
     const merged = mergedTaskShape(task, parsed.patch, household.zone);
     await assertAssigneesAreProfiles(actor.householdId, merged.assigneeIds);

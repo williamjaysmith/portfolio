@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { ActionFailure, type ActionResult, type FieldErrors } from "@/lib/family/errors";
+import type { FieldErrors } from "@/lib/family/errors";
 import { taskRepeatChoiceOf } from "@/lib/family/tasks/repeat";
 import {
   WEEKDAYS,
@@ -14,6 +14,14 @@ import {
   type Weekday,
 } from "@/lib/family/types";
 import { parseOrThrow, taskInputSchema, type TaskInput } from "@/lib/family/validation";
+
+import {
+  settleSubmit,
+  toggled,
+  useSubmission,
+  type Settled,
+  type SubmitOutcome,
+} from "../../components/formSubmit";
 
 /**
  * Draft state + submit machinery for the task form (T053).
@@ -85,7 +93,7 @@ export type TaskFormSeed = Partial<TaskDraft>;
  * abandoned before any write, or the caller already took the outcome over
  * (FR-393's "no longer exists" closes the form itself).
  */
-export type TaskSubmitOutcome = ActionResult<unknown> | null;
+export type TaskSubmitOutcome = SubmitOutcome;
 
 /** 016's `task_slots_shape` spells this order out; the form emits it. */
 const SLOT_ORDER = ["morning", "afternoon", "evening"] as const satisfies readonly TimeOfDay[];
@@ -240,43 +248,19 @@ function repeatSeedOf(repeat: TaskRepeatChoice): TaskFormSeed {
   };
 }
 
-function toggled<T>(list: T[], value: T): T[] {
-  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
-}
-
-/** How a submit settled: saved, refused with what to show, or abandoned with nothing to show. */
-type Settled =
-  | { kind: "saved" }
-  | { kind: "abandoned" }
-  | { kind: "refused"; message: string; fieldErrors?: FieldErrors };
-
 /**
  * Validate locally with the action's own schema, then hand the parsed input to
- * the caller. A refusal is what the form must show, leaving every other entry
- * exactly as typed (FR-330, US2-4).
+ * the caller (`settleSubmit`). A refusal is what the form must show, leaving
+ * every other entry exactly as typed (FR-330, US2-4).
  */
-async function validateAndSubmit(
-  draft: TaskDraft,
-  options: UseTaskFormOptions,
-): Promise<Settled> {
+function validateAndSubmit(draft: TaskDraft, options: UseTaskFormOptions): Promise<Settled> {
   const orderedIds = options.profiles
     .filter((profile) => draft.assigneeIds.includes(profile.id))
     .map((profile) => profile.id);
-
-  let input: TaskInput;
-  try {
-    input = parseOrThrow(taskInputSchema, draftToTaskInput(draft, orderedIds, options.mode));
-  } catch (error) {
-    if (error instanceof ActionFailure) {
-      return { kind: "refused", message: error.message, fieldErrors: error.fieldErrors };
-    }
-    throw error;
-  }
-
-  const outcome = await options.onSubmit(input);
-  if (outcome === null) return { kind: "abandoned" };
-  if (outcome.ok) return { kind: "saved" };
-  return { kind: "refused", message: outcome.message, fieldErrors: outcome.fieldErrors };
+  return settleSubmit(
+    () => parseOrThrow(taskInputSchema, draftToTaskInput(draft, orderedIds, options.mode)),
+    options.onSubmit,
+  );
 }
 
 export type TaskFormMode = "create" | "edit";
@@ -308,9 +292,7 @@ export interface TaskFormState {
 
 export function useTaskForm(options: UseTaskFormOptions): TaskFormState {
   const [draft, setDraft] = useState<TaskDraft>(() => ({ ...blankDraft(), ...options.seed }));
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [message, setMessage] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { errors, message, pending, submit: run } = useSubmission(options.onClose);
 
   function set<K extends keyof TaskDraft>(key: K, value: TaskDraft[K]): void {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -328,21 +310,7 @@ export function useTaskForm(options: UseTaskFormOptions): TaskFormState {
     setDraft((current) => ({ ...current, timesOfDay: toggled(current.timesOfDay, slot) }));
   }
 
-  async function submit(): Promise<void> {
-    setPending(true);
-    setErrors({});
-    setMessage(null);
-    const settled = await validateAndSubmit(draft, options);
-    setPending(false);
-    if (settled.kind === "saved") {
-      options.onClose();
-      return;
-    }
-    if (settled.kind === "refused") {
-      setErrors(settled.fieldErrors ?? {});
-      setMessage(settled.message);
-    }
-  }
+  const submit = (): Promise<void> => run(() => validateAndSubmit(draft, options));
 
   return {
     draft,

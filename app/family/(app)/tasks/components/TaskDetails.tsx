@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type ReactNode, type RefObject } from "react";
+import { useRef, type RefObject } from "react";
 
 import { can } from "@/lib/family/permissions";
 import type {
@@ -14,6 +14,7 @@ import type {
 import { useModalDialog } from "../../components/useModalDialog";
 import { SECTION_LABELS } from "./SectionGroup";
 import { UP_FOR_GRABS_TITLE } from "./UpForGrabsColumn";
+import { DetailRow } from "../../components/DetailRow";
 
 /**
  * The task details view (T045, FR-352, US1-8): opened by a tap on the card
@@ -119,16 +120,6 @@ function creditedProfileOf(
   return categories.find((category) => category.id === id) ?? null;
 }
 
-function DetailRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="mt-3">
-      <span className="block text-(length:--fam-fs-small) font-medium text-(--fam-text-secondary)">
-        {label}
-      </span>
-      <div className="mt-1 text-(length:--fam-fs-body)">{children}</div>
-    </div>
-  );
-}
 
 const BUTTON_CLASS =
   "min-h-(--fam-touch) rounded-full border border-(--fam-hairline) px-5 " +

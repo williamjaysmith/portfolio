@@ -1,24 +1,11 @@
 "use client";
 
-import {
-  animate,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  type MotionValue,
-} from "framer-motion";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type ReactNode,
-} from "react";
+import { motion } from "framer-motion";
+import { useCallback, useState, type KeyboardEvent, type ReactNode } from "react";
 
-import { swipeAxisOf, swipeStepOf, travelOf, type Offset, type SwipeAxis } from "@/lib/family/swipe";
 import type { BoardLayoutMode } from "@/lib/family/tasks/layout";
+
+import { useSwipePan } from "../../components/useSwipePan";
 
 /**
  * T075: the phone's horizontal swipe between profile columns (FR-396, R320).
@@ -29,11 +16,12 @@ import type { BoardLayoutMode } from "@/lib/family/tasks/layout";
  * viewport is not the tall-and-narrow shape that wraps them onto a second row
  * (FR-395), the ones that do not fit are reached by swiping.
  *
- * **The three pure decisions are not written here.** `swipeAxisOf`,
- * `swipeStepOf` and `travelOf` live in `lib/family/swipe.ts` and are the very
- * ones the calendar's `WeekPager` binds to (T073): one axis lock, one commit
- * threshold, one reduced-motion collapse, so a swipe feels the same on both
- * tabs and a second hand-written pair cannot drift from the first.
+ * **The gesture is not written here.** `swipeAxisOf`, `swipeStepOf` and
+ * `travelOf` live in `lib/family/swipe.ts` (T073) and the framer binding over
+ * them is `useSwipePan`, the very one the calendar's `WeekPager` mounts: one
+ * axis lock, one commit threshold, one reduced-motion collapse, so a swipe
+ * feels the same on both tabs and a second hand-written pair cannot drift
+ * from the first.
  *
  * **The tiling IS written here, because it is genuinely different.** The
  * calendar tiles an anchored week into slices and pulls the last one back so it
@@ -55,9 +43,6 @@ import type { BoardLayoutMode } from "@/lib/family/tasks/layout";
  * Reduced motion collapses the follow to zero travel and the settle to an
  * instant, exactly as the calendar's does (FR-252, FR-397).
  */
-
-/** The settle tween's length — the same one the calendar's drag layer uses. */
-const SETTLE_SECONDS = 0.14;
 
 /** What the paging group is called to a screen reader. */
 const PAGER_LABEL = "Profile columns";
@@ -124,81 +109,6 @@ export function useColumnPage({ columnCount, perRow, mode }: ColumnPageInput): C
   return { paged, start, end: paged ? start + perRow : columnCount, step };
 }
 
-/* ---------------------------------------------------------------- gesture -- */
-
-/** One gesture's memory: its locked axis, and whether it is ours at all. */
-interface SwipeGesture {
-  axis: SwipeAxis;
-  /** A reorder had already claimed the pointer when this press landed. */
-  rejected: boolean;
-}
-
-/** Between gestures nothing is ours — a stray move can then do nothing. */
-const IDLE_GESTURE: SwipeGesture = { axis: "unlocked", rejected: true };
-
-/** What framer's pan handlers need, in the shape `motion.div` takes them. */
-interface SwipeHandlers {
-  onPanSessionStart: () => void;
-  onPan: (event: PointerEvent, info: { offset: Offset }) => void;
-  onPanEnd: (event: PointerEvent, info: { offset: Offset }) => void;
-}
-
-/** Enough of framer's playback controls to call the settle off. */
-interface Settling {
-  stop: () => void;
-}
-
-interface SwipePan {
-  x: MotionValue<number>;
-  handlers: SwipeHandlers;
-}
-
-/**
- * The gesture, held in a ref because none of it is rendered: the strip's
- * position is a motion value, so the board does not re-render per frame, and
- * the only React state a swipe produces is the page it lands on.
- */
-function useColumnPan(onPage: (direction: -1 | 1) => void, suspended: boolean): SwipePan {
-  const x = useMotionValue(0);
-  const reducedMotion = useReducedMotion();
-  const gesture = useRef<SwipeGesture>(IDLE_GESTURE);
-  const settling = useRef<Settling | null>(null);
-
-  useEffect(() => () => settling.current?.stop(), []);
-
-  const handlers = useMemo<SwipeHandlers>(
-    () => ({
-      onPanSessionStart: () => {
-        settling.current?.stop();
-        settling.current = null;
-        gesture.current = { axis: "unlocked", rejected: suspended };
-      },
-      onPan: (_event, info) => {
-        const current = gesture.current;
-        if (current.rejected) return;
-        const axis = swipeAxisOf(current.axis, info.offset);
-        gesture.current = { axis, rejected: false };
-        if (axis === "horizontal") x.set(travelOf(info.offset.x, reducedMotion));
-      },
-      onPanEnd: (_event, info) => {
-        const current = gesture.current;
-        gesture.current = IDLE_GESTURE;
-        if (current.rejected) return;
-        settling.current = animate(x, 0, {
-          type: "tween",
-          duration: reducedMotion === true ? 0 : SETTLE_SECONDS,
-          ease: "easeOut",
-        });
-        const step = swipeStepOf(current.axis, info.offset.x);
-        if (step !== null) onPage(step);
-      },
-    }),
-    [x, reducedMotion, onPage, suspended],
-  );
-
-  return { x, handlers };
-}
-
 /** FR-397: the swipe has a keyboard equivalent, on the group the columns sit in. */
 function pageKeyOf(key: string): -1 | 1 | null {
   if (key === "ArrowRight") return 1;
@@ -227,7 +137,10 @@ export function ColumnPager({
   visibleLabels,
   children,
 }: ColumnPagerProps) {
-  const { x, handlers } = useColumnPan(onPage, suspended);
+  // A press while a press-and-hold reorder owns the pointer is the reorder's,
+  // not the pager's (T076) — decided at the press, like the calendar's blocks.
+  const rejectWhileSuspended = useCallback(() => suspended, [suspended]);
+  const { x, handlers } = useSwipePan(onPage, rejectWhileSuspended);
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {

@@ -4,6 +4,13 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { boardLayoutOf, type BoardLayout } from "@/lib/family/tasks/layout";
 
+import {
+  attachProbe,
+  detachProbe,
+  hiddenProbeRoot,
+  type ProbeAttachment,
+} from "../../components/probeAttachment";
+
 /**
  * T040 / R320: the board measures ITSELF. FR-394 says decide how many columns
  * to show by measuring the space, not by a fixed count or a breakpoint, so a
@@ -97,7 +104,7 @@ export function useBoardGeometry(columnCount: number): UseBoardGeometryResult {
 
   const boardRef = useCallback(
     (node: HTMLElement | null) => {
-      detach(attachmentRef.current);
+      detachProbe(attachmentRef.current);
       attachmentRef.current = node === null ? null : attach(node, measure);
       if (node === null) setMeasurement(null);
       else measure();
@@ -142,52 +149,21 @@ interface ProbeElements {
   column: HTMLElement;
 }
 
-interface Attachment {
-  node: HTMLElement;
-  probe: ProbeElements;
-  observer: ResizeObserver | null;
-  onWindowResize: () => void;
-}
-
-function attach(node: HTMLElement, onChange: () => void): Attachment {
-  const probe = buildProbe(node.ownerDocument);
-  node.appendChild(probe.root);
-  let observer: ResizeObserver | null = null;
-  if (typeof ResizeObserver !== "undefined") {
-    observer = new ResizeObserver(onChange);
-    observer.observe(node);
-    // The probe resizes on its own when --fam-u changes (the board's border
-    // box does not have to), so a rotation that keeps the width still moves
-    // the count.
-    observer.observe(probe.column);
-  }
-  // Rotation and toolbar collapse can flip FR-395's orientation test without
-  // resizing the observed node.
-  window.addEventListener("resize", onChange);
-  return { node, probe, observer, onWindowResize: onChange };
-}
-
-function detach(attachment: Attachment | null): void {
-  if (attachment === null) return;
-  attachment.observer?.disconnect();
-  window.removeEventListener("resize", attachment.onWindowResize);
-  attachment.probe.root.remove();
-}
+type Attachment = ProbeAttachment<ProbeElements>;
 
 /**
- * A hidden in-scope element sized purely by the token. `visibility: hidden`
- * keeps its layout real; the negative offset cannot create scrollable
- * overflow, which matters because the board it sits in is `overflow-x: hidden`
- * and its columns scroll.
+ * The shared plumbing (`probeAttachment.ts`), told to watch the probe column:
+ * it resizes on its own when --fam-u changes (the board's border box does not
+ * have to), so a rotation that keeps the width still moves the count.
  */
+function attach(node: HTMLElement, onChange: () => void): Attachment {
+  const probe = buildProbe(node.ownerDocument);
+  return attachProbe(node, probe, [probe.column], onChange);
+}
+
+/** A hidden in-scope element sized purely by the token, on the shared root. */
 function buildProbe(doc: Document): ProbeElements {
-  const root = doc.createElement("div");
-  root.setAttribute("aria-hidden", "true");
-  root.style.position = "absolute";
-  root.style.left = "-9999px";
-  root.style.top = "0";
-  root.style.visibility = "hidden";
-  root.style.pointerEvents = "none";
+  const root = hiddenProbeRoot(doc);
 
   const column = doc.createElement("div");
   column.style.width = "var(--fam-task-col-w)";

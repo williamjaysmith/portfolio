@@ -46,7 +46,6 @@ import {
   type RepeatChoice,
   type Scope,
   type UpdateEventInput,
-  type WeekStart,
 } from "../types";
 import {
   deleteEventInputSchema,
@@ -54,7 +53,13 @@ import {
   updateEventInputSchema,
   validateEventInput,
 } from "../validation";
-import { adminFamily, mapDbError, touchActor } from "./shared";
+import {
+  adminFamily,
+  loadHouseholdZone,
+  mapDbError,
+  touchActor,
+  type HouseholdZone,
+} from "./shared";
 
 type UpdateInput = z.output<typeof updateEventInputSchema>;
 type Patch = UpdateInput["patch"];
@@ -63,13 +68,6 @@ type DeleteInput = z.output<typeof deleteEventInputSchema>;
 /** Snake-cased columns for an INSERT/UPDATE/UPSERT. */
 type EventWrite = Record<string, string | boolean | null>;
 
-/** What every expansion and every rule emission needs from the household (FR-284, R201). */
-interface HouseholdZone {
-  zone: string;
-  /** `WKST` on weekly rules — the household's start-of-week. */
-  wkst: RuleWeekday;
-}
-
 /** The exception row's payload — exactly FR-239's four; `null` = inherit from the series. */
 interface ExceptionPayload {
   summary: string | null;
@@ -77,8 +75,6 @@ interface ExceptionPayload {
   location: string | null;
   times: EventTimes | null;
 }
-
-const WKST_OF: Record<WeekStart, RuleWeekday> = { 0: "SU", 1: "MO" };
 
 // The same embed the week read uses: ordered links and EVERY exception (R206).
 const EVENT_WITH_RELATIONS = eventsSelect();
@@ -96,18 +92,6 @@ const OCCURRENCE_REQUIRED = "Say which occurrence this applies to.";
  * Reads through the admin client — scoped by household, which IS the tenancy
  * check under the service role.
  * ------------------------------------------------------------------------- */
-
-async function loadHouseholdZone(householdId: string): Promise<HouseholdZone> {
-  const { data, error } = await adminFamily()
-    .from("household_settings")
-    .select("timezone, start_week_on")
-    .eq("household_id", householdId)
-    .maybeSingle();
-  if (error) throw mapDbError(error);
-  if (!data) throw new ActionFailure("NOT_FOUND", "This household has no settings row.");
-  const row = data as unknown as { timezone: string; start_week_on: WeekStart };
-  return { zone: row.timezone, wkst: WKST_OF[row.start_week_on] };
-}
 
 /** The admin re-read of contracts step 1: an id outside the household is `NOT_FOUND`, never `FORBIDDEN`. */
 async function loadEvent(householdId: string, id: string): Promise<Event> {

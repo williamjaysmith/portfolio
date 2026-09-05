@@ -1,17 +1,9 @@
 "use client";
 
-import {
-  animate,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  type MotionValue,
-} from "framer-motion";
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { motion } from "framer-motion";
+import type { ReactNode } from "react";
 
-import { swipeAxisOf, swipeStepOf, travelOf, type Offset, type SwipeAxis } from "@/lib/family/swipe";
-
-import { SETTLE_SECONDS } from "./DragPreviewBlock";
+import { useSwipePan } from "../../components/useSwipePan";
 
 /**
  * T060: the paging swipe (FR-279, R211) — a horizontal pan on the grid strip
@@ -27,9 +19,10 @@ import { SETTLE_SECONDS } from "./DragPreviewBlock";
  * Those three functions now live in `lib/family/swipe.ts` (003 T073, R320):
  * the Tasks board pages between profile columns with the same lock, the same
  * threshold and the same reduced-motion collapse, and a second hand-written
- * pair of them is precisely what the duplication gate exists to catch. What
- * stayed here is everything that is this component's own — the framer binding,
- * the per-gesture memory, and which presses belong to the drag layer.
+ * pair of them is precisely what the duplication gate exists to catch. The
+ * framer binding over them is `useSwipePan`, shared with the board's pager for
+ * the same reason (003 T075); what stayed here is the one thing that is this
+ * component's own — which presses belong to the drag layer.
  *
  * **Axis lock** (FR-280). The hours scroll vertically and the week pages
  * horizontally through the same finger, so one of them must yield. The pan
@@ -68,80 +61,6 @@ export function beginsOnBlock(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest("button") !== null;
 }
 
-/** One gesture's memory: its locked axis, and whether it is ours at all. */
-interface SwipeGesture {
-  axis: SwipeAxis;
-  /** Assumption 44: the press belongs to the drag layer, not to paging. */
-  rejected: boolean;
-}
-
-/** Between gestures nothing is ours — a stray move can then do nothing. */
-const IDLE_GESTURE: SwipeGesture = { axis: "unlocked", rejected: true };
-
-/** What framer's pan handlers need, in the shape `motion.div` takes them. */
-interface SwipeHandlers {
-  onPanSessionStart: (event: PointerEvent) => void;
-  onPan: (event: PointerEvent, info: { offset: Offset }) => void;
-  onPanEnd: (event: PointerEvent, info: { offset: Offset }) => void;
-}
-
-/** Enough of framer's playback controls to call the settle off. */
-interface Settling {
-  stop: () => void;
-}
-
-interface SwipePan {
-  x: MotionValue<number>;
-  handlers: SwipeHandlers;
-}
-
-/**
- * The gesture, held in a ref because none of it is rendered: the strip's
- * position is a motion value (no render per frame) and the step is reported
- * to the anchor, which owns the window. The one piece of React state a swipe
- * produces lives there.
- */
-function useSwipePan(onPage: (direction: -1 | 1) => void): SwipePan {
-  const x = useMotionValue(0);
-  const reducedMotion = useReducedMotion();
-  const gesture = useRef<SwipeGesture>(IDLE_GESTURE);
-  const settling = useRef<Settling | null>(null);
-
-  useEffect(() => () => settling.current?.stop(), []);
-
-  const handlers = useMemo<SwipeHandlers>(
-    () => ({
-      onPanSessionStart: (event) => {
-        settling.current?.stop();
-        settling.current = null;
-        gesture.current = { axis: "unlocked", rejected: beginsOnBlock(event.target) };
-      },
-      onPan: (_event, info) => {
-        const current = gesture.current;
-        if (current.rejected) return;
-        const axis = swipeAxisOf(current.axis, info.offset);
-        gesture.current = { axis, rejected: false };
-        if (axis === "horizontal") x.set(travelOf(info.offset.x, reducedMotion));
-      },
-      onPanEnd: (_event, info) => {
-        const current = gesture.current;
-        gesture.current = IDLE_GESTURE;
-        if (current.rejected) return;
-        settling.current = animate(x, 0, {
-          type: "tween",
-          duration: reducedMotion === true ? 0 : SETTLE_SECONDS,
-          ease: "easeOut",
-        });
-        const step = swipeStepOf(current.axis, info.offset.x);
-        if (step !== null) onPage(step);
-      },
-    }),
-    [x, reducedMotion, onPage],
-  );
-
-  return { x, handlers };
-}
-
 export interface WeekPagerProps {
   /** One step: `1` = one page later, `-1` = one page earlier — `columns` days (FR-279). */
   onPage: (direction: -1 | 1) => void;
@@ -150,7 +69,7 @@ export interface WeekPagerProps {
 }
 
 export function WeekPager({ onPage, children }: WeekPagerProps) {
-  const { x, handlers } = useSwipePan(onPage);
+  const { x, handlers } = useSwipePan(onPage, beginsOnBlock);
 
   // `overflow-x-clip` and not `hidden`: clip leaves the vertical axis
   // `visible`, so this wrapper never becomes a second scroll container over
