@@ -3,9 +3,11 @@
 Tasks tab (chores and routines, per-Profile columns, the four time-of-day sections, two repeat
 modes, resolutions with skip/claim/late carry-forward, streaks, the per-device filters, search,
 the Task Box, the two press-and-hold reorders, the measured column fit with the portrait wrap and
-the phone pager). **Built and verified locally; migrations 017–023 written and proved against the
-local stack; the hosted push and the device passes are the operator's step
-(`specs/003-family-tasks/quickstart.md` §4, tasks T084).** Rewards are a later phase: two reserved
+the phone pager). **Built, verified, and deployed (2026-09-04): migrations 017–023 are on the
+hosted project with the §4 checks green, and the live `/family/tasks` renders the household's
+columns.** What remains is the hardware half of T084 — the wall-tablet run, the iPad press-and-hold
+feel and portrait wrap, the phone swipe, and the overnight rollover watch
+(`specs/003-family-tasks/quickstart.md` §4.9). Rewards are a later phase: two reserved
 `reward_points` columns exist and nothing reads them (SC-319).
 
 Read in this order before touching `/family` code:
