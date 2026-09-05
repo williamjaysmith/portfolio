@@ -239,5 +239,13 @@ Ordered so each step is independently verifiable, and so the widening is proved 
 - [x] Phase 0 — research complete ([research.md](./research.md): R301–R326, the four-lane supersession ledger, no open unknowns, zero new dependencies)
 - [x] Constitution check — pass, before and after design, with **no deviation claimed and no waiver taken**: §I's third-consumer rule is assessed as governing extraction *between* sub-apps, so the swipe-helper move inside `/family` is a pass — and because §I is NON-NEGOTIABLE, the residual reading is put to the operator as an **open question** in [Complexity Tracking](#complexity-tracking) rather than settled here. Read that section; do not read this line as "nothing to review"
 - [x] Phase 1 — design complete, and this plan's post-design re-check was run against the three artifacts **as they now stand**: [data-model.md](./data-model.md) (migrations 017–023 in full SQL incl. the cursor view; **no write-path function**; privilege-matrix delta; the canonical `family-tasks-core` fragment), [contracts/server-actions.md](./contracts/server-actions.md) (ten actions, `requireVerifiedActor`, the resolution verbs, occurrence-key validation through `expandTaskDay`, refusal shapes), [quickstart.md](./quickstart.md) (verification per guarantee; operator steps: PG version check, the read-only `rrule` pre-check, `db push`, seed). Where design contradicted Phase 0, design won and Phase 0 carries the supersession note — R310's two RPCs are the one case
-- [ ] Phase 2 — `/speckit.tasks`
-- [ ] Phase 3 — implementation per the phasing table above
+- [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 85 tasks, analyzed, the 44 findings applied)
+- [x] Phase 3 — implementation per the phasing table above: T001–T083 done and green (1970 unit /
+      294 policies, fallow audit clean with duplication 0, no suppressions); migration 023 written
+      last after T081's read-only hosted pre-checks (PG 17, zero violating rows); the T083 review
+      gate run with its two findings fixed (the per-card resolve queue, the migration citations) and
+      the schema-rejection paragraphs added to 017/018/019/021. **Remaining for the operator (T084,
+      T085's merge)**: `supabase db push` 017–023 and the §4 post-push checks, then the device passes
+      — the wall tablet, the iPad press-and-hold feel and the portrait wrap, the overnight SC-314
+      watch. Constitution check unchanged: the §I third-consumer reading stays the open question in
+      [Complexity Tracking](#complexity-tracking), and T073 took the move as planned.

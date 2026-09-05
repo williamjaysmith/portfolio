@@ -564,7 +564,7 @@ export const deleteEventInputSchema = z
  * ------------------------------------------------------------------------- */
 
 /**
- * Canonical slot order — the same sequence 016's `task_slots_shape` spells out
+ * Canonical slot order — the same sequence 017's `task_slots_shape` spells out
  * as seven literal arrays, so a routine this schema accepts cannot then be
  * refused by the CHECK behind it (FR-302, FR-335).
  */
@@ -596,14 +596,14 @@ const dueTimeSchema = z
   .string({ error: "A due time must be text." })
   .regex(TASK_WALL_CLOCK, { error: "A due time is a clock time like 18:00." });
 
-/** FR-345: whole intervals 1–99, the bound 016's `tasks_rrule_grammar` carries. */
+/** FR-345: whole intervals 1–99, the bound 017's `tasks_rrule_grammar` carries. */
 const intervalSchema = z
   .number({ error: "Repeat every how many? Enter a whole number." })
   .int({ error: "Repeat every how many? Enter a whole number." })
   .min(1, { error: "Repeat every 1 to 99." })
   .max(99, { error: "Repeat every 1 to 99." });
 
-/** FR-342: `0` IS "Immediately"; the same 0–99 bound 016 stores. */
+/** FR-342: `0` IS "Immediately"; the same 0–99 bound 017 stores. */
 const renewAmountSchema = z
   .number({ error: "After how long? Enter a whole number." })
   .int({ error: "After how long? Enter a whole number." })
@@ -773,7 +773,7 @@ function choreTimingIssues(task: TaskShape): FieldIssue[] {
 /**
  * FR-328 + FR-343: both repeat modes need an anchor — a rule needs a day to
  * walk from, a chain needs a seed — so an Anytime chore cannot repeat at all,
- * which is what 016's `task_repeat_needs_an_anchor` makes structural.
+ * which is what 017's `task_repeat_needs_an_anchor` makes structural.
  */
 function repeatAnchorIssues(task: TaskShape): FieldIssue[] {
   if (task.repeat.kind === "never" || task.startsOn !== null) return [];

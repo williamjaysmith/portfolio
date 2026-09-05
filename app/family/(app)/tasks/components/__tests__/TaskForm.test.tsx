@@ -221,7 +221,7 @@ describe("TaskForm", () => {
         weekdays: ["MO", "WE"],
         until: null,
       });
-      // 016's `task_slots_shape` spells the canonical order out; the form emits it.
+      // 017's `task_slots_shape` spells the canonical order out; the form emits it.
       expect(input.timesOfDay).toEqual(["morning", "evening"]);
     });
 

@@ -312,6 +312,14 @@ describe("boardLayoutOf — wrap, then page", () => {
     expect(boardLayoutOf(portrait(4, 1))).toEqual({ perRow: 1, mode: "pager" });
   });
 
+  it("wraps onto a second row and no further: more than two rows' worth pages instead", () => {
+    // Six across three fit in exactly two rows; a seventh would need a third,
+    // and three rows share the height into columns too short to read.
+    expect(boardLayoutOf(portrait(6, 3))).toEqual({ perRow: 3, mode: "grid" });
+    expect(boardLayoutOf(portrait(7, 3))).toEqual({ perRow: 3, mode: "pager" });
+    expect(boardLayoutOf(portrait(7, 2))).toEqual({ perRow: 2, mode: "pager" });
+  });
+
   it("pages rather than wrapping in landscape (FR-396)", () => {
     expect(
       boardLayoutOf({

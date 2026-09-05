@@ -8,7 +8,7 @@ import { parseOrThrow, taskInputSchema, taskRepeatChoiceSchema } from "@/lib/fam
  * T026 — the task write boundary (`contracts/server-actions.md` → "Zod rules").
  *
  * The whole rules table, asserted in both directions, because these schemas are
- * the FIRST line: the 016/017/018 CHECKs behind them refuse the same shapes and
+ * the FIRST line: the 017/017/018 CHECKs behind them refuse the same shapes and
  * their messages are never echoed to a parent (FR-330). Two properties beyond
  * the table are asserted here rather than trusted — no client may send a rule
  * string in any shape (R201, kept for tasks), and no count-of-occurrences limit

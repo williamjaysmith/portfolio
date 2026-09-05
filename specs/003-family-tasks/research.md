@@ -366,6 +366,13 @@ Each column body is its own `overflow-y: auto` region and the board is `overflow
 
 ---
 
+> **Bounded during T077's walk (2026-09-04).** The wrap is to *a second row and no further*, as
+> FR-395 says: the rows share the board's height, and on the seeded seven-column household a
+> portrait iPad wrapped them into three rows of ~330 px in which no card could be read. A portrait
+> viewport whose columns need more than two rows pages instead (`MAX_WRAPPED_ROWS` in
+> `lib/family/tasks/layout.ts`, proved in `tasks-layout.test.ts`). The spec household of four is
+> unaffected: two fitting out of four is still the photographed 2×2.
+
 ## R321 — Reorder: a pure list reducer over the shipped fractional index
 
 **Decision**: Column reorder (FR-309, parent-only) and routine reorder within one section for one Profile (FR-310) are **list reorders**, not canvas drags: they have no geometry, only a target index. Both go through `lib/family/tasks/reorder.ts` (`{ items, fromIndex, toIndex } → { id, sortOrder }`), which computes the new position with the shipped `ordering.ts` (`sortOrderBetween`, `needsRebalance`, `rebalance`) `[code]` — **one row written per drop**, never a renumber. The gesture is press-and-hold plus move, which is what the reference specifies for both `[V](36846381293979, 49738702477723)`; the keyboard path moves through the same reducer with `aria-live` announcements (FR-397). **Chores are not reorderable by anyone** (FR-311, Contradiction 1); their order is a fixed rule in `lib/family/tasks/layout.ts` — late first by original due date, then timed by time, then all-day, then undated anytime, ties by creation order.

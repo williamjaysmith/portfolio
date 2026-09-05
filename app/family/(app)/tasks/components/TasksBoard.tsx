@@ -576,25 +576,29 @@ function BoardNav({
         {/* FR-386, Assumption 27: the search sits in the tab's own chrome,
             beside Previous / Today / Next, and filters the board in place. */}
         <TaskSearch value={query} onChange={onQuery} />
-        <button
-          type="button"
-          aria-label="Previous day"
-          onClick={() => onStep(-1)}
-          className={PILL_CLASS}
-        >
-          <ChevronLeft size={20} aria-hidden="true" />
-        </button>
-        <button type="button" onClick={onToday} className={PILL_CLASS}>
-          Today
-        </button>
-        <button
-          type="button"
-          aria-label="Next day"
-          onClick={() => onStep(1)}
-          className={PILL_CLASS}
-        >
-          <ChevronRight size={20} aria-hidden="true" />
-        </button>
+        {/* The three day controls wrap as one unit, so a phone never strands
+            the Next arrow on a line of its own under the search. */}
+        <div className="flex shrink-0 items-center gap-3">
+          <button
+            type="button"
+            aria-label="Previous day"
+            onClick={() => onStep(-1)}
+            className={PILL_CLASS}
+          >
+            <ChevronLeft size={20} aria-hidden="true" />
+          </button>
+          <button type="button" onClick={onToday} className={PILL_CLASS}>
+            Today
+          </button>
+          <button
+            type="button"
+            aria-label="Next day"
+            onClick={() => onStep(1)}
+            className={PILL_CLASS}
+          >
+            <ChevronRight size={20} aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -953,7 +957,7 @@ function drawnColumnsOf(m: TasksBoardModel): DrawnColumn[] {
           occurrences={m.columns.upForGrabs}
           toggles={m.toggles.sectionsFor(UP_FOR_GRABS_COLUMN_ID)}
           onToggleSection={(section) => m.toggles.toggleSection(UP_FOR_GRABS_COLUMN_ID, section)}
-          busyKey={m.resolve.busyKey}
+          busyKeys={m.resolve.busyKeys}
           onOpen={m.onOpen}
           onResolve={m.onResolve}
         />
@@ -970,7 +974,7 @@ function drawnColumnsOf(m: TasksBoardModel): DrawnColumn[] {
           toggles={m.toggles.sectionsFor(profile.id)}
           onToggleSection={(section) => m.toggles.toggleSection(profile.id, section)}
           photoUrl={m.avatarUrls[profile.id]}
-          busyKey={m.resolve.busyKey}
+          busyKeys={m.resolve.busyKeys}
           reorderable={m.actor?.role === "parent"}
           canReorderRoutines={m.reorder.canReorderRoutines(profile.id)}
           onMoveRoutine={m.reorder.commitRoutine}
@@ -1089,7 +1093,7 @@ export function TasksBoard(props: TasksBoardProps) {
           categories={m.categories}
           actor={m.actor}
           timeFormat={m.timeFormat}
-          busy={m.resolve.busyKey === m.details.key}
+          busy={m.details.key !== null && m.resolve.busyKeys.has(m.details.key)}
           notice={m.resolve.notice}
           onResolve={() => void m.onResolve(open)}
           onSkip={() => void m.onSkip(open)}
@@ -1106,7 +1110,7 @@ export function TasksBoard(props: TasksBoardProps) {
           // to whoever the punched-in person may credit (FR-351).
           profiles={m.profiles}
           actor={m.actor}
-          busy={m.resolve.busyKey === m.claim.key}
+          busy={m.claim.key !== null && m.resolve.busyKeys.has(m.claim.key)}
           notice={m.resolve.notice}
           onClaim={(creditProfileId) => void m.onClaim(claiming, creditProfileId)}
           onCancel={m.claim.close}

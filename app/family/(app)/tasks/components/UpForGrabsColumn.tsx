@@ -44,7 +44,7 @@ export interface UpForGrabsColumnProps {
   toggles: SectionToggles;
   onToggleSection: (section: TaskSectionKey) => void;
   /** `occurrenceKeyOf` of the occurrence whose write is in flight (FR-393). */
-  busyKey?: string | null;
+  busyKeys?: ReadonlySet<string>;
   onOpen: (occurrence: BoardOccurrence) => void;
   onResolve: (occurrence: BoardOccurrence) => void;
 }
@@ -54,7 +54,7 @@ export function UpForGrabsColumn({
   occurrences,
   toggles,
   onToggleSection,
-  busyKey,
+  busyKeys,
   onOpen,
   onResolve,
 }: UpForGrabsColumnProps) {
@@ -87,7 +87,7 @@ export function UpForGrabsColumn({
         toggles={toggles}
         accent={null}
         emptyLabel="Nothing going spare"
-        busyKey={busyKey}
+        busyKeys={busyKeys}
         onOpen={onOpen}
         onResolve={onResolve}
       />

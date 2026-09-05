@@ -6,7 +6,7 @@
  * pattern: each constraint and each trigger is shown actually refusing its own
  * invalid row, not merely declared.
  *
- * Covered: the nine named CHECKs on `family.tasks` (016), `tasks_rrule_grammar`
+ * Covered: the nine named CHECKs on `family.tasks` (017), `tasks_rrule_grammar`
  * including the widened `INTERVAL` bound (FR-345, R305), the two 017 triggers
  * that hold FR-323 and FR-365, `task_assignees_streak_shape` (FR-371/373), the
  * four rules in `assert_task_resolution` (FR-359, FR-363, FR-368, and the chain
@@ -32,7 +32,7 @@ import {
   insertHousehold,
 } from "./helpers";
 
-/** A valid routine: a rule, at least one slot, no due time (016). */
+/** A valid routine: a rule, at least one slot, no due time (017). */
 const ROUTINE = {
   routine: true,
   starts_on: "2026-09-01",
@@ -295,7 +295,7 @@ describe("tasks schema: the data-model invariants", () => {
       expect(legal.error, slots.join("+")).toBeNull();
     }
 
-    // The domain itself closes the value set (family.time_of_day, 016).
+    // The domain itself closes the value set (family.time_of_day, 017).
     const unknownSlot = await insertTask({ ...ROUTINE, times_of_day: ["night"] });
     expectRefusal(unknownSlot.error, "23514", "time_of_day");
   });
@@ -469,7 +469,7 @@ describe("tasks schema: the data-model invariants", () => {
   });
 
   it("summary, description, emoji and the reserved star value are bounded (23514)", async () => {
-    // These four are declared inline and unnamed in 016, so the SQLSTATE is the
+    // These four are declared inline and unnamed in 017, so the SQLSTATE is the
     // whole assertion — the named constraints are checked by name above.
     expect((await insertTask({ summary: "   " })).error?.code).toBe("23514");
     expect((await insertTask({ summary: "x".repeat(121) })).error?.code).toBe("23514");

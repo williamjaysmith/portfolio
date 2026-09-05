@@ -103,7 +103,7 @@ describe("SectionGroup", () => {
         accent={SUNSHINE}
         // The key is the occurrence's own five-column identity (FR-353), so a
         // routine's other slot on the same day is NOT the one in flight.
-        busyKey={`busy-one|cleo|${TODAY}|morning|`}
+        busyKeys={new Set([`busy-one|cleo|${TODAY}|morning|`])}
         onOpen={onOpen}
         onResolve={onResolve}
       />,

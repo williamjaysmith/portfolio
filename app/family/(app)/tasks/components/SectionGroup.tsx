@@ -57,7 +57,7 @@ export interface TaskCardHandlers {
   /** FR-312, resolved against the UNFILTERED list by the column (R317). */
   progressOf?: (occurrence: BoardOccurrence) => TaskCounters | null;
   /** `occurrenceKeyOf` of the occurrence whose write is in flight (FR-393). */
-  busyKey?: string | null;
+  busyKeys?: ReadonlySet<string>;
   onOpen: (occurrence: BoardOccurrence) => void;
   onResolve: (occurrence: BoardOccurrence) => void;
 }
@@ -86,7 +86,7 @@ export function SectionGroup({
   accent,
   reorder = null,
   progressOf,
-  busyKey,
+  busyKeys,
   onOpen,
   onResolve,
 }: SectionGroupProps) {
@@ -121,7 +121,7 @@ export function SectionGroup({
               occurrence={occurrence}
               accent={accent}
               progress={progressOf?.(occurrence) ?? null}
-              busy={busyKey === key}
+              busy={busyKeys?.has(key) ?? false}
               onOpen={onOpen}
               onResolve={onResolve}
             />
@@ -163,7 +163,7 @@ export function ColumnBody({
   emptyLabel,
   reorderFor,
   progressOf,
-  busyKey,
+  busyKeys,
   onOpen,
   onResolve,
 }: ColumnBodyProps) {
@@ -186,7 +186,7 @@ export function ColumnBody({
               accent={accent}
               reorder={reorderFor?.(section) ?? null}
               progressOf={progressOf}
-              busyKey={busyKey}
+              busyKeys={busyKeys}
               onOpen={onOpen}
               onResolve={onResolve}
             />

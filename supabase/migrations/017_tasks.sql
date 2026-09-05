@@ -5,6 +5,20 @@
 -- Serves: FR-317..FR-346 (the record, its sub-types and both repeat modes),
 -- FR-365 (up for grabs), FR-390 (tenancy, no client write path), R306.
 -- Contains no personal data.
+--
+-- Why a table of its own, and not a fold into a table that already exists:
+--   * not a `kind` discriminator on family.events — a task has no start/end
+--     instant, no all-day pair, no location, no exceptions and no category
+--     links; it has assignees with a per-person order and a streak, two repeat
+--     modes one of which is a delay, and occurrences whose identity is a slot.
+--     A discriminator would leave a dozen event columns always-null on every
+--     task row and a dozen task columns always-null on every event row, and
+--     every events CHECK (event_time_shape, the ends-after-start rules) would
+--     need a `kind` clause;
+--   * not a JSONB `task` key on family.events — the columns the board sorts,
+--     filters and counts by would sit beyond the reach of CHECKs and indexes;
+--   * not a column on family.categories — a task is not a property of one
+--     Profile: it is assigned to many, or to nobody (FR-365).
 
 -- The three time-of-day slots (FR-302, FR-335). A domain, following 001's
 -- family.palette_color: a closed value set shared by two objects.

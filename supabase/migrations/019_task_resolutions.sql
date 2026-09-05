@@ -8,6 +8,17 @@
 -- Requires PostgreSQL 15+: `unique nulls not distinct` and the `on delete set
 -- null (column_list)` form are both PG 15 features.
 -- Contains no personal data.
+--
+-- Why a table, and not a fold into a table that already exists:
+--   * not a `resolved_at` column or a JSONB `resolutions` key on family.tasks —
+--     a task has MANY resolutions, one per (assignee, date, slot, cycle), so a
+--     column cannot hold them, and a JSONB map could carry neither the
+--     five-column occurrence key that is at once FR-353's identity and FR-370's
+--     single-claim rule nor the cycle_prev self-reference FR-344 refuses through;
+--   * not a discriminated row on family.event_exceptions — an exception
+--     overrides one occurrence's content and is keyed by its date alone; a
+--     resolution records who did what and when, keyed by five columns, and
+--     overrides nothing.
 
 create table if not exists family.task_resolutions (
   id              uuid primary key default gen_random_uuid(),

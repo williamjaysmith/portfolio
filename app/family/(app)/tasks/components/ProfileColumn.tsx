@@ -52,7 +52,7 @@ export interface ProfileColumnProps {
   /** Signed URL for a photo avatar. */
   photoUrl?: string;
   /** `occurrenceKeyOf` of the occurrence whose write is in flight (FR-393). */
-  busyKey?: string | null;
+  busyKeys?: ReadonlySet<string>;
   /** FR-309: this column's NAME is the board's drag handle (parents only). */
   reorderable?: boolean;
   /**
@@ -73,7 +73,7 @@ export function ProfileColumn({
   toggles,
   onToggleSection,
   photoUrl,
-  busyKey,
+  busyKeys,
   reorderable = false,
   onMoveRoutine,
   canReorderRoutines = false,
@@ -137,7 +137,7 @@ export function ProfileColumn({
         emptyLabel={`Nothing for ${category.label} today`}
         reorderFor={reorderFor}
         progressOf={progressOf}
-        busyKey={busyKey}
+        busyKeys={busyKeys}
         onOpen={onOpen}
         onResolve={onResolve}
       />

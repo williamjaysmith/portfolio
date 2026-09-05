@@ -5,6 +5,17 @@
 -- FR-329 (the reserved star value on a template too), FR-390 (tenancy), R312.
 -- Contains no personal data — the seventeen titles are reference product data,
 -- not this household's.
+--
+-- Why a table, and not a fold into a table that already exists:
+--   * not a `template` discriminator on family.tasks — a template is
+--     deliberately NOT a task (FR-378/381: creating from it copies three values
+--     and keeps no link; deleting it leaves those tasks untouched), and a
+--     discriminated row would inherit every task constraint (task_routine_shape,
+--     the slot set, the repeat modes, the assignee cascade) a template must not
+--     carry, and appear in every task read unless every read filtered it out;
+--   * not a JSONB `task_box` key on family.household_settings — the seventeen
+--     seeded rows, their per-row edit and delete verbs and their tenancy would
+--     sit in one document with no row-level policy of their own.
 
 create table if not exists family.task_box_items (
   id            uuid primary key default gen_random_uuid(),

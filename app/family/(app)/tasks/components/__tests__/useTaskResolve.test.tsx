@@ -202,14 +202,14 @@ describe("useTaskResolve", () => {
     await act(async () => {
       pending = result.current.resolve({ occurrence: one, verb: "complete" });
     });
-    expect(result.current.busyKey).toBe(occurrenceKeyOf(one));
+    expect(result.current.busyKeys.has(occurrenceKeyOf(one))).toBe(true);
 
     await act(async () => {
       gate.settle({ ok: true, data: null });
       await pending;
     });
 
-    expect(result.current.busyKey).toBeNull();
+    expect(result.current.busyKeys.size).toBe(0);
     // No optimistic cache write anywhere: the refetch `withActor` triggers is
     // the only thing that repaints the board.
     expect(setQueryData).not.toHaveBeenCalled();
@@ -234,6 +234,37 @@ describe("useTaskResolve", () => {
       gate.settle({ ok: true, data: null });
       await pending;
     });
+  });
+
+  it("queues a tap on a DIFFERENT card behind the write in flight — busy on both, dropped on neither", async () => {
+    const gate = deferred<ActionResult<null>>();
+    completeMock.mockReturnValueOnce(gate.promise).mockResolvedValueOnce({ ok: true, data: null });
+    const { result } = renderResolve();
+    const first = occurrence();
+    const second = occurrence({
+      taskId: "33333333-3333-4333-8333-333333333333",
+      summary: "Sweep the porch",
+    });
+
+    let firstPending: Promise<unknown> = Promise.resolve();
+    let secondPending: Promise<unknown> = Promise.resolve();
+    await act(async () => {
+      firstPending = result.current.resolve({ occurrence: first, verb: "complete" });
+      secondPending = result.current.resolve({ occurrence: second, verb: "complete" });
+    });
+    // Waiting, not dropped: the second card shows busy and has not written yet.
+    expect(result.current.busyKeys.has(occurrenceKeyOf(first))).toBe(true);
+    expect(result.current.busyKeys.has(occurrenceKeyOf(second))).toBe(true);
+    expect(completeMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      gate.settle({ ok: true, data: null });
+      await firstPending;
+      await secondPending;
+    });
+    expect(completeMock).toHaveBeenCalledTimes(2);
+    expect(await secondPending).toEqual({ ok: true, data: null });
+    expect(result.current.busyKeys.size).toBe(0);
   });
 
   it("un-completes and unskips through the one DELETE (FR-355, FR-361)", async () => {

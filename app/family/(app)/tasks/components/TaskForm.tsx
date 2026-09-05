@@ -62,7 +62,7 @@ const WEEKDAY_LABELS: Record<Weekday, string> = {
   SA: "Saturday",
 };
 
-/** FR-302's three windows, in the canonical order 016's CHECK spells out. */
+/** FR-302's three windows, in the canonical order 017's CHECK spells out. */
 const SLOTS: { slot: TimeOfDay; label: string }[] = [
   { slot: "morning", label: "Morning" },
   { slot: "afternoon", label: "Afternoon" },

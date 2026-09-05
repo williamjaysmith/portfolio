@@ -95,7 +95,7 @@ export type TaskFormSeed = Partial<TaskDraft>;
  */
 export type TaskSubmitOutcome = SubmitOutcome;
 
-/** 016's `task_slots_shape` spells this order out; the form emits it. */
+/** 017's `task_slots_shape` spells this order out; the form emits it. */
 const SLOT_ORDER = ["morning", "afternoon", "evening"] as const satisfies readonly TimeOfDay[];
 
 function blankDraft(): TaskDraft {

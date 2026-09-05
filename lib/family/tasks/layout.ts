@@ -121,6 +121,13 @@ const MIN_PER_ROW = 1;
 /** Below this a "wrap" is a vertical stack of columns, which is FR-396's phone. */
 const MIN_WRAPPED_PER_ROW = 2;
 
+/**
+ * FR-395 says "a second row", and means it: the rows share the board's height,
+ * so a third or fourth row would leave every column too short to read a card
+ * in. A portrait board that would need more than two rows pages instead.
+ */
+const MAX_WRAPPED_ROWS = 2;
+
 /** How many columns a measured board shows, and whether the rest wrap or page. */
 export function boardLayoutOf(input: BoardLayoutInput): BoardLayout {
   const perRow = perRowOf(input);
@@ -139,12 +146,13 @@ function perRowOf(input: BoardLayoutInput): number {
 
 /**
  * Everything fits → one row. Otherwise FR-395's exception: a portrait viewport
- * showing two or more across wraps the remainder onto further rows, and every
- * other shape pages (FR-396). "Portrait" is height at least width, the
- * complement of the shipped calendar's strict landscape test.
+ * showing two or more across wraps the remainder onto a second row — and only
+ * a second — and every other shape pages (FR-396). "Portrait" is height at
+ * least width, the complement of the shipped calendar's strict landscape test.
  */
 function modeOf(input: BoardLayoutInput, perRow: number): BoardLayoutMode {
   if (perRow >= input.columnCount) return "grid";
   const portrait = input.viewportHeight >= input.viewportWidth;
-  return portrait && perRow >= MIN_WRAPPED_PER_ROW ? "grid" : "pager";
+  const wraps = perRow >= MIN_WRAPPED_PER_ROW && input.columnCount <= perRow * MAX_WRAPPED_ROWS;
+  return portrait && wraps ? "grid" : "pager";
 }

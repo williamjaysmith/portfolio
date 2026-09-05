@@ -39,7 +39,7 @@ const TASK_TABLES = {
 const CURSOR_VIEW = "task_cursors";
 const CURSOR_COLUMNS = "household_id, task_id, assignee_id, tail_id, tail_resolved_on";
 
-// A Completed Date chore: `renew_after_amount` is the mode (data-model 016),
+// A Completed Date chore: `renew_after_amount` is the mode (data-model 017),
 // so one resolution on it publishes a row through the cursor view.
 const STARTS_ON = "2026-09-01";
 const OCCURRENCE_DATE = "2026-09-15";

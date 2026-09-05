@@ -5,6 +5,16 @@
 -- FR-365, FR-371..FR-374 (the streak checkpoint pair), FR-391 (a Profile's deletion
 -- takes its assignments), FR-390 (tenancy), R307.
 -- Contains no personal data.
+--
+-- Why a table, and not a fold into a table that already exists:
+--   * not an `assignee_ids uuid[]` column or a JSONB key on family.tasks — each
+--     assignment carries state of its own, the per-Profile sort_order (FR-310)
+--     and the streak checkpoint pair (FR-371), which an array cannot hold and a
+--     JSONB key cannot constrain, index or cascade; FR-391's cascade on a
+--     Profile's deletion and FR-322's Profiles-only rule are a foreign key and
+--     a trigger here, and neither reaches inside JSONB;
+--   * not a discriminated row on family.event_categories — that table links an
+--     event to categories in draw order and carries nothing per link.
 
 create table if not exists family.task_assignees (
   household_id  uuid not null references family.households(id) on delete cascade,

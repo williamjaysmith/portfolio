@@ -65,13 +65,16 @@ export interface TaskResolveIntent {
 /**
  * The action's answer with its data discarded — nothing reads a resolution
  * row, because the refetch paints — or `null` when no write was attempted at
- * all, which is a second tap arriving while one is still in flight.
+ * all, which is a second tap on a card that is already waiting or writing.
  */
 export type ResolveOutcome = ActionResult<null> | null;
 
 export interface TaskResolveState {
-  /** `occurrenceKeyOf` of the occurrence whose write is in flight (FR-393). */
-  busyKey: string | null;
+  /**
+   * `occurrenceKeyOf` of every occurrence with a write waiting or in flight
+   * (FR-393) — a card shows busy from the tap until its own write settles.
+   */
+  busyKeys: ReadonlySet<string>;
   /** The refusal to show, in the server's own words (FR-351); null when there is none. */
   notice: string | null;
   clearNotice: () => void;
@@ -140,32 +143,46 @@ function noticeOf(result: ActionResult<null>): string | null {
   return result.error === "NO_ACTOR" ? null : result.message;
 }
 
+const NO_KEYS: ReadonlySet<string> = new Set();
+
 export function useTaskResolve(): TaskResolveState {
   const { withActor } = useFamily();
-  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(NO_KEYS);
   const [notice, setNotice] = useState<string | null>(null);
-  // A ref, not `busyKey`: two taps landing in one tick would both read the
-  // same rendered state, and `busyKey` can only describe one card at a time.
-  const inFlight = useRef(false);
+  // Refs, not `busyKeys`: two taps landing in one tick would both read the
+  // same rendered state. `waiting` is every card with a write queued or in
+  // flight; `chain` is the queue itself.
+  const waiting = useRef(new Set<string>());
+  const chain = useRef<Promise<unknown>>(Promise.resolve());
 
   const clearNotice = useCallback(() => setNotice(null), []);
 
+  // Writes are serialised, never dropped. One person ticking off several
+  // children's chores in a row is the wall tablet's ordinary evening: a tap on
+  // a SECOND card while the first is writing waits its turn — one punch-in
+  // sheet at a time, and the actor the first tap earned serves the second —
+  // and shows busy while it waits. A second tap on the SAME card while it is
+  // waiting or writing is the same tap twice, and is ignored.
   const resolve = useCallback(
     async (intent: TaskResolveIntent): Promise<ResolveOutcome> => {
-      if (inFlight.current) return null;
-      inFlight.current = true;
-      setBusyKey(occurrenceKeyOf(intent.occurrence));
+      const key = occurrenceKeyOf(intent.occurrence);
+      if (waiting.current.has(key)) return null;
+      waiting.current.add(key);
+      setBusyKeys(new Set(waiting.current));
+      const turn = chain.current.then(() => withActor(() => WRITES[intent.verb](intent)));
+      // The queue moves on whatever this write's fate; the caller still sees it.
+      chain.current = turn.catch(() => undefined);
       try {
-        const result = withoutData(await withActor(() => WRITES[intent.verb](intent)));
+        const result = withoutData(await turn);
         setNotice(noticeOf(result));
         return result;
       } finally {
-        inFlight.current = false;
-        setBusyKey(null);
+        waiting.current.delete(key);
+        setBusyKeys(waiting.current.size === 0 ? NO_KEYS : new Set(waiting.current));
       }
     },
     [withActor],
   );
 
-  return { busyKey, notice, clearNotice, resolve };
+  return { busyKeys, notice, clearNotice, resolve };
 }
