@@ -1,11 +1,13 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { BottomNav } from "./BottomNav";
 import { Fab } from "./Fab";
 import { FabActionProvider } from "./FabAction";
 import { useFamily } from "./FamilyProvider";
+import { showsChipRow } from "./nav";
 import { ProfileChipRow } from "./ProfileChipRow";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -31,9 +33,15 @@ import { TopBar } from "./TopBar";
  * The FAB and the page it floats over share one registry (`FabAction.tsx`):
  * the page registers what "+" creates, the FAB runs it — which is why the
  * provider wraps both and lives here rather than in `FamilyProvider`.
+ *
+ * The profile chip row is the one piece of chrome a tab can decline (FR-314,
+ * R324). The decision is read from `usePathname()` — which the App Router
+ * supplies on the server render too — rather than registered by the page after
+ * it mounts, so the row never paints and then vanishes on hydration.
  */
 export function AppShell({ children }: { children: ReactNode }) {
   const { settings } = useFamily();
+  const pathname = usePathname();
 
   return (
     <FabActionProvider>
@@ -41,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar />
-          <ProfileChipRow />
+          {showsChipRow(pathname) ? <ProfileChipRow /> : null}
           <main className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
             {children}
             <Fab />

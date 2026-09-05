@@ -11,22 +11,60 @@
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { addDays } from "./calendar/dates";
 import {
   CATEGORY_COLUMNS,
   HOUSEHOLD_COLUMNS,
   SETTINGS_COLUMNS,
+  TASK_BOX_COLUMNS,
+  TASK_CURSOR_COLUMNS,
+  TASK_RESOLUTION_COLUMNS,
   eventsSelect,
+  tasksSelect,
   toCategory,
   toEvent,
   toHousehold,
   toSettings,
+  toTask,
+  toTaskBoxItem,
+  toTaskCursor,
+  toTaskResolution,
   type CategoryRow,
   type EventWithRelationsRow,
   type HouseholdRow,
   type HouseholdSettingsRow,
+  type TaskBoxItemRow,
+  type TaskCursorRow,
+  type TaskResolutionRow,
+  type TaskWithAssigneesRow,
 } from "./rows";
 import { createClient } from "./supabase/client";
-import type { Category, Event, Household, HouseholdSettings } from "./types";
+import { carryReadWindowOf } from "./tasks/dates";
+import type {
+  Category,
+  Event,
+  Household,
+  HouseholdSettings,
+  Task,
+  TaskBoxItem,
+  TaskCursor,
+  TaskResolution,
+  WeekStart,
+} from "./types";
+
+/** FR-391's two opposite outcomes of deleting a Profile, for its confirmation. */
+export interface CategoryTaskCounts {
+  /** Tasks somebody else is also assigned to: they stay, without this Profile. */
+  losingAnAssignee: number;
+  /** Tasks whose only assignee is this Profile: they go with it. */
+  deleted: number;
+}
+
+/** The two columns the split above counts over. */
+interface AssigneeLinkRow {
+  task_id: string;
+  category_id: string;
+}
 
 /** What identifies one cached window of events: the days it covers, inclusive. */
 export interface WeekCacheWindow {
@@ -58,6 +96,27 @@ export const familyKeys = {
   /** FR-274's affected-event count for one category's delete confirmation. */
   categoryEventCount: (householdId: string, categoryId: string) =>
     ["family", "category-event-count", householdId, categoryId] as const,
+  /** FR-391's two task numbers for the same confirmation — the opposite promise. */
+  categoryTaskCounts: (householdId: string, categoryId: string) =>
+    ["family", "category-task-counts", householdId, categoryId] as const,
+  /**
+   * The board's four reads plus its lazy fifth (R314). None is keyed by the
+   * displayed day: task DEFINITIONS do not depend on it (an Anytime chore has
+   * no date, a Completed Date chore's only occurrence is a cursor, a routine is
+   * a rule, a late chore belongs on today), so keying them by the day would
+   * refetch byte-identical rows on every Previous/Next tap.
+   */
+  tasks: (householdId: string) => ["family", "tasks", householdId] as const,
+  /** Resolutions in the anchored week containing the displayed day. */
+  taskWeek: (householdId: string, weekStartDate: string) =>
+    ["family", "task-week", householdId, weekStartDate] as const,
+  /** The FR-357 carry tail. Keyed by TODAY, which is what rolls it at midnight. */
+  taskCarry: (householdId: string, todayDate: string) =>
+    ["family", "task-carry", householdId, todayDate] as const,
+  /** The tail of every Completed Date chain — its own read, never an embed. */
+  taskCursors: (householdId: string) => ["family", "task-cursors", householdId] as const,
+  /** The Task Box templates; fetched only while the sheet is open. */
+  taskBox: (householdId: string) => ["family", "task-box", householdId] as const,
 };
 
 const STALE_TIME = 30_000;
@@ -186,6 +245,67 @@ export function useCategoryEventCount(householdId: string, categoryId: string) {
   });
 }
 
+/**
+ * FR-391's two numbers, and they point in OPPOSITE directions — which is why
+ * both are read and both are stated. Deleting a Profile takes its assignments
+ * with it (018's cascade); a task somebody else is also assigned to survives
+ * without them, and a task nobody is left assigned to is deleted outright,
+ * because a chore becomes up-for-grabs by an explicit choice and never by
+ * attrition (Assumption 24, SC-317).
+ *
+ * Two reads rather than a join: the first is exactly the prefix of
+ * `task_assignees_category_idx` (018), and the second re-reads only those tasks
+ * by primary key. An up-for-grabs task has no assignee at all, so it is in
+ * neither number by construction.
+ */
+export async function fetchCategoryTaskCounts(
+  supabase: SupabaseClient,
+  householdId: string,
+  categoryId: string,
+): Promise<CategoryTaskCounts> {
+  const mine = await supabase
+    .schema("family")
+    .from("task_assignees")
+    .select("task_id")
+    .eq("household_id", householdId)
+    .eq("category_id", categoryId);
+  if (mine.error) throw new Error(mine.error.message);
+  const taskIds = ((mine.data ?? []) as unknown as { task_id: string }[]).map(
+    (row) => row.task_id,
+  );
+  if (taskIds.length === 0) return { losingAnAssignee: 0, deleted: 0 };
+
+  const everyone = await supabase
+    .schema("family")
+    .from("task_assignees")
+    .select("task_id, category_id")
+    .eq("household_id", householdId)
+    .in("task_id", taskIds);
+  if (everyone.error) throw new Error(everyone.error.message);
+  return splitByCompany(taskIds, (everyone.data ?? []) as unknown as AssigneeLinkRow[]);
+}
+
+/** Shared with somebody else, or this Profile's alone — every task lands in one. */
+function splitByCompany(
+  taskIds: readonly string[],
+  links: readonly AssigneeLinkRow[],
+): CategoryTaskCounts {
+  let losingAnAssignee = 0;
+  for (const taskId of taskIds) {
+    const assignees = links.filter((row) => row.task_id === taskId).length;
+    if (assignees > 1) losingAnAssignee += 1;
+  }
+  return { losingAnAssignee, deleted: taskIds.length - losingAnAssignee };
+}
+
+export function useCategoryTaskCounts(householdId: string, categoryId: string) {
+  return useQuery({
+    queryKey: familyKeys.categoryTaskCounts(householdId, categoryId),
+    queryFn: () => fetchCategoryTaskCounts(createClient(), householdId, categoryId),
+    staleTime: STALE_TIME,
+  });
+}
+
 export function useCategories(householdId: string, initialData?: Category[]) {
   return useQuery({
     queryKey: familyKeys.categories(householdId),
@@ -235,6 +355,215 @@ export function prefetchWeek(
   return queryClient.prefetchQuery({
     queryKey: familyKeys.week(householdId, weekWindow),
     queryFn: () => fetchWeekEvents(createClient(), householdId, weekWindow),
+    staleTime: STALE_TIME,
+  });
+}
+
+/* ------------------------------------------------------------------------- *
+ * Tasks (Phase 3 — contracts/server-actions.md "Read path", research R314)
+ * ------------------------------------------------------------------------- */
+
+// One embed, built as a joined list rather than adjacent template literals —
+// the production bundler folds those and drops the separator between them
+// (see `eventsSelect`).
+const TASK_SELECT = tasksSelect();
+
+/** The anchored week is seven days from its first, inclusive. */
+const TASK_WEEK_DAYS = 7;
+
+/**
+ * Read 1 — every `family.tasks` row for the household, with its assignees and
+ * their streak pair embedded. **Unwindowed on purpose**: any due-date window
+ * here would be wrong rather than merely slow, because an Anytime chore has no
+ * date (FR-328), a Completed Date chore's only occurrence is a cursor (FR-343),
+ * a routine is a rule, and a chore due three weeks ago belongs on today's board
+ * (FR-356). One index, `tasks_household_idx`, serves the whole read path.
+ */
+export async function fetchTasks(supabase: SupabaseClient, householdId: string): Promise<Task[]> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from("tasks")
+    .select(TASK_SELECT)
+    .eq("household_id", householdId)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as TaskWithAssigneesRow[]).map(toTask);
+}
+
+/**
+ * Read 2 — the resolutions of the anchored week containing the displayed day,
+ * **plus every undated row**: an Anytime chore's single occurrence has no date
+ * to fall inside a window and belongs to every day until it is resolved
+ * (FR-328). Resolutions are the one thing that grows without bound, which is
+ * why they are the only windowed read.
+ */
+export async function fetchTaskResolutions(
+  supabase: SupabaseClient,
+  householdId: string,
+  weekStartDate: string,
+): Promise<TaskResolution[]> {
+  const weekEndDate = addDays(weekStartDate, TASK_WEEK_DAYS - 1);
+  const weekOrUndated = [
+    `and(occurrence_date.gte."${weekStartDate}",occurrence_date.lte."${weekEndDate}")`,
+    "occurrence_date.is.null",
+  ].join(",");
+  const { data, error } = await supabase
+    .schema("family")
+    .from("task_resolutions")
+    .select(TASK_RESOLUTION_COLUMNS)
+    .eq("household_id", householdId)
+    .or(weekOrUndated);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as TaskResolutionRow[]).map(toTaskResolution);
+}
+
+/**
+ * Read 3 — `[today − CARRY_FORWARD_DAYS, weekStart(today) − 1]`, the FR-357
+ * tail minus what read 2 already holds. Its bound comes from
+ * `lib/family/tasks/dates.ts`, the same module the render pass reads it from,
+ * so the number the read is bounded by and the number the render is bounded by
+ * are the same number by construction (R316). Enabled only while the displayed
+ * day IS today: a pinned past or future day needs none of it (US3-3).
+ */
+export async function fetchTaskCarryForward(
+  supabase: SupabaseClient,
+  householdId: string,
+  todayDate: string,
+  startWeekOn: WeekStart,
+): Promise<TaskResolution[]> {
+  const window = carryReadWindowOf(todayDate, startWeekOn);
+  const { data, error } = await supabase
+    .schema("family")
+    .from("task_resolutions")
+    .select(TASK_RESOLUTION_COLUMNS)
+    .eq("household_id", householdId)
+    .gte("occurrence_date", window.startDate)
+    .lte("occurrence_date", window.endDate);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as TaskResolutionRow[]).map(toTaskResolution);
+}
+
+/**
+ * Read 4 — the tail of every Completed Date chain, from the `family.task_cursors`
+ * view. **Its own query, never a PostgREST embed on read 1**: embedding needs a
+ * declared foreign key and a view has none, so the embed would silently return
+ * nothing rather than erroring and Completed Date would be missing from the
+ * board with no failure to notice (R309, R314). Unwindowed, because the row
+ * that decides what is due today may be arbitrarily old.
+ */
+export async function fetchTaskCursors(
+  supabase: SupabaseClient,
+  householdId: string,
+): Promise<TaskCursor[]> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from("task_cursors")
+    .select(TASK_CURSOR_COLUMNS)
+    .eq("household_id", householdId);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as TaskCursorRow[]).map(toTaskCursor);
+}
+
+/**
+ * Read 5 — the Task Box templates (FR-377), off the critical path: seventeen
+ * rows nobody looks at on a normal day, fetched only while the sheet is open.
+ * Chores before routines, the two sections the sheet renders.
+ */
+export async function fetchTaskBox(
+  supabase: SupabaseClient,
+  householdId: string,
+): Promise<TaskBoxItem[]> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from("task_box_items")
+    .select(TASK_BOX_COLUMNS)
+    .eq("household_id", householdId)
+    .order("routine", { ascending: true })
+    .order("summary", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as TaskBoxItemRow[]).map(toTaskBoxItem);
+}
+
+export function useTasks(householdId: string, initialData?: Task[]) {
+  return useQuery({
+    queryKey: familyKeys.tasks(householdId),
+    queryFn: () => fetchTasks(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+export function useTaskResolutions(
+  householdId: string,
+  weekStartDate: string,
+  initialData?: TaskResolution[],
+) {
+  return useQuery({
+    queryKey: familyKeys.taskWeek(householdId, weekStartDate),
+    queryFn: () => fetchTaskResolutions(createClient(), householdId, weekStartDate),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+/** `enabled` is FR-357's "only while the displayed day is today", not an optimisation. */
+export function useTaskCarryForward(
+  householdId: string,
+  todayDate: string,
+  startWeekOn: WeekStart,
+  enabled: boolean,
+  initialData?: TaskResolution[],
+) {
+  return useQuery({
+    queryKey: familyKeys.taskCarry(householdId, todayDate),
+    queryFn: () => fetchTaskCarryForward(createClient(), householdId, todayDate, startWeekOn),
+    staleTime: STALE_TIME,
+    enabled,
+    initialData,
+  });
+}
+
+export function useTaskCursors(householdId: string, initialData?: TaskCursor[]) {
+  return useQuery({
+    queryKey: familyKeys.taskCursors(householdId),
+    queryFn: () => fetchTaskCursors(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+/**
+ * Read 5 (R314), and the only one that is not the board's: the Task Box's
+ * seventeen-odd templates, which nobody looks at on a normal day.
+ *
+ * **Mounting is the `enabled`.** `TaskBoxSheet` is rendered only while the
+ * sheet is open, so the fetch happens when it is opened and at no other time —
+ * the shipped `useCategoryTaskCounts` shape, whose laziness is likewise the
+ * dialog's own mount. It seeds nothing: the sheet is never part of a first
+ * paint, so there is no server-rendered `initialData` to hand it.
+ */
+export function useTaskBox(householdId: string) {
+  return useQuery({
+    queryKey: familyKeys.taskBox(householdId),
+    queryFn: () => fetchTaskBox(createClient(), householdId),
+    staleTime: STALE_TIME,
+  });
+}
+
+/**
+ * Warms one neighbouring week's resolutions when the anchor settles, so a
+ * Previous/Next tap across the week boundary lands on data already there — the
+ * shipped `prefetchWeek` shape. Only read 2 is windowed, so only read 2 needs
+ * warming.
+ */
+export function prefetchTaskWeek(
+  queryClient: QueryClient,
+  householdId: string,
+  weekStartDate: string,
+): Promise<void> {
+  return queryClient.prefetchQuery({
+    queryKey: familyKeys.taskWeek(householdId, weekStartDate),
+    queryFn: () => fetchTaskResolutions(createClient(), householdId, weekStartDate),
     staleTime: STALE_TIME,
   });
 }

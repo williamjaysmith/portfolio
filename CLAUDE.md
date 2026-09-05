@@ -1,23 +1,26 @@
 <!-- SPECKIT START -->
-**Active feature**: `002-family-week-calendar` — Phase 2 of the `/family` Skylight Calendar
-clone: the Week calendar (events, simple repeats + per-occurrence exceptions, scoped edit/delete,
-full drag, 3-day phone slice). **Built, verified, and deployed.**
-Migrations 010-015 are on the hosted project and the household timezone is seeded
-(`America/Chicago`). All 68 tasks are done except the parts of T067 that need real hardware: the
-wall-tablet run, the iPad drag feel pass, and the overnight rollover watch
-(`specs/002-family-week-calendar/quickstart.md` §4).
+**Active feature**: `003-family-tasks` — Phase 3 of the `/family` Skylight Calendar clone: the
+Tasks tab (chores and routines, per-Profile columns, the four time-of-day sections, two repeat
+modes, resolutions with skip/claim/late carry-forward, streaks, the per-device filters, search,
+the Task Box, the two press-and-hold reorders, the measured column fit with the portrait wrap and
+the phone pager). **Built and verified locally; migrations 017–023 written and proved against the
+local stack; the hosted push and the device passes are the operator's step
+(`specs/003-family-tasks/quickstart.md` §4, tasks T084).** Rewards are a later phase: two reserved
+`reward_points` columns exist and nothing reads them (SC-319).
 
 Read in this order before touching `/family` code:
-1. `specs/002-family-week-calendar/plan.md` — the implementation plan and phasing
-2. `specs/002-family-week-calendar/spec.md` — 90 requirements, evidence-tagged
-3. `specs/002-family-week-calendar/research.md` — the technical decisions and why
-4. `specs/002-family-week-calendar/data-model.md` — migrations 010–015, policies, invariants
-5. `specs/002-family-week-calendar/contracts/server-actions.md` — the action surface
-6. `specs/002-family-week-calendar/quickstart.md` — setup and how to verify each guarantee
+1. `specs/003-family-tasks/plan.md` — the implementation plan and phasing
+2. `specs/003-family-tasks/spec.md` — 98 requirements, evidence-tagged
+3. `specs/003-family-tasks/research.md` — R301–R326 and why
+4. `specs/003-family-tasks/data-model.md` — migrations 017–023, policies, invariants
+5. `specs/003-family-tasks/contracts/server-actions.md` — the action surface
+6. `specs/003-family-tasks/quickstart.md` — setup, verification per guarantee, operator steps
 
-Phase 1 (`specs/001-family-foundation/`) is shipped and hosted: shared-password sign-in (one
-household account, `FAMILY_ACCOUNT_EMAIL` server-side, sign-ups disabled + Before-User-Created
-hook), punch-in PINs, shell, Profiles & Labels, PWA. Its docs bind Phase 2's conventions.
+Phases 1 and 2 (`specs/001-family-foundation/`, `specs/002-family-week-calendar/`) are shipped and
+live; their docs bind this phase's conventions. **Hard ordering**: the hosted `supabase db push`
+(017–023) MUST land before this branch is merged or deployed — Phase 3 adds four tables to the
+realtime channel every `/family` page mounts, and a deploy ahead of the push takes the shipped
+calendar's live updates down with it.
 
 Product truth lives in `docs/research/skylight/00-master-map.md`.
 Note: this repo is Next 16 — request interception is `proxy.ts`, not `middleware.ts`,
@@ -26,6 +29,7 @@ and it is NOT an authorization boundary. Every server action re-checks auth itse
 **Working locally**: `supabase start` (this repo's stack is on **553xx**, not the CLI defaults —
 another project already occupies 543xx), then `supabase db reset`, `npm run family:seed -- --local`,
 then `npm run dev:local` and sign in with password `family-dev-password` (account `dev@family.local`).
+Policies tests: `npm run test:policies` (reads `.env.local`; needs the local stack).
 
 **The gate needs coverage**: fallow scores untested branchy functions via CRAP, so
 `.fallowrc.json` points `health.coverage` at `coverage/coverage-final.json` and

@@ -5,6 +5,13 @@
  * supply the verified actor and the household state, and the DB triggers
  * enforce the same "last parent" invariant as a backstop — the checks here
  * exist so the UI and the actions can refuse early with a precise reason.
+ *
+ * Phase 3 adds the app's first RECORD-dependent rule (FR-351, R323): a member
+ * may resolve only their own occurrences and claim up-for-grabs only for
+ * themselves, so `PermissionContext` carries the target. On the client that
+ * decision is affordance ONLY — FR-350 puts the gate on the server "rather than
+ * by hiding controls", so the completion circle stays rendered and tappable and
+ * nothing here ever pre-refuses a tap.
  */
 
 import type { Category, Role } from "./types";
@@ -19,11 +26,45 @@ export type Operation =
   | "upload_avatar"
   | "update_settings"
   | "set_pin"
-  | "clear_pin";
+  | "clear_pin"
+  // Phase 3's verbs, split by FR-389: the first two are a parent's, the last
+  // two are open to any punched-in Profile within FR-351's ownership rule.
+  | "manage_tasks"
+  | "manage_task_box"
+  | "resolve_occurrence"
+  | "reorder_routines";
+
+/**
+ * The record a target-aware operation touches (FR-351) — the first rule in this
+ * app whose answer is not settled by the actor's role alone.
+ *
+ * A routine reorder names the column's Profile as `assigneeId` and is never up
+ * for grabs; a resolution names the occurrence's own chain owner.
+ */
+export interface OccurrenceTarget {
+  /** FR-365: an up-for-grabs task carries no assignee and belongs to nobody. */
+  upForGrabs: boolean;
+  /** The chain OWNER; null on an unclaimed up-for-grabs occurrence (FR-353). */
+  assigneeId: string | null;
+  /**
+   * The Profile this write would credit — the claim on a completion, the stored
+   * credit on an undo. Absent means the credit is the chain owner (FR-368).
+   */
+  creditProfileId?: string | null;
+}
 
 export interface PermissionContext {
   /** Whether the household currently has at least one profile with role `parent`. */
   householdHasParent: boolean;
+  /** Read only by the target-aware operations; every other one ignores it. */
+  target?: OccurrenceTarget;
+}
+
+/** A member's answer depends on the record, so the actor carries its identity. */
+export interface PermissionActor {
+  role: Role;
+  /** Absent when the caller knows only the role — such an actor owns nothing. */
+  profileId?: string;
 }
 
 export type Decision = { allowed: true } | { allowed: false; reason: "NO_ACTOR" | "FORBIDDEN" };
@@ -48,14 +89,53 @@ function decideWithoutActor(op: Operation, ctx: PermissionContext): Decision {
   return { allowed: false, reason: "NO_ACTOR" };
 }
 
+/** The operations FR-389 opens to a member, each within FR-351's ownership rule. */
+const TARGET_AWARE: ReadonlySet<Operation> = new Set<Operation>([
+  "resolve_occurrence",
+  "reorder_routines",
+]);
+
+/**
+ * FR-351, stated once: a member may resolve an occurrence whose chain owner is
+ * their own Profile, and may claim an unclaimed up-for-grabs occurrence only
+ * crediting themselves. A parent never reaches here — a parent may do any of it
+ * for anyone.
+ */
+export function ownsOccurrence(
+  actor: { profileId: string },
+  target: OccurrenceTarget,
+): boolean {
+  if (target.upForGrabs) {
+    return target.assigneeId === null && target.creditProfileId === actor.profileId;
+  }
+  const credited = target.creditProfileId ?? actor.profileId;
+  return target.assigneeId === actor.profileId && credited === actor.profileId;
+}
+
+/**
+ * A member is refused every verb FR-389 reserves, and every target-aware one
+ * whose record is not theirs — including one the caller supplied no record for,
+ * since a decision with nothing to own cannot be an allowance.
+ */
+function decideForMember(
+  actor: PermissionActor,
+  op: Operation,
+  ctx: PermissionContext,
+): Decision {
+  const refused: Decision = { allowed: false, reason: "FORBIDDEN" };
+  if (!TARGET_AWARE.has(op)) return refused;
+  if (ctx.target === undefined || actor.profileId === undefined) return refused;
+  return ownsOccurrence({ profileId: actor.profileId }, ctx.target) ? { allowed: true } : refused;
+}
+
 export function can(
-  actor: { role: Role } | null,
+  actor: PermissionActor | null,
   op: Operation,
   ctx: PermissionContext,
 ): Decision {
   if (OPEN_OPERATIONS.has(op)) return { allowed: true };
   if (actor === null) return decideWithoutActor(op, ctx);
-  return actor.role === "parent" ? { allowed: true } : { allowed: false, reason: "FORBIDDEN" };
+  return actor.role === "parent" ? { allowed: true } : decideForMember(actor, op, ctx);
 }
 
 /** Labels can never count as parents, whatever their `role` column says. */

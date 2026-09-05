@@ -10,6 +10,7 @@ import type { PostgrestError } from "@supabase/supabase-js";
 import { ttlSecondsOf } from "../actor-token";
 import { writeActor } from "../actor";
 import { ActionFailure } from "../errors";
+import type { RuleWeekday } from "../recurrence/grammar";
 import {
   CATEGORY_COLUMNS,
   SETTINGS_COLUMNS,
@@ -19,7 +20,7 @@ import {
   type HouseholdSettingsRow,
 } from "../rows";
 import { createAdminClient } from "../supabase/admin";
-import type { Actor, ActorSession, Category, HouseholdSettings } from "../types";
+import type { Actor, ActorSession, Category, HouseholdSettings, WeekStart } from "../types";
 
 /** The service-role client, already pointed at the `family` schema. */
 export function adminFamily() {
@@ -128,4 +129,30 @@ export async function touchActor(actor: Actor | null): Promise<void> {
   } catch {
     // The cookie keeps its previous expiry; the next action re-checks it.
   }
+}
+
+/** What every expansion and every rule emission needs from the household (FR-284, R201, R303). */
+export interface HouseholdZone {
+  zone: string;
+  /** `WKST` on weekly rules — the household's start-of-week. */
+  wkst: RuleWeekday;
+}
+
+const WKST_OF: Record<WeekStart, RuleWeekday> = { 0: "SU", 1: "MO" };
+
+/**
+ * The household's zone and week start, read through the admin client — the
+ * one read both the events and the tasks actions open with, because every
+ * date either of them writes is judged in this zone and never the client's.
+ */
+export async function loadHouseholdZone(householdId: string): Promise<HouseholdZone> {
+  const { data, error } = await adminFamily()
+    .from("household_settings")
+    .select("timezone, start_week_on")
+    .eq("household_id", householdId)
+    .maybeSingle();
+  if (error) throw mapDbError(error);
+  if (!data) throw new ActionFailure("NOT_FOUND", "This household has no settings row.");
+  const row = data as unknown as { timezone: string; start_week_on: WeekStart };
+  return { zone: row.timezone, wkst: WKST_OF[row.start_week_on] };
 }

@@ -46,7 +46,6 @@ import {
   type RepeatChoice,
   type Scope,
   type UpdateEventInput,
-  type WeekStart,
 } from "../types";
 import {
   deleteEventInputSchema,
@@ -54,7 +53,13 @@ import {
   updateEventInputSchema,
   validateEventInput,
 } from "../validation";
-import { adminFamily, mapDbError, touchActor } from "./shared";
+import {
+  adminFamily,
+  loadHouseholdZone,
+  mapDbError,
+  touchActor,
+  type HouseholdZone,
+} from "./shared";
 
 type UpdateInput = z.output<typeof updateEventInputSchema>;
 type Patch = UpdateInput["patch"];
@@ -63,13 +68,6 @@ type DeleteInput = z.output<typeof deleteEventInputSchema>;
 /** Snake-cased columns for an INSERT/UPDATE/UPSERT. */
 type EventWrite = Record<string, string | boolean | null>;
 
-/** What every expansion and every rule emission needs from the household (FR-284, R201). */
-interface HouseholdZone {
-  zone: string;
-  /** `WKST` on weekly rules — the household's start-of-week. */
-  wkst: RuleWeekday;
-}
-
 /** The exception row's payload — exactly FR-239's four; `null` = inherit from the series. */
 interface ExceptionPayload {
   summary: string | null;
@@ -77,8 +75,6 @@ interface ExceptionPayload {
   location: string | null;
   times: EventTimes | null;
 }
-
-const WKST_OF: Record<WeekStart, RuleWeekday> = { 0: "SU", 1: "MO" };
 
 // The same embed the week read uses: ordered links and EVERY exception (R206).
 const EVENT_WITH_RELATIONS = eventsSelect();
@@ -96,18 +92,6 @@ const OCCURRENCE_REQUIRED = "Say which occurrence this applies to.";
  * Reads through the admin client — scoped by household, which IS the tenancy
  * check under the service role.
  * ------------------------------------------------------------------------- */
-
-async function loadHouseholdZone(householdId: string): Promise<HouseholdZone> {
-  const { data, error } = await adminFamily()
-    .from("household_settings")
-    .select("timezone, start_week_on")
-    .eq("household_id", householdId)
-    .maybeSingle();
-  if (error) throw mapDbError(error);
-  if (!data) throw new ActionFailure("NOT_FOUND", "This household has no settings row.");
-  const row = data as unknown as { timezone: string; start_week_on: WeekStart };
-  return { zone: row.timezone, wkst: WKST_OF[row.start_week_on] };
-}
 
 /** The admin re-read of contracts step 1: an id outside the household is `NOT_FOUND`, never `FORBIDDEN`. */
 async function loadEvent(householdId: string, id: string): Promise<Event> {
@@ -182,13 +166,22 @@ function ruleFromChoice(
   if (choice.kind === "never") return null;
   const untilDate = choice.until ?? null;
   const until = untilDate === null ? null : untilOn(untilDate, times.allDay, household.zone);
-  if (choice.kind === "daily") return emitRule({ freq: "DAILY", until });
+  // INTERVAL is stamped here, never sent: `RepeatChoice` carries no interval,
+  // so the calendar's rules stay at 1 while the grammar admits 1–99 (R301).
+  if (choice.kind === "daily") return emitRule({ freq: "DAILY", interval: 1, until });
   if (choice.kind === "weekly") {
-    return emitRule({ freq: "WEEKLY", until, wkst: household.wkst, byDay: [...choice.weekdays] });
+    return emitRule({
+      freq: "WEEKLY",
+      interval: 1,
+      until,
+      wkst: household.wkst,
+      byDay: [...choice.weekdays],
+    });
   }
   // BYMONTHDAY is derived from the start, never sent.
   return emitRule({
     freq: "MONTHLY",
+    interval: 1,
     until,
     byMonthDay: dayOfMonth(startDateOf(times, household.zone)),
   });
@@ -207,9 +200,14 @@ function shiftWeekday(day: RuleWeekday, delta: number): RuleWeekday {
 function reanchorRule(rrule: string, from: EventTimes, to: EventTimes, zone: string): string {
   const rule = parseRule(rrule);
   const until = retimedUntil(rule.until, to.allDay, zone);
-  if (rule.freq === "DAILY") return emitRule({ freq: "DAILY", until });
+  if (rule.freq === "DAILY") return emitRule({ freq: "DAILY", interval: 1, until });
   if (rule.freq === "MONTHLY") {
-    return emitRule({ freq: "MONTHLY", until, byMonthDay: dayOfMonth(startDateOf(to, zone)) });
+    return emitRule({
+      freq: "MONTHLY",
+      interval: 1,
+      until,
+      byMonthDay: dayOfMonth(startDateOf(to, zone)),
+    });
   }
   const delta = diffDays(startDateOf(from, zone), startDateOf(to, zone));
   return emitRule({ ...rule, until, byDay: rule.byDay.map((day) => shiftWeekday(day, delta)) });

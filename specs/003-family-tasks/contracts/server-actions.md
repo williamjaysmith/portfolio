@@ -416,7 +416,7 @@ and the save is `createTask` like any other (SC-318). **Saving *to* the box is a
 `createTask`** (FR-379), not a separate call, so US4-14 is one save.
 
 The seventeen seeded templates are not written by any action: `family.seed_task_box()` runs in
-migration 020 when a household is set up (FR-382, Assumption 23), and they are the household's own
+migration 021 when a household is set up (FR-382, Assumption 23), and they are the household's own
 copies from the first day — editable and deletable through the three actions above.
 
 ---

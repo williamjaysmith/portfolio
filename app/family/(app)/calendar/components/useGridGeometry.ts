@@ -10,6 +10,13 @@ import {
   type GridMetrics,
 } from "@/lib/family/week-geometry";
 
+import {
+  attachProbe,
+  detachProbe,
+  hiddenProbeRoot,
+  type ProbeAttachment,
+} from "../../components/probeAttachment";
+
 /**
  * T027: the grid measures ITSELF (spec Contradiction 5) — a `ResizeObserver`
  * on the mounted hour viewport turns real rendered sizes into the
@@ -158,7 +165,7 @@ export function useGridGeometry(): UseGridGeometryResult {
 
   const viewportRef = useCallback(
     (node: HTMLElement | null) => {
-      detach(attachmentRef.current);
+      detachProbe(attachmentRef.current);
       attachmentRef.current = node === null ? null : attach(node, measure);
       if (node === null) setGeometry(null);
       else measure();
@@ -188,52 +195,25 @@ interface ProbeElements {
   title: HTMLElement;
 }
 
-interface Attachment {
-  node: HTMLElement;
-  probe: ProbeElements;
-  observer: ResizeObserver | null;
-  onWindowResize: () => void;
-}
+type Attachment = ProbeAttachment<ProbeElements>;
 
+/**
+ * The shared plumbing (`probeAttachment.ts`), told which probe elements to
+ * watch: the column and the padded block resize on their own when --fam-u or
+ * the text-size rung changes (the node's border box does not).
+ */
 function attach(node: HTMLElement, onChange: () => void): Attachment {
   const probe = buildProbe(node.ownerDocument);
-  node.appendChild(probe.root);
-  let observer: ResizeObserver | null = null;
-  if (typeof ResizeObserver !== "undefined") {
-    observer = new ResizeObserver(onChange);
-    observer.observe(node);
-    // The probes resize on their own when --fam-u or the text-size rung
-    // changes (the node's border box does not) — observe them too.
-    observer.observe(probe.column);
-    observer.observe(probe.block);
-  }
-  // Rotation and toolbar collapse can flip FR-277's orientation test without
-  // resizing the observed node.
-  window.addEventListener("resize", onChange);
-  return { node, probe, observer, onWindowResize: onChange };
-}
-
-function detach(attachment: Attachment | null): void {
-  if (attachment === null) return;
-  attachment.observer?.disconnect();
-  window.removeEventListener("resize", attachment.onWindowResize);
-  attachment.probe.root.remove();
+  return attachProbe(node, probe, [probe.column, probe.block], onChange);
 }
 
 /**
  * Hidden in-scope elements sized purely by the tokens, so measuring them IS
  * resolving the tokens (calc(… * var(--fam-u)) never round-trips through
- * `getComputedStyle` as a number). `visibility: hidden` keeps layout real;
- * the negative offset cannot create scrollable overflow.
+ * `getComputedStyle` as a number).
  */
 function buildProbe(doc: Document): ProbeElements {
-  const root = doc.createElement("div");
-  root.setAttribute("aria-hidden", "true");
-  root.style.position = "absolute";
-  root.style.left = "-9999px";
-  root.style.top = "0";
-  root.style.visibility = "hidden";
-  root.style.pointerEvents = "none";
+  const root = hiddenProbeRoot(doc);
 
   const column = doc.createElement("div");
   column.style.width = "var(--fam-day-col-w)";

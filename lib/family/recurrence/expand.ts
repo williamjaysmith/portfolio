@@ -1,6 +1,9 @@
 /**
  * `expandSeries` — the stateless date-walk that turns one stored series into
- * its occurrences over a household-local date range (FR-234/235/236, R202).
+ * its occurrences over a household-local date range (FR-234/235/236, R202) —
+ * and `ruleDatesIn`, the date-only primitive it is built on: ONE rule walk,
+ * two consumers (R304). Events add times to those dates; the tasks board
+ * takes them bare, so nothing invents a clock time for a routine that has none.
  *
  * The walk is per LOCAL date in the household's zone: the series start is
  * converted to household wall clock once, rule-matching dates within
@@ -26,7 +29,15 @@
 
 import { parseRule, type RecurrenceRule, type RuleUntil } from "./grammar";
 import { instantToWall, wallToInstant, type WallTime } from "./zone";
-import { DAY_MS, datePartsOf, epochDayOf, isoOfEpochDay, weekdayIndexOf } from "./plain-date";
+import {
+  DAY_MS,
+  datePartsOf,
+  epochDayOf,
+  isoOfEpochDay,
+  monthsBetween,
+  weekdayIndexOf,
+  weekStartDay,
+} from "./plain-date";
 import { WEEKDAYS, type EventTimes, type ExceptionAction, type Weekday } from "../types";
 
 /** Inclusive household-local date range to walk, both ends `YYYY-MM-DD`. */
@@ -69,6 +80,33 @@ type Anchor =
   | { allDay: false; day: number; wall: WallTime; durationMs: number }
   | { allDay: true; day: number; spanDays: number };
 
+/**
+ * The household-local dates a rule produces in `range`, counting intervals
+ * from `anchorDate` — the ONE rule walk (R304). `expandSeries` adds times to
+ * these dates; the tasks board takes them as they are, so a routine with no
+ * clock time never has a start instant invented for it.
+ *
+ * `zone` is here because UNTIL inclusivity is a LOCAL-DATE comparison (R201):
+ * a timed rule's `UNTIL` is a UTC instant, and which household day that falls
+ * on is the whole question a `T235959Z` rule asks.
+ */
+export function ruleDatesIn(
+  rule: RecurrenceRule,
+  anchorDate: string,
+  range: LocalDateRange,
+  zone: string,
+): string[] {
+  const anchorDay = epochDayOf(anchorDate);
+  // Clamped at the anchor: a series has no occurrence before its own start.
+  const firstDay = Math.max(epochDayOf(range.start), anchorDay);
+  const lastDay = Math.min(epochDayOf(range.end), lastDayUnder(rule.until, zone));
+  const dates: string[] = [];
+  for (let day = firstDay; day <= lastDay; day += 1) {
+    if (dateMatches(rule, day, anchorDay)) dates.push(isoOfEpochDay(day));
+  }
+  return dates;
+}
+
 export function expandSeries(
   series: SeriesInput,
   range: LocalDateRange,
@@ -76,16 +114,13 @@ export function expandSeries(
 ): SeriesOccurrence[] {
   const rule = parseRule(series.rrule);
   const anchor = anchorOf(series.times, zone);
-  const firstDay = Math.max(epochDayOf(range.start), anchor.day);
-  const lastDay = Math.min(epochDayOf(range.end), lastDayUnder(rule.until, zone));
   const byDate = new Map(series.exceptions.map((entry) => [entry.occurrenceDate, entry]));
 
   const occurrences: SeriesOccurrence[] = [];
-  for (let day = firstDay; day <= lastDay; day += 1) {
-    if (!dateMatches(rule, day)) continue;
-    const exception = byDate.get(isoOfEpochDay(day));
+  for (const date of ruleDatesIn(rule, isoOfEpochDay(anchor.day), range, zone)) {
+    const exception = byDate.get(date);
     if (exception?.action === "skip") continue;
-    occurrences.push(occurrenceOn(series, anchor, day, exception, zone));
+    occurrences.push(occurrenceOn(series, anchor, epochDayOf(date), exception, zone));
   }
   return occurrences;
 }
@@ -116,10 +151,38 @@ function lastDayUnder(until: RuleUntil | null, zone: string): number {
   return epochDayOfWall(instantToWall(zone, until.ms));
 }
 
-function dateMatches(rule: RecurrenceRule, day: number): boolean {
-  if (rule.freq === "DAILY") return true;
-  if (rule.freq === "WEEKLY") return rule.byDay.includes(weekdayTokenOf(day));
-  return datePartsOf(day).day === rule.byMonthDay;
+/**
+ * Does `rule` produce an occurrence on this household-local day, counting
+ * intervals from `anchorDay` — the series' own first date (R303)?
+ *
+ * Every arm collapses to Phase 2's predicate at `interval === 1`, because
+ * `x % 1 === 0` for every integer; T015 asserts that over the whole reachable
+ * domain rather than by inspection. `%` preserves the dividend's sign and
+ * `-0 === 0`, so a day BEFORE the anchor is judged on the same lattice — no
+ * floor-mod helper is needed.
+ *
+ * A day-of-month that a month does not have simply never matches, so
+ * `BYMONTHDAY=31` at `INTERVAL=3` can leave a six-month gap. That is Phase 2's
+ * behaviour widened, not a regression; clamping was refused (R303).
+ */
+export function dateMatches(rule: RecurrenceRule, day: number, anchorDay: number): boolean {
+  if (rule.freq === "DAILY") return (day - anchorDay) % rule.interval === 0;
+  if (rule.freq === "WEEKLY") return weeklyMatches(rule, day, anchorDay);
+  return (
+    datePartsOf(day).day === rule.byMonthDay &&
+    monthsBetween(anchorDay, day) % rule.interval === 0
+  );
+}
+
+type WeeklyRule = Extract<RecurrenceRule, { freq: "WEEKLY" }>;
+
+function weeklyMatches(rule: WeeklyRule, day: number, anchorDay: number): boolean {
+  if (!rule.byDay.includes(weekdayTokenOf(day))) return false;
+  // The grammar admits a null WKST only at interval 1, where every week matches.
+  if (rule.wkst === null) return true;
+  const weekOne = WEEKDAYS.indexOf(rule.wkst);
+  const weeks = (weekStartDay(day, weekOne) - weekStartDay(anchorDay, weekOne)) / 7;
+  return weeks % rule.interval === 0;
 }
 
 function occurrenceOn(

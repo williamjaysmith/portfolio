@@ -181,6 +181,61 @@ export async function updateCategory(
   });
 }
 
+/**
+ * 003 FR-391 — the tasks this Profile was assigned to, read BEFORE the delete,
+ * because 018's cascade takes the assignment rows with the Profile and there
+ * would be nothing left to compute the orphans from afterwards.
+ */
+async function taskIdsAssignedTo(householdId: string, categoryId: string): Promise<string[]> {
+  const { data, error } = await adminFamily()
+    .from("task_assignees")
+    .select("task_id")
+    .eq("household_id", householdId)
+    .eq("category_id", categoryId);
+  if (error) throw mapDbError(error);
+  return ((data ?? []) as unknown as { task_id: string }[]).map((row) => row.task_id);
+}
+
+/**
+ * 003 FR-391 / SC-317, the one destructive statement in Phase 3: after the
+ * category delete — whose cascades take the assignments and that Profile's own
+ * resolution chains — the tasks left with nobody to do them are deleted by id.
+ * A task somebody else is also assigned to survives, with their history intact.
+ *
+ * **Up-for-grabs tasks are excluded**, and by construction as well as by the
+ * clause: they legitimately have no assignee, and a chore becomes up-for-grabs
+ * by an explicit choice, never by attrition.
+ *
+ * The two-statement residual is recorded rather than engineered around: a crash
+ * between them leaves a task with no assignee on nobody's board — retained, not
+ * lost, and repaired by re-running the cleanup (data-model, "accepted residual").
+ */
+async function deleteOrphanedTasks(
+  householdId: string,
+  candidateIds: readonly string[],
+): Promise<void> {
+  if (candidateIds.length === 0) return;
+  const { data, error } = await adminFamily()
+    .from("task_assignees")
+    .select("task_id")
+    .eq("household_id", householdId)
+    .in("task_id", [...candidateIds]);
+  if (error) throw mapDbError(error);
+  const stillAssigned = new Set(
+    ((data ?? []) as unknown as { task_id: string }[]).map((row) => row.task_id),
+  );
+  const orphaned = candidateIds.filter((id) => !stillAssigned.has(id));
+  if (orphaned.length === 0) return;
+
+  const removal = await adminFamily()
+    .from("tasks")
+    .delete()
+    .eq("household_id", householdId)
+    .eq("up_for_grabs", false)
+    .in("id", orphaned);
+  if (removal.error) throw mapDbError(removal.error);
+}
+
 export async function deleteCategory(
   id: string,
   opts: { confirm: boolean },
@@ -202,6 +257,9 @@ export async function deleteCategory(
       );
     }
 
+    // Read before the delete: the cascade removes the rows this is computed from.
+    const assignedTaskIds = await taskIdsAssignedTo(actor.householdId, id);
+
     const { error } = await adminFamily()
       .from("categories")
       .delete()
@@ -209,6 +267,8 @@ export async function deleteCategory(
       .eq("household_id", actor.householdId);
     if (error) throw mapDbError(error);
 
+    // 003 FR-391: a task left with nobody to do it goes with the Profile.
+    await deleteOrphanedTasks(actor.householdId, assignedTaskIds);
     await removeAvatarObject(existing.avatarPath);
 
     // Deleting yourself punches you out in the same response.

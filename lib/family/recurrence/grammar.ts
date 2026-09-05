@@ -3,13 +3,20 @@
  * and the SOLE canonical emitter of `events.rrule` strings.
  *
  * Grammar, field order fixed:
- *   FREQ=DAILY|WEEKLY|MONTHLY ;INTERVAL=1 [;UNTIL=…] [;WKST=…] [;BYDAY=…|;BYMONTHDAY=…]
+ *   FREQ=DAILY|WEEKLY|MONTHLY ;INTERVAL=N [;UNTIL=…] [;WKST=…] [;BYDAY=…|;BYMONTHDAY=…]
  *
- * - `INTERVAL=1` is always written and is the only interval accepted.
+ * - `INTERVAL` is always written, always in slot 2, and is a whole 1–99,
+ *   unpadded and unsigned (FR-345, R301). `interval` is a REQUIRED field on
+ *   `RecurrenceRule` so `tsc` enumerates every construction site rather than
+ *   letting one silently default.
  * - `COUNT` and any part outside the grammar are refused (FR-232's DB CHECK is
  *   the backstop, this parser is the contract).
- * - `WKST` is legal on WEEKLY rules only; `BYDAY` (WEEKLY) and `BYMONTHDAY`
- *   (MONTHLY) are always explicit so a stored rule is self-describing.
+ * - `WKST` is legal on WEEKLY rules only, and REQUIRED there above interval 1:
+ *   RFC 5545 counts weeks from the anchor's week, whose first day is `WKST`,
+ *   so above interval 1 its absence is a silently wrong answer (R303). At
+ *   interval 1 every week matches, so it stays optional and inert.
+ * - `BYDAY` (WEEKLY) and `BYMONTHDAY` (MONTHLY) are always explicit so a
+ *   stored rule is self-describing.
  * - `UNTIL` is a plain `YYYYMMDD` date for all-day series and a
  *   `YYYYMMDDTHHMMSSZ` UTC instant (the household-zone end of the chosen day)
  *   for timed series; inclusivity is the expander's job, by local-date
@@ -34,14 +41,22 @@ export type RuleUntil =
   | { kind: "instant"; ms: number }; // whole-second UTC epoch — timed series
 
 export type RecurrenceRule =
-  | { freq: "DAILY"; until: RuleUntil | null }
-  | { freq: "WEEKLY"; until: RuleUntil | null; wkst: RuleWeekday | null; byDay: RuleWeekday[] }
-  | { freq: "MONTHLY"; until: RuleUntil | null; byMonthDay: number };
+  | { freq: "DAILY"; interval: number; until: RuleUntil | null }
+  | {
+      freq: "WEEKLY";
+      interval: number;
+      until: RuleUntil | null;
+      wkst: RuleWeekday | null;
+      byDay: RuleWeekday[];
+    }
+  | { freq: "MONTHLY"; interval: number; until: RuleUntil | null; byMonthDay: number };
 
 const WEEKDAYS: readonly RuleWeekday[] = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 
 const UNTIL_DATE = /^(\d{4})(\d{2})(\d{2})$/;
 const UNTIL_INSTANT = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/;
+// One whole 1–99, no leading zero, no sign, no fraction — both directions.
+const INTERVAL = /^([1-9]|[1-9][0-9])$/;
 // One day 1–31, no leading zero, no list — "on the date", singular (FR-231).
 const BY_MONTH_DAY = /^([1-9]|[12][0-9]|3[01])$/;
 const EMITTED_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -67,16 +82,12 @@ export function parseRule(text: string): RecurrenceRule {
     parts[index]?.key === key ? demand(key) : null;
 
   const freq = parseFrequency(demand("FREQ"));
-  const interval = demand("INTERVAL");
-  if (interval !== "1") {
-    throw new Error(`INTERVAL=${interval} refused — the closed grammar admits INTERVAL=1 only`);
-  }
+  const interval = parseInterval(demand("INTERVAL"));
   const untilRaw = optional("UNTIL");
   const wkstRaw = optional("WKST");
-  if (wkstRaw !== null && freq !== "WEEKLY") {
-    throw new Error(`WKST is weekly-only in the closed grammar, found it on FREQ=${freq}`);
-  }
-  const rule = finishRule(freq, untilRaw === null ? null : parseUntil(untilRaw), wkstRaw, demand);
+  checkWkst(freq, interval, wkstRaw);
+  const until = untilRaw === null ? null : parseUntil(untilRaw);
+  const rule = finishRule(freq, interval, until, wkstRaw, demand);
   const leftover = parts[index];
   if (leftover) throw new Error(`unexpected part "${leftover.key}" in rule "${text}"`);
   return rule;
@@ -84,9 +95,10 @@ export function parseRule(text: string): RecurrenceRule {
 
 /** Emit the one canonical string for a rule. Throws on inexpressible input. */
 export function emitRule(rule: RecurrenceRule): string {
-  const parts = [`FREQ=${rule.freq}`, "INTERVAL=1"];
+  const parts = [`FREQ=${rule.freq}`, `INTERVAL=${formatInterval(rule.interval)}`];
   if (rule.until !== null) parts.push(`UNTIL=${formatUntil(rule.until)}`);
   if (rule.freq === "WEEKLY") {
+    checkWkst(rule.freq, rule.interval, rule.wkst);
     if (rule.wkst !== null) parts.push(`WKST=${rule.wkst}`);
     parts.push(`BYDAY=${formatByDay(rule.byDay)}`);
   } else if (rule.freq === "MONTHLY") {
@@ -107,20 +119,54 @@ function toParts(text: string): Part[] {
 
 function finishRule(
   freq: RecurrenceFrequency,
+  interval: number,
   until: RuleUntil | null,
   wkstRaw: string | null,
   demand: (key: string) => string,
 ): RecurrenceRule {
-  if (freq === "DAILY") return { freq, until };
+  if (freq === "DAILY") return { freq, interval, until };
   if (freq === "WEEKLY") {
     return {
       freq,
+      interval,
       until,
       wkst: wkstRaw === null ? null : parseWeekday(wkstRaw),
       byDay: parseByDay(demand("BYDAY")),
     };
   }
-  return { freq, until, byMonthDay: parseByMonthDay(demand("BYMONTHDAY")) };
+  return { freq, interval, until, byMonthDay: parseByMonthDay(demand("BYMONTHDAY")) };
+}
+
+/**
+ * `WKST` is weekly-only, and above interval 1 it is the parity origin the
+ * expander counts weeks from (R303) — so its absence there is refused rather
+ * than defaulted, at the one moment the choice could change a date.
+ */
+function checkWkst(freq: RecurrenceFrequency, interval: number, wkst: string | null): void {
+  if (wkst !== null && freq !== "WEEKLY") {
+    throw new Error(`WKST is weekly-only in the closed grammar, found it on FREQ=${freq}`);
+  }
+  if (wkst === null && freq === "WEEKLY" && interval > 1) {
+    throw new Error(
+      `WKST is required on FREQ=WEEKLY;INTERVAL=${interval} — it decides which weeks match`,
+    );
+  }
+}
+
+function parseInterval(value: string): number {
+  if (!INTERVAL.test(value)) {
+    throw new Error(`INTERVAL=${value} refused — one whole interval 1–99, unpadded`);
+  }
+  return Number(value);
+}
+
+/** The emitter refuses an interval it could not parse back (one shape, both ways). */
+function formatInterval(interval: number): string {
+  const text = String(interval);
+  if (!INTERVAL.test(text)) {
+    throw new Error(`interval ${text} is outside 1–99, or is not a whole number`);
+  }
+  return text;
 }
 
 function parseFrequency(value: string): RecurrenceFrequency {

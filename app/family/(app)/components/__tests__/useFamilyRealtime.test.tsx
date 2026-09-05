@@ -13,6 +13,12 @@ import { useFamilyRealtime } from "../useFamilyRealtime";
  * only, so a filtered subscription silently never fires on deletes — and every
  * notice must stay a bare `invalidateQueries(familyKeys.all)` with no payload
  * content used (Realtime does not apply column privileges to payloads).
+ *
+ * FR-392 / R324 puts the four task tables on the same terms, and raises the
+ * stakes: Phase 3 DELETES on the hot path (every un-complete and every unskip),
+ * so a filter here would not merely miss a rare delete but the commonest write
+ * of the phase. The status callback is the other half — a channel that never
+ * subscribes fails silently, and the wall tablet would go on showing yesterday.
  */
 
 type CapturedSubscription = {
@@ -20,8 +26,11 @@ type CapturedSubscription = {
   handler: (payload?: unknown) => void;
 };
 
+type StatusCallback = (status: string, error?: Error) => void;
+
 const captured = vi.hoisted(() => ({
   subscriptions: [] as CapturedSubscription[],
+  onStatus: null as StatusCallback | null,
   removed: 0,
 }));
 
@@ -31,7 +40,8 @@ vi.mock("@/lib/family/supabase/client", () => {
       captured.subscriptions.push({ params, handler });
       return channel;
     },
-    subscribe() {
+    subscribe(onStatus?: StatusCallback) {
+      captured.onStatus = onStatus ?? null;
       return channel;
     },
   };
@@ -47,7 +57,15 @@ vi.mock("@/lib/family/supabase/client", () => {
 });
 
 const HOUSEHOLD_ID = "household-1";
-const CALENDAR_TABLES = ["events", "event_categories", "event_exceptions"] as const;
+const UNFILTERED_TABLES = [
+  "events",
+  "event_categories",
+  "event_exceptions",
+  "tasks",
+  "task_assignees",
+  "task_resolutions",
+  "task_box_items",
+] as const;
 
 function renderRealtime() {
   const queryClient = new QueryClient();
@@ -68,14 +86,15 @@ function subscriptionsByTable(): Map<unknown, Record<string, unknown>> {
 describe("useFamilyRealtime", () => {
   beforeEach(() => {
     captured.subscriptions.length = 0;
+    captured.onStatus = null;
     captured.removed = 0;
   });
 
-  it("subscribes the three calendar tables with no filter member at all", () => {
+  it("subscribes the calendar and task tables with no filter member at all", () => {
     renderRealtime();
 
     const byTable = subscriptionsByTable();
-    for (const table of CALENDAR_TABLES) {
+    for (const table of UNFILTERED_TABLES) {
       const params = byTable.get(table);
       expect(params, `missing subscription for ${table}`).toBeDefined();
       expect(params).not.toHaveProperty("filter");
@@ -90,7 +109,7 @@ describe("useFamilyRealtime", () => {
     expect(byTable.get("categories")?.filter).toBe(`household_id=eq.${HOUSEHOLD_ID}`);
     expect(byTable.get("household_settings")?.filter).toBe(`household_id=eq.${HOUSEHOLD_ID}`);
     expect(byTable.get("households")?.filter).toBe(`id=eq.${HOUSEHOLD_ID}`);
-    expect(captured.subscriptions).toHaveLength(6);
+    expect(captured.subscriptions).toHaveLength(3 + UNFILTERED_TABLES.length);
   });
 
   it("maps every notice to a bare invalidateQueries(familyKeys.all), payload unused", () => {
@@ -104,6 +123,30 @@ describe("useFamilyRealtime", () => {
     for (const call of invalidateSpy.mock.calls) {
       expect(call).toEqual([{ queryKey: familyKeys.all }]);
     }
+  });
+
+  it("reports a subscription that failed rather than going quietly dead", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    renderRealtime();
+
+    captured.onStatus?.("CHANNEL_ERROR", new Error("websocket closed"));
+    captured.onStatus?.("TIMED_OUT");
+
+    expect(errorSpy).toHaveBeenCalledTimes(2);
+    expect(String(errorSpy.mock.calls[0]?.[0])).toContain("CHANNEL_ERROR");
+    expect(String(errorSpy.mock.calls[1]?.[0])).toContain("TIMED_OUT");
+    errorSpy.mockRestore();
+  });
+
+  it("says nothing when the channel subscribes or is closed on unmount", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    renderRealtime();
+
+    captured.onStatus?.("SUBSCRIBED");
+    captured.onStatus?.("CLOSED");
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it("removes the channel on unmount", () => {

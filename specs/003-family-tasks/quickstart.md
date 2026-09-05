@@ -27,7 +27,7 @@ the day the seed ran (§3).
   colectivo, `framer-motion` is already installed, TanStack Query is already the read layer.
   `npm install` after pulling the branch is routine, not structural.
 - **No new services, buckets, providers, auth hooks, extensions, edge functions or cron entries.**
-  Migrations 016–022 create four tables, one domain, one view, one seed function, the trigger
+  Migrations 017–023 create four tables, one domain, one view, one seed function, the trigger
   functions, four publication entries, and — in **022, last** — the tightened `family.events.rrule`
   CHECK. Nothing else. **No migration creates a function on the write path**: complete and skip are
   one INSERT, undo is one DELETE, so there is no resolve RPC to grant or to check.
@@ -62,7 +62,7 @@ npm run dev:local                     # http://localhost:3000/family/tasks
 ### The seed gains task fixtures — `--local` only
 
 **Yes, the seed grows.** The hosted seed gains **nothing** this phase: the seventeen Task Box
-templates are seeded by migration 020 itself (they are reference product data, not household data —
+templates are seeded by migration 021 itself (they are reference product data, not household data —
 constitution §VII), and real tasks come from the household. The `--local` run gains one new block,
 `FIXTURE_TASKS`, built the way `FIXTURE_WEEK` already is: fixed UUIDs (`fixtureTaskId(n)`) so it is
 idempotent, explicit `times_of_day` and rule strings written **only here** (clients never submit
@@ -103,6 +103,16 @@ the Label "Bin day") are unchanged — the Label is seeded precisely so US2-6 ca
 
 ## 4. Hosted project — operator steps
 
+> **State on 2026-09-04**: steps 1 and 2 were run from the dev machine with the logged-in CLI
+> (`supabase db query --linked`) — PG **17.0006** (`ok = true`), the `rrule` audit returned **zero
+> rows** (the live table holds one event, none repeating), and the constraint 023 will replace is
+> `events_rrule_check`. Migration 023 was then written and proved locally. **Step 3's push was run
+> by the operator the same day** (017–023 applied, each in its own transaction), and steps 4–7
+> passed from the CLI straight after: no `anon` row, `seed_task_box` service_role-only,
+> `security_invoker=true`, the four tables published at replica identity default,
+> `America/Chicago`, 9 chores + 8 routines. Step 9's device checks remain.
+
+
 Everything here needs `SUPABASE_ACCESS_TOKEN` or the Dashboard. Expected total: **check, check,
 push, check, check, confirm** — there is no new Dashboard configuration in this phase.
 
@@ -117,9 +127,9 @@ push, check, check, confirm** — there is no new Dashboard configuration in thi
 > then merge and deploy.** The same statement is `tasks.md` Hard ordering 7 and T084, and
 > `plan.md` §Risks.
 
-1. **Check the Postgres major version — the first operator step, before migration 022 is written and
+1. **Check the Postgres major version — the first operator step, before migration 023 is written and
    before any hosted push.** This is the **one moment** the check happens, stated in the same terms
-   in `plan.md` §Technical Context, `plan.md` §Risks and `tasks.md` T081(a). Migration 018's
+   in `plan.md` §Technical Context, `plan.md` §Risks and `tasks.md` T081(a). Migration 019's
    occurrence key uses `unique nulls not distinct`, which is PG 15+; 018 is authored and applied
    **locally** long before this step, against `supabase/config.toml`'s pinned `major_version = 17`,
    so a `false` here has altered nothing hosted.
@@ -151,7 +161,7 @@ push, check, check, confirm** — there is no new Dashboard configuration in thi
    export SUPABASE_ACCESS_TOKEN=sbp_...
    supabase link --project-ref zgmltllcyqylgtazunai
    supabase migration list              # see what the remote is missing
-   supabase db push                     # applies 016–022 (and anything earlier still missing)
+   supabase db push                     # applies 017–023 (and anything earlier still missing)
    ```
    The last file in that range, **022**, is the one that touches shipped data: it drops 010's unnamed
    `rrule` predicate on `family.events` and adds `events_rrule_grammar`, the identical text
@@ -161,7 +171,7 @@ push, check, check, confirm** — there is no new Dashboard configuration in thi
    passes; if `ADD CONSTRAINT` fails anyway, stop and explain the row — never loosen the regex.
 
    **The drop and the add are one unit.** In 022 they sit inside the *same* `do $$ … $$` block
-   (data-model §022), so a failing ADD rolls the DROP back; `supabase db push` gives the same
+   (data-model §023), so a failing ADD rolls the DROP back; `supabase db push` gives the same
    guarantee by running each migration file in a transaction. **Never run them as two separate
    SQL-editor statements** — every other step in this section is a Dashboard query, and there two
    top-level statements commit independently: a committed DROP with a failed ADD would leave
@@ -193,7 +203,7 @@ push, check, check, confirm** — there is no new Dashboard configuration in thi
    ```sql
    select relname, reloptions from pg_class where relname = 'task_cursors';
    ```
-5. **Check the realtime publication** — not a toggle; migration 021 does the guarded add itself, and
+5. **Check the realtime publication** — not a toggle; migration 022 does the guarded add itself, and
    this step only verifies it (FR-392).
    ```sql
    select tablename from pg_publication_tables
@@ -367,7 +377,7 @@ Two things specific to this phase:
 | A number in a column header moves when a filter is toggled | The counters were computed **below** the filters in the memo chain | They must branch above every display filter — that is what makes FR-384 a property of the graph rather than a promise |
 | **The calendar's live updates stopped after a deploy** — a tick on one device no longer appears on another anywhere in `/family` | The app was deployed **before** §4.3's `db push`. The four Phase 3 tables join the single shared `family:${householdId}` channel, and a `postgres_changes` binding for a table the server does not have fails the **whole** channel — so Phase 1's and Phase 2's subscriptions go down with it | Run §4.3 (and §4.4/§4.5), then reload. Prevention is the ordering: push before deploy, never after (§4 preamble, `tasks.md` Hard ordering 7) |
 | `/family/tasks` throws instead of rendering, on the hosted project | Same cause: the four reads hit tables that do not exist yet, and there is no `error.tsx` under `app/` | §4.3. The route's own unavailable state (T046) is the degradation path; if it is throwing instead, that state is missing |
-| A delete never reaches the other device | The four task tables were subscribed **with** a `household_id` filter (DELETE payloads carry PKs only), or 021's guarded add was skipped | Subscriptions must be unfiltered; check `pg_publication_tables` (§4.5) |
+| A delete never reaches the other device | The four task tables were subscribed **with** a `household_id` filter (DELETE payloads carry PKs only), or 022's guarded add was skipped | Subscriptions must be unfiltered; check `pg_publication_tables` (§4.5) |
 | The Task Box is empty and re-running the seed does not fill it | `seed_task_box()` is idempotent by **emptiness** — deliberately, so a deleted template stays deleted (FR-381) | Call `select family.seed_task_box('<household_id>')` only on a genuinely empty box |
 | Authed REST read of `tasks` returns `200` and `[]` for a non-member | **Expected** — RLS filtering; the policy suite asserts it | Nothing |
 | Anonymous REST read returns `401`/`42501` | **Expected** — `anon` has no schema grant (SC-305) | Nothing |

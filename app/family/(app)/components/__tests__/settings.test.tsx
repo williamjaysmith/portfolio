@@ -17,13 +17,22 @@ vi.mock("@/lib/family/actions/pins", () => ({
   clearProfilePin: (...args: unknown[]) => clearProfilePin(...args),
 }));
 
-// The FR-274 count is an RLS read the dialog makes through React Query; the
-// hook is stubbed so the dialog's copy can be pinned without a client.
+// The FR-274 count and FR-391's two task numbers are RLS reads the dialog
+// makes through React Query; both hooks are stubbed so the dialog's copy can be
+// pinned without a client.
 const useCategoryEventCount = vi.fn<(householdId: string, categoryId: string) => { data?: number; isError: boolean }>();
+const useCategoryTaskCounts = vi.fn<
+  (
+    householdId: string,
+    categoryId: string,
+  ) => { data?: { losingAnAssignee: number; deleted: number }; isError: boolean }
+>();
 vi.mock("@/lib/family/queries", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/family/queries")>()),
   useCategoryEventCount: (householdId: string, categoryId: string) =>
     useCategoryEventCount(householdId, categoryId),
+  useCategoryTaskCounts: (householdId: string, categoryId: string) =>
+    useCategoryTaskCounts(householdId, categoryId),
 }));
 
 const { PinRow } = await import("../settings/PinRow");
@@ -290,6 +299,9 @@ describe("DeleteDialog", () => {
   beforeEach(() => {
     stubDialog();
     useCategoryEventCount.mockReset().mockReturnValue({ data: 3, isError: false });
+    useCategoryTaskCounts
+      .mockReset()
+      .mockReturnValue({ data: { losingAnAssignee: 0, deleted: 0 }, isError: false });
   });
 
   const alex = makeCategory({ id: "a", label: "Alex", role: "parent" });
@@ -345,6 +357,88 @@ describe("DeleteDialog", () => {
       expect(screen.getByRole("status")).toHaveTextContent("Couldn't count the events this affects.");
       // The delete itself is not held hostage by the count.
       expect(screen.getByRole("button", { name: "Delete Alex" })).toBeEnabled();
+    });
+  });
+
+  /**
+   * 003 FR-391 / Assumption 24 / SC-317: the same dialog now carries two
+   * OPPOSITE promises, because they really are opposite and a household will
+   * notice. No event is destroyed by deleting a Profile; a task left with
+   * nobody to do it IS deleted with it, since a chore becomes up-for-grabs by
+   * an explicit choice and never by attrition.
+   */
+  describe("the affected-task counts (FR-391)", () => {
+    it("counts this Profile's tasks in this household", () => {
+      useCategoryTaskCounts.mockReturnValue({
+        data: { losingAnAssignee: 2, deleted: 3 },
+        isError: false,
+      });
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+
+      expect(useCategoryTaskCounts).toHaveBeenCalledWith("household-1", "a");
+      const status = screen.getByRole("status");
+      // The two promises, side by side and in the same breath.
+      expect(status).toHaveTextContent(
+        "3 events are assigned to Alex — they stay on the calendar, just without Alex.",
+      );
+      expect(status).toHaveTextContent(
+        "2 tasks are shared with someone else — they stay, just without Alex.",
+      );
+      expect(status).toHaveTextContent(
+        "3 tasks are Alex's alone — a task with nobody left to do it is deleted too.",
+      );
+    });
+
+    it("speaks singular and zero plainly", () => {
+      useCategoryTaskCounts.mockReturnValue({
+        data: { losingAnAssignee: 1, deleted: 1 },
+        isError: false,
+      });
+      const { unmount } = render(
+        withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />),
+      );
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "1 task is shared with someone else — it stays, just without Alex.",
+      );
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "1 task is Alex's alone — a task with nobody left to do it is deleted too.",
+      );
+      unmount();
+
+      useCategoryTaskCounts.mockReturnValue({
+        data: { losingAnAssignee: 0, deleted: 0 },
+        isError: false,
+      });
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+      expect(screen.getByRole("status")).toHaveTextContent("No tasks are assigned to Alex.");
+    });
+
+    it("says it is still counting, or could not, rather than showing a false number", () => {
+      useCategoryTaskCounts.mockReturnValue({ data: undefined, isError: false });
+      const { unmount } = render(
+        withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />),
+      );
+      expect(screen.getByRole("status")).toHaveTextContent("Counting the tasks this affects…");
+      unmount();
+
+      useCategoryTaskCounts.mockReturnValue({ data: undefined, isError: true });
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+      expect(screen.getByRole("status")).toHaveTextContent("Couldn't count the tasks this affects.");
+      expect(screen.getByRole("button", { name: "Delete Alex" })).toBeEnabled();
+    });
+
+    /** FR-323: a task is never given to a Label, so there is no number to state. */
+    it("says nothing about tasks for a Label", () => {
+      useCategoryTaskCounts.mockReturnValue({
+        data: { losingAnAssignee: 0, deleted: 0 },
+        isError: false,
+      });
+      const holidays = makeCategory({ id: "h", label: "Holidays", isProfile: false, emoji: "🎉" });
+      render(
+        withFamily(makeContext({ categories: [alex, holidays] }), <DeleteDialog category={holidays} onClose={vi.fn()} />),
+      );
+
+      expect(screen.getByRole("status")).not.toHaveTextContent("tasks");
     });
   });
 

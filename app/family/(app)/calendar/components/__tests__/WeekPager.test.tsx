@@ -1,24 +1,18 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  WeekPager,
-  beginsOnBlock,
-  swipeAxisOf,
-  swipeStepOf,
-  travelOf,
-  type SwipeAxis,
-} from "../WeekPager";
+import { WeekPager, beginsOnBlock } from "../WeekPager";
 
 /**
  * T060 — the FR-279 paging swipe.
  *
  * Two tiers, per R213. The decisions are pure functions and are tested as
- * such: the FR-280 axis lock, the release step's direction and threshold, and
- * the FR-252 travel collapse. Above them, one RTL pass drives real pointer
- * events through framer-motion's pan on the mounted pager, which is what
- * proves the three rules that only exist once a gesture is real — the lock
- * holds for the whole gesture, a swipe pages EXACTLY once however far it
+ * such — since T073 they are shared with the Tasks board's pager and their
+ * assertions live, unchanged, in `lib/family/__tests__/unit/swipe.test.ts`.
+ * What is left here is the tier that needs a real gesture: one RTL pass drives
+ * real pointer events through framer-motion's pan on the mounted pager, which
+ * is what proves the three rules that only exist once a gesture is real — the
+ * lock holds for the whole gesture, a swipe pages EXACTLY once however far it
  * travels, and a press that begins on a block pages not at all (Assumption
  * 44: the drag layer owns those). How FAR one page moves is the anchor's
  * business (`useWeekAnchor`: exactly the column count), not this component's.
@@ -78,59 +72,6 @@ function renderPager() {
   );
   return { onPage, band: screen.getByTestId("band"), block: screen.getByRole("button") };
 }
-
-const UNLOCKED: SwipeAxis = "unlocked";
-
-describe("swipeAxisOf", () => {
-  it("stays unlocked until the displacement is worth claiming (FR-280)", () => {
-    expect(swipeAxisOf(UNLOCKED, { x: 9, y: 0 })).toBe("unlocked");
-    expect(swipeAxisOf(UNLOCKED, { x: 0, y: -9 })).toBe("unlocked");
-  });
-
-  it("claims the gesture horizontally only when the horizontal dominates", () => {
-    expect(swipeAxisOf(UNLOCKED, { x: -14, y: 4 })).toBe("horizontal");
-    expect(swipeAxisOf(UNLOCKED, { x: 4, y: 14 })).toBe("vertical");
-  });
-
-  it("leaves an equal diagonal to the hour scroll (FR-280)", () => {
-    expect(swipeAxisOf(UNLOCKED, { x: -20, y: 20 })).toBe("vertical");
-  });
-
-  it("never re-locks once the gesture has an axis", () => {
-    expect(swipeAxisOf("vertical", { x: -200, y: 12 })).toBe("vertical");
-    expect(swipeAxisOf("horizontal", { x: 4, y: 200 })).toBe("horizontal");
-  });
-});
-
-describe("swipeStepOf", () => {
-  it("pages later for a swipe left and earlier for a swipe right (FR-279)", () => {
-    expect(swipeStepOf("horizontal", -60)).toBe(1);
-    expect(swipeStepOf("horizontal", 60)).toBe(-1);
-  });
-
-  it("does not page a release that never travelled far enough", () => {
-    expect(swipeStepOf("horizontal", -40)).toBeNull();
-    expect(swipeStepOf("horizontal", 40)).toBeNull();
-  });
-
-  it("does not page a gesture the hour scroll owns", () => {
-    expect(swipeStepOf("vertical", -400)).toBeNull();
-    expect(swipeStepOf(UNLOCKED, -400)).toBeNull();
-  });
-});
-
-describe("travelOf", () => {
-  it("follows the finger, capped so the strip cannot run off the page", () => {
-    expect(travelOf(-30, false)).toBe(-30);
-    expect(travelOf(-4000, false)).toBe(-72);
-    expect(travelOf(4000, null)).toBe(72);
-  });
-
-  it("collapses to an instant jump under reduced motion (FR-252)", () => {
-    expect(travelOf(-30, true)).toBe(0);
-    expect(travelOf(4000, true)).toBe(0);
-  });
-});
 
 describe("beginsOnBlock", () => {
   it("is true for a press anywhere inside a block's control (Assumption 44)", () => {

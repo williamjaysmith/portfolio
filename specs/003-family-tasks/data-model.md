@@ -87,6 +87,16 @@ households ◄──1:1── household_settings              (Phase 1 + 013 tim
 
 ## Migrations
 
+> **Numbering shifted by one on 2026-09-04.** A Phase 2 hotfix took `016`
+> (`016_event_attribution_on_delete.sql` — deleting a Profile that had authored
+> an event failed, because 011's composite attribution key nulled every
+> referencing column including the not-null `household_id`). This phase's
+> migrations are therefore **017–022**, and the recurrence widening that is
+> written last is **023**. Every reference in these documents uses the shifted
+> numbers.
+
+
+
 Continuing Phase 2's numbering (001–015 shipped; plain numeric prefixes). Each file is idempotent
 where that is cheap, opens with a comment naming what it creates and which requirement it serves,
 ends *"Contains no personal data"*, and carries no household-specific values — the Phase 1/2
@@ -95,13 +105,13 @@ every name, and is `revoke`d from `public` immediately after creation.
 
 | # | File | Contents | Serves |
 |---|---|---|---|
-| 016 | `016_tasks.sql` | `family.time_of_day` domain; `family.tasks` with the whole constraint set (including `tasks_rrule_grammar`); one index; touch trigger; read policy; grants | FR-317…FR-346, FR-365, FR-390 |
-| 017 | `017_task_assignees.sql` | `family.task_assignees` (assignment + `sort_order` + the streak pair); `assert_task_assignee()`; `assert_up_for_grabs_is_unassigned()`; index; read policy; grants | FR-310, FR-322…FR-324, FR-365, FR-371…FR-374, FR-391 |
-| 018 | `018_task_resolutions.sql` | `family.task_resolutions` (completions **and** skips, and the Completed Date chain); the occurrence key; `assert_task_resolution()`; two indexes; read policy; grants | FR-343…FR-344, FR-348…FR-364, FR-367…FR-370 |
-| 019 | `019_task_cursors.sql` | `family.task_cursors`, a `security_invoker` view over the chain tails; grants; `notify pgrst, 'reload schema'` | FR-343, FR-362, FR-366 |
-| 020 | `020_task_box_items.sql` | `family.task_box_items`; `family.seed_task_box(uuid)` and its call for the seeded household | FR-376…FR-382 |
-| 021 | `021_realtime_tasks.sql` | Guarded publication adds for the four tables; `notify pgrst, 'reload schema'` | FR-392, Assumption 39 (P2) |
-| 022 | `022_recurrence_interval.sql` | The `family.events.rrule` CHECK, tightened to a FREQ whitelist + `INTERVAL` 1–99; **nothing else** | FR-345, Assumption 14 |
+| 016 | `017_tasks.sql` | `family.time_of_day` domain; `family.tasks` with the whole constraint set (including `tasks_rrule_grammar`); one index; touch trigger; read policy; grants | FR-317…FR-346, FR-365, FR-390 |
+| 017 | `018_task_assignees.sql` | `family.task_assignees` (assignment + `sort_order` + the streak pair); `assert_task_assignee()`; `assert_up_for_grabs_is_unassigned()`; index; read policy; grants | FR-310, FR-322…FR-324, FR-365, FR-371…FR-374, FR-391 |
+| 018 | `019_task_resolutions.sql` | `family.task_resolutions` (completions **and** skips, and the Completed Date chain); the occurrence key; `assert_task_resolution()`; two indexes; read policy; grants | FR-343…FR-344, FR-348…FR-364, FR-367…FR-370 |
+| 019 | `020_task_cursors.sql` | `family.task_cursors`, a `security_invoker` view over the chain tails; grants; `notify pgrst, 'reload schema'` | FR-343, FR-362, FR-366 |
+| 020 | `021_task_box_items.sql` | `family.task_box_items`; `family.seed_task_box(uuid)` and its call for the seeded household | FR-376…FR-382 |
+| 021 | `022_realtime_tasks.sql` | Guarded publication adds for the four tables; `notify pgrst, 'reload schema'` | FR-392, Assumption 39 (P2) |
+| 022 | `023_recurrence_interval.sql` | The `family.events.rrule` CHECK, tightened to a FREQ whitelist + `INTERVAL` 1–99; **nothing else** | FR-345, Assumption 14 |
 
 **Why 022 is last, and why it is not 016.** An early draft numbered this ALTER 016, before the
 table map was fixed; the constraint text below is **R305**'s, unchanged — only its file number and
@@ -118,13 +128,13 @@ Locally, `supabase db reset` applies all twenty-two. `supabase db push` to the h
 operator step, preceded by one read-only check ([022](#022--the-recurrence-check-and-its-safety-on-live-phase-2-rows))
 and requiring no post-push step.
 
-**PostgreSQL 15+ is a hard dependency of 018 and 019** — `unique nulls not distinct`,
+**PostgreSQL 15+ is a hard dependency of 019 and 020** — `unique nulls not distinct`,
 `on delete set null (column_list)` and `security_invoker` views are all PG 15 features. Local
 `config.toml` pins `major_version = 17`; **the hosted project's version is confirmed at T081(a) —
-before migration 022 is written and before any hosted push** (plan §Technical Context, quickstart
+before migration 023 is written and before any hosted push** (plan §Technical Context, quickstart
 §4.1). It is deliberately NOT confirmed before 018 is authored: 018 is task 4 of 85 and the
 operator's hosted access is not on the critical path that early. Confirming late costs a re-edit of
-018 and 019, a local `db reset` and a re-run of the schema suites, and alters nothing hosted. The fallbacks, if it were older, are one `coalesce` expression index for the key,
+019 and 020, a local `db reset` and a re-run of the schema suites, and alters nothing hosted. The fallbacks, if it were older, are one `coalesce` expression index for the key,
 a plain single-column FK for the credit, and a `security definer` view with an explicit
 `is_member()` predicate — all uglier, all avoidable.
 
@@ -133,7 +143,7 @@ a plain single-column FK for the credit, and a `security definer` view with an e
 ## 016 — Tasks
 
 ```sql
--- 016_tasks.sql — family.tasks: one row per chore or routine definition (FR-317).
+-- 017_tasks.sql — family.tasks: one row per chore or routine definition (FR-317).
 -- Occurrences are computed, never stored (Key Entities). Chore sub-types fall out
 -- of the date and time fields; Late is never stored (FR-325). Scheduled Date is a
 -- rule, Completed Date is a delay whose cursor lives in the resolution chain (018).
@@ -182,7 +192,7 @@ create table if not exists family.tasks (
   -- REPEAT, mode 1 — a RULE. Scheduled Date (FR-340/341) and every routine's
   -- repeat (FR-334). The Phase 2 column contract verbatim (no 'RRULE:' prefix, no
   -- COUNT, UNTIL inside the rule, emitted only by the server) plus R305's FREQ
-  -- whitelist and INTERVAL bound. Identical text to 022's events constraint.
+  -- whitelist and INTERVAL bound. Identical text to 023's events constraint.
   -- (R304 is ruleDatesIn, a different decision entirely.)
   rrule         text constraint tasks_rrule_grammar check (
     rrule is null or (
@@ -325,7 +335,7 @@ no RLS — that clause is the tenancy check.
 ## 017 — Task assignees
 
 ```sql
--- 017_task_assignees.sql — who a task is for (FR-322/324), in that Profile's own
+-- 018_task_assignees.sql — who a task is for (FR-322/324), in that Profile's own
 -- routine order (FR-310), with that Profile's own habit streak (FR-371).
 -- Zero rows = up for grabs (FR-365). Contains no personal data.
 
@@ -448,7 +458,7 @@ assignee set. `created_at` stays, because the Completed Date seed reads it.
 ## 018 — Task resolutions (the resolution chain)
 
 ```sql
--- 018_task_resolutions.sql — one row per RESOLVED occurrence: completed or
+-- 019_task_resolutions.sql — one row per RESOLVED occurrence: completed or
 -- skipped (FR-360, Contradiction 5). Absence of a row IS "outstanding", so an
 -- endless routine costs nothing until somebody acts (Key Entities). The key is
 -- the SCHEDULED date (FR-353); resolved_on is the day it was actually ticked,
@@ -659,7 +669,7 @@ when it wants to stamp a points snapshot onto the row.
 ## 019 — The cursor view
 
 ```sql
--- 019_task_cursors.sql — the tail of every Completed Date chain, published to the
+-- 020_task_cursors.sql — the tail of every Completed Date chain, published to the
 -- browser-direct read. The row that decides what is due today may be arbitrarily
 -- old — a chore on "after 6 months" was last resolved outside every window the
 -- board fetches — and PostgREST cannot express a per-group LIMIT, so the
@@ -725,7 +735,7 @@ additively if it ever costs anything measurable, and the chain stays the source 
 ## 020 — The Task Box
 
 ```sql
--- 020_task_box_items.sql — reusable templates (FR-376..FR-382). FR-377 fixes the
+-- 021_task_box_items.sql — reusable templates (FR-376..FR-382). FR-377 fixes the
 -- field set EXACTLY: a title, an optional emoji, a type, and the reserved star
 -- value. No description, date, repeat or assignment. Contains no personal data —
 -- the seventeen titles are reference product data, not this household's.
@@ -830,7 +840,7 @@ precaution here but the mechanism SC-306 depends on.
 ## 022 — The recurrence CHECK, and its safety on live Phase 2 rows
 
 ```sql
--- 022_recurrence_interval.sql — bound INTERVAL on the shipped events rule column
+-- 023_recurrence_interval.sql — bound INTERVAL on the shipped events rule column
 -- (003 FR-345, Assumption 14). family.tasks carries the IDENTICAL constraint text
 -- from birth (016). The parser (lib/family/recurrence/grammar.ts) remains the
 -- contract; this is the backstop, exactly R201's posture. Contains no personal data.
@@ -1079,7 +1089,7 @@ database never receives. So:
   `requireParent()` extracted, so a resolution verb decides FR-351 from the **database** role rather
   than the cookie's and a parent demoted on another device loses the power immediately
   (`contracts/server-actions.md` §Guards, `research.md` R323).
-- **FR-322's "at least one assignee" is action-tier**, deliberately (017's note). **Residual, stated
+- **FR-322's "at least one assignee" is action-tier**, deliberately (018's note). **Residual, stated
   rather than hidden**: FR-391's Profile deletion is two statements — delete the category (whose
   cascade takes the assignments and that Profile's own chains), then delete the tasks left with
   nobody — and a crash between them leaves a task with no assignee on nobody's board: invisible and
@@ -1111,7 +1121,7 @@ database never receives. So:
 What Phase 3 adds to the Phase 1 + Phase 2 matrix.
 `lib/family/__tests__/policies/privileges.test.ts` asserts the combined inventory **exactly** — its
 `TABLES` and `FUNCTIONS` arrays both grow, and any new grant to `anon` is a test failure — so it is
-extended in the same commit as 016–022.
+extended in the same commit as 017–023.
 
 | Object | `anon` | `authenticated` | `service_role` |
 |---|---|---|---|
@@ -1147,10 +1157,10 @@ None beyond `supabase db push`, verified:
 - **No** new buckets, auth providers, hooks, extensions, edge functions or cron entries. The Task Box
   seed runs inside 020 for the seeded household.
 - **Two things to check at T081(a)**, both read-only, both before 022 is written and before any
-  hosted push: that the hosted project is **PostgreSQL 15+** (018 and 019 depend on
+  hosted push: that the hosted project is **PostgreSQL 15+** (019 and 020 depend on
   `nulls not distinct`, `on delete set null (…)` and `security_invoker`), and that the hosted
-  `family.events` holds **no** rule outside the widened grammar (022's query above). Neither is a
-  precondition of *authoring* 016–021 locally — see §018's note on the cost of confirming late.
+  `family.events` holds **no** rule outside the widened grammar (023's query above). Neither is a
+  precondition of *authoring* 017–022 locally — see §019's note on the cost of confirming late.
 - One fallow change the plan must make, which is a boundary widening and not a suppression.
   `.fallowrc.json` confines `lib/family/recurrence/**` to a named set of importers, and
   `lib/family/tasks/**` would otherwise fall into the generic `lib` zone, whose allow list is exactly
