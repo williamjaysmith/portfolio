@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
+import { createDeviceListeners, readDeviceJson, writeDeviceJson } from "./deviceStorage";
+
 /**
  * A per-device store of named boolean switches, kept in `localStorage` under
  * one key — the shape `useTaskFilters` (Phase 3, FR-383) and `useRewardFilters`
@@ -56,11 +58,7 @@ export function createDeviceSwitches<S extends Switches<S>>(
   let switches: S = defaults;
   let persistent = true;
   let loaded = false;
-  const listeners = new Set<() => void>();
-
-  function emit(): void {
-    for (const listener of listeners) listener();
-  }
+  const listeners = createDeviceListeners();
 
   /** A stored switch, or its default — a corrupt half never poisons the others. */
   function booleanAt(source: Record<string, unknown>, key: keyof S): boolean {
@@ -68,8 +66,7 @@ export function createDeviceSwitches<S extends Switches<S>>(
     return typeof value === "boolean" ? value : defaults[key];
   }
 
-  function parse(raw: string): S {
-    const stored: unknown = JSON.parse(raw);
+  function parse(stored: unknown): S {
     if (stored === null || typeof stored !== "object" || Array.isArray(stored)) return defaults;
     const source = stored as Record<string, unknown>;
     return Object.fromEntries(keys.map((key) => [key, booleanAt(source, key)])) as S;
@@ -79,8 +76,8 @@ export function createDeviceSwitches<S extends Switches<S>>(
     if (loaded) return;
     loaded = true;
     try {
-      const raw = window.localStorage.getItem(storageKey);
-      if (raw) switches = parse(raw);
+      const stored = readDeviceJson(storageKey);
+      if (stored !== undefined) switches = parse(stored);
     } catch {
       // Unreadable, corrupt, or storage refused: fall back to the defaults and
       // say the choice will not be remembered rather than crash the tab.
@@ -89,11 +86,7 @@ export function createDeviceSwitches<S extends Switches<S>>(
   }
 
   function save(): void {
-    try {
-      window.localStorage.setItem(storageKey, JSON.stringify(switches));
-    } catch {
-      persistent = false;
-    }
+    if (!writeDeviceJson(storageKey, switches)) persistent = false;
   }
 
   /** The one write path: a new object only when something actually changed. */
@@ -102,15 +95,12 @@ export function createDeviceSwitches<S extends Switches<S>>(
     if (keys.every((key) => next[key] === switches[key])) return;
     switches = next;
     save();
-    emit();
+    listeners.emit();
   }
 
   function subscribe(listener: () => void): () => void {
     load();
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
+    return listeners.add(listener);
   }
 
   function getSnapshot(): S {
@@ -139,7 +129,7 @@ export function createDeviceSwitches<S extends Switches<S>>(
       switches = defaults;
       persistent = true;
       loaded = false;
-      emit();
+      listeners.emit();
     },
   };
 }

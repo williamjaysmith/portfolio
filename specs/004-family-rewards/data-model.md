@@ -432,7 +432,8 @@ create trigger redemption_is_affordable
   for each row execute function family.assert_redemption();
 
 -- The debit on INSERT; the refund on the one UPDATE that sets reversed_at (FR-431). A second
--- reversal, or an UPDATE of anything else, is refused: a redemption is otherwise immutable.
+-- reversal, or an UPDATE of anything else, is refused: a redemption is otherwise immutable —
+-- except the attribution columns, which a deleted Profile's FK nulls (see inside).
 create or replace function family.record_redemption()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
@@ -442,6 +443,18 @@ begin
     values
       (new.household_id, new.category_id, -new.point_value, 'redemption', new.id, new.reward_name,
        new.redeemed_by, new.redeemed_on);
+    return new;
+  end if;
+  -- The attribution columns' `on delete set null` (a deleted actor, FR-443) is
+  -- an UPDATE too: it changes only redeemed_by / reversed_by and is let through
+  -- without writing anything — a redemption survives the person who made it.
+  if new.reversed_at is not distinct from old.reversed_at
+     and new.reward_id = old.reward_id and new.category_id = old.category_id
+     and new.point_value = old.point_value and new.redeemed_at = old.redeemed_at
+     and (new.redeemed_by is null or new.redeemed_by = old.redeemed_by)
+     and (new.reversed_by is null or new.reversed_by = old.reversed_by)
+     and (new.redeemed_by is distinct from old.redeemed_by
+          or new.reversed_by is distinct from old.reversed_by) then
     return new;
   end if;
   if old.reversed_at is not null then

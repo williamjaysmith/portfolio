@@ -2,6 +2,8 @@
 
 /**
  * Profiles and Labels (contracts → "Profiles and Labels"; FR-019 … FR-027).
+ * `deleteCategory` carries two later amendments: 003 FR-391's orphaned-task
+ * cleanup and 004 FR-443's orphaned-reward cleanup, one posture, two tables.
  *
  * All writes go through here rather than straight from the browser, because
  * row-level security can see WHICH ACCOUNT is asking but not WHICH FAMILY
@@ -182,18 +184,77 @@ export async function updateCategory(
 }
 
 /**
- * 003 FR-391 — the tasks this Profile was assigned to, read BEFORE the delete,
- * because 018's cascade takes the assignment rows with the Profile and there
- * would be nothing left to compute the orphans from afterwards.
+ * A table linking a Profile to something that is orphaned without them — a
+ * task they are assigned to (018), a reward they are eligible for (024) — and
+ * the column naming that something. Both links cascade with the Profile, which
+ * is why the ids are read BEFORE the delete and checked for company AFTER it.
  */
-async function taskIdsAssignedTo(householdId: string, categoryId: string): Promise<string[]> {
+interface ProfileLink {
+  readonly table: "task_assignees" | "reward_eligibilities";
+  /** The column naming the linked thing — its id. */
+  readonly column: "task_id" | "reward_id";
+}
+
+const TASK_ASSIGNMENTS: ProfileLink = { table: "task_assignees", column: "task_id" };
+const REWARD_ELIGIBILITIES: ProfileLink = { table: "reward_eligibilities", column: "reward_id" };
+
+/** The link rows as PostgREST returns them: one key, the column asked for. */
+type LinkRow = Record<ProfileLink["column"], string>;
+
+/** What the delete may orphan, read while the link rows still exist. */
+interface OrphanCandidates {
+  taskIds: string[];
+  rewardIds: string[];
+}
+
+/** The linked ids that name this Profile — the candidates for orphaning. */
+async function idsLinkedTo(
+  householdId: string,
+  link: ProfileLink,
+  categoryId: string,
+): Promise<string[]> {
   const { data, error } = await adminFamily()
-    .from("task_assignees")
-    .select("task_id")
+    .from(link.table)
+    .select(link.column)
     .eq("household_id", householdId)
     .eq("category_id", categoryId);
   if (error) throw mapDbError(error);
-  return ((data ?? []) as unknown as { task_id: string }[]).map((row) => row.task_id);
+  return ((data ?? []) as unknown as LinkRow[]).map((row) => row[link.column]);
+}
+
+/** Of the candidates, the ones no link row names any more: nobody is left. */
+async function orphansAmong(
+  householdId: string,
+  link: ProfileLink,
+  candidateIds: readonly string[],
+): Promise<string[]> {
+  if (candidateIds.length === 0) return [];
+  const { data, error } = await adminFamily()
+    .from(link.table)
+    .select(link.column)
+    .eq("household_id", householdId)
+    .in(link.column, [...candidateIds]);
+  if (error) throw mapDbError(error);
+  const stillLinked = new Set(
+    ((data ?? []) as unknown as LinkRow[]).map((row) => row[link.column]),
+  );
+  return candidateIds.filter((id) => !stillLinked.has(id));
+}
+
+/**
+ * 003 FR-391 — the tasks this Profile was assigned to and, 004 FR-443, the
+ * rewards they were eligible for, both read BEFORE the delete, because the
+ * cascades take the link rows with the Profile and there would be nothing
+ * left to compute the orphans from afterwards.
+ */
+async function orphanCandidatesOf(
+  householdId: string,
+  categoryId: string,
+): Promise<OrphanCandidates> {
+  return {
+    taskIds: await idsLinkedTo(householdId, TASK_ASSIGNMENTS, categoryId),
+    rewardIds: await idsLinkedTo(householdId, REWARD_ELIGIBILITIES, categoryId),
+  };
 }
 
 /**
@@ -214,17 +275,7 @@ async function deleteOrphanedTasks(
   householdId: string,
   candidateIds: readonly string[],
 ): Promise<void> {
-  if (candidateIds.length === 0) return;
-  const { data, error } = await adminFamily()
-    .from("task_assignees")
-    .select("task_id")
-    .eq("household_id", householdId)
-    .in("task_id", [...candidateIds]);
-  if (error) throw mapDbError(error);
-  const stillAssigned = new Set(
-    ((data ?? []) as unknown as { task_id: string }[]).map((row) => row.task_id),
-  );
-  const orphaned = candidateIds.filter((id) => !stillAssigned.has(id));
+  const orphaned = await orphansAmong(householdId, TASK_ASSIGNMENTS, candidateIds);
   if (orphaned.length === 0) return;
 
   const removal = await adminFamily()
@@ -234,6 +285,41 @@ async function deleteOrphanedTasks(
     .eq("up_for_grabs", false)
     .in("id", orphaned);
   if (removal.error) throw mapDbError(removal.error);
+}
+
+/**
+ * 004 FR-443 / SC-419, Phase 4's cleanup in the same posture: after the
+ * cascades have taken the Profile's eligibilities, entries and redemptions, the
+ * rewards left for NOBODY are deleted by id — a card in no column is the
+ * reward-shaped orphan, and it goes by the same reasoning as a task with no
+ * assignee. A reward shared with another Profile survives on their column, with
+ * their own balance against its cost and their own redemptions untouched (the
+ * ledger keeps the deleted Profile's spending out of everyone else's sum by
+ * construction: entries are per Profile).
+ *
+ * The same two-statement residual, accepted the same way: a crash between the
+ * category delete and this one leaves a reward with no eligibility — retained,
+ * not lost, and repaired by re-running the cleanup.
+ */
+async function deleteOrphanedRewards(
+  householdId: string,
+  candidateIds: readonly string[],
+): Promise<void> {
+  const orphaned = await orphansAmong(householdId, REWARD_ELIGIBILITIES, candidateIds);
+  if (orphaned.length === 0) return;
+
+  const removal = await adminFamily()
+    .from("rewards")
+    .delete()
+    .eq("household_id", householdId)
+    .in("id", orphaned);
+  if (removal.error) throw mapDbError(removal.error);
+}
+
+/** After the delete: what nobody is left to do, then what nobody is left to spend on. */
+async function deleteOrphans(householdId: string, candidates: OrphanCandidates): Promise<void> {
+  await deleteOrphanedTasks(householdId, candidates.taskIds);
+  await deleteOrphanedRewards(householdId, candidates.rewardIds);
 }
 
 export async function deleteCategory(
@@ -257,8 +343,8 @@ export async function deleteCategory(
       );
     }
 
-    // Read before the delete: the cascade removes the rows this is computed from.
-    const assignedTaskIds = await taskIdsAssignedTo(actor.householdId, id);
+    // Read before the delete: the cascades remove the rows this is computed from.
+    const candidates = await orphanCandidatesOf(actor.householdId, id);
 
     const { error } = await adminFamily()
       .from("categories")
@@ -267,8 +353,9 @@ export async function deleteCategory(
       .eq("household_id", actor.householdId);
     if (error) throw mapDbError(error);
 
-    // 003 FR-391: a task left with nobody to do it goes with the Profile.
-    await deleteOrphanedTasks(actor.householdId, assignedTaskIds);
+    // 003 FR-391: a task left with nobody to do it goes with the Profile;
+    // 004 FR-443: so does a reward left with nobody to spend on it.
+    await deleteOrphans(actor.householdId, candidates);
     await removeAvatarObject(existing.avatarPath);
 
     // Deleting yourself punches you out in the same response.

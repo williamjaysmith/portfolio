@@ -2,6 +2,12 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 
+import {
+  createDeviceListeners,
+  readDeviceJson,
+  writeDeviceJson,
+} from "../../components/deviceStorage";
+
 import { addDays, weekStartOf } from "@/lib/family/calendar/dates";
 import {
   weekCelebrationKey,
@@ -81,15 +87,10 @@ const NO_CELEBRATIONS: readonly WeekCelebration[] = [];
 
 let shown: readonly string[] = NONE;
 let loaded = false;
-const listeners = new Set<() => void>();
-
-function emit(): void {
-  for (const listener of listeners) listener();
-}
+const listeners = createDeviceListeners();
 
 /** The stored list, or nothing — a corrupt value never crashes the board. */
-function parse(raw: string): readonly string[] {
-  const stored: unknown = JSON.parse(raw);
+function parse(stored: unknown): readonly string[] {
   if (!Array.isArray(stored)) return NONE;
   return stored.filter((one): one is string => typeof one === "string").slice(-MAX_SHOWN_KEYS);
 }
@@ -98,20 +99,17 @@ function load(): void {
   if (loaded) return;
   loaded = true;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) shown = parse(raw);
+    const stored = readDeviceJson(STORAGE_KEY);
+    if (stored !== undefined) shown = parse(stored);
   } catch {
     // Unreadable, corrupt, or storage refused: nothing is provably shown, and
     // the session remembers in memory from here (constitution §VI).
   }
 }
 
+/** Storage refusing the write is fine: the in-memory list still holds the key. */
 function save(): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(shown));
-  } catch {
-    // Storage refused the write; the in-memory list still holds the key.
-  }
+  writeDeviceJson(STORAGE_KEY, shown);
 }
 
 /** Remember one key, newest last, evicting the oldest past the bound. */
@@ -120,15 +118,12 @@ function rememberShown(key: string): void {
   if (shown.includes(key)) return;
   shown = [...shown, key].slice(-MAX_SHOWN_KEYS);
   save();
-  emit();
+  listeners.emit();
 }
 
 function subscribe(listener: () => void): () => void {
   load();
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+  return listeners.add(listener);
 }
 
 function getSnapshot(): readonly string[] {
@@ -145,7 +140,7 @@ function getServerSnapshot(): readonly string[] {
 export function resetWeekCelebrations(): void {
   shown = NONE;
   loaded = false;
-  emit();
+  listeners.emit();
 }
 
 /* --------------------------------------------------------- the judgement -- */

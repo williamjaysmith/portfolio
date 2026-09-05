@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AVATAR_IDS, AVATAR_LABELS } from "@/lib/family/avatars";
 import { PALETTE, PALETTE_NAMES, type PaletteColor } from "@/lib/family/colors";
+import type { CategoryTaskCounts } from "@/lib/family/queries";
 
 import type { FamilyContextValue } from "../FamilyProvider";
 import { AvatarPicker } from "../settings/AvatarPicker";
@@ -17,15 +18,15 @@ vi.mock("@/lib/family/actions/pins", () => ({
   clearProfilePin: (...args: unknown[]) => clearProfilePin(...args),
 }));
 
-// The FR-274 count and FR-391's two task numbers are RLS reads the dialog
-// makes through React Query; both hooks are stubbed so the dialog's copy can be
-// pinned without a client.
+// The FR-274 count, FR-391's two task numbers and 004 FR-443's signed balance
+// are RLS reads the dialog makes through React Query; both hooks are stubbed so
+// the dialog's copy can be pinned without a client.
 const useCategoryEventCount = vi.fn<(householdId: string, categoryId: string) => { data?: number; isError: boolean }>();
 const useCategoryTaskCounts = vi.fn<
   (
     householdId: string,
     categoryId: string,
-  ) => { data?: { losingAnAssignee: number; deleted: number }; isError: boolean }
+  ) => { data?: CategoryTaskCounts; isError: boolean }
 >();
 vi.mock("@/lib/family/queries", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/family/queries")>()),
@@ -301,7 +302,7 @@ describe("DeleteDialog", () => {
     useCategoryEventCount.mockReset().mockReturnValue({ data: 3, isError: false });
     useCategoryTaskCounts
       .mockReset()
-      .mockReturnValue({ data: { losingAnAssignee: 0, deleted: 0 }, isError: false });
+      .mockReturnValue({ data: { losingAnAssignee: 0, deleted: 0, starsForfeited: 0 }, isError: false });
   });
 
   const alex = makeCategory({ id: "a", label: "Alex", role: "parent" });
@@ -370,7 +371,7 @@ describe("DeleteDialog", () => {
   describe("the affected-task counts (FR-391)", () => {
     it("counts this Profile's tasks in this household", () => {
       useCategoryTaskCounts.mockReturnValue({
-        data: { losingAnAssignee: 2, deleted: 3 },
+        data: { losingAnAssignee: 2, deleted: 3, starsForfeited: 0 },
         isError: false,
       });
       render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
@@ -391,7 +392,7 @@ describe("DeleteDialog", () => {
 
     it("speaks singular and zero plainly", () => {
       useCategoryTaskCounts.mockReturnValue({
-        data: { losingAnAssignee: 1, deleted: 1 },
+        data: { losingAnAssignee: 1, deleted: 1, starsForfeited: 0 },
         isError: false,
       });
       const { unmount } = render(
@@ -406,7 +407,7 @@ describe("DeleteDialog", () => {
       unmount();
 
       useCategoryTaskCounts.mockReturnValue({
-        data: { losingAnAssignee: 0, deleted: 0 },
+        data: { losingAnAssignee: 0, deleted: 0, starsForfeited: 0 },
         isError: false,
       });
       render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
@@ -430,7 +431,7 @@ describe("DeleteDialog", () => {
     /** FR-323: a task is never given to a Label, so there is no number to state. */
     it("says nothing about tasks for a Label", () => {
       useCategoryTaskCounts.mockReturnValue({
-        data: { losingAnAssignee: 0, deleted: 0 },
+        data: { losingAnAssignee: 0, deleted: 0, starsForfeited: 0 },
         isError: false,
       });
       const holidays = makeCategory({ id: "h", label: "Holidays", isProfile: false, emoji: "🎉" });
@@ -439,6 +440,89 @@ describe("DeleteDialog", () => {
       );
 
       expect(screen.getByRole("status")).not.toHaveTextContent("tasks");
+    });
+  });
+
+  /**
+   * 004 FR-443 / SC-419: the third sentence. A Profile's stars go with them,
+   * so the confirmation says how many — beside FR-391's two counts, in the
+   * same breath — and a balance below zero (Assumption 5) is a debt the
+   * deletion clears, never "forfeits −20 stars". Nothing is said at zero.
+   */
+  describe("the forfeited stars (FR-443)", () => {
+    const counts = (starsForfeited: number, tasks = { losingAnAssignee: 0, deleted: 0 }) => ({
+      data: { ...tasks, starsForfeited },
+      isError: false,
+    });
+
+    it("states the stars the Profile forfeits beside the two task promises", () => {
+      useCategoryTaskCounts.mockReturnValue(counts(12, { losingAnAssignee: 2, deleted: 3 }));
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+
+      const status = screen.getByRole("status");
+      expect(status).toHaveTextContent(
+        "2 tasks are shared with someone else — they stay, just without Alex. " +
+          "3 tasks are Alex's alone — a task with nobody left to do it is deleted too. " +
+          "Alex forfeits 12 stars.",
+      );
+    });
+
+    it("keeps the no-tasks sentence when only stars are at stake", () => {
+      useCategoryTaskCounts.mockReturnValue(counts(5));
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "No tasks are assigned to Alex. Alex forfeits 5 stars.",
+      );
+    });
+
+    it("speaks singular plainly", () => {
+      useCategoryTaskCounts.mockReturnValue(counts(1));
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+
+      expect(screen.getByRole("status")).toHaveTextContent("Alex forfeits 1 star.");
+      expect(screen.getByRole("status")).not.toHaveTextContent("1 stars");
+    });
+
+    it("words a balance below zero as a debt the deletion clears (Assumption 5)", () => {
+      useCategoryTaskCounts.mockReturnValue(counts(-20));
+      const { unmount } = render(
+        withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />),
+      );
+      expect(screen.getByRole("status")).toHaveTextContent("Deleting Alex clears a debt of 20 stars.");
+      expect(screen.getByRole("status")).not.toHaveTextContent("forfeits");
+      expect(screen.getByRole("status")).not.toHaveTextContent("-20");
+      expect(screen.getByRole("status")).not.toHaveTextContent("−20");
+      unmount();
+
+      useCategoryTaskCounts.mockReturnValue(counts(-1));
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+      expect(screen.getByRole("status")).toHaveTextContent("Deleting Alex clears a debt of 1 star.");
+    });
+
+    it("says nothing about stars at zero", () => {
+      useCategoryTaskCounts.mockReturnValue(counts(0, { losingAnAssignee: 1, deleted: 0 }));
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+
+      const status = screen.getByRole("status");
+      expect(status).toHaveTextContent("1 task is shared with someone else — it stays, just without Alex.");
+      expect(status).not.toHaveTextContent(/\bstars?\b/);
+      expect(status).not.toHaveTextContent("debt");
+    });
+
+    it("leaves the counting and unavailable states as they were", () => {
+      useCategoryTaskCounts.mockReturnValue({ data: undefined, isError: false });
+      const { unmount } = render(
+        withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />),
+      );
+      expect(screen.getByRole("status")).toHaveTextContent("Counting the tasks this affects…");
+      expect(screen.getByRole("status")).not.toHaveTextContent(/\bstars?\b/);
+      unmount();
+
+      useCategoryTaskCounts.mockReturnValue({ data: undefined, isError: true });
+      render(withFamily(makeContext({ categories: [alex, sam] }), <DeleteDialog category={alex} onClose={vi.fn()} />));
+      expect(screen.getByRole("status")).toHaveTextContent("Couldn't count the tasks this affects.");
+      expect(screen.getByRole("status")).not.toHaveTextContent(/\bstars?\b/);
     });
   });
 
