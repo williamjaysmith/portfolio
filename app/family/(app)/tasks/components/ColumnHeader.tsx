@@ -136,6 +136,33 @@ export interface ColumnHeaderProps {
   onToggleSection: (section: TaskSectionKey) => void;
   /** Signed URL for a photo avatar; initials stand in while it loads. */
   photoUrl?: string;
+  /**
+   * FR-309: this column may be reordered, so the Profile's NAME becomes the
+   * handle — press and hold it and drag, or focus it and press Enter. It is a
+   * `button` only then: a name nobody may drag is a name, and giving it a
+   * control's semantics would put an empty control in every reading order.
+   */
+  reorderable?: boolean;
+}
+
+/**
+ * The Profile's name, and — for a parent — FR-309's drag handle. The board's
+ * own listeners do the work (`useListReorder`); what belongs here is only that
+ * a press must LAND on the name, and that the keyboard can reach it.
+ */
+function ColumnName({ label, reorderable }: { label: string; reorderable: boolean }) {
+  const text = "min-w-0 truncate font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)";
+  if (!reorderable) return <span className={text}>{label}</span>;
+  return (
+    <button
+      type="button"
+      data-reorder-handle
+      aria-label={`${label} — hold to drag this column, or press Enter to move it`}
+      className={`flex min-h-(--fam-touch) items-center text-left ${text}`}
+    >
+      {label}
+    </button>
+  );
 }
 
 export function ColumnHeader({
@@ -144,6 +171,7 @@ export function ColumnHeader({
   toggles,
   onToggleSection,
   photoUrl,
+  reorderable = false,
 }: ColumnHeaderProps) {
   const fraction = progressFractionOf(counters);
 
@@ -169,9 +197,7 @@ export function ColumnHeader({
             sizeClassName="h-(--fam-task-avatar) w-(--fam-task-avatar)"
           />
         </span>
-        <span className="truncate font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
-          {category.label}
-        </span>
+        <ColumnName label={category.label} reorderable={reorderable} />
       </div>
       <p
         aria-label={`${counters.complete} of ${counters.total} complete`}

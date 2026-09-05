@@ -44,6 +44,12 @@ export interface TaskFormProps {
   seed?: TaskFormSeed;
   onSubmit: (input: TaskInput) => Promise<TaskSubmitOutcome>;
   onClose: () => void;
+  /**
+   * FR-376's **Add → Task Box**: given on the create surface only, it is what
+   * makes the Task Box reachable from the tab's one create control. An edit is
+   * an edit of an existing task and offers no template shortcut.
+   */
+  onOpenTaskBox?: () => void;
 }
 
 const WEEKDAY_LABELS: Record<Weekday, string> = {
@@ -438,7 +444,7 @@ function ScheduleFieldset({ form }: { form: TaskFormState }) {
   );
 }
 
-export function TaskForm({ mode, seed, onSubmit, onClose }: TaskFormProps) {
+export function TaskForm({ mode, seed, onSubmit, onClose, onOpenTaskBox }: TaskFormProps) {
   const { profiles } = useFamily();
   const dialogRef = useModalDialog(true, true);
 
@@ -463,12 +469,24 @@ export function TaskForm({ mode, seed, onSubmit, onClose }: TaskFormProps) {
       }}
       className="m-auto w-[min(92vw,34rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
-      <h2
-        id="task-form-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
-      >
-        {mode === "create" ? "Add a task" : "Edit task"}
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2
+          id="task-form-title"
+          className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        >
+          {mode === "create" ? "Add a task" : "Edit task"}
+        </h2>
+        {/* FR-376: Add → Task Box, from the create surface only. */}
+        {onOpenTaskBox === undefined ? null : (
+          <button
+            type="button"
+            onClick={onOpenTaskBox}
+            className="min-h-(--fam-touch) rounded-full bg-(--fam-pill-btn-bg) px-4 text-(length:--fam-fs-pill) font-medium text-(--fam-text-muted)"
+          >
+            Task Box
+          </button>
+        )}
+      </div>
 
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">
         <div className="flex flex-col gap-1">

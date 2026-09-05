@@ -52,6 +52,15 @@
  *     only its credit, because deleting it would unlink the middle of the
  *     household's chain and resurrect a settled occurrence.
  *
+ *   - **T076 / FR-310 / FR-311 / FR-389**: `moveRoutine` is the one task verb
+ *     that is NOT parent-only — reordering routines within one's own column is
+ *     open to any punched-in Profile — so it is asserted from both sides: a
+ *     member reorders their own column and is `FORBIDDEN` in somebody else's, a
+ *     chore is refused outright because FR-311 forbids reordering chores at all,
+ *     a neighbour in another section or another column is `VALIDATION`, and a
+ *     successful drop writes **one** `sort_order` and leaves every other row's
+ *     alone.
+ *
  * The Task Box's three verbs are FR-389's fourth parent-only surface and are
  * asserted in `task-box.test.ts` (T071), which owns `lib/family/actions/task-box.ts`.
  *
@@ -180,10 +189,19 @@ interface DeleteTaskPayload {
   occurrenceKey?: OccurrenceKey;
 }
 
+/** contracts/server-actions.md §moveRoutine — the drop, named by its neighbours. */
+interface MoveRoutinePayload {
+  taskId: string;
+  profileId: string;
+  previousTaskId: string | null;
+  nextTaskId: string | null;
+}
+
 interface TaskWriteModule {
   createTask(input: TaskInputPayload): Promise<ActionResult<Task>>;
   updateTask(input: UpdateTaskPayload): Promise<ActionResult<Task>>;
   deleteTask(input: DeleteTaskPayload): Promise<ActionResult<null>>;
+  moveRoutine(input: MoveRoutinePayload): Promise<ActionResult<null>>;
 }
 
 // Joined at runtime so `tsc` stays clean while the three verbs do not exist;
@@ -195,7 +213,7 @@ const taskWrites = (await import(TASKS_MODULE)) as Partial<TaskWriteModule>;
 function verb<K extends keyof TaskWriteModule>(name: K): NonNullable<Partial<TaskWriteModule>[K]> {
   const fn = taskWrites[name];
   if (fn === undefined) {
-    throw new Error(`lib/family/actions/tasks.ts does not export ${name} yet (T050–T052)`);
+    throw new Error(`lib/family/actions/tasks.ts does not export ${name} yet (T050–T052, T076)`);
   }
   return fn;
 }
@@ -210,6 +228,10 @@ function updateTask(input: UpdateTaskPayload): Promise<ActionResult<Task>> {
 
 function deleteTask(input: DeleteTaskPayload): Promise<ActionResult<null>> {
   return verb("deleteTask")(input);
+}
+
+function moveRoutine(input: MoveRoutinePayload): Promise<ActionResult<null>> {
+  return verb("moveRoutine")(input);
 }
 
 /**
@@ -972,6 +994,272 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
         foreignTaskId,
       ]);
       expect(rowCount).toBe(1);
+    });
+  });
+
+  /**
+   * T076 / FR-310 / FR-311 / FR-389 — `moveRoutine`, the one task verb that is
+   * not parent-only. Written before the action exists, as the plan requires.
+   *
+   * Three rules are under test and each is a different kind of refusal: WHO may
+   * drop (a member in their own column, nobody in another's), WHAT may be
+   * dropped (routines; never a chore, because FR-311 forbids reordering chores
+   * at all and their order is a fixed rule of the read), and WHERE it may land
+   * (between two routines of the same Profile in the same section, and nowhere
+   * else). The successful drop asserts the thing R321 exists for: ONE row is
+   * written, never a renumbering of the list.
+   */
+  describe("moveRoutine: reordering a routine inside one column (FR-310, T076)", () => {
+    /** Cleo's three Morning routines, in the order they start out in. */
+    let morningOne: string;
+    let morningTwo: string;
+    let morningThree: string;
+    /** One Evening routine of Cleo's — a section a Morning drop may not reach. */
+    let eveningOne: string;
+    /** A Morning routine of ANA's — another column, likewise out of reach. */
+    let anasMorning: string;
+    /** A plain chore of Cleo's: FR-311 refuses it outright. */
+    let choreId: string;
+
+    async function assignAt(taskId: string, categoryId: string, sortOrder: number): Promise<void> {
+      await pool.query(
+        "insert into family.task_assignees (household_id, task_id, category_id, sort_order) " +
+          "values ($1, $2, $3, $4)",
+        [householdId, taskId, categoryId, sortOrder],
+      );
+    }
+
+    async function routineOrder(categoryId: string): Promise<string[]> {
+      const { rows } = await pool.query<{ task_id: string }>(
+        "select a.task_id from family.task_assignees a join family.tasks t on t.id = a.task_id " +
+          "where a.household_id = $1 and a.category_id = $2 and t.routine order by a.sort_order",
+        [householdId, categoryId],
+      );
+      return rows.map((row) => row.task_id);
+    }
+
+    async function sortOrders(categoryId: string): Promise<Map<string, number>> {
+      const { rows } = await pool.query<{ task_id: string; sort_order: string }>(
+        "select task_id, sort_order::text as sort_order from family.task_assignees " +
+          "where household_id = $1 and category_id = $2",
+        [householdId, categoryId],
+      );
+      return new Map(rows.map((row) => [row.task_id, Number(row.sort_order)]));
+    }
+
+    beforeEach(async () => {
+      // The shared reseed hands Cleo three tasks of its own, one of them a
+      // Morning routine at the default `sort_order`. This block is about the
+      // ORDER of a column, so it starts from an empty one.
+      await pool.query(
+        "delete from family.task_assignees where household_id = $1 and category_id = $2",
+        [householdId, cleoId],
+      );
+
+      const routine = async (summary: string, slot: string): Promise<string> =>
+        insertTask(pool, householdId, {
+          summary: `${summary} ${run}`,
+          routine: true,
+          startsOn: SERIES_START,
+          timesOfDay: [slot],
+          rrule: ROUTINE_RRULE,
+        });
+
+      morningOne = await routine("Brush teeth", "morning");
+      morningTwo = await routine("Make bed", "morning");
+      morningThree = await routine("Pack bag", "morning");
+      eveningOne = await routine("Read a book", "evening");
+      anasMorning = await routine("Ana stretches", "morning");
+      choreId = await insertTask(pool, householdId, {
+        summary: `Bins ${run}`,
+        startsOn: SERIES_START,
+      });
+
+      await assignAt(morningOne, cleoId, 1000);
+      await assignAt(morningTwo, cleoId, 2000);
+      await assignAt(morningThree, cleoId, 3000);
+      await assignAt(eveningOne, cleoId, 4000);
+      await assignAt(anasMorning, anaId, 1000);
+      await assignAt(choreId, cleoId, 5000);
+    });
+
+    it("moves a routine within its section and writes exactly ONE sort_order (R321)", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = await sortOrders(cleoId);
+
+      expectOk(
+        await moveRoutine({
+          taskId: morningThree,
+          profileId: cleoId,
+          previousTaskId: null,
+          nextTaskId: morningOne,
+        }),
+      );
+
+      expect(await routineOrder(cleoId)).toEqual([
+        morningThree,
+        morningOne,
+        morningTwo,
+        eveningOne,
+      ]);
+      const after = await sortOrders(cleoId);
+      const moved = [...after].filter(([id, value]) => before.get(id) !== value);
+      expect(moved.map(([id]) => id)).toEqual([morningThree]);
+    });
+
+    it("a PARENT may reorder somebody else's column (FR-389)", async () => {
+      await punchInAs(anaId, ANA_PIN);
+
+      expectOk(
+        await moveRoutine({
+          taskId: morningOne,
+          profileId: cleoId,
+          previousTaskId: morningTwo,
+          nextTaskId: morningThree,
+        }),
+      );
+
+      expect(await routineOrder(cleoId)).toEqual([
+        morningTwo,
+        morningOne,
+        morningThree,
+        eveningOne,
+      ]);
+    });
+
+    it("a MEMBER is refused another Profile's column, and nothing moves (FR-351)", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = await routineOrder(anaId);
+
+      const message = expectFailure(
+        await moveRoutine({
+          taskId: anasMorning,
+          profileId: anaId,
+          previousTaskId: null,
+          nextTaskId: null,
+        }),
+        "FORBIDDEN",
+      );
+
+      expect(message).toContain(`Ana ${run}`);
+      expect(await routineOrder(anaId)).toEqual(before);
+    });
+
+    it("refuses ANY move of a chore outright — chores do not reorder (FR-311)", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = await sortOrders(cleoId);
+
+      expectFailure(
+        await moveRoutine({
+          taskId: choreId,
+          profileId: cleoId,
+          previousTaskId: null,
+          nextTaskId: morningOne,
+        }),
+        "VALIDATION",
+      );
+
+      expect(await sortOrders(cleoId)).toEqual(before);
+    });
+
+    it("refuses a landing in ANOTHER time of day (FR-310)", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = await routineOrder(cleoId);
+
+      expectFailure(
+        await moveRoutine({
+          taskId: morningOne,
+          profileId: cleoId,
+          previousTaskId: eveningOne,
+          nextTaskId: null,
+        }),
+        "VALIDATION",
+      );
+
+      expect(await routineOrder(cleoId)).toEqual(before);
+    });
+
+    it("refuses a neighbour from another Profile's column (FR-310)", async () => {
+      await punchInAs(anaId, ANA_PIN);
+      const before = await routineOrder(cleoId);
+
+      expectFailure(
+        await moveRoutine({
+          taskId: morningOne,
+          profileId: cleoId,
+          previousTaskId: anasMorning,
+          nextTaskId: null,
+        }),
+        "VALIDATION",
+      );
+
+      expect(await routineOrder(cleoId)).toEqual(before);
+    });
+
+    it("refuses neighbours that are not next to each other in that section", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = await routineOrder(cleoId);
+
+      // Morning reads one, two, three. Dropping "at the very start, and
+      // immediately before Make bed" is a claim about a gap that does not
+      // exist — Brush teeth is between them.
+      expectFailure(
+        await moveRoutine({
+          taskId: morningThree,
+          profileId: cleoId,
+          previousTaskId: null,
+          nextTaskId: morningTwo,
+        }),
+        "VALIDATION",
+      );
+
+      expect(await routineOrder(cleoId)).toEqual(before);
+    });
+
+    it("is NO_ACTOR with nobody punched in, and nothing moves (SC-303, FR-388)", async () => {
+      const before = await routineOrder(cleoId);
+
+      expectFailure(
+        await moveRoutine({
+          taskId: morningThree,
+          profileId: cleoId,
+          previousTaskId: null,
+          nextTaskId: morningOne,
+        }),
+        "NO_ACTOR",
+      );
+
+      expect(await routineOrder(cleoId)).toEqual(before);
+    });
+
+    it("is NOT_FOUND for a task outside the household, never FORBIDDEN (FR-390)", async () => {
+      await punchInAs(anaId, ANA_PIN);
+
+      expectFailure(
+        await moveRoutine({
+          taskId: foreignTaskId,
+          profileId: cleoId,
+          previousTaskId: null,
+          nextTaskId: null,
+        }),
+        "NOT_FOUND",
+      );
+    });
+
+    it("changes nothing when the routine is dropped where it already was", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = await sortOrders(cleoId);
+
+      expectOk(
+        await moveRoutine({
+          taskId: morningTwo,
+          profileId: cleoId,
+          previousTaskId: morningOne,
+          nextTaskId: morningThree,
+        }),
+      );
+
+      expect(await sortOrders(cleoId)).toEqual(before);
     });
   });
 });

@@ -18,6 +18,7 @@ import {
   type TaskCounters,
 } from "@/lib/family/tasks/counters";
 import { expandTaskDay } from "@/lib/family/tasks/expand";
+import { visibleTaskOccurrences } from "@/lib/family/tasks/visibility";
 import type {
   BoardOccurrence,
   Task,
@@ -25,6 +26,9 @@ import type {
   TaskResolution,
   WeekStart,
 } from "@/lib/family/types";
+
+import { useDeviceVisibility } from "../../components/useDeviceVisibility";
+import { useTaskFilters } from "./useTaskFilters";
 
 /**
  * T039 / R317: the board's one data path from the cached reads to drawn cards,
@@ -40,7 +44,8 @@ import type {
  *                    ┌─────────────────────────────┴──────────────┐
  *                    ▼                                            ▼
  *        the counters, over the UNFILTERED list         visibleTaskOccurrences
- *        — ring, "n of m", Up for Grabs, per-routine    (a pass-through until T067)
+ *        — ring, "n of m", Up for Grabs, per-routine    — the two per-device
+ *                                                        stores + the query
  *
  * **The counters branch off the unfiltered list, and that is the whole point.**
  * FR-384 ("filters never move the counters"), FR-386's same promise for
@@ -51,11 +56,16 @@ import type {
  * is ever handed it — "pass the filtered list to the counters" is then not a
  * mistake anyone can make.
  *
- * The graph's shape is asserted at T068 rather than here, and deliberately:
- * until T067 lands the filter store and T069 the search box there is nothing
- * to toggle and nothing to type, so the assertion would have no input to move.
- * `tasks-counters.test.ts`'s table carries the guarantee at the pure-function
- * level for the whole of US1–US3.
+ * T068 slots the filter layer in below that branch and `use-board-occurrences
+ * .test.ts` carries the standing assertion: toggling any of the four switches,
+ * hiding any Profile or typing any query re-runs THIS memo and nothing above
+ * it, and every counter reads the same afterwards.
+ *
+ * The two per-device stores are read HERE rather than threaded through the
+ * board, exactly as the shipped `useWeekOccurrences` reads the category set
+ * (R319): they are device preferences, not view state. The search string is
+ * the opposite and arrives as a parameter — it is the board's own component
+ * state, dies with the view, and is never persisted.
  *
  * The four reads are R314's, and none of them is keyed by the displayed day:
  * task DEFINITIONS do not depend on it (an Anytime chore has no date, a
@@ -87,6 +97,12 @@ export interface UseBoardOccurrencesOptions {
   zone: string;
   /** `settings.start_week_on` — what week the resolutions read is keyed by. */
   startWeekOn: WeekStart;
+  /**
+   * FR-386's search box, filtering the board in place as it is typed. A
+   * PARAMETER, not a store: it is the board's own state and never persisted
+   * (R319). Absent means no search, which is the identity-preserving case.
+   */
+  query?: string;
   /** The server-fetched reads, for a no-flicker first paint (R314). */
   initialTasks?: Task[];
   initialResolutions?: TaskResolution[];
@@ -106,8 +122,23 @@ export interface BoardCounters {
 }
 
 export interface BoardOccurrencesState {
-  /** What the board draws — below every display filter (a pass-through until T068). */
+  /** What the board draws — the day, less every display filter (FR-383, FR-386). */
   occurrences: BoardOccurrence[];
+  /**
+   * The WHOLE displayed day, above the filter layer — the list `counters` was
+   * computed from, and the list every number drawn above a card must be
+   * computed from too (R317, R318).
+   *
+   * It is exposed because the columns own numbers this hook cannot pre-compute
+   * for them: `ProfileColumn` reads FR-305's ring and FR-312's per-routine
+   * indicator off it, and `UpForGrabsColumn` reads FR-308's count, each for a
+   * Profile only it knows. Handing them `occurrences` instead is the exact bug
+   * FR-384 and FR-386 forbid — every count on the board moves as a filter is
+   * toggled or a query is typed — so the two lists are named apart here rather
+   * than being told apart at four call sites: whatever a component is counting,
+   * it is counting the day.
+   */
+  allOccurrences: BoardOccurrence[];
   counters: BoardCounters;
   /** True while a read the board actually needs is still on its first fetch. */
   isPending: boolean;
@@ -168,15 +199,23 @@ export function useBoardOccurrences(
     [occurrences],
   );
 
-  // The filter layer's seat, held open. T068 replaces this alias with
-  // `visibleTaskOccurrences(occurrences, hiddenIds, filters, query)` as a memo
-  // of its own — BELOW the counters, which is what keeps FR-384 structural.
-  const visible = occurrences;
+  // The filter layer (T068), and the whole point of its position: it reads the
+  // device's hidden categories, the four task switches and the typed query,
+  // and it sits BELOW the counters, so none of the three can move a number
+  // (FR-384, FR-386, SC-310, SC-320).
+  const { hiddenIds } = useDeviceVisibility();
+  const { filters } = useTaskFilters();
+  const query = options.query ?? "";
+  const visible = useMemo(
+    () => visibleTaskOccurrences(occurrences, hiddenIds, filters, query),
+    [occurrences, hiddenIds, filters, query],
+  );
 
   usePrefetchNeighbourWeeks(householdId, weekStartDate);
 
   return {
     occurrences: visible,
+    allOccurrences: occurrences,
     counters,
     isPending: pendingOf({ tasks, week, carry, cursors, isToday }),
     error: tasks.error ?? week.error ?? carry.error ?? cursors.error ?? null,

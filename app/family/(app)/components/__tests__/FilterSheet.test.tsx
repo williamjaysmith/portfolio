@@ -1,9 +1,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetTaskFilters } from "@/app/family/(app)/tasks/components/useTaskFilters";
 import { PALETTE } from "@/lib/family/colors";
 
 import { FilterSheet } from "../FilterSheet";
+import type { FamilyContextValue } from "../FamilyProvider";
 import { makeCategory, makeContext, stubDialog, withFamily } from "./family-test-utils";
 
 /**
@@ -138,5 +140,89 @@ describe("FilterSheet", () => {
     openSheet();
 
     expect(screen.queryByRole("heading", { name: "Labels" })).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * T067 — the Tasks section (FR-383): four switches beside the shipped Profiles
+ * and Labels lists, riding a store of their own (R319), and one **Show all**
+ * that clears both stores at once.
+ */
+describe("FilterSheet — the Tasks switches", () => {
+  beforeEach(() => {
+    stubDialog();
+    localStorage.clear();
+    resetTaskFilters();
+  });
+
+  const alex = makeCategory({ id: "a", label: "Alex" });
+
+  function openSheet(): void {
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+  }
+
+  function renderSheet(overrides: Partial<FamilyContextValue> = {}): void {
+    render(withFamily(makeContext({ categories: [alex], ...overrides }), <FilterSheet />));
+    openSheet();
+  }
+
+  it("lists the four controls FR-383 names, in their own section", () => {
+    renderSheet();
+
+    expect(screen.getByRole("heading", { name: "Tasks" })).toBeInTheDocument();
+    for (const name of ["Completed tasks", "Late chores", "Skipped tasks", "Up for Grabs"]) {
+      expect(screen.getByRole("checkbox", { name })).toBeInTheDocument();
+    }
+  });
+
+  it("starts with skipped off and the other three on (FR-361)", () => {
+    renderSheet();
+
+    expect(screen.getByRole("checkbox", { name: "Completed tasks" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Late chores" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Up for Grabs" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Skipped tasks" })).not.toBeChecked();
+  });
+
+  it("writes one switch to the task store and leaves the category store alone", () => {
+    const setHidden = vi.fn();
+    renderSheet({ setHidden });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Late chores" }));
+
+    expect(screen.getByRole("checkbox", { name: "Late chores" })).not.toBeChecked();
+    expect(setHidden).not.toHaveBeenCalled();
+  });
+
+  it("reveals skipped occurrences when its switch goes on (US3-6)", () => {
+    renderSheet();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Skipped tasks" }));
+
+    expect(screen.getByRole("checkbox", { name: "Skipped tasks" })).toBeChecked();
+  });
+
+  it("clears BOTH stores from one Show all (R319)", () => {
+    const showAll = vi.fn();
+    renderSheet({ showAll });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Completed tasks" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+
+    expect(showAll).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("checkbox", { name: "Completed tasks" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Skipped tasks" })).toBeChecked();
+  });
+
+  it("says the choice won't be remembered when the task store cannot persist", () => {
+    const setItem = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => {
+      throw new Error("quota exceeded");
+    });
+    renderSheet();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Up for Grabs" }));
+
+    expect(screen.getByText(/won.t be remembered on this device/)).toBeInTheDocument();
+    setItem.mockRestore();
   });
 });

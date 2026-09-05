@@ -818,3 +818,25 @@ export const taskInputSchema = taskObjectSchema.superRefine((value, ctx) => {
 });
 
 export type TaskInput = z.output<typeof taskInputSchema>;
+
+/* ------------------------------------------------------------------------- *
+ * The Task Box (Phase 3 — contracts/server-actions.md, "The Task Box")
+ * ------------------------------------------------------------------------- */
+
+/**
+ * One template's whole content. FR-377 fixes the field set EXACTLY — a title,
+ * an optional emoji and a type — and the object is strict, so a description, a
+ * date, a repeat, an assignment or the reserved star value is REFUSED rather
+ * than quietly stripped (FR-329, SC-319).
+ *
+ * The edit path parses the MERGED template through this same schema rather
+ * than a patch schema of its own, so FR-380's "three fields" is one list that
+ * cannot drift, and a refusal lands against its own top-level field.
+ */
+export const taskBoxItemSchema = z.strictObject({
+  summary: summarySchema,
+  emoji: taskEmojiSchema.nullable().optional(),
+  routine: z.boolean({ error: "Choose chore or routine." }),
+});
+
+export type TaskBoxItemInput = z.output<typeof taskBoxItemSchema>;

@@ -532,9 +532,23 @@ export function useTaskCursors(householdId: string, initialData?: TaskCursor[]) 
   });
 }
 
-// The Task Box hook lands with the sheet that opens it (T072) — `fetchTaskBox`
-// and its cache key exist and are tested; an exported hook nothing mounts yet
-// would be dead code.
+/**
+ * Read 5 (R314), and the only one that is not the board's: the Task Box's
+ * seventeen-odd templates, which nobody looks at on a normal day.
+ *
+ * **Mounting is the `enabled`.** `TaskBoxSheet` is rendered only while the
+ * sheet is open, so the fetch happens when it is opened and at no other time —
+ * the shipped `useCategoryTaskCounts` shape, whose laziness is likewise the
+ * dialog's own mount. It seeds nothing: the sheet is never part of a first
+ * paint, so there is no server-rendered `initialData` to hand it.
+ */
+export function useTaskBox(householdId: string) {
+  return useQuery({
+    queryKey: familyKeys.taskBox(householdId),
+    queryFn: () => fetchTaskBox(createClient(), householdId),
+    staleTime: STALE_TIME,
+  });
+}
 
 /**
  * Warms one neighbouring week's resolutions when the anchor settles, so a

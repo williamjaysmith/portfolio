@@ -38,6 +38,13 @@ import { boardLayoutOf, type BoardLayout } from "@/lib/family/tasks/layout";
  * (`overflow-y: auto`), both declared in `app/family/tokens.css`. Twenty
  * occurrences are reachable by scrolling THAT column, and the page never
  * scrolls sideways at any width.
+ *
+ * What the layout's two modes then mean is `TasksBoard`'s to spend, and neither
+ * needs anything further from here (T075): `grid` lays every column into
+ * `perRow` tracks over `ceil(count / perRow)` rows of equal height, which IS
+ * FR-395's portrait wrap; `pager` draws a window of `perRow` columns and
+ * `ColumnPager` swipes between them (FR-396). The row count falls out of the
+ * columns actually drawn, so the wrap needed no rule of its own.
  */
 
 /** One raw read of the mounted board and its token probe, all CSS px. */

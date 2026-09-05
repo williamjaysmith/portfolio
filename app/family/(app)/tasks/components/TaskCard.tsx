@@ -16,6 +16,7 @@ import type { BoardOccurrence, OccurrenceState } from "@/lib/family/types";
 
 import { CompleteCircle } from "./CompleteCircle";
 import { LateBadge } from "./LateBadge";
+import { StreakBadge, useTaskStreak } from "./StreakBadge";
 
 /**
  * One task on the board (T041) — the first of the three renderers, because
@@ -33,6 +34,13 @@ import { LateBadge } from "./LateBadge";
  * the card rather than one inside the other, because a button inside a button
  * is invalid and un-tappable, and because FR-352 turns on the two being
  * distinguishable.
+ *
+ * A tracked routine carries `StreakBadge` beside its NAME (FR-372) — the
+ * stored count read from the task rows the board holds, never counted here
+ * (FR-371, R311) and never on a chore (FR-337). It sits inside the body
+ * control rather than out at the card's edge, which is where FR-372 puts it
+ * and is why the streak is folded into that control's accessible name instead
+ * of being announced separately.
  *
  * A carried-forward occurrence additionally carries `LateBadge`, which shows
  * the date it was DUE rather than the day it is drawn on (FR-358, US3-1) —
@@ -94,6 +102,19 @@ function progressLabelOf(
   };
 }
 
+/**
+ * What the body control is CALLED: the title, plus every mark drawn beside it,
+ * said once. The visible progress and the streak are folded in rather than
+ * left to be read as bare numbers after the title — and rather than announced
+ * twice, which is why both marks are `aria-hidden` inside it.
+ */
+function cardLabelOf(summary: string, progress: ProgressLabel | null, streak: number): string {
+  const parts = [summary];
+  if (progress !== null) parts.push(progress.spoken);
+  if (streak > 0) parts.push(`${streak} day streak`);
+  return parts.join(", ");
+}
+
 export interface TaskCardProps {
   occurrence: BoardOccurrence;
   /**
@@ -121,6 +142,9 @@ export function TaskCard({
   onResolve,
 }: TaskCardProps) {
   const label = progressLabelOf(occurrence, progress);
+  // FR-371: read from the board's task rows, and zero — no badge — for every
+  // occurrence that has no streak to show.
+  const streak = useTaskStreak(occurrence);
   // React's CSSProperties is deliberately closed over the CSS spec, so a
   // custom property needs the assertion the shipped ProfileChip already uses.
   const style = {
@@ -142,11 +166,9 @@ export function TaskCard({
     >
       <button
         type="button"
-        // The visible progress is folded into the name so it is announced
-        // once, rather than read as a bare fraction after the title.
-        aria-label={
-          label === null ? occurrence.summary : `${occurrence.summary}, ${label.spoken}`
-        }
+        // The visible progress and the streak are folded into the name so each
+        // is announced once, rather than read as bare numbers after the title.
+        aria-label={cardLabelOf(occurrence.summary, label, streak)}
         onClick={() => onOpen(occurrence)}
         className="flex min-h-(--fam-task-card-min-h) flex-1 items-center gap-(--fam-task-card-gap) p-(--fam-task-card-pad) text-left"
       >
@@ -156,12 +178,17 @@ export function TaskCard({
           </span>
         )}
         <span className="flex min-w-0 flex-col gap-(--fam-task-badge-gap)">
-          <span
-            className={`truncate text-(length:--fam-fs-body) font-medium ${
-              occurrence.state === "skipped" ? "line-through" : ""
-            }`}
-          >
-            {occurrence.summary}
+          {/* The name and the streak on one line, because FR-372 puts the
+              badge beside the name and not under it. */}
+          <span className="flex min-w-0 items-center gap-(--fam-task-badge-gap)">
+            <span
+              className={`truncate text-(length:--fam-fs-body) font-medium ${
+                occurrence.state === "skipped" ? "line-through" : ""
+              }`}
+            >
+              {occurrence.summary}
+            </span>
+            <StreakBadge count={streak} />
           </span>
           {label === null ? null : (
             <span className="text-(length:--fam-fs-small) tabular-nums opacity-80">

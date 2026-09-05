@@ -3,12 +3,15 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
-import { createTask, deleteTask, updateTask } from "@/lib/family/actions/tasks";
+import { reorderCategories } from "@/lib/family/actions/categories";
+import { createTask, deleteTask, moveRoutine, updateTask } from "@/lib/family/actions/tasks";
 import { weekStartOf } from "@/lib/family/calendar/dates";
 import type { ActionResult } from "@/lib/family/errors";
 import { useTasks } from "@/lib/family/queries";
 import type {
+  ActorSession,
   BoardOccurrence,
+  Category,
   Task,
   TaskCursor,
   TaskResolution,
@@ -22,17 +25,32 @@ import { DeleteConfirm } from "../../calendar/components/DeleteConfirm";
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
 import { ClaimDialog } from "./ClaimDialog";
+import { ColumnPager, useColumnPage } from "./ColumnPager";
 import { DeleteScopeDialog } from "./DeleteScopeDialog";
 import { ProfileColumn } from "./ProfileColumn";
+import { TaskStreaksProvider } from "./StreakBadge";
+import { TaskBoxSheet } from "./TaskBoxSheet";
 import { occurrenceKeyOf } from "./TaskCard";
 import { dayInWords, TaskDetails } from "./TaskDetails";
 import { TaskForm } from "./TaskForm";
-import { UP_FOR_GRABS_COLUMN_ID, UpForGrabsColumn } from "./UpForGrabsColumn";
+import { TaskSearch } from "./TaskSearch";
+import {
+  UP_FOR_GRABS_COLUMN_ID,
+  UP_FOR_GRABS_TITLE,
+  UpForGrabsColumn,
+} from "./UpForGrabsColumn";
+import {
+  householdOrderOf,
+  previewed,
+  useListReorder,
+  type ListReorder,
+  type RoutineMove,
+} from "./useColumnReorder";
 import { useBoardGeometry } from "./useBoardGeometry";
 import { useBoardOccurrences } from "./useBoardOccurrences";
 import { useDayAnchor } from "./useDayAnchor";
 import { useSectionToggles } from "./useSectionToggles";
-import { taskDraftOf, type TaskSubmitOutcome } from "./useTaskForm";
+import { taskDraftOf, type TaskFormSeed, type TaskSubmitOutcome } from "./useTaskForm";
 import {
   occurrenceKeyFrom,
   resolveVerbOf,
@@ -62,9 +80,13 @@ import {
  * the Profile a claim credited (FR-367) — so a claimed up-for-grabs chore joins
  * the crediting column and its ring together or not at all.
  *
- * Nothing here filters: `useBoardOccurrences` returns the board's whole day and
- * the display filters slot in BELOW its counter branch at T068, which is what
- * keeps "filters never move the counters" structural rather than remembered.
+ * Nothing here filters, and the board holds the day TWICE for that reason:
+ * `occurrences` is the drawn slice, below `useBoardOccurrences`'s filter layer,
+ * and `allOccurrences` is the whole day above it. Every number a column shows —
+ * FR-305's ring, FR-312's per-routine indicator, FR-308's count — is computed
+ * from the second, and only the cards are partitioned out of the first, which
+ * is what makes "filters and search never move the counters" structural rather
+ * than remembered (FR-384, FR-386, SC-310, SC-320, R317).
  *
  * **An unclaimed Up for Grabs tap is diverted** rather than written (T063):
  * FR-368 forbids an anonymous completion, so the circle opens `ClaimDialog`,
@@ -200,7 +222,10 @@ export function boardNoticeOf(inputs: NoticeInputs): string | null {
  */
 type TaskEditorSurface =
   | { kind: "closed" }
-  | { kind: "create" }
+  /** FR-378: a create either starts empty or starts from a Task Box template. */
+  | { kind: "create"; seed?: TaskFormSeed }
+  /** FR-376: reached from the create form, and returning to it either way. */
+  | { kind: "taskBox" }
   | { kind: "edit"; task: Task }
   | {
       kind: "delete";
@@ -234,6 +259,10 @@ interface TaskEditor {
   notice: string | null;
   clearNotice: () => void;
   openCreate: () => void;
+  /** FR-376: Add → Task Box, and Close there comes back to the Add form. */
+  openTaskBox: () => void;
+  /** FR-378: a chosen template re-opens the create form, pre-filled. */
+  chooseTemplate: (seed: TaskFormSeed) => void;
   openEdit: (occurrence: BoardOccurrence) => void;
   requestDelete: (occurrence: BoardOccurrence) => void;
   chooseScope: (scope: TaskScope) => void;
@@ -275,6 +304,18 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
   const openCreate = useCallback(() => {
     setNotice(null);
     setSurface({ kind: "create" });
+  }, []);
+
+  const openTaskBox = useCallback(() => {
+    setNotice(null);
+    setSurface({ kind: "taskBox" });
+  }, []);
+
+  // FR-378: not an action — the ordinary create form, carrying the template's
+  // title, emoji and type, with the assignment and the schedule still to ask.
+  const chooseTemplate = useCallback((seed: TaskFormSeed) => {
+    setNotice(null);
+    setSurface({ kind: "create", seed });
   }, []);
 
   const openEdit = useCallback(
@@ -340,6 +381,8 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
     notice,
     clearNotice,
     openCreate,
+    openTaskBox,
+    chooseTemplate,
     openEdit,
     requestDelete,
     chooseScope,
@@ -347,6 +390,102 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
     confirmDelete,
     submit,
   };
+}
+
+/* ---------------------------------------------------------------- reorder -- */
+
+/**
+ * Spacing for the CLIENT's copy of the column list only. The browser never
+ * writes a `sort_order`: `reorderCategories` takes the complete ordered id list
+ * and rebalances every row itself, so these numbers exist purely to give the
+ * shared reducer an ascending list to work on.
+ */
+const CLIENT_GAP = 1000;
+
+/** Both of the board's drags, and the one line a refused one leaves behind. */
+interface BoardReorder {
+  /** FR-309's column drag: pressed and held on a Profile's name. */
+  columns: ListReorder;
+  /** FR-310, committed per column by `ProfileColumn`. */
+  commitRoutine: (profileId: string, move: RoutineMove) => void;
+  /** FR-389: a parent anywhere, a member in their own column. */
+  canReorderRoutines: (profileId: string) => boolean;
+  notice: string | null;
+}
+
+/**
+ * The two reorders (T076). Both go through the ONE pure reducer and both write
+ * through `withActor`, so a punch-in arrives at the moment of the drop and the
+ * board redraws from the refetch — nothing is written to the cache by hand, and
+ * a refusal leaves the stored order on screen (FR-393).
+ *
+ * **FR-309 needs no new action**: the column order is Phase 1's already
+ * `requireParent()` `reorderCategories`, which takes the COMPLETE household
+ * order. `householdOrderOf` is the reconstruction that makes that safe — the
+ * board renders a filtered subset, and every id it does not draw keeps its
+ * place. Two consequences follow and are not hidden: there is one household
+ * order, not a per-tab one, so a drag here also reorders the calendar's profile
+ * chip row and the settings list.
+ */
+function useBoardReorder(
+  profiles: readonly Category[],
+  categories: readonly Category[],
+  actor: ActorSession | null,
+  withActor: FamilyContextValue["withActor"],
+): BoardReorder {
+  const [notice, setNotice] = useState<string | null>(null);
+  const isParent = actor?.role === "parent";
+
+  const items = useMemo(
+    () => profiles.map((profile, index) => ({ id: profile.id, sortOrder: (index + 1) * CLIENT_GAP })),
+    [profiles],
+  );
+  const labelOf = useCallback(
+    (id: string) => profiles.find((one) => one.id === id)?.label ?? "",
+    [profiles],
+  );
+  const householdIds = useMemo(() => categories.map((one) => one.id), [categories]);
+
+  const report = useCallback((result: ActionResult<unknown>) => {
+    setNotice(result.ok ? null : result.message);
+  }, []);
+
+  const onDrop = useCallback(
+    (move: { order: string[] }) => {
+      setNotice(null);
+      void withActor(() => reorderCategories(householdOrderOf(householdIds, move.order))).then(
+        report,
+      );
+    },
+    [withActor, householdIds, report],
+  );
+
+  const columns = useListReorder({
+    items,
+    axis: "horizontal",
+    rowSelector: "[data-reorder-row]",
+    // FR-309 verbatim: the press must land on the Profile's NAME, so a swipe
+    // that begins anywhere else on the column still pages the board (FR-396).
+    handleSelector: "[data-reorder-handle]",
+    labelOf,
+    enabled: isParent === true,
+    onDrop,
+  });
+
+  const commitRoutine = useCallback(
+    (profileId: string, move: RoutineMove) => {
+      setNotice(null);
+      void withActor(() => moveRoutine({ ...move, profileId })).then(report);
+    },
+    [withActor, report],
+  );
+
+  const canReorderRoutines = useCallback(
+    (profileId: string) => isParent === true || actor?.profileId === profileId,
+    [isParent, actor],
+  );
+
+  return { columns, commitRoutine, canReorderRoutines, notice };
 }
 
 /* --------------------------------------------------------------- surfaces -- */
@@ -372,6 +511,25 @@ interface OccurrenceSurface {
   close: () => void;
 }
 
+/** Both sheets at once, over one list — the pair the board actually wants. */
+interface OccurrenceSheets {
+  details: OccurrenceSurface;
+  claim: OccurrenceSurface;
+}
+
+/**
+ * The details view and FR-367's claim question, opened over the SAME live
+ * expansion. They are built together because they are the same thing twice and
+ * must stay so: a sheet reading a different list from its sibling would close
+ * on a filter rather than on a deletion.
+ */
+function useOccurrenceSheets(occurrences: readonly BoardOccurrence[]): OccurrenceSheets {
+  return {
+    details: useOccurrenceSurface(occurrences),
+    claim: useOccurrenceSurface(occurrences),
+  };
+}
+
 function useOccurrenceSurface(occurrences: readonly BoardOccurrence[]): OccurrenceSurface {
   const [key, setKey] = useState<string | null>(null);
 
@@ -391,11 +549,16 @@ function useOccurrenceSurface(occurrences: readonly BoardOccurrence[]): Occurren
 function BoardNav({
   date,
   isToday,
+  query,
+  onQuery,
   onStep,
   onToday,
 }: {
   date: string;
   isToday: boolean;
+  /** FR-386's query, held by the board and never persisted (R319). */
+  query: string;
+  onQuery: (next: string) => void;
   onStep: (direction: -1 | 1) => void;
   onToday: () => void;
 }) {
@@ -409,7 +572,10 @@ function BoardNav({
       >
         {dayInWords(date)}
       </p>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        {/* FR-386, Assumption 27: the search sits in the tab's own chrome,
+            beside Previous / Today / Next, and filters the board in place. */}
+        <TaskSearch value={query} onChange={onQuery} />
         <button
           type="button"
           aria-label="Previous day"
@@ -438,25 +604,54 @@ function BoardNav({
  * The columns' own element, and the one the geometry measures. It takes the
  * callback ref as a plain parameter — the shipped `WeekGrid`'s idiom — so the
  * ref is never read off an object mid-render.
+ *
+ * The rows are FR-395's wrap, and they are a CONSEQUENCE of the fit rather than
+ * a second layout: the columns on show, laid into `perRow` tracks, take
+ * `ceil(count / perRow)` rows of equal height — which is one row on the wall
+ * tablet, one row on a paged phone (a page is always full), and the reference's
+ * photographed two-by-two on a portrait tablet, with no branch anywhere that
+ * names any of those three.
  */
 function BoardStrip({
   boardRef,
   perRow,
+  count,
+  reorder,
   children,
 }: {
   boardRef: (node: HTMLElement | null) => void;
   perRow: number;
+  /** How many columns are actually drawn — a page's worth when paging. */
+  count: number;
+  /** FR-309: this element is also the column drag's container and its rows. */
+  reorder: ListReorder;
   children: ReactNode;
 }) {
+  const rows = Math.max(1, Math.ceil(count / perRow));
+  const { ref: reorderRef, ...gestures } = reorder.containerProps;
+  const setBoard = useCallback(
+    (node: HTMLElement | null) => {
+      boardRef(node);
+      reorderRef(node);
+    },
+    [boardRef, reorderRef],
+  );
   return (
     // `.fam-board` is `overflow-x: hidden` (tokens.css): twenty occurrences are
     // reached by scrolling a COLUMN, and the page never scrolls sideways at any
     // width (FR-394, SC-315). The columns share the width in equal tracks —
-    // `--fam-task-col-w` is what the fit divides by, never a drawn width.
+    // `--fam-task-col-w` is what the fit divides by, never a drawn width — and
+    // the rows share the height, so a wrapped column still scrolls its own body.
     <div
       data-board
-      ref={boardRef}
-      style={{ gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))` }}
+      ref={setBoard}
+      {...gestures}
+      style={{
+        gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
+        // A carried column follows the finger rather than scrolling the board.
+        ...(reorder.active ? { touchAction: "none" as const } : {}),
+      }}
       className="fam-board grid min-h-0 flex-1 gap-(--fam-task-col-gap) overflow-y-auto px-(--fam-edge-inset) pb-(--fam-edge-inset)"
     >
       {children}
@@ -608,14 +803,46 @@ function noticeFor(
   claim: OccurrenceSurface,
   resolve: TaskResolveState,
   editor: TaskEditor,
+  /** A refused reorder (FR-393): the board redraws from the stored order. */
+  reorderNotice: string | null,
 ): string | null {
   return boardNoticeOf({
     error: board.error,
     gone: details.gone,
     sheetOpen: details.occurrence !== null || claim.occurrence !== null,
     resolveNotice: resolve.notice,
-    own: editor.notice,
+    own: editor.notice ?? reorderNotice,
   });
+}
+
+/**
+ * The view's own state, before any data is read: which day is displayed,
+ * what is typed in the search, which Profiles have a column, how many columns
+ * fit, and which page of them is on screen. Split from the model below so each
+ * half stays inside the complexity budget on its own.
+ */
+function useBoardView(props: TasksBoardProps, zone: string, visibleProfiles: Category[]) {
+  const anchor = useDayAnchor({ zone, initialDate: props.initialDate });
+  // FR-386's search string. Component state, not a store: it is this view's own
+  // and dies with it, unlike the four per-device switches (R319). It reaches
+  // the board only as `useBoardOccurrences`'s `query`, which applies it BELOW
+  // the counter branch — so no keystroke can move a ring or a count (SC-320).
+  const [query, setQuery] = useState("");
+  const profiles = useMemo(
+    () => visibleProfiles.filter((profile) => profile.showOnTasks),
+    [visibleProfiles],
+  );
+  const toggles = useSectionToggles({ zone, initialWindow: props.initialWindow });
+  // Up for Grabs plus every shown Profile — the count the fit is decided over,
+  // and the count the pager pages through (FR-396).
+  const columnCount = profiles.length + 1;
+  const geometry = useBoardGeometry(columnCount);
+  const page = useColumnPage({
+    columnCount,
+    perRow: geometry.layout.perRow,
+    mode: geometry.layout.mode,
+  });
+  return { anchor, query, setQuery, profiles, toggles, geometry, page };
 }
 
 /**
@@ -626,14 +853,11 @@ function useTasksBoardModel(props: TasksBoardProps) {
   const { householdId, settings, categories, visibleProfiles, avatarUrls, actor, withActor } =
     useFamily();
   const zone = settings.timezone;
-
-  const anchor = useDayAnchor({ zone, initialDate: props.initialDate });
-  const profiles = useMemo(
-    () => visibleProfiles.filter((profile) => profile.showOnTasks),
-    [visibleProfiles],
+  const { anchor, query, setQuery, profiles, toggles, geometry, page } = useBoardView(
+    props,
+    zone,
+    visibleProfiles,
   );
-  const toggles = useSectionToggles({ zone, initialWindow: props.initialWindow });
-  const geometry = useBoardGeometry(profiles.length + 1);
 
   const board = useBoardOccurrences({
     householdId,
@@ -641,6 +865,7 @@ function useTasksBoardModel(props: TasksBoardProps) {
     todayDate: anchor.todayDate,
     zone,
     startWeekOn: settings.startWeekOn,
+    query,
     ...boardSeedsOf(props, anchor, settings.startWeekOn),
   });
 
@@ -650,16 +875,21 @@ function useTasksBoardModel(props: TasksBoardProps) {
   );
 
   const resolve = useTaskResolve();
-  const details = useOccurrenceSurface(board.occurrences);
-  // FR-367's question, over the same live expansion: an occurrence claimed on
-  // another device takes its own claim sheet with it (FR-393).
-  const claim = useOccurrenceSurface(board.occurrences);
+  // Over the WHOLE day, not the drawn slice: an occurrence a filter or a query
+  // has hidden is still there, so a sheet opened on it stays open and keeps
+  // resolving it. `gone` then means what FR-393 says it means — the row has
+  // actually left the board — and never "you typed something".
+  const { details, claim } = useOccurrenceSheets(board.allOccurrences);
   // The same cache entry `useBoardOccurrences` seeded: the row an occurrence
   // was drawn from, which the edit and delete surfaces both need.
   const taskRows = useTasks(householdId).data ?? NO_TASKS;
   const editor = useTaskEditor({ tasks: taskRows, withActor });
 
   const handlers = useBoardHandlers(details, claim, resolve, editor);
+  const reorder = useBoardReorder(profiles, categories, actor, withActor);
+  // While a column is being carried the board paints the drop's preview; with
+  // nothing in flight it paints the stored household order (R321).
+  const drawnProfiles = previewed(profiles, reorder.columns.order, (one) => one.id);
 
   // The shell's one create control, named for this tab while the board is
   // mounted, and pointed at the create form.
@@ -667,6 +897,9 @@ function useTasksBoardModel(props: TasksBoardProps) {
 
   return {
     anchor,
+    query,
+    setQuery,
+    taskRows,
     profiles,
     categories,
     avatarUrls,
@@ -675,23 +908,98 @@ function useTasksBoardModel(props: TasksBoardProps) {
     timeFormat: settings.timeFormat,
     layout: geometry.layout,
     boardRef: geometry.boardRef,
-    occurrences: board.occurrences,
+    // FR-396: which columns are on screen, and how a swipe moves between them.
+    page,
+    // The whole day, for the numbers above the cards; the drawn slice reaches
+    // the columns already partitioned, as `columns` (R317, R318).
+    allOccurrences: board.allOccurrences,
     columns,
+    drawnProfiles,
+    reorder,
     toggles,
     resolve,
     details,
     claim,
     editor,
     ...handlers,
-    notice: noticeFor(board, details, claim, resolve, editor),
+    notice: noticeFor(board, details, claim, resolve, editor, reorder.notice),
   };
 }
 
-/** The three write surfaces, at most one of which is ever open. */
+/** One drawn column and the name the pager announces it by (FR-396). */
+interface DrawnColumn {
+  label: string;
+  node: ReactNode;
+}
+
+type TasksBoardModel = ReturnType<typeof useTasksBoardModel>;
+
+/**
+ * Every column the board has, in the ONE order FR-396 fixes: Up for Grabs
+ * first, because it belongs to everyone by belonging to nobody, then the
+ * Profiles in the household's own order (FR-309). Built as a list rather than
+ * written straight into the tree because the pager shows a window of it — and
+ * because the window is a slice of exactly this order, "Up for Grabs first" is
+ * true of the first page rather than being separately arranged for.
+ */
+function drawnColumnsOf(m: TasksBoardModel): DrawnColumn[] {
+  return [
+    {
+      label: UP_FOR_GRABS_TITLE,
+      node: (
+        <UpForGrabsColumn
+          key={UP_FOR_GRABS_COLUMN_ID}
+          allOccurrences={m.allOccurrences}
+          occurrences={m.columns.upForGrabs}
+          toggles={m.toggles.sectionsFor(UP_FOR_GRABS_COLUMN_ID)}
+          onToggleSection={(section) => m.toggles.toggleSection(UP_FOR_GRABS_COLUMN_ID, section)}
+          busyKey={m.resolve.busyKey}
+          onOpen={m.onOpen}
+          onResolve={m.onResolve}
+        />
+      ),
+    },
+    ...m.drawnProfiles.map((profile) => ({
+      label: profile.label,
+      node: (
+        <ProfileColumn
+          key={profile.id}
+          category={profile}
+          allOccurrences={m.allOccurrences}
+          occurrences={m.columns.byProfile[profile.id] ?? []}
+          toggles={m.toggles.sectionsFor(profile.id)}
+          onToggleSection={(section) => m.toggles.toggleSection(profile.id, section)}
+          photoUrl={m.avatarUrls[profile.id]}
+          busyKey={m.resolve.busyKey}
+          reorderable={m.actor?.role === "parent"}
+          canReorderRoutines={m.reorder.canReorderRoutines(profile.id)}
+          onMoveRoutine={m.reorder.commitRoutine}
+          onOpen={m.onOpen}
+          onResolve={m.onResolve}
+        />
+      ),
+    })),
+  ];
+}
+
+/** The four write surfaces, at most one of which is ever open. */
 function TaskEditorSurfaces({ editor, zone }: { editor: TaskEditor; zone: string }) {
   const { surface } = editor;
   if (surface.kind === "create") {
-    return <TaskForm mode="create" onSubmit={editor.submit} onClose={editor.close} />;
+    return (
+      <TaskForm
+        mode="create"
+        seed={surface.seed}
+        onSubmit={editor.submit}
+        onClose={editor.close}
+        onOpenTaskBox={editor.openTaskBox}
+      />
+    );
+  }
+  // FR-376: the Task Box replaces the create form it was opened from, and Close
+  // brings that form back rather than abandoning the add half-way through.
+  if (surface.kind === "taskBox") {
+    return <TaskBoxSheet onChoose={editor.chooseTemplate} onClose={editor.openCreate} />;
   }
   if (surface.kind === "edit") {
     return (
@@ -729,43 +1037,51 @@ export function TasksBoard(props: TasksBoardProps) {
   const m = useTasksBoardModel(props);
   const open = m.details.occurrence;
   const claiming = m.claim.occurrence;
+  // The window the measured layout allows: every column when they all fit,
+  // and a page of them when they do not (FR-394, FR-395, FR-396).
+  const visible = drawnColumnsOf(m).slice(m.page.start, m.page.end);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-(--fam-task-col-gap)">
       <BoardNav
         date={m.anchor.displayedDate}
         isToday={m.anchor.isToday}
+        query={m.query}
+        onQuery={m.setQuery}
         onStep={m.anchor.step}
         onToday={m.anchor.goToToday}
       />
 
       <Notice message={m.notice} />
 
-      <BoardStrip boardRef={m.boardRef} perRow={m.layout.perRow}>
-        <UpForGrabsColumn
-          allOccurrences={m.occurrences}
-          occurrences={m.columns.upForGrabs}
-          toggles={m.toggles.sectionsFor(UP_FOR_GRABS_COLUMN_ID)}
-          onToggleSection={(section) => m.toggles.toggleSection(UP_FOR_GRABS_COLUMN_ID, section)}
-          busyKey={m.resolve.busyKey}
-          onOpen={m.onOpen}
-          onResolve={m.onResolve}
-        />
-        {m.profiles.map((profile) => (
-          <ProfileColumn
-            key={profile.id}
-            category={profile}
-            allOccurrences={m.occurrences}
-            occurrences={m.columns.byProfile[profile.id] ?? []}
-            toggles={m.toggles.sectionsFor(profile.id)}
-            onToggleSection={(section) => m.toggles.toggleSection(profile.id, section)}
-            photoUrl={m.avatarUrls[profile.id]}
-            busyKey={m.resolve.busyKey}
-            onOpen={m.onOpen}
-            onResolve={m.onResolve}
-          />
-        ))}
-      </BoardStrip>
+      {/* FR-371's stored counts, put up once over the task rows the board
+          already holds, so every card can read its own without the sections
+          and both columns having to carry a number neither has an opinion
+          about (T070). */}
+      <TaskStreaksProvider tasks={m.taskRows}>
+        <ColumnPager
+          paged={m.page.paged}
+          // FR-309 beside FR-396: once a press-and-hold has claimed the pointer
+          // the gesture belongs to the drag, and a drag that wanders sideways
+          // must not also page the board out from under itself.
+          suspended={m.reorder.columns.active}
+          onPage={m.page.step}
+          visibleLabels={visible.map((column) => column.label)}
+        >
+          <BoardStrip
+            boardRef={m.boardRef}
+            perRow={m.layout.perRow}
+            count={visible.length}
+            reorder={m.reorder.columns}
+          >
+            {visible.map((column) => column.node)}
+          </BoardStrip>
+        </ColumnPager>
+      </TaskStreaksProvider>
+
+      <p role="status" aria-live="polite" className="sr-only">
+        {m.reorder.columns.announcement}
+      </p>
 
       {open === null ? null : (
         <TaskDetails

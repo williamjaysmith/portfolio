@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import {
   afterEach,
   beforeAll,
@@ -22,6 +22,7 @@ import {
 import { PALETTE } from "@/lib/family/colors";
 import { fail } from "@/lib/family/errors";
 import {
+  useTaskBox,
   useTaskCarryForward,
   useTaskCursors,
   useTaskResolutions,
@@ -53,6 +54,7 @@ import {
   type TasksBoardProps,
 } from "../TasksBoard";
 import { UP_FOR_GRABS_COLUMN_ID } from "../UpForGrabsColumn";
+import { resetTaskFilters, useTaskFilters } from "../useTaskFilters";
 
 /**
  * T046 — the board orchestrator: the anchor, the geometry, the memo chain, the
@@ -83,9 +85,17 @@ vi.mock("@/lib/family/queries", async (importOriginal) => {
     useTaskResolutions: vi.fn(),
     useTaskCarryForward: vi.fn(),
     useTaskCursors: vi.fn(),
+    // Read 5, mounted only by the Task Box sheet (T072).
+    useTaskBox: vi.fn(),
     prefetchTaskWeek: vi.fn(() => Promise.resolve()),
   };
 });
+
+vi.mock("@/lib/family/actions/task-box", () => ({
+  createTaskBoxItem: vi.fn(),
+  updateTaskBoxItem: vi.fn(),
+  deleteTaskBoxItem: vi.fn(),
+}));
 
 vi.mock("@/lib/family/actions/tasks", () => ({
   completeTaskOccurrence: vi.fn(),
@@ -310,6 +320,21 @@ function column(name: string): HTMLElement {
   return screen.getByRole("region", { name });
 }
 
+/**
+ * Every number a column shows ABOVE its cards — the ring's fraction and the
+ * count beside it — for all four columns at once. FR-384 and FR-386 promise
+ * this list never moves under a filter or a query, and comparing the whole
+ * list is how a single number sneaking is caught rather than only the one a
+ * case thought to name.
+ */
+function columnNumbers(): string[] {
+  return Array.from(document.querySelectorAll("[data-column]")).map((col) => {
+    const ring = col.querySelector("[data-progress-ring]")?.getAttribute("data-fraction") ?? "—";
+    const count = col.querySelector("p[aria-label]")?.getAttribute("aria-label") ?? "—";
+    return `${col.getAttribute("data-column") ?? ""} ring ${ring} · ${count}`;
+  });
+}
+
 async function press(name: string): Promise<void> {
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name }));
@@ -320,10 +345,23 @@ beforeAll(() => {
   stubDialog();
 });
 
+/** The four per-device switches are module state; no case inherits another's. */
+function resetSwitches(): void {
+  localStorage.clear();
+  resetTaskFilters();
+}
+
+/** Turn the Skipped switch on, as the filter sheet does (FR-361, T067). */
+function showSkipped(): void {
+  const { result } = renderHook(() => useTaskFilters());
+  act(() => result.current.setFilter("skipped", true));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
+  resetSwitches();
   stubReads();
   completeMock.mockResolvedValue({ ok: true, data: null });
   skipMock.mockResolvedValue({ ok: true, data: null });
@@ -464,6 +502,34 @@ describe("TasksBoard", () => {
     expect(
       within(screen.getByRole("group", { name: "Up for Grabs" })).getByText("0"),
     ).toBeInTheDocument();
+  });
+
+  it("puts the stored streak on a tracked routine's card (T070, FR-371, FR-372)", async () => {
+    // The count arrives embedded with the task rows the board already reads
+    // (R314), so turning Track Habit on and moving the stored number is the
+    // whole of the fixture — no resolution is added, because none may change it.
+    stub(vi.mocked(useTasks), {
+      data: FIXTURE_TASKS.map((task) =>
+        task.id === ROUTINE
+          ? {
+              ...task,
+              trackHabit: true,
+              assignees: [{ ...assigneeOf(ROUTINE, CLEO), streakCount: 11 }],
+            }
+          : task,
+      ),
+    });
+    renderBoard();
+
+    // 13:00 is Afternoon, so the morning routine is behind its own toggle.
+    await act(async () => {
+      fireEvent.click(within(column("Cleo")).getByRole("button", { name: "Morning" }));
+    });
+
+    expect(within(column("Cleo")).getByText("Brush teeth")).toBeInTheDocument();
+    expect(column("Cleo").querySelector("[data-streak-badge]")).toHaveTextContent("11");
+    // Never on a chore, on any card, whatever is stored (FR-337).
+    expect(column("Ben").querySelector("[data-streak-badge]")).toBeNull();
   });
 
   it("registers the shell's create control while it is mounted", () => {
@@ -628,6 +694,92 @@ describe("TasksBoard", () => {
   });
 });
 
+/**
+ * T069 — FR-386's search, as the board sees it. The predicate itself is
+ * `tasks-visibility.test.ts`'s table; what is proved here is that the box is
+ * wired BELOW the counter branch, so SC-320's "no column's ring or count moves
+ * at any point" holds for the board that is actually assembled and not only
+ * for the pure function.
+ */
+describe("the search box (T069, FR-386, SC-320)", () => {
+  function search(): HTMLElement {
+    return screen.getByRole("searchbox", { name: "Search tasks" });
+  }
+
+  async function type(value: string): Promise<void> {
+    await act(async () => {
+      fireEvent.change(search(), { target: { value } });
+    });
+  }
+
+  it("leaves exactly the matching cards and moves no counter (US4-13)", async () => {
+    renderBoard();
+    const before = columnNumbers();
+
+    await type("trash");
+
+    expect(within(column("Ben")).getByText("Take out trash")).toBeInTheDocument();
+    expect(within(column("Cleo")).queryByText("Feed the cat")).not.toBeInTheDocument();
+    expect(
+      within(column("Up for Grabs")).queryByText("Empty the dishwasher"),
+    ).not.toBeInTheDocument();
+    // The whole point: the day is still the day, however little of it is drawn.
+    expect(columnNumbers()).toEqual(before);
+  });
+
+  it("filters the board in place rather than opening a result list", async () => {
+    renderBoard();
+    await type("trash");
+
+    // Every column is still there, Ben's included and empty ones included:
+    // this is the same board with fewer cards on it (Assumption 27, FR-316).
+    expect(columnIds()).toEqual([UP_FOR_GRABS_COLUMN_ID, CLEO, BEN, ANA]);
+    expect(within(column("Cleo")).getByText("Nothing for Cleo today")).toBeInTheDocument();
+  });
+
+  it("searches the description as well as the title", async () => {
+    renderBoard();
+
+    // "Half a tin." is the cat chore's description and appears in no title.
+    await type("half a tin");
+
+    expect(within(column("Cleo")).getByText("Feed the cat")).toBeInTheDocument();
+    expect(within(column("Ben")).queryByText("Take out trash")).not.toBeInTheDocument();
+  });
+
+  it("reaches Up for Grabs like every other column (FR-386)", async () => {
+    renderBoard();
+    await type("dishwasher");
+
+    expect(within(column("Up for Grabs")).getByText("Empty the dishwasher")).toBeInTheDocument();
+    expect(within(column("Ben")).queryByText("Take out trash")).not.toBeInTheDocument();
+  });
+
+  it("restores every card when it is cleared, counters still unmoved (SC-320)", async () => {
+    renderBoard();
+    const before = columnNumbers();
+
+    await type("trash");
+    await press("Clear search");
+
+    expect(search()).toHaveValue("");
+    expect(within(column("Cleo")).getByText("Feed the cat")).toBeInTheDocument();
+    expect(within(column("Ben")).getByText("Take out trash")).toBeInTheDocument();
+    expect(within(column("Up for Grabs")).getByText("Empty the dishwasher")).toBeInTheDocument();
+    expect(columnNumbers()).toEqual(before);
+  });
+
+  it("does not survive the view: stepping a day leaves the query alone", async () => {
+    renderBoard();
+    await type("trash");
+    await press("Previous day");
+
+    // It is component state, not a store (R319) — it is still here because the
+    // view is, and it will die with it rather than being remembered.
+    expect(search()).toHaveValue("trash");
+  });
+});
+
 describe("boardSeedsOf (R314)", () => {
   const props = boardProps({
     initialResolutions: [CLAIM],
@@ -752,12 +904,20 @@ describe("the US3 states (T063)", () => {
     expect(completeMock).not.toHaveBeenCalled();
   });
 
-  it("leaves a skipped occurrence on the board, and out of the count and the ring (FR-360, US4-5)", () => {
+  it("keeps a skipped occurrence out of the count and the ring, drawn or not (FR-360, FR-361, US4-5)", () => {
     stubReads([SKIP]);
     renderBoard();
 
-    // It stays in the expanded list — hiding it is the filter layer's job at
-    // T067, never the expander's (R315) — and the ring reads one, not two.
+    // It stays in the EXPANDED list — hiding it was never the expander's job
+    // (R315) — but the Skipped switch starts off, so the board does not draw
+    // it; either way the ring reads one, not two.
+    expect(within(column("Cleo")).queryByText("Feed the cat")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("group", { name: "Cleo" })).getByText("0/1"),
+    ).toBeInTheDocument();
+
+    showSkipped();
+
     const card = within(column("Cleo")).getByText("Feed the cat").closest("[data-task-card]");
     expect(card).toHaveAttribute("data-state", "skipped");
     expect(
@@ -851,5 +1011,104 @@ describe("boardColumnsOf (R318)", () => {
     const columns = boardColumnsOf([mine], [BEN]);
     expect(columns.byProfile).toEqual({ [BEN]: [] });
     expect(columns.upForGrabs).toEqual([]);
+  });
+});
+
+/**
+ * T072 — FR-376's **Add → Task Box** round trip, which is the one thing neither
+ * `TaskBoxSheet.test.tsx` nor `TaskForm.test.tsx` can see on its own: the tab's
+ * single create control opens the Add form, the Add form reaches the Task Box,
+ * and a chosen template comes back as the **same** create form pre-filled with
+ * its three values — the assignment and the schedule still empty and still
+ * required, because adding from a template is a seed and not an action
+ * (FR-378, US4-10, SC-318).
+ */
+describe("TasksBoard — the Task Box, reached from the create control (T072)", () => {
+  const taskBoxMock = useTaskBox as Mock;
+  const asParentActor = { actor: makeActor("parent", { profileId: ANA, label: "Ana" }) };
+
+  const VACUUM_TEMPLATE = {
+    id: "eeeeeeee-1111-4111-8111-eeeeeeeeeeee",
+    householdId: HOUSEHOLD,
+    summary: "Vacuum",
+    emoji: null,
+    routine: false,
+    createdBy: null,
+    updatedBy: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  };
+  const TEETH_TEMPLATE = {
+    ...VACUUM_TEMPLATE,
+    id: "eeeeeeee-2222-4222-8222-eeeeeeeeeeee",
+    summary: "Brush teeth",
+    emoji: "🪥",
+    routine: true,
+  };
+
+  beforeEach(() => {
+    taskBoxMock.mockReturnValue({
+      data: [VACUUM_TEMPLATE, TEETH_TEMPLATE],
+      isPending: false,
+      isError: false,
+    });
+  });
+
+  async function openTaskBox(): Promise<void> {
+    await press("Add Task");
+    await press("Task Box");
+  }
+
+  it("opens from the Add form and lists the templates in two sections", async () => {
+    renderBoard();
+    await openTaskBox();
+
+    expect(screen.getByRole("heading", { name: "Task Box" })).toBeInTheDocument();
+    // One surface at a time: the Add form it was opened from has stood down.
+    expect(screen.queryByRole("heading", { name: "Add a task" })).not.toBeInTheDocument();
+    // Scoped to the sheet: the board's own columns carry Chores and Routines
+    // headings too, and only one of the two is a modal.
+    const sheet = within(screen.getByRole("dialog"));
+    expect(
+      within(sheet.getByRole("region", { name: "Chores" })).getByRole("button", { name: "Vacuum" }),
+    ).toBeInTheDocument();
+    expect(
+      within(sheet.getByRole("region", { name: "Routines" })).getByRole("button", {
+        name: "Brush teeth",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("a chosen template reopens the create form pre-filled, with nothing assigned or scheduled", async () => {
+    renderBoard({ context: asParentActor });
+    await openTaskBox();
+    await press("Brush teeth");
+
+    expect(screen.getByRole("heading", { name: "Add a task" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Title")).toHaveValue("Brush teeth");
+    expect(screen.getByLabelText("Emoji (optional)")).toHaveValue("🪥");
+    // FR-378: the type came from the template; the assignment and the schedule
+    // did not, because a template cannot hold either (FR-377).
+    expect(screen.getByRole("checkbox", { name: "Cleo" })).not.toBeChecked();
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it("Close comes back to the Add form rather than abandoning the add", async () => {
+    renderBoard();
+    await openTaskBox();
+    await press("Close");
+
+    expect(screen.getByRole("heading", { name: "Add a task" })).toBeInTheDocument();
+  });
+
+  it("the edit form offers no Task Box shortcut — an edit is an edit (FR-376)", async () => {
+    renderBoard({ context: asParentActor });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Feed the cat" }));
+    });
+    await press("Edit");
+
+    expect(screen.getByRole("heading", { name: "Edit task" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Task Box" })).toBeNull();
   });
 });

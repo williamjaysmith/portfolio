@@ -9,6 +9,8 @@ import {
 } from "framer-motion";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 
+import { swipeAxisOf, swipeStepOf, travelOf, type Offset, type SwipeAxis } from "@/lib/family/swipe";
+
 import { SETTLE_SECONDS } from "./DragPreviewBlock";
 
 /**
@@ -21,6 +23,13 @@ import { SETTLE_SECONDS } from "./DragPreviewBlock";
  * job is to decide, from a gesture, whether a step was asked for and in which
  * direction — so it is three pure functions and a thin framer-motion binding
  * over them.
+ *
+ * Those three functions now live in `lib/family/swipe.ts` (003 T073, R320):
+ * the Tasks board pages between profile columns with the same lock, the same
+ * threshold and the same reduced-motion collapse, and a second hand-written
+ * pair of them is precisely what the duplication gate exists to catch. What
+ * stayed here is everything that is this component's own — the framer binding,
+ * the per-gesture memory, and which presses belong to the drag layer.
  *
  * **Axis lock** (FR-280). The hours scroll vertically and the week pages
  * horizontally through the same finger, so one of them must yield. The pan
@@ -53,53 +62,6 @@ import { SETTLE_SECONDS } from "./DragPreviewBlock";
  * The arrows and Today (FR-281) page through the same anchor state without
  * passing through here — they always work however full the grid is.
  */
-
-/** R211: the displacement at which the pan may claim the gesture (FR-280). */
-const SWIPE_LOCK_PX = 10;
-
-/** R211: how far a release must have travelled to advance a page (FR-279). */
-const SWIPE_COMMIT_PX = 48;
-
-/** How far the strip follows the finger — capped, so it cannot widen the page. */
-const SWIPE_TRAVEL_PX = 72;
-
-/** Which axis a gesture belongs to; `unlocked` until the slop decides (FR-280). */
-export type SwipeAxis = "unlocked" | "horizontal" | "vertical";
-
-/** The pan's displacement since the press, as framer reports it. */
-export interface Offset {
-  x: number;
-  y: number;
-}
-
-/**
- * The axis lock: once claimed it is kept for the whole gesture, so this only
- * ever decides from `unlocked`. An equal diagonal goes to the hour scroll —
- * the horizontal must dominate to take the gesture (FR-280).
- */
-export function swipeAxisOf(axis: SwipeAxis, offset: Offset): SwipeAxis {
-  if (axis !== "unlocked") return axis;
-  const horizontal = Math.abs(offset.x);
-  const vertical = Math.abs(offset.y);
-  if (Math.max(horizontal, vertical) < SWIPE_LOCK_PX) return "unlocked";
-  return horizontal > vertical ? "horizontal" : "vertical";
-}
-
-/**
- * What a release asks for: one page later (`1`) for a swipe left, one
- * earlier (`-1`) for a swipe right, or nothing (FR-279). Only a horizontal
- * gesture that travelled past the threshold pages.
- */
-export function swipeStepOf(axis: SwipeAxis, offsetX: number): -1 | 1 | null {
-  if (axis !== "horizontal" || Math.abs(offsetX) < SWIPE_COMMIT_PX) return null;
-  return offsetX < 0 ? 1 : -1;
-}
-
-/** How far the strip is drawn from home — nowhere at all under reduced motion (FR-252). */
-export function travelOf(offsetX: number, reducedMotion: boolean | null): number {
-  if (reducedMotion === true) return 0;
-  return Math.max(-SWIPE_TRAVEL_PX, Math.min(SWIPE_TRAVEL_PX, offsetX));
-}
 
 /** Did this press land in a control — a block, an all-day bar, a "+n more" row? */
 export function beginsOnBlock(target: EventTarget | null): boolean {

@@ -69,6 +69,7 @@ import {
   type TaskWithAssigneesRow,
 } from "../rows";
 import { expandTaskDay } from "../tasks/expand";
+import { reorderList, type ReorderItem, type ReorderWrite } from "../tasks/reorder";
 import { taskRepeatChoiceOf } from "../tasks/repeat";
 import { resolutionAt, resolutionIndexOf, resolutionKeyOf } from "../tasks/resolutions";
 import { nextStreak, type DayOutcome } from "../tasks/streaks";
@@ -83,6 +84,7 @@ import type {
   TaskRepeatChoice,
   TaskResolution,
   TaskScope,
+  TimeOfDay,
   WeekStart,
 } from "../types";
 import { parseOrThrow, taskInputSchema, type TaskInput } from "../validation";
@@ -103,6 +105,8 @@ const ROUTINE_SKIP_INSTEAD = "Use Skip to remove one day of a routine.";
 const SKIP_ON_ONE_OFF = "This task doesn't repeat, so there is nothing to skip.";
 const OCCURRENCE_REQUIRED = "Say which one this applies to.";
 const KEY_IS_ANOTHER_TASK = "That occurrence belongs to a different task.";
+const CHORES_DO_NOT_REORDER = "Chores can't be reordered.";
+const NEIGHBOUR_NOT_HERE = "A routine can only move within its own time of day, in its own column.";
 
 /**
  * The five-column occurrence key, strict: `resolved_on`, a status or any other
@@ -146,6 +150,14 @@ const deleteTaskSchema = z.strictObject({
   confirm: z.literal(true, { error: CONFIRM_REQUIRED }),
   scope: taskScopeSchema.optional(),
   occurrenceKey: occurrenceKeySchema.optional(),
+});
+
+/** contracts §moveRoutine: the drop, named by the neighbours it landed between. */
+const moveRoutineSchema = z.strictObject({
+  taskId: z.uuid({ error: INVALID_ID }),
+  profileId: z.uuid({ error: INVALID_ID }),
+  previousTaskId: z.uuid({ error: INVALID_ID }).nullable(),
+  nextTaskId: z.uuid({ error: INVALID_ID }).nullable(),
 });
 
 /* ------------------------------------------------------------------------- *
@@ -819,6 +831,187 @@ async function rewriteAssignees(task: Task, ids: readonly string[]): Promise<voi
 async function applyUpForGrabsFlip(task: Task, merged: TaskInput): Promise<void> {
   if (merged.upForGrabs !== true || task.assignees.length === 0) return;
   await deleteAssignees(task.householdId, task.id);
+}
+
+/* ------------------------------------------------------------------------- *
+ * FR-310's routine reorder (T076) — the one task verb that is not parent-only.
+ * ------------------------------------------------------------------------- */
+
+/** One routine in a Profile's column: its stored place, and the sections it draws in. */
+interface RoutineRow extends ReorderItem {
+  /** FR-302: a routine's slots ARE its sections; a chore has none and never gets here. */
+  slots: readonly TimeOfDay[];
+}
+
+/** The household's routines by id, with the sections each one appears in. */
+async function routineSlots(householdId: string): Promise<Map<string, TimeOfDay[]>> {
+  const { data, error } = await adminFamily()
+    .from("tasks")
+    .select("id, times_of_day")
+    .eq("household_id", householdId)
+    .eq("routine", true);
+  if (error) throw mapDbError(error);
+  const rows = (data ?? []) as unknown as { id: string; times_of_day: TimeOfDay[] | null }[];
+  return new Map(rows.map((row) => [row.id, row.times_of_day ?? []]));
+}
+
+/**
+ * One Profile's routines, in the order that Profile's column draws them.
+ * Chores are excluded rather than filtered later: their `sort_order` exists
+ * because the column is not nullable, and FR-311 makes it meaningless.
+ */
+async function profileRoutines(householdId: string, profileId: string): Promise<RoutineRow[]> {
+  const slots = await routineSlots(householdId);
+  const rows = await assigneeOrdersOf(householdId, [profileId]);
+  return rows
+    .filter((row) => slots.has(row.task_id))
+    .map((row) => ({
+      id: row.task_id,
+      sortOrder: Number(row.sort_order),
+      slots: slots.get(row.task_id) ?? [],
+    }))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+/**
+ * FR-302 / FR-310: two routines are in the same section when they share a time
+ * of day. A routine may carry several, which is the recorded cost of one
+ * `sort_order` per (task, assignee) — sharing ANY of them is what makes the
+ * neighbours legal, and reordering in one of a routine's sections reorders it
+ * in the others (018, Contradiction 7).
+ */
+function sharesSection(a: RoutineRow, b: RoutineRow): boolean {
+  return a.slots.some((slot) => b.slots.includes(slot));
+}
+
+function refuseNeighbour(): never {
+  throw new ActionFailure("VALIDATION", NEIGHBOUR_NOT_HERE, {
+    previousTaskId: [NEIGHBOUR_NOT_HERE],
+  });
+}
+
+/**
+ * Where a named neighbour sits in the moved routine's own section — `null` for
+ * "no neighbour there", which is the start or the end of that section. A
+ * neighbour that is not in the section at all is a refusal and not a guess: it
+ * is a chore, another Profile's routine, another time of day, or the moved
+ * routine itself, and every one of those is FR-310's "never".
+ */
+function sectionPositionOf(section: readonly RoutineRow[], id: string | null): number | null {
+  if (id === null) return null;
+  const index = section.findIndex((row) => row.id === id);
+  if (index === -1) refuseNeighbour();
+  return index;
+}
+
+/**
+ * The drop's index in the Profile's WHOLE routine list, from the two neighbours
+ * the client named in its SECTION. The two lists differ whenever a Profile has
+ * routines in more than one time of day, and both are needed: the section is
+ * what FR-310 restricts the move to, while the stored `sort_order` is one
+ * sequence across the column, so the new value must sit between the whole
+ * list's neighbours to keep it sorted.
+ *
+ * The neighbours must be adjacent IN THE SECTION — a claim to have dropped
+ * something between two rows that have another row between them is refused
+ * rather than approximated.
+ */
+function routineDropIndexOf(
+  rows: readonly RoutineRow[],
+  moved: RoutineRow,
+  input: { previousTaskId: string | null; nextTaskId: string | null },
+): number {
+  const without = rows.filter((row) => row.id !== moved.id);
+  const section = without.filter((row) => sharesSection(row, moved));
+  const previous = sectionPositionOf(section, input.previousTaskId);
+  const next = sectionPositionOf(section, input.nextTaskId);
+  const before = previous ?? -1;
+  const after = next ?? section.length;
+  if (before + 1 !== after) refuseNeighbour();
+
+  if (previous !== null) return without.indexOf(section[previous]) + 1;
+  if (next !== null) return without.indexOf(section[next]);
+  // Alone in its section: there is nothing to be ordered against, so the drop
+  // leaves the column exactly as it was rather than moving it in the list it
+  // shares with the other sections.
+  return rows.indexOf(moved);
+}
+
+/** One row per drop; every row only on the rebalance the fractional index eventually needs. */
+async function writeRoutineOrder(
+  actor: Actor,
+  profileId: string,
+  writes: readonly ReorderWrite[],
+): Promise<void> {
+  const results = await Promise.all(
+    writes.map(({ id, sortOrder }) =>
+      adminFamily()
+        .from("task_assignees")
+        .update({ sort_order: sortOrder })
+        .eq("household_id", actor.householdId)
+        .eq("task_id", id)
+        .eq("category_id", profileId),
+    ),
+  );
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw mapDbError(failed.error);
+}
+
+/**
+ * FR-310: a routine moves within its own section for one Profile, and nowhere
+ * else. Open to any punched-in Profile within FR-351's ownership rule — a
+ * member reorders their own column and no other (FR-389) — which is why this is
+ * `requireVerifiedActor()` and not `requireParent()`.
+ *
+ * **A chore is refused outright.** FR-311 forbids reordering chores at all and
+ * their order is a fixed rule of the READ (`lib/family/tasks/layout.ts`), so
+ * there is no stored place for a drop to change and accepting one would write a
+ * number nothing reads.
+ *
+ * Where the drop lands is `lib/family/tasks/reorder.ts` — the same pure reducer
+ * the column drag and both keyboard paths go through — so ONE
+ * `task_assignees.sort_order` is written per drop and the list is respaced only
+ * when the midpoint has finally run out of room (R321).
+ */
+export async function moveRoutine(input: {
+  taskId: string;
+  profileId: string;
+  previousTaskId: string | null;
+  nextTaskId: string | null;
+}): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const actor = await requireVerifiedActor();
+    const parsed = parseOrThrow(moveRoutineSchema, input);
+    const task = await loadTask(actor.householdId, parsed.taskId);
+    if (!task.routine) {
+      throw new ActionFailure("VALIDATION", CHORES_DO_NOT_REORDER, {
+        taskId: [CHORES_DO_NOT_REORDER],
+      });
+    }
+    await assertMayResolve(
+      actor,
+      { upForGrabs: false, assigneeId: parsed.profileId },
+      actor.householdId,
+    );
+
+    const rows = await profileRoutines(actor.householdId, parsed.profileId);
+    const fromIndex = rows.findIndex((row) => row.id === parsed.taskId);
+    // Assigned to somebody else, or to nobody: there is no place of this
+    // routine in THIS column to move.
+    if (fromIndex === -1) throw new ActionFailure("NOT_FOUND");
+
+    const move = reorderList({
+      items: rows,
+      fromIndex,
+      toIndex: routineDropIndexOf(rows, rows[fromIndex], parsed),
+    });
+    // Dropped where it already was: nothing is written, and saying so is a
+    // success rather than a refusal.
+    if (move !== null) await writeRoutineOrder(actor, parsed.profileId, move.writes);
+
+    await touchActor(actor);
+    return null;
+  });
 }
 
 /* ------------------------------------------------------------------------- *

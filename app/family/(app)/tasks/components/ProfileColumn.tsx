@@ -4,10 +4,12 @@ import { useCallback, useMemo, type CSSProperties } from "react";
 
 import { profileVars } from "@/lib/family/colors";
 import { columnCountersOf, routineProgressOf } from "@/lib/family/tasks/counters";
+import { sectionsOf } from "@/lib/family/tasks/layout";
 import type { BoardOccurrence, Category } from "@/lib/family/types";
 
 import { ColumnHeader } from "./ColumnHeader";
 import { ColumnBody } from "./SectionGroup";
+import { useRoutineReorder, type RoutineMove } from "./useColumnReorder";
 import type { TaskSectionKey, SectionToggles } from "./useSectionToggles";
 
 /**
@@ -51,6 +53,15 @@ export interface ProfileColumnProps {
   photoUrl?: string;
   /** `occurrenceKeyOf` of the occurrence whose write is in flight (FR-393). */
   busyKey?: string | null;
+  /** FR-309: this column's NAME is the board's drag handle (parents only). */
+  reorderable?: boolean;
+  /**
+   * FR-310 / FR-389: this person may reorder THIS column's routines — a parent
+   * anywhere, a member in their own column. Without a handler nothing is
+   * draggable, so the two are asked for together.
+   */
+  onMoveRoutine?: (profileId: string, move: RoutineMove) => void;
+  canReorderRoutines?: boolean;
   onOpen: (occurrence: BoardOccurrence) => void;
   onResolve: (occurrence: BoardOccurrence) => void;
 }
@@ -63,12 +74,33 @@ export function ProfileColumn({
   onToggleSection,
   photoUrl,
   busyKey,
+  reorderable = false,
+  onMoveRoutine,
+  canReorderRoutines = false,
   onOpen,
   onResolve,
 }: ProfileColumnProps) {
   const counters = useMemo(
     () => columnCountersOf(allOccurrences, category.id),
     [allOccurrences, category.id],
+  );
+
+  // FR-310's three lists. The split is the SAME pure `sectionsOf` the body
+  // renders from, so a routine is carried within exactly the section it is
+  // drawn in — and Chores is never handed a binding at all (FR-311).
+  const sections = useMemo(() => sectionsOf(occurrences), [occurrences]);
+  const onMove = useCallback(
+    (move: RoutineMove) => onMoveRoutine?.(category.id, move),
+    [onMoveRoutine, category.id],
+  );
+  const routines = useRoutineReorder(
+    sections,
+    canReorderRoutines && onMoveRoutine !== undefined,
+    onMove,
+  );
+  const reorderFor = useCallback(
+    (section: TaskSectionKey) => (section === "chores" ? null : routines[section]),
+    [routines],
   );
 
   // FR-312 from the same unfiltered list as the column's own count, so a
@@ -83,6 +115,10 @@ export function ProfileColumn({
     <section
       aria-label={category.label}
       data-column={category.id}
+      // FR-309: the row the board's own column drag counts positions by. Up for
+      // Grabs deliberately does not carry it — it is not a Profile, it has no
+      // household order, and it is always first (FR-396).
+      data-reorder-row={category.id}
       style={profileVars(category.color) as CSSProperties}
       className="fam-profile flex h-full min-h-0 w-full min-w-0 flex-col gap-(--fam-task-col-gap)"
     >
@@ -92,12 +128,14 @@ export function ProfileColumn({
         toggles={toggles}
         onToggleSection={onToggleSection}
         photoUrl={photoUrl}
+        reorderable={reorderable}
       />
       <ColumnBody
         occurrences={occurrences}
         toggles={toggles}
         accent={category.color}
         emptyLabel={`Nothing for ${category.label} today`}
+        reorderFor={reorderFor}
         progressOf={progressOf}
         busyKey={busyKey}
         onOpen={onOpen}

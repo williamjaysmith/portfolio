@@ -6,6 +6,7 @@ import { sectionsOf } from "@/lib/family/tasks/layout";
 import type { BoardOccurrence } from "@/lib/family/types";
 
 import { TaskCard, occurrenceKeyOf } from "./TaskCard";
+import { previewed, type ListReorder } from "./useColumnReorder";
 import type { TaskSectionKey } from "./useSectionToggles";
 
 /**
@@ -66,6 +67,12 @@ export interface SectionGroupProps extends TaskCardHandlers {
   occurrences: readonly BoardOccurrence[];
   /** The column's Profile accent; `null` in Up for Grabs (FR-308). */
   accent: PaletteColor | null;
+  /**
+   * FR-310: press-and-hold reordering, for a time-of-day section of a Profile's
+   * column. Absent everywhere else — on Chores, because FR-311 forbids
+   * reordering chores at all, and in Up for Grabs, which is nobody's column.
+   */
+  reorder?: ListReorder | null;
 }
 
 /**
@@ -77,12 +84,18 @@ export function SectionGroup({
   section,
   occurrences,
   accent,
+  reorder = null,
   progressOf,
   busyKey,
   onOpen,
   onResolve,
 }: SectionGroupProps) {
-  if (occurrences.length === 0) return null;
+  // The order to PAINT while a routine is being carried: the drop's preview,
+  // and the stored order whenever nothing is in flight (R321). A section holds
+  // one occurrence per routine, so the TASK id identifies a row here — and it
+  // is the id `moveRoutine` names its neighbours by.
+  const drawn = previewed(occurrences, reorder?.order ?? null, (one) => one.taskId);
+  if (drawn.length === 0) return null;
 
   return (
     <section
@@ -93,8 +106,14 @@ export function SectionGroup({
       <h3 className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)">
         {SECTION_LABELS[section]}
       </h3>
-      <ul className="flex list-none flex-col gap-(--fam-task-section-gap)">
-        {occurrences.map((occurrence) => {
+      {/* A carried routine must follow the finger rather than scrolling the
+          column it is being carried up and down. */}
+      <ul
+        {...(reorder?.containerProps ?? {})}
+        style={reorder?.active === true ? { touchAction: "none" } : undefined}
+        className="flex list-none flex-col gap-(--fam-task-section-gap)"
+      >
+        {drawn.map((occurrence) => {
           const key = occurrenceKeyOf(occurrence);
           return (
             <TaskCard
@@ -109,6 +128,11 @@ export function SectionGroup({
           );
         })}
       </ul>
+      {reorder === null ? null : (
+        <p role="status" aria-live="polite" className="sr-only">
+          {reorder.announcement}
+        </p>
+      )}
     </section>
   );
 }
@@ -120,6 +144,8 @@ export interface ColumnBodyProps extends TaskCardHandlers {
   accent: PaletteColor | null;
   /** FR-316: what a column with nothing in it says instead of vanishing. */
   emptyLabel: string;
+  /** FR-310's binding for a section, or `null` for one that does not reorder. */
+  reorderFor?: (section: TaskSectionKey) => ListReorder | null;
 }
 
 /**
@@ -135,6 +161,7 @@ export function ColumnBody({
   toggles,
   accent,
   emptyLabel,
+  reorderFor,
   progressOf,
   busyKey,
   onOpen,
@@ -157,6 +184,7 @@ export function ColumnBody({
               section={section}
               occurrences={sections[section]}
               accent={accent}
+              reorder={reorderFor?.(section) ?? null}
               progressOf={progressOf}
               busyKey={busyKey}
               onOpen={onOpen}

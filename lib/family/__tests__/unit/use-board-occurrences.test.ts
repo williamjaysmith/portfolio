@@ -11,12 +11,27 @@ import {
   useTasks,
 } from "@/lib/family/queries";
 import { expandTaskDay } from "@/lib/family/tasks/expand";
-import type { Task, TaskAssignee, TaskCursor, TaskResolution } from "@/lib/family/types";
+import { visibleTaskOccurrences } from "@/lib/family/tasks/visibility";
+import type {
+  Task,
+  TaskAssignee,
+  TaskCursor,
+  TaskFilters,
+  TaskResolution,
+} from "@/lib/family/types";
 
+import {
+  resetDeviceVisibility,
+  useDeviceVisibility,
+} from "@/app/family/(app)/components/useDeviceVisibility";
 import {
   useBoardOccurrences,
   type UseBoardOccurrencesOptions,
 } from "@/app/family/(app)/tasks/components/useBoardOccurrences";
+import {
+  resetTaskFilters,
+  useTaskFilters,
+} from "@/app/family/(app)/tasks/components/useTaskFilters";
 
 /**
  * T039 / R317: the board's one data path, as memo layers that invalidate
@@ -24,12 +39,13 @@ import {
  * BRANCH, with the counters hanging off the unfiltered occurrence list and
  * everything a filter can touch below it.
  *
- * The four queries are mocked; expansion and the counters run for real. The
- * standing assertion that no filter and no search query can move a number
- * lands at T068, which is the first point at which there is a switch to toggle
- * — until then `tasks-counters.test.ts` carries it at the pure-function level.
- * What is asserted here is that the counters are computed from a list no
- * caller is ever handed, so there is nothing to pass the filtered one to.
+ * The four queries are mocked; expansion, the counters and the filter rule all
+ * run for real. T068 closes the loop: the two per-device stores and the search
+ * `query` now have something to move, so the standing assertion lands here —
+ * toggling any switch, hiding any Profile or typing any string re-runs ONE
+ * memo, the filter layer, and cannot reach the counters at all (FR-384,
+ * FR-386, SC-310, SC-320). It holds because of where the branch is, not
+ * because anything remembered to check.
  */
 
 vi.mock("@/lib/family/queries", async (importOriginal) => {
@@ -47,6 +63,18 @@ vi.mock("@/lib/family/queries", async (importOriginal) => {
 vi.mock("@/lib/family/tasks/expand", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/family/tasks/expand")>();
   return { ...actual, expandTaskDay: vi.fn(actual.expandTaskDay) };
+});
+
+vi.mock("@/lib/family/tasks/visibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/family/tasks/visibility")>();
+  return { ...actual, visibleTaskOccurrences: vi.fn(actual.visibleTaskOccurrences) };
+});
+
+/** Both per-device stores are module state; no case inherits another's. */
+beforeEach(() => {
+  localStorage.clear();
+  resetTaskFilters();
+  resetDeviceVisibility();
 });
 
 const HOUSEHOLD = "household-1";
@@ -180,6 +208,18 @@ function optionsOf(
   };
 }
 
+/** Move one of the four switches, from outside the board, as the sheet does. */
+function setSwitch(key: keyof TaskFilters, on: boolean): void {
+  const { result } = renderHook(() => useTaskFilters());
+  act(() => result.current.setFilter(key, on));
+}
+
+/** Hide one Profile in the shipped per-device category store (FR-383). */
+function hideProfile(id: string): void {
+  const { result } = renderHook(() => useDeviceVisibility());
+  act(() => result.current.setHidden(id, true));
+}
+
 function renderBoard(initialProps: UseBoardOccurrencesOptions) {
   const queryClient = new QueryClient();
   const wrapper = ({ children }: { children: ReactNode }) =>
@@ -305,17 +345,140 @@ describe("useBoardOccurrences — the memo chain", () => {
     expect(result.current.occurrences).not.toBe(first);
   });
 
-  it("draws the day's occurrences, skipped ones included (FR-361 hides them, not this)", () => {
+  it("draws the day's occurrences, less what the Skipped switch hides (FR-361)", () => {
     const { result } = renderBoard(optionsOf());
 
-    expect(
-      result.current.occurrences.map((one) => [one.taskId, one.slot, one.state]),
-    ).toEqual([
+    // The expander still produced the skipped chore (R315); the filter layer,
+    // whose Skipped switch starts OFF, is what leaves it off the board.
+    expect(result.current.occurrences.map((one) => [one.taskId, one.slot, one.state])).toEqual([
+      [ROUTINE, "morning", "complete"],
+      [ROUTINE, "evening", "unresolved"],
+      [GRABS, null, "unresolved"],
+    ]);
+    const [expanded] = vi.mocked(visibleTaskOccurrences).mock.calls[0];
+    expect(expanded.map((one) => one.taskId)).toContain(CHORE);
+  });
+
+  it("reveals the skipped one, and only it, when the switch goes on (US3-6)", () => {
+    const { result } = renderBoard(optionsOf());
+    setSwitch("skipped", true);
+
+    expect(result.current.occurrences.map((one) => [one.taskId, one.slot, one.state])).toEqual([
       [ROUTINE, "morning", "complete"],
       [ROUTINE, "evening", "unresolved"],
       [CHORE, null, "skipped"],
       [GRABS, null, "unresolved"],
     ]);
+  });
+});
+
+/**
+ * T068 — the standing assertion. The filter layer sits BELOW the counter
+ * branch, so every one of these cases proves the same structural fact twice:
+ * the drawn list moved, and the numbers did not.
+ */
+describe("useBoardOccurrences — the filter layer, below the counters (T068)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubReads();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reads both per-device stores and the query as ONE call (R319)", () => {
+    setSwitch("skipped", true);
+    hideProfile(BEN);
+    renderBoard(optionsOf({ query: "brush" }));
+
+    expect(vi.mocked(visibleTaskOccurrences)).toHaveBeenCalledTimes(1);
+    const [, hiddenIds, filters, query] = vi.mocked(visibleTaskOccurrences).mock.calls[0];
+    expect([...hiddenIds]).toEqual([BEN]);
+    expect(filters).toEqual({ completed: true, late: true, skipped: true, upForGrabs: true });
+    expect(query).toBe("brush");
+  });
+
+  it("treats an unsupplied query as no query at all", () => {
+    renderBoard(optionsOf());
+
+    expect(vi.mocked(visibleTaskOccurrences).mock.calls[0][3]).toBe("");
+  });
+
+  it("re-runs one memo on a switch, and cannot reach the counters (FR-384, SC-310)", () => {
+    const { result } = renderBoard(optionsOf());
+    const counters = result.current.counters;
+    const expansions = vi.mocked(expandTaskDay).mock.calls.length;
+
+    setSwitch("completed", false);
+
+    expect(result.current.occurrences.map((one) => one.state)).toEqual([
+      "unresolved",
+      "unresolved",
+    ]);
+    expect(vi.mocked(expandTaskDay).mock.calls.length).toBe(expansions);
+    expect(result.current.counters).toBe(counters);
+    expect(result.current.counters.column(ANA)).toEqual({ complete: 1, total: 2 });
+    expect(result.current.counters.upForGrabs).toBe(1);
+  });
+
+  it("re-runs one memo on a typed query, and cannot reach the counters (FR-386, SC-320)", () => {
+    const { result, rerender } = renderBoard(optionsOf());
+    const counters = result.current.counters;
+    const expansions = vi.mocked(expandTaskDay).mock.calls.length;
+
+    rerender(optionsOf({ query: "cat" }));
+
+    // Search reaches every column, Up for Grabs included, and finds it there.
+    expect(result.current.occurrences.map((one) => one.taskId)).toEqual([GRABS]);
+    expect(vi.mocked(expandTaskDay).mock.calls.length).toBe(expansions);
+    expect(result.current.counters).toBe(counters);
+    expect(result.current.counters.column(ANA)).toEqual({ complete: 1, total: 2 });
+    expect(result.current.counters.upForGrabs).toBe(1);
+  });
+
+  it("re-runs one memo when a Profile is hidden, and cannot reach the counters", () => {
+    const { result } = renderBoard(optionsOf());
+    const counters = result.current.counters;
+
+    hideProfile(ANA);
+
+    expect(result.current.occurrences.map((one) => one.taskId)).toEqual([GRABS]);
+    expect(result.current.counters).toBe(counters);
+    expect(result.current.counters.column(ANA)).toEqual({ complete: 1, total: 2 });
+  });
+
+  it("hides the Up for Grabs column's cards without moving its count (FR-308)", () => {
+    const { result } = renderBoard(optionsOf());
+
+    setSwitch("upForGrabs", false);
+
+    expect(result.current.occurrences.map((one) => one.taskId)).toEqual([ROUTINE, ROUTINE]);
+    expect(result.current.counters.upForGrabs).toBe(1);
+  });
+
+  it("clears every filter back to the whole day from one Show all", () => {
+    const { result } = renderBoard(optionsOf());
+    setSwitch("completed", false);
+
+    const { result: store } = renderHook(() => useTaskFilters());
+    act(() => store.current.showAll());
+
+    expect(result.current.occurrences.map((one) => one.taskId)).toEqual([
+      ROUTINE,
+      ROUTINE,
+      CHORE,
+      GRABS,
+    ]);
+  });
+
+  it("keeps the filtered list's identity while nothing filterable changes", () => {
+    const { result, rerender } = renderBoard(optionsOf());
+    const first = result.current.occurrences;
+
+    rerender(optionsOf());
+
+    expect(result.current.occurrences).toBe(first);
   });
 });
 
@@ -355,17 +518,29 @@ describe("useBoardOccurrences — the counters branch (R317, FR-305)", () => {
     expect(result.current.counters.upForGrabs).toBe(1);
   });
 
-  it("hands no caller a list the counters were not computed from", () => {
-    // R317 as a shape: the counters are closures over the unfiltered list, and
-    // the only list the board can render is the one below the filter layer, so
-    // "pass the filtered list to the counters" is not a mistake anyone can make.
-    const { result } = renderBoard(optionsOf());
+  it("names the two lists apart, so neither can be mistaken for the other", () => {
+    // R317 as a shape. The drawn slice and the whole day are BOTH returned,
+    // because the columns own numbers this hook cannot pre-compute for them —
+    // FR-305's ring and FR-312's indicator are per Profile, FR-308's count is
+    // the Up for Grabs column's — and the only defence against one of them
+    // counting the filtered list is that the filtered list is not called
+    // "all". `TasksBoard.test.tsx` holds the standing board-level assertion
+    // that no number moves under a filter or a query.
+    const { result } = renderBoard(optionsOf({ query: "cat" }));
 
     expect(Object.keys(result.current)).toEqual([
       "occurrences",
+      "allOccurrences",
       "counters",
       "isPending",
       "error",
+    ]);
+    expect(result.current.occurrences.map((one) => one.taskId)).toEqual([GRABS]);
+    expect(result.current.allOccurrences.map((one) => one.taskId)).toEqual([
+      ROUTINE,
+      ROUTINE,
+      CHORE,
+      GRABS,
     ]);
     expect(typeof result.current.counters.column).toBe("function");
   });
