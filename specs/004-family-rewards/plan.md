@@ -141,6 +141,7 @@ app/family/
 ├── tokens.css                       # (+) reward card, bar, modal, sprite tokens [ESTIMATED]; chip reuses badge tokens
 └── (app)/
     ├── components/
+    │   ├── BoardStrip.tsx           # (~) moved out of TasksBoard.tsx and exported — the grid both boards mount
     │   ├── nav.ts                   # (~) rewards: showsChipRow false
     │   ├── useFamilyRealtime.ts     # (~) + four tables
     │   ├── settings/DeleteDialog.tsx# (~) the forfeited-stars sentence
@@ -202,6 +203,8 @@ in the same commit — a move inside one sub-app, no §I question.
 | The week verdict is judged from an incomplete previous week | The neighbour-week prefetch already warms it; the judgement waits for the previous week's read to settle and is remembered per device so it is never shown twice or lost |
 | Deploy before push takes the channel down | Phase 3's ordering rule, restated in quickstart §4 and the tasks file |
 | The two per-device stores trip `fallow:dupes` | Extract `useDeviceSwitches` the moment it is flagged; never a threshold lift |
+| `deleteCategory`'s second cleanup (rewards left for nobody) is a second statement | Phase 3's posture, restated: a crash between the cascade and the cleanup leaves a reward card in no column — retained, not lost, and repairable by re-running the cleanup; a `SECURITY DEFINER` function would be the fix if it ever bites (R405) |
+| A cascade delete fires the retraction trigger | The trigger writes only while the task and the credited Profile still exist (data-model §025, invariant 4b); the policies suite asserts a task delete keeps the credit and a Profile delete succeeds |
 
 ## Progress
 

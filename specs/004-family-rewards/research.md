@@ -33,9 +33,12 @@ Phase 3's research (R301–R326) remains in force. Where a decision below **narr
 `family.task_resolutions` and its retraction rows from a **BEFORE DELETE** trigger on the same
 table. A `complete` resolution whose task carries a positive `reward_points` and whose
 `category_id` is not null writes one `credit` entry (amount = the task's value **at that moment**,
-FR-409; `occurrence_date` = the resolution's `resolved_on` — the day it was ticked, so a late
+FR-409; `earned_on` = the resolution's `resolved_on` — the day it was ticked, so a late
 chore earns today, FR-405; `resolution_id` = the row's id, no FK). Deleting that resolution writes one
-`retraction` entry (amount = −credit) if a credit exists for it and no retraction yet. A `skipped`
+`retraction` entry (amount = −credit) if a credit exists for it, no retraction yet, **and the task
+and the credited Profile still exist** — a cascade from a task's or a Profile's deletion writes
+none (FR-411, FR-443), so a deliberate delete of one resolution (an un-tick, or "this occurrence"
+on a completed one) is the only thing that retracts. A `skipped`
 resolution writes nothing; a `complete` one with no credited Profile (impossible under
 `task_resolution_credit_shape`, but stated) writes nothing.
 
@@ -62,7 +65,7 @@ same reasons R310 gives, and a trigger keeps the action's contract as one statem
 `category_id`, `household_id`, `balance = coalesce(sum(amount), 0)`. The Rewards tab reads it;
 every progress bar and Redeem button is `balance` against `rewards.point_value` (FR-420). The
 Tasks column's star pill (FR-407) is **not** the view: the board fetches `star_entries` windowed by
-`occurrence_date` for the anchored week — the same shape and key discipline as `taskWeek` — and
+`earned_on` for the anchored week — the same shape and key discipline as `taskWeek` — and
 sums the displayed day's rows per Profile in the memo chain, above the display filters, beside the
 counters (R317's branch).
 
@@ -167,7 +170,7 @@ component of its own (a second badge geometry to keep in step with the first).
 
 ## R407 — Reads: four cached keys, one of them windowed
 
-**Decision**: `familyKeys.starWeek(householdId, weekStartDate)` — entries with `occurrence_date`
+**Decision**: `familyKeys.starWeek(householdId, weekStartDate)` — entries with `earned_on`
 in the anchored week (credits and retractions only carry one), seeded by `page.tsx` beside
 `taskWeek`; `familyKeys.balances(householdId)` — the view; `familyKeys.rewards(householdId)` —
 rewards with their eligibilities embedded; `familyKeys.redemptions(householdId)` — every

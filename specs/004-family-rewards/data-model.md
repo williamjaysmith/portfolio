@@ -3,8 +3,8 @@
 **Feature**: `004-family-rewards` | **Date**: 2026-09-05
 
 What Phase 4 adds to the `family` schema: **four tables** (`rewards`, `reward_eligibilities`,
-`star_entries`, `redemptions`), **one view** (`family.star_balances`, `security_invoker`), **five
-trigger functions**, and the publication entries that put the four tables on the existing
+`star_entries`, `redemptions`), **one view** (`family.star_balances`, `security_invoker`), **six
+trigger functions and one helper** (`household_today`), and the publication entries that put the four tables on the existing
 live-update channel. **No shipped table changes shape.** `tasks.reward_points` and
 `task_box_items.reward_points` already exist (017, 021) with their `>= 0` CHECK; Phase 4 reads and
 writes them and bounds them to 0–500 in validation (spec Assumption 4).
@@ -181,10 +181,10 @@ create table if not exists family.star_entries (
   category_id     uuid not null,
   amount          integer not null check (amount <> 0),
   kind            text not null check (kind in ('credit', 'retraction', 'redemption', 'refund', 'adjustment')),
-  -- The household day the credit was EARNED — the resolution's `resolved_on`, which for a late
+  -- The household day the stars were EARNED — the resolution's `resolved_on`, which for a late
   -- chore is the day it was ticked, not the day it was due (FR-405, the spec's late-chore edge
   -- case; 003 FR-354). What FR-407's pill sums. Null on the three kinds that have no occurrence.
-  occurrence_date date,
+  earned_on date,
   -- Loose references (no FK): history survives the deletion of what it was for (FR-411, FR-421).
   resolution_id   uuid,
   redemption_id   uuid,
@@ -197,9 +197,9 @@ create table if not exists family.star_entries (
   constraint star_entries_category_fk foreign key (category_id, household_id)
     references family.categories (id, household_id) on delete cascade,
   constraint star_entry_kind_shape check (
-    (kind in ('credit', 'retraction') and occurrence_date is not null and resolution_id is not null and redemption_id is null)
-    or (kind in ('redemption', 'refund') and redemption_id is not null and resolution_id is null and occurrence_date is null)
-    or (kind = 'adjustment' and resolution_id is null and redemption_id is null and occurrence_date is null)
+    (kind in ('credit', 'retraction') and earned_on is not null and resolution_id is not null and redemption_id is null)
+    or (kind in ('redemption', 'refund') and redemption_id is not null and resolution_id is null and earned_on is null)
+    or (kind = 'adjustment' and resolution_id is null and redemption_id is null and earned_on is null)
   ),
   constraint star_entry_sign_shape check (
     (kind in ('credit', 'refund') and amount > 0)
@@ -210,8 +210,8 @@ create table if not exists family.star_entries (
 
 -- The balance (one sum per Profile) and the day window (the board's pill) are the two reads.
 create index if not exists star_entries_balance_idx on family.star_entries (household_id, category_id);
-create index if not exists star_entries_day_idx on family.star_entries (household_id, occurrence_date)
-  where occurrence_date is not null;
+create index if not exists star_entries_day_idx on family.star_entries (household_id, earned_on)
+  where earned_on is not null;
 -- One credit and one retraction per resolution, at most (SC-402 by index, not by care taken).
 create unique index if not exists star_entries_credit_once_idx on family.star_entries (resolution_id)
   where kind = 'credit';
@@ -252,7 +252,7 @@ begin
     from family.tasks t where t.id = new.task_id and t.household_id = new.household_id;
   if v_points is null or v_points <= 0 then return new; end if;
   insert into family.star_entries
-    (household_id, category_id, amount, kind, occurrence_date, resolution_id, summary, created_by, entered_on)
+    (household_id, category_id, amount, kind, earned_on, resolution_id, summary, created_by, entered_on)
   values
     (new.household_id, new.category_id, v_points, 'credit',
      new.resolved_on, new.id, v_summary, new.created_by,
@@ -269,6 +269,14 @@ create trigger task_resolution_credits_stars
 -- R401: an un-tick retracts exactly what the credit gave, as a second entry, even below zero
 -- (Assumption 5). BEFORE delete so the row is still there to read; the partial unique index above
 -- makes a second retraction impossible rather than merely unlikely.
+--
+-- An un-tick, NOT a cascade. The resolution also goes when its task is deleted (019's task FK) or
+-- when the credited Profile is deleted (019's assignee FK), and neither is an un-tick: a deleted
+-- task's stars stay earned (FR-411) and a deleted Profile's stars go with them by their own
+-- cascade on star_entries (FR-443) — an insert for a Profile mid-deletion would fail its FK and
+-- block the deletion. So the retraction is written only while the task AND the credited Profile
+-- still exist, which is exactly the shape of a deliberate delete of one resolution: an un-tick,
+-- or `deleteTask`'s "this occurrence" on a completed occurrence, which retracts like one.
 create or replace function family.retract_task_resolution()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare v_credit family.star_entries%rowtype;
@@ -276,14 +284,18 @@ begin
   select * into v_credit from family.star_entries
    where resolution_id = old.id and kind = 'credit';
   if not found then return old; end if;
+  if not exists (select 1 from family.tasks where id = old.task_id and household_id = old.household_id)
+     or not exists (select 1 from family.categories where id = v_credit.category_id and household_id = old.household_id) then
+    return old;   -- a cascade: the stars stay (task) or go with the Profile (category), never retracted
+  end if;
   if exists (select 1 from family.star_entries where resolution_id = old.id and kind = 'retraction') then
     return old;
   end if;
   insert into family.star_entries
-    (household_id, category_id, amount, kind, occurrence_date, resolution_id, summary, created_by, entered_on)
+    (household_id, category_id, amount, kind, earned_on, resolution_id, summary, created_by, entered_on)
   values
     (v_credit.household_id, v_credit.category_id, -v_credit.amount, 'retraction',
-     v_credit.occurrence_date, old.id, v_credit.summary, null, family.household_today(old.household_id));
+     v_credit.earned_on, old.id, v_credit.summary, null, family.household_today(old.household_id));
   return old;
 end $$;
 revoke all on function family.retract_task_resolution() from public;
@@ -476,7 +488,7 @@ reward's name must not travel in a DELETE payload, the same rule as a deleted ta
 
 | Read | Key | Shape | Why this window |
 |---|---|---|---|
-| `star_entries` for the anchored week | `familyKeys.starWeek(h, weekStart)` | `where occurrence_date between … ` — credits and retractions only, dated by the day they were earned | FR-407's pill is the displayed day's net; the week window is `taskWeek`'s, so stepping inside a week costs nothing (R314) |
+| `star_entries` for the anchored week | `familyKeys.starWeek(h, weekStart)` | `where earned_on between … ` — credits and retractions only, dated by the day they were earned | FR-407's pill is the displayed day's net; the week window is `taskWeek`'s, so stepping inside a week costs nothing (R314) |
 | `star_balances` | `familyKeys.balances(h)` | one row per Profile | every bar, button and header on the Rewards tab; the delete dialog's forfeited count |
 | `rewards` + `reward_eligibilities` embed | `familyKeys.rewards(h)` | definitions, unwindowed | the tab's cards; the eligibility list on the details |
 | `redemptions` | `familyKeys.redemptions(h)` | all, standing and reversed, ordered by `redeemed_at desc` | standing ones decide a one-time reward's muted card; the Redeemed switch shows them |
@@ -493,6 +505,9 @@ reward's name must not travel in a DELETE payload, the same rule as a deleted ta
 3. **A credit's amount is the task's value at the moment of the completion** — read inside the
    trigger, never afterwards (FR-409).
 4. **An adjustment never overdraws; a retraction may** (FR-436, Assumption 5) — enforced by kind.
+4b. **A retraction is written only for a deliberate delete of one resolution** — an un-tick, or a
+   "this occurrence" delete of a completed occurrence; a cascade from a task's or a Profile's
+   deletion writes none (FR-411, FR-443).
 5. **A redemption's cost is the reward's stored cost at the moment of the write**, copied by the
    trigger, never accepted from the caller (FR-428).
 6. **One standing redemption per (one-time reward, Profile)**; any number for a renewing one.
