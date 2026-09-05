@@ -103,6 +103,14 @@ the Label "Bin day") are unchanged — the Label is seeded precisely so US2-6 ca
 
 ## 4. Hosted project — operator steps
 
+> **State on 2026-09-04**: steps 1 and 2 were run from the dev machine with the logged-in CLI
+> (`supabase db query --linked`) — PG **17.0006** (`ok = true`), the `rrule` audit returned **zero
+> rows** (the live table holds one event, none repeating), and the constraint 023 will replace is
+> `events_rrule_check`. Migration 023 was then written and proved locally. Step 3's push was
+> **not** run: the session's tool permissions refused it, so it starts here. A dry run lists
+> exactly 017–023.
+
+
 Everything here needs `SUPABASE_ACCESS_TOKEN` or the Dashboard. Expected total: **check, check,
 push, check, check, confirm** — there is no new Dashboard configuration in this phase.
 

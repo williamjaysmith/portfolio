@@ -7,6 +7,24 @@
 
 **Organization**: Grouped by user story, in the spec's priority order, so each story is an independently verifiable increment. Setup and Foundational block every story; then US1 → US2 → US3 → US4, each reading state the previous one creates.
 
+> **Handover (2026-09-04, end of the autonomous run).** T001–T083 are done and committed on
+> `003-family-tasks` (last commit `2aae6a1`), every gate green. **What is left is T084 and the merge,
+> and both are the operator's hand**: the hosted `supabase db push` was attempted from this session
+> and refused by the tool permission layer, so it was not run. The CLI is logged in and linked;
+> T081's two read-only checks already passed on the hosted project (PG 17.0006; zero rows outside the
+> grammar; the constraint to be replaced is `events_rrule_check`); a dry run lists exactly
+> 017–023. The order that keeps the live calendar safe is unchanged:
+>
+> ```bash
+> supabase db push --linked          # 017–023, each file in its own transaction
+> # then quickstart §4.4–§4.7 in the SQL editor (privileges, task_cursors reloptions,
+> # the publication's four new tables, the timezone, 8 routines + 9 chores)
+> git checkout main && git merge --no-ff 003-family-tasks && git push   # Vercel deploys
+> ```
+>
+> Then the device passes in T084 (wall tablet, iPad press-and-hold feel and portrait wrap,
+> phone swipe, the overnight SC-314 watch) and tick T084/T085.
+
 **Phases 1 and 2 are shipped and live.** Nothing here forks them. Migration **022** widens a CHECK that live calendar events depend on, and it is sequenced **last in the whole phase** (T082) — after the interval-1 equivalence sweep (T015), the stored-corpus round-trip against an untouched schema (T016) and the operator's read-only hosted pre-check (T081). It unblocks nothing: the shipped constraint never mentioned `INTERVAL`, so the database already accepts `INTERVAL=2` (R305, data-model §023).
 
 **Rewards ship in a later phase.** Two reserved `reward_points` columns exist (016, 020) and **no task in this list reads, renders, edits or totals a star value**. T080 audits that (SC-319), locally and ahead of the operator block.
