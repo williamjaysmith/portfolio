@@ -218,8 +218,9 @@ one token row. Nothing leaves the sub-app.
 - [x] Constitution check — pass, before and after design, no deviation claimed
 - [x] Phase 1 — design complete: [data-model.md](./data-model.md) (030–033 in SQL, invariants, the privilege delta), [contracts/server-actions.md](./contracts/server-actions.md) (eight actions, the read path, the error contract), [quickstart.md](./quickstart.md)
 - [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 62 tasks, test-first, the three generalisations first)
-- [ ] Phase 3 — implementation per the phasing table above
+- [x] Phase 3 — implementation complete and deployed 2026-09-06; only T062, the operator's device pass, is outstanding
   - [x] Setup + Foundational (T001–T029, 2026-09-06): 030–033 applied locally; the three generalisations (`ScopeDialog` with its noun, `RepeatFieldset`, `ConfirmDialog`) plus `FormDialog`, `useSheetForm`, `createDeviceKeySet`; `lib/family/meals/*`, `actions/meals.ts`, `addListItems`; 42 policies tests and the unit suites green
   - [x] US1–US6 (T030–T055, 2026-09-06): the grid and its mealtimes, planning with the popover and the scope step, the recipes pane with its form and two-way delete, Add to List, repeats, and the calendar's token row behind the Filter sheet's Show Meals — the meal surfaces are one model (`useMealSurfaceModel` / `MealSurfaces`) mounted by both the tab and the Week calendar
   - [x] Polish T056–T060 (2026-09-06): seed re-verified on a fresh reset; the three-lens review (12 findings, all fixed red-then-green in `9c1e622`); the hand walk at four viewports — [checklists/quickstart-run.md](./checklists/quickstart-run.md)
-  - [ ] T061 hosted push → merge → deploy; T062 the operator's device pass
+  - [x] T061 hosted push → merge → deploy (2026-09-06): 030–033 pushed and checked, four mealtimes seeded, merged as `24ef96a`, Vercel green, `/family/meals` live
+  - [ ] T062 the operator's device pass (hardware, two devices, VoiceOver, airplane mode)

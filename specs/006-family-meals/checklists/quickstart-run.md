@@ -54,4 +54,26 @@ Not walked here: the two-device SC-606 check (the local realtime caveat from Pha
 
 ## Hosted (T061)
 
-_Recorded after the push:_ `supabase db push --linked` (030–033) → §4 checks → `npm run family:seed -- --yes` → four mealtimes → merge → deploy → live check.
+**Push**: `supabase db push --linked` applied 030, 031, 032, 033; `supabase migration list --linked` shows all four local/remote.
+
+**§4 checks**, against the hosted project:
+
+| Check | Result |
+|-------|--------|
+| Grants on the four tables | `authenticated`: SELECT only; `service_role`: full; **no `anon` grant** |
+| `seed_default_meal_categories`, `split_meal_series` | executable by `service_role` only; `anon` and `authenticated` refused |
+| Replica identity | `d` (default) on all four |
+| Realtime publication | all four in `supabase_realtime` |
+
+**Seed**: `npm run family:seed -- --yes` → "mealtimes 4 default mealtimes (seeded)"; the household kept its lists. The hosted household now has exactly Breakfast #A8D4D3 (1), Lunch #F66951 (2), Dinner #915EA1 (3), Snack #FDC36D (4), with 0 recipes and 0 meals — the fixture week is `--local` only.
+
+**Merge and deploy**: `006-family-meals` merged into `main` as `24ef96a` (no fast-forward) and pushed with the branch; Vercel's status for the commit settled green.
+
+**Live check**, a server-side sign-in with the household account then a GET with that session:
+
+| Page | Result |
+|------|--------|
+| `GET /family/meals` | `200`, title "Meals · Family"; the HTML carries Breakfast, Lunch, Dinner and Snack and the **Recipes** and **Categories** controls; no "Coming soon" |
+| `GET /family/calendar` | `200`, title "Calendar · Family"; the mealtime reads are in the first paint; no token row, since nothing is planned on hosted yet |
+
+The two-device realtime check (SC-606) and the rest of the device pass (SC-602–SC-605, SC-610, SC-612, SC-608) are T062, the operator's, on hardware.
