@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { weekdayOfDate } from "@/lib/family/calendar/dates";
 import type { DietaryNote } from "@/lib/family/meals/dietary";
 import { activeRecipes } from "@/lib/family/meals/library";
 import { dayWordsOf } from "@/lib/family/meals/week";
@@ -55,7 +56,13 @@ export function MealSheet({ mode, categories, recipes, notes, onSubmit, onClose 
 
   const repeatForm = {
     draft,
-    setRepeatKind: (kind: RepeatKind) => set("repeatKind", kind),
+    // Weekly chosen bare pre-ticks the meal's own day, as the calendar's form does (FR-627).
+    setRepeatKind: (kind: RepeatKind) =>
+      update((current) => ({
+        ...current,
+        repeatKind: kind,
+        weekdays: kind === "weekly" && current.weekdays.length === 0 ? [weekdayOfDate(current.date)] : current.weekdays,
+      })),
     toggleWeekday: (day: Weekday) => update((current) => ({ ...current, weekdays: toggled([...current.weekdays], day) })),
     set: (key: "until", value: string) => set(key, value),
     errors: submission.errors,

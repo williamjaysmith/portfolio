@@ -100,11 +100,13 @@ describe("MealSheet — add", () => {
     const { props } = renderSheet();
     fireEvent.click(screen.getByRole("radio", { name: "🍝 Spaghetti" }));
     fireEvent.change(screen.getByRole("combobox", { name: "Repeats" }), { target: { value: "weekly" } });
+    // The slot is a Wednesday: weekly chosen bare pre-ticks it, as the calendar's form does.
+    expect(screen.getByRole("checkbox", { name: "Wednesday" })).toBeChecked();
     fireEvent.click(screen.getByRole("checkbox", { name: "Friday" }));
     fireEvent.change(screen.getByLabelText(/Repeats until/), { target: { value: "2026-12-31" } });
     submit();
     await vi.waitFor(() =>
-      expect(props.onSubmit).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ repeat: { kind: "weekly", weekdays: ["FR"], until: "2026-12-31" } }) })),
+      expect(props.onSubmit).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ repeat: { kind: "weekly", weekdays: ["WE", "FR"], until: "2026-12-31" } }) })),
     );
   });
 

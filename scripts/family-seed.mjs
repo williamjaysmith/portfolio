@@ -102,7 +102,8 @@ const FIXTURE_PROFILES = [
   // 002's example household (spec: Ana/Ben parents, Cleo child, Label "Bin day").
   { label: "Ana", role: "parent", color: "#915EA1", avatar: "cat" },
   { label: "Ben", role: "parent", color: "#2D8086", avatar: "owl" },
-  { label: "Cleo", role: "member", color: "#93D1E6", avatar: "frog" },
+  // 006 FR-638: one dietary note, so the planning sheets have something to show.
+  { label: "Cleo", role: "member", color: "#93D1E6", avatar: "frog", dietary: "no nuts" },
   { label: "Holidays", color: "#FDC36D", emoji: "🎉", isProfile: false },
   { label: "Bin day", color: "#408257", emoji: "🗑️", isProfile: false },
 ];
@@ -558,6 +559,8 @@ function normaliseProfile(spec, index) {
     avatar: optionalString(spec.avatar),
     emoji: optionalString(spec.emoji),
     birthday: optionalString(spec.birthday),
+    // Absent stays absent (not null): toRow only writes the column for a fixture that names a note.
+    dietary: typeof spec.dietary === "string" ? spec.dietary : undefined,
   };
 }
 
@@ -567,6 +570,8 @@ function toRow(spec) {
     color: spec.color,
     is_profile: spec.isProfile,
     role: spec.role,
+    // Only a fixture that names a note carries the column, so a re-seed never clears a note set in the app.
+    ...(spec.dietary === undefined ? {} : { dietary_prefs: spec.dietary }),
     avatar_kind: spec.avatar ? "illustration" : null,
     avatar_id: spec.avatar,
     emoji: spec.emoji,
