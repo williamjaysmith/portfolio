@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 
 /**
  * A press-and-hold that opens something (006 FR-623, R607): the reference's
@@ -58,6 +58,9 @@ export function useHoldPress(onHold: () => void): HoldPress {
     },
     [clear],
   );
+
+  // A cell unmounted mid-press (the week paged, the row hidden) must not fire its hold later.
+  useEffect(() => clear, [clear]);
 
   const consumeClick = useCallback(() => {
     const was = fired.current;

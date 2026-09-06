@@ -1,3 +1,4 @@
+import { addDays, diffDays } from "@/lib/family/calendar/dates";
 import { ActionFailure } from "@/lib/family/errors";
 import { mealRepeatChoiceOf } from "@/lib/family/meals/repeat";
 import type { Meal, MealOccurrence, MealScope, RecipeChoice, RepeatChoice, Weekday } from "@/lib/family/types";
@@ -122,10 +123,21 @@ function sameRepeat(a: RepeatChoice, b: RepeatChoice): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/**
+ * At scope `all` on a series, the date the person changed is one occurrence's:
+ * the series moves by the same delta from its own anchor, so every earlier
+ * occurrence survives — the calendar's `rebasedOnSeries` (FR-629). At the
+ * other scopes, and for a one-off, the new date is the date.
+ */
+function rebasedDate(date: string, mode: Extract<MealFormMode, { kind: "edit" }>): string {
+  if (mode.scope !== "all" || mode.meal.rrule === null) return date;
+  return addDays(mode.meal.date, diffDays(mode.occurrence.date, date));
+}
+
 /** Edit: only what changed (FR-626); at scope `this` the recipe and the repeat are not on offer (FR-630). */
 export function mealPatchOf(draft: MealDraft, mode: Extract<MealFormMode, { kind: "edit" }>): MealPatch {
   const patch: MealPatch = {};
-  if (draft.date !== mode.occurrence.date) patch.date = draft.date;
+  if (draft.date !== mode.occurrence.date) patch.date = rebasedDate(draft.date, mode);
   if (draft.categoryId !== mode.occurrence.categoryId) patch.categoryId = draft.categoryId;
   const note = parseOrThrow(mealNoteSchema, draft.note);
   if (note !== mode.occurrence.note) patch.note = note;

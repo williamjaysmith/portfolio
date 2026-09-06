@@ -40,13 +40,6 @@ export function weekLabelOf(dates: readonly string[]): string {
   return `${first.day}–${last.day} ${first.month}`;
 }
 
-/** The page of `perRow` whole days the chassis shows (FR-603) — never past the week's end. */
-export function visibleSliceOf(dates: readonly string[], perRow: number, page: number): string[] {
-  const width = Math.max(1, Math.min(perRow, dates.length));
-  const lastPage = Math.max(0, Math.ceil(dates.length / width) - 1);
-  const start = Math.min(Math.max(0, page), lastPage) * width;
-  return dates.slice(start, start + width);
-}
 
 const WEEKDAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

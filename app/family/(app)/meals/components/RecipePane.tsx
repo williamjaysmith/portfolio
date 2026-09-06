@@ -98,6 +98,8 @@ function RecipeList({
   );
 }
 
+const REMOVED_LINE = "Removed from the library. Still shown for the meals planned with it.";
+
 function RecipeDetail({
   recipe,
   category,
@@ -111,6 +113,7 @@ function RecipeDetail({
   category: MealCategory | undefined;
   onBack: () => void;
 } & Pick<RecipePaneProps, "onPlan" | "onAddToList" | "onEdit" | "onDelete">) {
+  const removed = recipe.removedAt !== null;
   return (
     <article aria-labelledby="recipe-detail-title" className="flex min-h-0 flex-col gap-3">
       <button type="button" onClick={onBack} className="flex min-h-(--fam-touch) items-center gap-1 self-start text-(length:--fam-fs-small) text-(--fam-text-muted) @lg:hidden">
@@ -129,19 +132,27 @@ function RecipeDetail({
       <pre className="max-h-[40vh] overflow-y-auto whitespace-pre-wrap font-(family-name:--fam-font-sans) text-(length:--fam-fs-body)">
         {recipe.text === "" ? <span className="text-(--fam-text-muted)">No ingredients or instructions yet.</span> : recipe.text}
       </pre>
+      {/* FR-616: a removed recipe is reachable from its meals, readable and pushable, never plannable or editable again. */}
+      {removed ? <p className="text-(length:--fam-fs-small) text-(--fam-text-secondary)">{REMOVED_LINE}</p> : null}
       <div className="flex flex-wrap gap-2">
-        <button type="button" onClick={() => onPlan(recipe)} className={ACTION}>
-          Plan Meal
-        </button>
+        {removed ? null : (
+          <button type="button" onClick={() => onPlan(recipe)} className={ACTION}>
+            Plan Meal
+          </button>
+        )}
         <button type="button" onClick={() => onAddToList(recipe)} className={ACTION}>
           Add to List
         </button>
-        <button type="button" onClick={() => onEdit(recipe)} className={ACTION}>
-          Edit
-        </button>
-        <button type="button" onClick={() => onDelete(recipe)} className={`${ACTION} text-(--fam-danger)`}>
-          Delete
-        </button>
+        {removed ? null : (
+          <>
+            <button type="button" onClick={() => onEdit(recipe)} className={ACTION}>
+              Edit
+            </button>
+            <button type="button" onClick={() => onDelete(recipe)} className={`${ACTION} text-(--fam-danger)`}>
+              Delete
+            </button>
+          </>
+        )}
       </div>
     </article>
   );

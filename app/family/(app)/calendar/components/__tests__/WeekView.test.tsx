@@ -209,9 +209,9 @@ describe("WeekView", () => {
 
     const row = screen.getByRole("list", { name: "Meals" });
     expect(within(row).getAllByRole("listitem")).toHaveLength(DEFAULT_COLUMN_COUNT);
-    expect(within(row).getByRole("button", { name: "🍝 Spaghetti" })).toBeInTheDocument();
+    expect(within(row).getByRole("button", { name: "Dinner: 🍝 Spaghetti" })).toBeInTheDocument();
 
-    await press("🍝 Spaghetti");
+    await press("Dinner: 🍝 Spaghetti");
     expect(screen.getByRole("button", { name: "Open Recipe" })).toBeInTheDocument();
   });
 });

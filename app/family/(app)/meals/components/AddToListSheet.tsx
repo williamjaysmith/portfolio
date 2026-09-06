@@ -22,11 +22,15 @@ import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFiel
  * said and writes nothing.
  */
 
+export type ListsState = "loading" | "ready" | "failed";
+
 export interface AddToListSheetProps {
   recipeName: string;
   text: string;
   /** The lists this actor may see, in the household's order (Parents only filtered by the board). */
   lists: readonly List[];
+  /** The lists read's state (FR-642): "No list" is only said once the read has landed. */
+  listsState: ListsState;
   onSubmit: (input: { listId: string; texts: string[] }) => Promise<SubmitOutcome>;
   onClose: () => void;
 }
@@ -67,14 +71,22 @@ function LineChecklist({ lines, chosen, onToggle }: { lines: readonly RecipeLine
   );
 }
 
-export function AddToListSheet({ recipeName, text, lists, onSubmit, onClose }: AddToListSheetProps) {
+export function AddToListSheet({ recipeName, text, lists, listsState, onSubmit, onClose }: AddToListSheetProps) {
   const lines = useMemo(() => linesOf(text), [text]);
   const ordered = useMemo(() => orderedLists(lists), [lists]);
   const [chosen, setChosen] = useState<ReadonlySet<number>>(() => new Set(lines.map((_, index) => index)));
-  const [listId, setListId] = useState(ordered[0]?.id ?? "");
+  const [listId, setListId] = useState<string | null>(null);
+  // Derived, never frozen: the lists can land after the sheet opened.
+  const chosenList = ordered.find((list) => list.id === listId) ?? ordered[0];
   const submission = useSubmission(onClose);
 
-  if (ordered.length === 0) {
+  if (listsState === "loading") {
+    return <Empty title="Loading lists" body="One moment while the household's lists arrive." onClose={onClose} />;
+  }
+  if (listsState === "failed") {
+    return <Empty title="Lists could not be loaded" body="Try again in a moment." onClose={onClose} />;
+  }
+  if (chosenList === undefined) {
     return (
       <Empty
         title="No list to add to"
@@ -100,10 +112,11 @@ export function AddToListSheet({ recipeName, text, lists, onSubmit, onClose }: A
     });
   }
 
+  const target = chosenList;
   function parse(): { listId: string; texts: string[] } {
     const texts = lines.filter((_, index) => chosen.has(index)).map((line) => line.text);
     if (texts.length === 0) throw new ActionFailure("VALIDATION", CHOOSE_A_LINE, { lines: [CHOOSE_A_LINE] });
-    return { listId, texts };
+    return { listId: target.id, texts };
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -118,7 +131,7 @@ export function AddToListSheet({ recipeName, text, lists, onSubmit, onClose }: A
         <FieldError messages={submission.errors.lines} />
         <label className={LABEL}>
           List
-          <select value={listId} onChange={(event) => setListId(event.target.value)} className={FIELD}>
+          <select value={target.id} onChange={(event) => setListId(event.target.value)} className={FIELD}>
             {ordered.map((list) => (
               <option key={list.id} value={list.id}>
                 {list.name}

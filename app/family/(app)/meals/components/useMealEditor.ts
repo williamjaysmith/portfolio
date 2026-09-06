@@ -80,6 +80,8 @@ export interface MealEditor extends RecipeVerbs {
   chooseScope: (scope: MealScope) => void;
   close: () => void;
   closeQuietly: () => void;
+  /** FR-642: the meal left the household under an open surface — close, and say so. */
+  reportGone: () => void;
   submitMealtime: (patch: MealtimePatch) => Promise<WriteOutcome<MealCategory>>;
   submitMeal: (occurrence: MealOccurrence | null, result: MealFormResult) => Promise<WriteOutcome<Meal>>;
   confirmDelete: (occurrence: MealOccurrence) => Promise<void>;
@@ -127,7 +129,7 @@ function useRecipeVerbs(writes: MealWrites, ws: WriteSurface<MealSurface>): Reci
 
 export function useMealEditor(writes: MealWrites): MealEditor {
   const ws = useWriteSurface<MealSurface>(SURFACE_CLOSED, GONE_MESSAGE);
-  const { surface, notice, open, setSurface, close } = ws;
+  const { surface, notice, open, setSurface, close, reportGone } = ws;
   const recipes = useRecipeVerbs(writes, ws);
 
   const openCategories = useCallback(() => open({ kind: "categories" }), [open]);
@@ -183,6 +185,7 @@ export function useMealEditor(writes: MealWrites): MealEditor {
     chooseScope,
     close,
     closeQuietly: close,
+    reportGone,
     ...recipes,
     submitMealtime,
     submitMeal,
@@ -190,17 +193,24 @@ export function useMealEditor(writes: MealWrites): MealEditor {
   };
 }
 
-/** The live occurrence a surface is about — `null` once it has gone, which closes the surface quietly. */
-export function useLiveOccurrence(editor: MealEditor, occurrences: readonly MealOccurrence[]): MealOccurrence | null {
+/**
+ * The live occurrence a surface is about — `null` once it has gone. A meal
+ * whose row left the household (another device deleted it) closes the surface
+ * and says so (FR-642); an occurrence that merely left what is on show — the
+ * week paged, the mealtime hidden — closes it quietly.
+ */
+export function useLiveOccurrence(editor: MealEditor, occurrences: readonly MealOccurrence[], meals: readonly Meal[]): MealOccurrence | null {
   const ref = refOf(editor.surface);
   const live = useMemo(
     () => (ref === null ? null : (occurrences.find((one) => one.mealId === ref.mealId && one.occurrenceDate === ref.occurrenceDate) ?? null)),
     [ref, occurrences],
   );
-  const { closeQuietly } = editor;
+  const { closeQuietly, reportGone } = editor;
   const gone = ref !== null && live === null;
+  const rowGone = gone && !meals.some((meal) => meal.id === ref.mealId);
   useEffect(() => {
-    if (gone) closeQuietly();
-  }, [gone, closeQuietly]);
+    if (rowGone) reportGone();
+    else if (gone) closeQuietly();
+  }, [gone, rowGone, closeQuietly, reportGone]);
   return live;
 }

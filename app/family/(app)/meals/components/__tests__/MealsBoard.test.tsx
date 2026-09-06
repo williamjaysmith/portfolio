@@ -76,18 +76,21 @@ function FabProbe() {
   );
 }
 
-function renderBoard(context: Partial<FamilyContextValue> = {}) {
+function boardTree(context: Partial<FamilyContextValue> = {}) {
   const value = makeContext({ actor: makeActor("parent"), isParent: true, ...context });
-  return render(
-    withFamily(
-      value,
-      <FabActionProvider>
-        <FabProbe />
-        <MealsBoard initialCategories={CATEGORIES} initialRecipes={RECIPES} initialMeals={MEALS} initialToday="2026-09-09" />
-      </FabActionProvider>,
-    ),
+  return withFamily(
+    value,
+    <FabActionProvider>
+      <FabProbe />
+      <MealsBoard initialCategories={CATEGORIES} initialRecipes={RECIPES} initialMeals={MEALS} initialToday="2026-09-09" />
+    </FabActionProvider>,
   );
 }
+
+function renderBoard(context: Partial<FamilyContextValue> = {}) {
+  return render(boardTree(context));
+}
+
 
 const dayNames = () => screen.getAllByRole("region").map((day) => day.getAttribute("aria-label"));
 
@@ -278,6 +281,17 @@ describe("MealsBoard — planning", () => {
     await vi.waitFor(() =>
       expect(deleteMeal).toHaveBeenCalledWith({ id: MEALS[3].id, occurrenceDate: "2026-09-11", scope: "this", confirm: true }),
     );
+  });
+
+  it("closes the popover and says so when another device removed the meal under it (FR-642)", () => {
+    const { rerender } = renderBoard();
+    fireEvent.click(screen.getByRole("button", { name: "🍝 Spaghetti" }));
+    expect(screen.getByRole("heading", { name: "🍝 Spaghetti" })).toBeInTheDocument();
+    reads(CATEGORIES, RECIPES, MEALS.filter((meal) => meal.id !== MEALS[1].id));
+    // A fresh element: React would keep the old fiber for the very same one.
+    rerender(boardTree());
+    expect(screen.queryByRole("heading", { name: "🍝 Spaghetti" })).toBeNull();
+    expect(screen.getByText("That meal is no longer here.")).toBeInTheDocument();
   });
 
   it("opens the add sheet for the slot from the popover's Add another meal", () => {

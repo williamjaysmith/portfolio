@@ -34,6 +34,7 @@ export function MealChip({ occurrence, category, name, compact = false, onOpen }
       type="button"
       data-meal={occurrence.mealId}
       data-occurrence={occurrence.occurrenceDate}
+      aria-label={compact ? `${category.name}: ${name}` : undefined}
       title={occurrence.note ?? undefined}
       onClick={() => onOpen(occurrence)}
       style={profileVars(category.color) as CSSProperties}

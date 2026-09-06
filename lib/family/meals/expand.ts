@@ -1,3 +1,4 @@
+import { addDays } from "../calendar/dates";
 import type { LocalDateRange } from "../recurrence/expand";
 import { ruleDatesIn } from "../recurrence/expand";
 import { parseRule } from "../recurrence/grammar";
@@ -92,4 +93,18 @@ export function occurrenceOn(meal: Meal, occurrenceDate: string, zone: string): 
   if (!isOccurrence(meal, meal.rrule, occurrenceDate, zone)) return null;
   const exception = meal.exceptions.find((one) => one.occurrenceDate === occurrenceDate);
   return occurrenceOf(meal, occurrenceDate, exception);
+}
+
+/**
+ * Whether `occurrenceDate` is the series' first remaining occurrence, judged
+ * on the series' OWN dates (FR-629): a skipped earlier occurrence no longer
+ * counts, but an earlier occurrence merely moved elsewhere by an override
+ * still does — the drawn date is where it shows, not where it belongs. A
+ * "this and future" write at the first occurrence means the whole series.
+ */
+export function isFirstOccurrenceOf(meal: Meal, occurrenceDate: string, zone: string): boolean {
+  if (meal.rrule === null || occurrenceDate <= meal.date) return true;
+  const skipped = new Set(meal.exceptions.filter((exception) => exception.action === "skip").map((exception) => exception.occurrenceDate));
+  const earlier = ruleDatesIn(parseRule(meal.rrule), meal.date, { start: meal.date, end: addDays(occurrenceDate, -1) }, zone);
+  return !earlier.some((date) => !skipped.has(date));
 }

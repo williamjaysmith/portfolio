@@ -31,7 +31,7 @@ export function MealRow({ columnDates, tokens, categoriesById, recipeNames, onOp
     <div role="list" aria-label="Meals" className="grid border-t border-(--fam-hairline)" style={headerGridTemplate(columnDates.length)}>
       <div aria-hidden="true" />
       {columnDates.map((date) => (
-        <div key={date} role="listitem" className="flex min-w-0 flex-wrap gap-1 px-1 py-1">
+        <div key={date} role="listitem" className="flex min-w-0 flex-wrap content-start items-start gap-1 px-1 py-1">
           {(tokens.get(date) ?? NO_TOKENS).map((occurrence) => {
             const category = categoriesById.get(occurrence.categoryId);
             if (category === undefined) return null;

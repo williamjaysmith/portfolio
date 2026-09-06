@@ -1,7 +1,7 @@
 import { ActionFailure } from "../errors";
-import { addDays } from "../calendar/dates";
+import { addDays, diffDays } from "../calendar/dates";
 import { emitRule, parseRule, type RecurrenceRule, type RuleWeekday } from "../recurrence/grammar";
-import type { RepeatChoice, WeekStart } from "../types";
+import { WEEKDAYS, type RepeatChoice, type WeekStart } from "../types";
 
 /**
  * A meal's repeat is the calendar's rule (006 FR-627, FR-628, R602) in its
@@ -70,13 +70,38 @@ export function truncatedMealRule(rrule: string, cut: string): string {
   return emitRule({ ...rule, until: { kind: "date", date: lastDay } });
 }
 
+function shiftWeekday(day: RuleWeekday, delta: number): RuleWeekday {
+  const index = WEEKDAYS.indexOf(day as (typeof WEEKDAYS)[number]);
+  return WEEKDAYS[(((index + delta) % 7) + 7) % 7];
+}
+
 /**
  * The same rule anchored on another date (a series moved at scope `all`, or
- * a tail that starts on the patched date): a monthly rule follows the new
- * date's day of month; daily and weekly rules are already date-free.
+ * a tail that starts on the patched date), so rule and anchor never disagree
+ * — the calendar's `reanchorRule` (FR-629): a monthly rule follows the new
+ * date's day of month; a weekly rule's BYDAY set shifts by the move's day
+ * delta, so a Wednesday series moved to a Thursday is a Thursday series; a
+ * daily rule is date-free.
  */
-export function reanchoredMealRule(rrule: string, date: string): string {
+export function reanchoredMealRule(rrule: string, from: string, to: string): string {
   const rule = parseRule(rrule);
-  if (rule.freq !== "MONTHLY") return rrule;
-  return emitRule({ ...rule, byMonthDay: dayOfMonthOf(date) });
+  if (rule.freq === "MONTHLY") return emitRule({ ...rule, byMonthDay: dayOfMonthOf(to) });
+  if (rule.freq !== "WEEKLY") return rrule;
+  const delta = diffDays(from, to);
+  return delta === 0 ? rrule : emitRule({ ...rule, byDay: rule.byDay.map((day) => shiftWeekday(day, delta)) });
+}
+
+const UNTIL_BEFORE_START = "The repeat can't end before the meal starts.";
+
+/**
+ * A rule whose UNTIL falls before its anchor would draw nothing and could
+ * never be reached again (the calendar's `assertRuleReachable`): refused at
+ * the repeat field, before any write.
+ */
+export function assertMealRuleReachable(rrule: string | null, date: string): void {
+  if (rrule === null) return;
+  const { until } = parseRule(rrule);
+  if (until !== null && until.kind === "date" && until.date < date) {
+    throw new ActionFailure("VALIDATION", UNTIL_BEFORE_START, { repeat: [UNTIL_BEFORE_START] });
+  }
 }

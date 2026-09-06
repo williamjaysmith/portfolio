@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { expandMeals, occurrenceOn } from "@/lib/family/meals/expand";
+import { expandMeals, isFirstOccurrenceOf, occurrenceOn } from "@/lib/family/meals/expand";
 import type { Meal, MealException } from "@/lib/family/types";
 
 /**
@@ -168,5 +168,22 @@ describe("occurrenceOn", () => {
     expect(occurrenceOn(pizza, "2026-09-18", ZONE)).toBeNull();
     expect(occurrenceOn(pizza, "2026-09-10", ZONE)).toBeNull();
     expect(occurrenceOn(pizza, "2026-08-28", ZONE)).toBeNull();
+  });
+});
+
+describe("isFirstOccurrenceOf (FR-629)", () => {
+  const daily = mealOf({ id: "m-daily", date: "2026-09-01", rrule: "FREQ=DAILY;INTERVAL=1" });
+
+  it("is true at the anchor, for a one-off, and once every earlier occurrence is skipped", () => {
+    expect(isFirstOccurrenceOf(daily, "2026-09-01", ZONE)).toBe(true);
+    expect(isFirstOccurrenceOf(mealOf({ date: "2026-09-01" }), "2026-09-01", ZONE)).toBe(true);
+    const skipped = { ...daily, exceptions: [exceptionOf("m-daily", { occurrenceDate: "2026-09-01", action: "skip" }), exceptionOf("m-daily", { occurrenceDate: "2026-09-02", action: "skip" })] };
+    expect(isFirstOccurrenceOf(skipped, "2026-09-03", ZONE)).toBe(true);
+    expect(isFirstOccurrenceOf(skipped, "2026-09-04", ZONE)).toBe(false);
+  });
+
+  it("still counts an earlier occurrence that an override moved past the cut — where it belongs, not where it shows", () => {
+    const moved = { ...daily, exceptions: [exceptionOf("m-daily", { occurrenceDate: "2026-09-01", action: "override", date: "2026-09-20" })] };
+    expect(isFirstOccurrenceOf(moved, "2026-09-02", ZONE)).toBe(false);
   });
 });

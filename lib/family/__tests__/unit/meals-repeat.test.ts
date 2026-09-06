@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ActionFailure } from "@/lib/family/errors";
-import { mealRepeatChoiceOf, mealRuleOf, reanchoredMealRule, truncatedMealRule } from "@/lib/family/meals/repeat";
+import { assertMealRuleReachable, mealRepeatChoiceOf, mealRuleOf, reanchoredMealRule, truncatedMealRule  } from "@/lib/family/meals/repeat";
 
 /**
  * 006 T020 — a meal's repeat as the calendar's rule (FR-627, FR-628, R602):
@@ -67,9 +67,23 @@ describe("truncatedMealRule", () => {
 });
 
 describe("reanchoredMealRule", () => {
-  it("moves a monthly rule to the new date's day and leaves daily and weekly rules alone", () => {
-    expect(reanchoredMealRule("FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=11", "2026-10-03")).toBe("FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=3");
-    expect(reanchoredMealRule("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=FR", "2026-10-03")).toBe("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=FR");
-    expect(reanchoredMealRule("FREQ=DAILY;INTERVAL=1;UNTIL=20261231", "2026-10-03")).toBe("FREQ=DAILY;INTERVAL=1;UNTIL=20261231");
+  it("moves a monthly rule to the new date's day and leaves a daily rule alone", () => {
+    expect(reanchoredMealRule("FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=11", "2026-09-11", "2026-10-03")).toBe("FREQ=MONTHLY;INTERVAL=1;BYMONTHDAY=3");
+    expect(reanchoredMealRule("FREQ=DAILY;INTERVAL=1;UNTIL=20261231", "2026-09-11", "2026-10-03")).toBe("FREQ=DAILY;INTERVAL=1;UNTIL=20261231");
+  });
+
+  it("shifts a weekly rule's days by the move, so a Wednesday series moved to Thursday is a Thursday series (FR-629)", () => {
+    expect(reanchoredMealRule("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=WE", "2026-09-23", "2026-09-24")).toBe("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=TH");
+    expect(reanchoredMealRule("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=MO,FR", "2026-09-11", "2026-09-10")).toBe("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=SU,TH");
+    expect(reanchoredMealRule("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=FR", "2026-09-11", "2026-09-25")).toBe("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=FR");
+  });
+});
+
+describe("assertMealRuleReachable", () => {
+  it("refuses a rule that ends before its anchor, at the repeat field, and passes the rest", () => {
+    expect(() => assertMealRuleReachable("FREQ=DAILY;INTERVAL=1;UNTIL=20260910", "2026-09-11")).toThrow("The repeat can't end before the meal starts.");
+    expect(() => assertMealRuleReachable("FREQ=DAILY;INTERVAL=1;UNTIL=20260911", "2026-09-11")).not.toThrow();
+    expect(() => assertMealRuleReachable("FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=FR", "2026-09-11")).not.toThrow();
+    expect(() => assertMealRuleReachable(null, "2026-09-11")).not.toThrow();
   });
 });

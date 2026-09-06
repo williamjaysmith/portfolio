@@ -83,7 +83,10 @@ describe("mealPatchOf", () => {
   const draft = mealDraftOf(mode);
 
   it("sends only what changed, and nothing changed is a refusal", () => {
-    expect(mealPatchOf({ ...draft, date: "2026-09-12", note: "family night" }, { ...mode, scope: "all" })).toEqual({ date: "2026-09-12" });
+    // Scope all on a series: the occurrence moved a day later, so the series' anchor does too (FR-629) — never the absolute date, which would drop every earlier Friday.
+    expect(mealPatchOf({ ...draft, date: "2026-09-12", note: "family night" }, { ...mode, scope: "all" })).toEqual({ date: "2026-09-05" });
+    expect(mealPatchOf({ ...draft, date: "2026-09-12" }, { ...mode, scope: "this_and_future" })).toEqual({ date: "2026-09-12" });
+    expect(mealPatchOf({ ...draft, date: "2026-09-12" }, { ...mode, scope: "this" })).toEqual({ date: "2026-09-12" });
     expect(mealPatchOf({ ...draft, categoryId: LUNCH, note: "" }, { ...mode, scope: "all" })).toEqual({ categoryId: LUNCH, note: null });
     expect(() => mealPatchOf(draft, { ...mode, scope: "all" })).toThrow("Nothing to change.");
   });

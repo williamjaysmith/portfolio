@@ -43,6 +43,8 @@ describe("MealRow", () => {
     expect(within(screen.getByRole("list", { name: "Meals" })).getAllByRole("listitem")).toHaveLength(7);
     expect(namesOn(2)).toEqual(["Soup", "🍝 Spaghetti"]);
     expect(namesOn(5)).toEqual(["🍝 Spaghetti"]);
+    // FR-646: a token is named by its mealtime and its meal.
+    expect(screen.getByRole("button", { name: "Lunch: Soup" })).toBeInTheDocument();
     expect(namesOn(0)).toEqual([]);
   });
 
@@ -59,7 +61,7 @@ describe("MealRow", () => {
 
   it("opens the meal from a press, and lifts nothing on a pointer drag (FR-636)", () => {
     const { props } = renderRow();
-    const token = screen.getByRole("button", { name: "Soup" });
+    const token = screen.getByRole("button", { name: "Lunch: Soup" });
     fireEvent.click(token);
     expect(props.onOpen).toHaveBeenCalledWith(expect.objectContaining({ recipeId: soup.id, date: "2026-09-09", categoryId: LUNCH }));
 

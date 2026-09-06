@@ -74,7 +74,7 @@ Ana taps Wednesday's Dinner cell. She can pick from the household's recipes or t
 2. **Given** the library holds "Pancakes" (Breakfast), **When** Ben taps Saturday's Breakfast cell and chooses From Recipes → Pancakes, **Then** the cell shows "Pancakes" and no second recipe is made.
 3. **Given** "🍝 Spaghetti" is planned, **When** anyone taps it, **Then** a popover shows its name, "Wednesday 9 September · Dinner", the note if any, and the four actions **Open Recipe**, **Add to List**, **Edit**, **Delete**.
 4. **Given** the popover, **When** Ana taps Edit, changes the date to Thursday and the note to "Ben cooks" and saves, **Then** the meal leaves Wednesday's cell and appears in Thursday's, with the note shown in its popover, on every device within five seconds.
-5. **Given** Thursday's Dinner holds "🍝 Spaghetti", **When** Cleo presses and holds the cell and picks "Garlic bread" From Recipes, **Then** the cell shows both meals, one under the other, and the Dinner row grows to fit.
+5. **Given** Thursday's Dinner holds "🍝 Spaghetti", **When** Cleo presses and holds the cell and picks "Garlic bread" From Recipes, **Then** the cell shows both meals, one under the other, scrolling within the cell once they outgrow it (FR-604's fixed cell).
 6. **Given** a slot with two meals, **When** Ana deletes one from its popover, **Then** it is told which meal goes, and on confirming only that meal leaves; the other stays, and the recipe stays in the library.
 7. **Given** nobody is punched in, **When** someone taps an empty cell, **Then** the punch-in keypad appears first, and the add sheet only after a PIN is accepted.
 8. **Given** the add sheet is open, **When** Ana looks below the fields, **Then** she sees "Cleo: no nuts" — every Profile's dietary note, and only those Profiles that have one.
@@ -131,7 +131,7 @@ Sunday evening Ana opens "🍝 Spaghetti" and taps Add to List. A sheet shows th
 
 1. **Given** the add sheet, **When** Ana turns on Repeats and chooses Every week on Friday, until 31 December, **Then** every Friday's Dinner from this week to that date shows "🍕 Pizza", and no Friday after it does.
 2. **Given** a repeating meal, **When** anyone opens one occurrence's popover and taps Edit, **Then** they are asked **This meal** / **This and future meals** / **All meals** before the form opens, in that wording, and a one-time meal is never asked.
-3. **Given** the 13 November occurrence, **When** Ana changes it to "🌮 Tacos" with scope This meal, **Then** only that Friday shows Tacos and every other Friday still shows Pizza.
+3. **Given** the 13 November occurrence, **When** Ana deletes it with scope This meal and adds "🌮 Tacos" to that Friday's Dinner, **Then** only that Friday shows Tacos and every other Friday still shows Pizza (FR-630: a recipe never changes for one occurrence).
 4. **Given** the 27 November occurrence, **When** Ana deletes it with scope This and future meals, **Then** Fridays before it keep Pizza and Fridays from it onward are empty.
 5. **Given** the series, **When** Ben deletes an occurrence with scope All meals, **Then** every Friday's Pizza is gone, including the Tacos exception, and the Pizza recipe stays in the library.
 6. **Given** the reference's repeat has "how often" and "when to stop", **When** the sheet offers Repeats, **Then** the choices are the calendar's — Never, Every day, Every week on chosen weekdays, Every month on the date — and an optional end date, and nothing else.

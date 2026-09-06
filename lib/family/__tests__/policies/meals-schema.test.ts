@@ -397,6 +397,20 @@ describe("meals schema: four tables, their constraints, the cascades and the two
       expect((await readExceptions(head.id)).map((row) => row.occurrence_date)).toEqual(["2026-10-02"]);
     });
 
+    it("refuses a head that no longer repeats — no series, nothing to split (P0002)", async () => {
+      const recipe = await createRecipe("One-off soup");
+      const oneOff = await createMeal(recipe.id, "2026-09-04");
+      await expect(
+        split(oneOff.id, "FREQ=WEEKLY;INTERVAL=1;BYDAY=FR;UNTIL=20260924", "2026-09-25", {
+          date: "2026-09-25",
+          category_id: mealtimes.get("Dinner")?.id,
+          recipe_id: recipe.id,
+          note: "",
+          rrule: "FREQ=WEEKLY;INTERVAL=1;BYDAY=FR",
+        }),
+      ).rejects.toMatchObject({ code: "P0002" });
+    });
+
     it("refuses a head of another household", async () => {
       await expect(
         pool.query("select family.split_meal_series($1, $2, $3, $4, $5, $6::jsonb)", [

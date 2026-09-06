@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { dayHeaderOf, dayWordsOf, shiftWeek, visibleSliceOf, weekDatesOf, weekLabelOf } from "@/lib/family/meals/week";
+import { dayHeaderOf, dayWordsOf, shiftWeek, weekDatesOf, weekLabelOf } from "@/lib/family/meals/week";
 
 /** 006 T021 — the grid's week (FR-602, FR-603, R606): from the household's start day, a week at a time. */
 
@@ -30,23 +30,6 @@ describe("weekLabelOf", () => {
     expect(weekLabelOf(weekDatesOf("2026-09-09", 0))).toBe("6–12 September");
     expect(weekLabelOf(weekDatesOf("2026-09-30", 0))).toBe("27 September – 3 October");
     expect(weekLabelOf(weekDatesOf("2026-12-30", 0))).toBe("27 December 2026 – 2 January 2027");
-  });
-});
-
-describe("visibleSliceOf", () => {
-  const week = weekDatesOf("2026-09-09", 0);
-
-  it("shows the whole week when it fits, and pages by what fits when it does not", () => {
-    expect(visibleSliceOf(week, 7, 0)).toEqual(week);
-    expect(visibleSliceOf(week, 3, 0)).toEqual(week.slice(0, 3));
-    expect(visibleSliceOf(week, 3, 1)).toEqual(week.slice(3, 6));
-    expect(visibleSliceOf(week, 3, 2)).toEqual(week.slice(6, 7));
-  });
-
-  it("never shows fewer than one day and clamps the page to the week", () => {
-    expect(visibleSliceOf(week, 0, 0)).toEqual([week[0]]);
-    expect(visibleSliceOf(week, 3, 9)).toEqual(week.slice(6, 7));
-    expect(visibleSliceOf(week, 3, -1)).toEqual(week.slice(0, 3));
   });
 });
 

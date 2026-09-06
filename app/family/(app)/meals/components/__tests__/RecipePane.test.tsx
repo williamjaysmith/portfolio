@@ -83,6 +83,14 @@ describe("RecipePane", () => {
     expect(props.onSelect).toHaveBeenLastCalledWith(null);
   });
 
+  it("shows a removed recipe reached from its meal as read-only with Add to List, never Plan, Edit or Delete (FR-616)", () => {
+    renderPane({ selectedId: stew.id });
+    const detail = screen.getByRole("article", { name: "Old stew" });
+    expect(within(detail).getByText("Removed from the library. Still shown for the meals planned with it.")).toBeInTheDocument();
+    expect(within(detail).getByRole("button", { name: "Add to List" })).toBeInTheDocument();
+    for (const name of ["Plan Meal", "Edit", "Delete"]) expect(within(detail).queryByRole("button", { name })).toBeNull();
+  });
+
   it("opens New recipe through the caller and closes on Close", () => {
     const { props } = renderPane();
     fireEvent.click(screen.getByRole("button", { name: "New recipe" }));

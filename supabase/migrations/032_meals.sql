@@ -97,8 +97,9 @@ language plpgsql security definer set search_path = '' as $$
 declare v_tail_id uuid;
 begin
   -- Lock the head so a concurrent scope-write on the same series serialises here.
+  -- A head that stopped repeating between the load and this call is no series to split (015's shape).
   perform 1 from family.meals
-    where id = p_meal_id and household_id = p_household_id
+    where id = p_meal_id and household_id = p_household_id and rrule is not null
     for update;
   if not found then
     raise exception 'meal not found' using errcode = 'P0002';

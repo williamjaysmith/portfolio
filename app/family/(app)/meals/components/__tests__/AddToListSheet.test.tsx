@@ -25,6 +25,7 @@ function renderSheet(overrides: Partial<AddToListSheetProps> = {}) {
     recipeName: "🍝 Spaghetti",
     text: TEXT,
     lists: LISTS,
+    listsState: "ready",
     onSubmit: vi.fn().mockResolvedValue(ok({ added: 2 })),
     onClose: vi.fn(),
     ...overrides,
@@ -64,6 +65,15 @@ describe("AddToListSheet", () => {
     submit();
     expect(await screen.findByText("Choose at least one line.")).toBeInTheDocument();
     expect(props.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("says the lists are still loading, or could not be loaded, rather than that there is none (FR-642)", () => {
+    const { unmount } = renderSheet({ lists: [], listsState: "loading" });
+    expect(screen.getByRole("heading", { name: "Loading lists" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "No list to add to" })).toBeNull();
+    unmount();
+    renderSheet({ lists: [], listsState: "failed" });
+    expect(screen.getByRole("heading", { name: "Lists could not be loaded" })).toBeInTheDocument();
   });
 
   it("says there is no list, pointing at the Lists tab, and that there is nothing to add", () => {

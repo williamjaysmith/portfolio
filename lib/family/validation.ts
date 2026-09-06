@@ -1193,8 +1193,7 @@ export const mealNoteSchema = z
   .max(200, { error: MEAL_NOTE })
   .transform((note) => (note === "" ? null : note));
 
-const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
-const mealDateSchema = z.string({ error: MEAL_DATE }).regex(LOCAL_DATE, { error: MEAL_DATE });
+const mealDateSchema = z.iso.date({ error: MEAL_DATE });
 
 /** FR-622: an existing recipe, or a new entry that also becomes one. */
 export const recipeChoiceSchema = z.discriminatedUnion(

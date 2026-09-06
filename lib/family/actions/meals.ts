@@ -14,11 +14,10 @@
  * occurrence), `all` the row itself. A recipe changes at series scopes only.
  */
 
-import { addDays } from "../calendar/dates";
 import { ActionFailure, runAction, type ActionResult } from "../errors";
 import { requireVerifiedActor } from "../guards";
-import { expandMeals, occurrenceOn } from "../meals/expand";
-import { mealRuleOf, reanchoredMealRule, truncatedMealRule } from "../meals/repeat";
+import { isFirstOccurrenceOf, occurrenceOn } from "../meals/expand";
+import { assertMealRuleReachable, mealRuleOf, reanchoredMealRule, truncatedMealRule } from "../meals/repeat";
 import { can } from "../permissions";
 import {
   MEAL_CATEGORY_COLUMNS,
@@ -101,14 +100,6 @@ function requireOccurrence(meal: Meal, occurrenceDate: string, zone: string): Me
   const found = occurrenceOn(meal, occurrenceDate, zone);
   if (found === null) throw new ActionFailure("NOT_FOUND");
   return found;
-}
-
-/** No occurrence before `occurrenceDate`: a split would leave an empty head, so the whole series is meant. */
-function isFirstOccurrence(meal: Meal, occurrenceDate: string, zone: string): boolean {
-  if (occurrenceDate <= meal.date) return true;
-  return expandMeals([meal], { start: meal.date, end: addDays(occurrenceDate, -1) }, zone).every(
-    (occurrence) => occurrence.occurrenceDate >= occurrenceDate,
-  );
 }
 
 function weekStartOf(household: HouseholdZone): WeekStart {
@@ -305,7 +296,8 @@ function rowColumnsOf(meal: Meal, patch: MealPatch, household: HouseholdZone, ac
   if (patch.recipeId !== undefined) columns.recipe_id = patch.recipeId;
   if (patch.note !== undefined) columns.note = patch.note;
   if (patch.repeat !== undefined) columns.rrule = ruleOf(patch.repeat, date, household);
-  else if (meal.rrule !== null && patch.date !== undefined) columns.rrule = reanchoredMealRule(meal.rrule, date);
+  else if (meal.rrule !== null && patch.date !== undefined) columns.rrule = reanchoredMealRule(meal.rrule, meal.date, date);
+  if (typeof columns.rrule === "string") assertMealRuleReachable(columns.rrule, date);
   return columns;
 }
 
@@ -355,7 +347,8 @@ async function splitFrom(
   const cut = occurrence.occurrenceDate;
   const tailDate = patch.date ?? cut;
   const tailRule =
-    patch.repeat !== undefined ? ruleOf(patch.repeat, tailDate, household) : reanchoredMealRule(rrule, tailDate);
+    patch.repeat !== undefined ? ruleOf(patch.repeat, tailDate, household) : reanchoredMealRule(rrule, cut, tailDate);
+  assertMealRuleReachable(tailRule, tailDate);
   const { data, error } = await adminFamily().rpc("split_meal_series", {
     p_household_id: actor.householdId,
     p_meal_id: meal.id,
@@ -384,7 +377,7 @@ async function applyUpdate(meal: Meal, parsed: UpdateMealInput, actor: Actor, ho
     await overrideThis(meal, occurrence, parsed.patch, actor);
     return meal.id;
   }
-  if (scope === "this_and_future" && !isFirstOccurrence(meal, occurrence.occurrenceDate, household.zone)) {
+  if (scope === "this_and_future" && !isFirstOccurrenceOf(meal, occurrence.occurrenceDate, household.zone)) {
     return splitFrom(meal, occurrence, parsed.patch, actor, household);
   }
   await updateWholeRow(meal, parsed.patch, actor, household);
@@ -447,7 +440,7 @@ async function applyDelete(meal: Meal, parsed: { occurrenceDate: string; scope?:
   const occurrence = requireOccurrence(meal, parsed.occurrenceDate, zone);
   const scope = requireScope(meal, parsed.scope);
   if (scope === "this") return skipThis(meal, occurrence, actor);
-  if (scope === "this_and_future" && !isFirstOccurrence(meal, occurrence.occurrenceDate, zone)) {
+  if (scope === "this_and_future" && !isFirstOccurrenceOf(meal, occurrence.occurrenceDate, zone)) {
     return truncateFrom(meal, occurrence, actor);
   }
   return deleteRow(actor.householdId, meal.id);

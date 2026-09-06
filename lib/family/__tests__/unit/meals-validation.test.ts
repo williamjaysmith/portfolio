@@ -144,3 +144,12 @@ describe("addListItems (FR-632)", () => {
     expect(addListItemsSchema.safeParse({ listId: ID, texts: ["x"], section: "Dairy" }).success).toBe(false);
   });
 });
+
+describe("meal dates are real calendar dates", () => {
+  it("refuses an impossible date at the date field rather than letting it reach the expander", () => {
+    const refused = planMealSchema.safeParse({ date: "2026-02-31", categoryId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa001", recipe: { kind: "existing", id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb001" } });
+    expect(refused.success).toBe(false);
+    if (!refused.success) expect(refused.error.issues[0]?.message).toBe("Choose a date.");
+    expect(planMealSchema.safeParse({ date: "2028-02-29", categoryId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa001", recipe: { kind: "existing", id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb001" } }).success).toBe(true);
+  });
+});

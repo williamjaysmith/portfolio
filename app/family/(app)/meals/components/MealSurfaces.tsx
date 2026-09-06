@@ -11,7 +11,7 @@ import type { List, Meal, MealCategory, MealOccurrence, Recipe } from "@/lib/fam
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { useFamily } from "../../components/FamilyProvider";
 import { ScopeDialog } from "../../components/ScopeDialog";
-import { AddToListSheet } from "./AddToListSheet";
+import { AddToListSheet, type ListsState } from "./AddToListSheet";
 import { MealPopover } from "./MealPopover";
 import { MealSheet } from "./MealSheet";
 import { RecipeDeleteDialog } from "./RecipeDeleteDialog";
@@ -49,6 +49,8 @@ export interface MealSurfaceModel extends MealSurfaceInputs {
   recipeNames: ReadonlyMap<string, string>;
   notes: readonly DietaryNote[];
   visibleLists: readonly List[];
+  /** FR-642: the lists read's state, so Add to List never mistakes "still loading" for "no list". */
+  listsState: ListsState;
   /** The one line the host shows: the editor's, else the queue's. */
   notice: string | null;
 }
@@ -59,13 +61,14 @@ export function useMealSurfaceModel(inputs: MealSurfaceInputs): MealSurfaceModel
   const { householdId, profiles, actor } = useFamily();
   const writes = useMealWrites();
   const editor = useMealEditor(writes);
-  const occurrence = useLiveOccurrence(editor, inputs.occurrences);
+  const occurrence = useLiveOccurrence(editor, inputs.occurrences, inputs.meals);
   const notes = useMemo(() => dietaryNotesOf(profiles), [profiles]);
   const lists = useLists(householdId);
   const listRows = lists.data ?? NO_LISTS;
   const visibleLists = useMemo(() => visibleListsOf(listRows, actor), [listRows, actor]);
+  const listsState: ListsState = lists.isError ? "failed" : lists.data === undefined ? "loading" : "ready";
   const recipeNames = useMemo(() => new Map(inputs.recipes.map((recipe) => [recipe.id, recipe.name])), [inputs.recipes]);
-  return { ...inputs, editor, writes, occurrence, recipeNames, notes, visibleLists, notice: editor.notice ?? writes.notice };
+  return { ...inputs, editor, writes, occurrence, recipeNames, notes, visibleLists, listsState, notice: editor.notice ?? writes.notice };
 }
 
 function categoryOf(m: MealSurfaceModel, id: string): MealCategory | undefined {
@@ -175,6 +178,7 @@ function PushSurface({ m }: { m: MealSurfaceModel }) {
       recipeName={recipe.name}
       text={recipe.text}
       lists={m.visibleLists}
+      listsState={m.listsState}
       onSubmit={(input) => editor.submitPush(input, m.visibleLists.find((list) => list.id === input.listId)?.name ?? "the list")}
       onClose={editor.close}
     />
