@@ -101,7 +101,6 @@ test.describe("the Tasks board", () => {
     });
     await expect(page.getByRole("button", { name: "Mark Sort the recycling incomplete" })).toBeVisible();
 
-    const before = await columnOrder(page);
     // Up for Grabs belongs to nobody and is not draggable; the Profiles are.
     const draggable = (await visibleOrder(page)).filter((name) => name !== "Up for Grabs");
     expect(draggable.length, "two Profile columns are on screen to swap").toBeGreaterThan(1);

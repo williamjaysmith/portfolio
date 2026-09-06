@@ -153,7 +153,6 @@ test.describe("the Week calendar", () => {
 
   test("drags an event to another time, and the new time survives a reload", async ({ page, actAsAna, unique }) => {
     const title = unique("Piano");
-    const hours = await visibleHours(page);
     await createEvent(page, actAsAna, { title });
     await page.reload();
 
