@@ -29,12 +29,19 @@ export interface PagedColumnsProps {
   gapClassName?: string;
   /** A board whose columns drag lends the strip its binding (the Tasks board). */
   reorder?: BoardStripReorder;
+  /** True while a press-and-hold reorder inside a column owns the pointer: the swipe stands down. */
+  suspended?: boolean;
 }
 
-export function PagedColumns({ page, boardRef, perRow, columns, gapClassName, reorder }: PagedColumnsProps) {
+export function PagedColumns({ page, boardRef, perRow, columns, gapClassName, reorder, suspended }: PagedColumnsProps) {
   const visible = columns.slice(page.start, page.end);
   return (
-    <ColumnPager paged={page.paged} onPage={page.step} visibleLabels={visible.map((column) => column.label)}>
+    <ColumnPager
+      paged={page.paged}
+      suspended={suspended}
+      onPage={page.step}
+      visibleLabels={visible.map((column) => column.label)}
+    >
       <BoardStrip boardRef={boardRef} perRow={perRow} count={visible.length} gapClassName={gapClassName} reorder={reorder}>
         {visible.map((column) => column.node)}
       </BoardStrip>

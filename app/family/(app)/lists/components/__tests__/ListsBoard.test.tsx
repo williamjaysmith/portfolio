@@ -1,7 +1,17 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
-import { createList, deleteList, setListItemChecked, updateList } from "@/lib/family/actions/lists";
+import {
+  createList,
+  deleteList,
+  moveListItem,
+  removeSection,
+  renameSection,
+  sectionItems,
+  setListItemChecked,
+  updateList,
+  updateListItem,
+} from "@/lib/family/actions/lists";
 import { fail } from "@/lib/family/errors";
 import { useListItems, useLists } from "@/lib/family/queries";
 import type { List, ListItem } from "@/lib/family/types";
@@ -18,6 +28,7 @@ import {
 import { ok } from "../../../components/__tests__/action-result";
 import { ListsBoard } from "../ListsBoard";
 import { resetListFilters, useListFilters } from "../useListFilters";
+import { resetListFolds } from "../useListFolds";
 import { CHECKED_AT, GROCERY, PARTY, TODO, itemOf, listOf } from "./lists-test-fixtures";
 
 /**
@@ -272,5 +283,97 @@ describe("ListsBoard", () => {
       expect(screen.queryByRole("alert")).toBeNull();
       expect(cardNames()).toEqual(["Grocery List", "To-Do List"]);
     });
+  });
+});
+
+/**
+ * 005 T037 / T043 — the item sheet and the section surfaces wired to the
+ * queue (FR-522, FR-528, FR-529, FR-533, FR-541): the sheet from an item's
+ * text, Save as one `updateListItem`, Move down as one `moveListItem` with the
+ * neighbours `stepOf` names, Delete as one `deleteListItem`; Add section from
+ * the footer to `sectionItems`; the header's menu to Rename (`renameSection`)
+ * and to Remove through a confirmation that says the items stay.
+ */
+describe("ListsBoard — the item sheet and the sections", () => {
+  beforeAll(stubDialog);
+
+  const butter = itemOf(GROCERY, "Butter", { sortOrder: 3000, section: "Dairy" });
+  const eggs = ITEMS[0];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetListFilters();
+    resetListFolds();
+    reads(LISTS, [...ITEMS, butter]);
+    (updateListItem as Mock).mockResolvedValue(ok(eggs));
+    (moveListItem as Mock).mockResolvedValue(ok(eggs));
+    (sectionItems as Mock).mockResolvedValue(ok({ section: "Dairy", moved: 1 }));
+    (renameSection as Mock).mockResolvedValue(ok({ section: "Fridge", renamed: 1 }));
+    (removeSection as Mock).mockResolvedValue(ok({ ungrouped: 1 }));
+  });
+
+  it("opens the sheet from the item's text and saves the corrected text as one write (FR-522)", async () => {
+    renderBoard();
+    fireEvent.click(screen.getByRole("button", { name: "Eggs" }));
+    const sheet = screen.getByRole("dialog", { hidden: true });
+    expect(within(sheet).getByRole("heading", { name: "Eggs" })).toBeInTheDocument();
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Item" }), { target: { value: "Eggs x12" } });
+    fireEvent.submit(within(sheet).getByRole("button", { name: "Save" }).closest("form") as HTMLFormElement);
+    await vi.waitFor(() => expect(updateListItem).toHaveBeenCalledWith({ id: eggs.id, patch: { text: "Eggs x12" } }));
+  });
+
+  it("moves one row down from the sheet as the move stepOf names, with Move up disabled at the top (FR-541)", async () => {
+    renderBoard();
+    fireEvent.click(screen.getByRole("button", { name: "Eggs" }));
+    expect(screen.getByRole("button", { name: "Move up" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Move down" }));
+    // Rows: Eggs · Dairy header · Butter · Milk (checked items sink, R503) — one step down puts
+    // Eggs under the header, ahead of Butter: a move INTO Dairy.
+    await vi.waitFor(() =>
+      expect(moveListItem).toHaveBeenCalledWith({ id: eggs.id, section: "Dairy", previousItemId: null, nextItemId: butter.id }),
+    );
+  });
+
+  it("begins Add section from the footer and commits the name and the chosen items (FR-528)", async () => {
+    renderBoard();
+    const grocery = screen.getByRole("region", { name: "Grocery List" });
+    fireEvent.click(within(grocery).getByRole("button", { name: /Add section/ }));
+    const sheet = screen.getByRole("dialog", { hidden: true });
+    expect(within(sheet).getByRole("heading", { name: "Add a section to Grocery List" })).toBeInTheDocument();
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Section name" }), { target: { value: "Breakfast" } });
+    fireEvent.click(within(sheet).getByRole("checkbox", { name: /Eggs/ }));
+    fireEvent.submit(within(sheet).getByRole("button", { name: "Save" }).closest("form") as HTMLFormElement);
+    await vi.waitFor(() =>
+      expect(sectionItems).toHaveBeenCalledWith({ listId: GROCERY, name: "Breakfast", itemIds: [eggs.id] }),
+    );
+  });
+
+  it("renames a section from the header's menu (FR-533)", async () => {
+    renderBoard();
+    fireEvent.click(screen.getByRole("button", { name: "Dairy menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rename section" }));
+    const sheet = screen.getByRole("dialog", { hidden: true });
+    expect(within(sheet).getByRole("textbox", { name: "Section name" })).toHaveValue("Dairy");
+    fireEvent.change(within(sheet).getByRole("textbox", { name: "Section name" }), { target: { value: "Fridge" } });
+    fireEvent.submit(within(sheet).getByRole("button", { name: "Save" }).closest("form") as HTMLFormElement);
+    await vi.waitFor(() => expect(renameSection).toHaveBeenCalledWith({ listId: GROCERY, from: "Dairy", to: "Fridge" }));
+  });
+
+  it("removes a section through a confirmation that says its items stay (FR-533)", async () => {
+    renderBoard();
+    fireEvent.click(screen.getByRole("button", { name: "Dairy menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove section" }));
+    expect(screen.getByRole("alertdialog", { hidden: true })).toHaveTextContent("Remove “Dairy”?");
+    expect(screen.getByRole("alertdialog", { hidden: true })).toHaveTextContent("Its 1 item stay on the list.");
+    fireEvent.click(screen.getByRole("button", { name: "Remove section" }));
+    await vi.waitFor(() => expect(removeSection).toHaveBeenCalledWith({ listId: GROCERY, name: "Dairy" }));
+  });
+
+  it("folds a section on this device from the header's chevron, keeping the header (FR-531)", () => {
+    renderBoard();
+    fireEvent.click(screen.getByRole("button", { name: "Fold Dairy" }));
+    expect(screen.queryByRole("checkbox", { name: "Butter" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Unfold Dairy" })).toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem("family:list-folds:v1") ?? "[]")).toEqual([`${GROCERY} Dairy`]);
   });
 });

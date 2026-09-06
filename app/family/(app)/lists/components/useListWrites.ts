@@ -11,6 +11,7 @@ import {
   renameSection,
   sectionItems,
   setListItemChecked,
+  updateListItem,
 } from "@/lib/family/actions/lists";
 import type { ActionResult } from "@/lib/family/errors";
 import type { DropTarget } from "@/lib/family/lists/reorder";
@@ -62,6 +63,11 @@ export interface ListWrites {
   add: (list: Pick<List, "id">, text: string) => Promise<WriteOutcome<ListItem>>;
   /** FR-518 / R503: a state, not a toggle — idempotent on the server. */
   setChecked: (item: Pick<ListItem, "id">, checked: boolean) => Promise<WriteOutcome<ListItem>>;
+  /** FR-522 / FR-529: the text, the section, or both — one write. */
+  update: (
+    item: Pick<ListItem, "id">,
+    patch: { text?: string; section?: string | null },
+  ) => Promise<WriteOutcome<ListItem>>;
   /** FR-522. */
   remove: (item: Pick<ListItem, "id">) => Promise<WriteOutcome<null>>;
   /** FR-523 / FR-532: the drop `dropOf` computed — order and section in one write. */
@@ -97,6 +103,11 @@ export function useListWrites(): ListWrites {
   const setChecked = useCallback(
     async (item: Pick<ListItem, "id">, checked: boolean) =>
       commit(itemKeyOf(item), () => setListItemChecked({ id: item.id, checked })),
+    [commit],
+  );
+  const update = useCallback(
+    async (item: Pick<ListItem, "id">, patch: { text?: string; section?: string | null }) =>
+      commit(itemKeyOf(item), () => updateListItem({ id: item.id, patch })),
     [commit],
   );
   const remove = useCallback(
@@ -135,6 +146,7 @@ export function useListWrites(): ListWrites {
     clearNotice,
     add,
     setChecked,
+    update,
     remove,
     move,
     clearCompleted,

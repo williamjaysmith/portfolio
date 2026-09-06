@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetListFilters } from "@/app/family/(app)/lists/components/useListFilters";
 import { resetTaskFilters } from "@/app/family/(app)/tasks/components/useTaskFilters";
 import { PALETTE } from "@/lib/family/colors";
 
@@ -224,5 +225,40 @@ describe("FilterSheet — the Tasks switches", () => {
 
     expect(screen.getByText(/won.t be remembered on this device/)).toBeInTheDocument();
     setItem.mockRestore();
+  });
+});
+
+/**
+ * 005 T039 — the Lists section (FR-520): one switch, "Completed items", on the
+ * Lists tab's own per-device store (R509), and the same **Show all** clearing
+ * it with the rest.
+ */
+describe("FilterSheet — the Lists switch", () => {
+  beforeEach(() => {
+    stubDialog();
+    localStorage.clear();
+    resetTaskFilters();
+    resetListFilters();
+  });
+
+  function renderSheet(): void {
+    render(withFamily(makeContext({ categories: [makeCategory({ id: "a", label: "Alex" })] }), <FilterSheet />));
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+  }
+
+  it("shows Completed items under a Lists heading, on by default", () => {
+    renderSheet();
+    expect(screen.getByRole("heading", { name: "Lists" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Completed items" })).toBeChecked();
+  });
+
+  it("writes the switch to the Lists store, and Show all turns it back on", () => {
+    renderSheet();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Completed items" }));
+    expect(screen.getByRole("checkbox", { name: "Completed items" })).not.toBeChecked();
+    expect(JSON.parse(localStorage.getItem("family:list-filters:v1") ?? "{}")).toEqual({ completed: false });
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    expect(screen.getByRole("checkbox", { name: "Completed items" })).toBeChecked();
   });
 });

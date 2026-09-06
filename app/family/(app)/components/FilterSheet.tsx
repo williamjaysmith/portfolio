@@ -3,9 +3,10 @@
 import { EyeOff } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
+import { useListFilters } from "@/app/family/(app)/lists/components/useListFilters";
 import { useTaskFilters } from "@/app/family/(app)/tasks/components/useTaskFilters";
 import type { PaletteColor } from "@/lib/family/colors";
-import type { Category, TaskFilters } from "@/lib/family/types";
+import type { Category, ListFilters, TaskFilters } from "@/lib/family/types";
 
 import { Avatar } from "./Avatar";
 import { useFamily } from "./FamilyProvider";
@@ -147,6 +148,25 @@ function TaskFilterSection({
   );
 }
 
+/** 005 FR-520's one switch, in the reference's own words (37275069922971 — "Completed"). */
+const LIST_SWITCHES: readonly (readonly [keyof ListFilters, string])[] = [["completed", "Completed items"]];
+
+function ListFilterSection({
+  filters,
+  setFilter,
+}: {
+  filters: ListFilters;
+  setFilter: (key: keyof ListFilters, on: boolean) => void;
+}) {
+  return (
+    <SheetSection title="Lists" headingId="filter-lists">
+      {LIST_SWITCHES.map(([key, label]) => (
+        <ToggleRow key={key} label={label} checked={filters[key]} onChange={(checked) => setFilter(key, checked)} />
+      ))}
+    </SheetSection>
+  );
+}
+
 /**
  * A Label wears its colour where a Profile wears its face — the same 32 px
  * circle, so the two lists read as one column. Decorative: the name is
@@ -166,6 +186,7 @@ export function FilterSheet() {
   const { profiles, labels, hiddenIds, setHidden, showAll, avatarUrls, visibilityPersists } =
     useFamily();
   const taskFilters = useTaskFilters();
+  const listFilters = useListFilters();
   const [open, setOpen] = useState(false);
   const dialogRef = useModalDialog(open);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -175,10 +196,11 @@ export function FilterSheet() {
     buttonRef.current?.focus();
   }
 
-  /** One control, both per-device stores (R319) — the honest meaning of "all". */
+  /** One control, every per-device store (R319; 005 R509) — the honest meaning of "all". */
   function showEverything(): void {
     showAll();
     taskFilters.showAll();
+    listFilters.showAll();
   }
 
   return (
@@ -228,7 +250,9 @@ export function FilterSheet() {
 
         <TaskFilterSection filters={taskFilters.filters} setFilter={taskFilters.setFilter} />
 
-        {visibilityPersists && taskFilters.persistent ? null : (
+        <ListFilterSection filters={listFilters.filters} setFilter={listFilters.setFilter} />
+
+        {visibilityPersists && taskFilters.persistent && listFilters.persistent ? null : (
           <p className="mt-3 text-(length:--fam-fs-small) text-(--fam-text-secondary)">
             Filters won&rsquo;t be remembered on this device.
           </p>

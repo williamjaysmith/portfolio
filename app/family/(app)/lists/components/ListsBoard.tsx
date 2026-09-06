@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createList, deleteList, updateList } from "@/lib/family/actions/lists";
-import { uncheckedCountOf } from "@/lib/family/lists/grouping";
+import { groupedRowsOf, sectionCountOf, sectionsOf, uncheckedCountOf } from "@/lib/family/lists/grouping";
 import { rowLayoutOf } from "@/lib/family/lists/layout";
+import { stepOf, type DropTarget } from "@/lib/family/lists/reorder";
 import { itemsShownOf, visibleListsOf } from "@/lib/family/lists/visibility";
 import { useListItems, useLists } from "@/lib/family/queries";
 import type { ActorSession, List, ListItem } from "@/lib/family/types";
@@ -18,12 +19,15 @@ import { PagedColumns, type PagedColumn } from "../../components/PagedColumns";
 import { useBoardGeometry } from "../../components/useBoardGeometry";
 import { settleEdit, useWriteSurface } from "../../components/useWriteSurface";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ItemSheet } from "./ItemSheet";
 import { ListCard } from "./ListCard";
 import { ListForm } from "./ListForm";
 import { ListMenu, type ListMenuEntry } from "./ListMenu";
-import { listDraftOf, type ListSubmitOutcome } from "./useListForm";
+import { SectionSheet, type SectionSheetMode, type SectionSubmit } from "./SectionSheet";
 import { useListFilters } from "./useListFilters";
-import { useListWrites, type ListWrites } from "./useListWrites";
+import { useListFolds } from "./useListFolds";
+import { listDraftOf, type ListSubmitOutcome } from "./useListForm";
+import { itemKeyOf, useListWrites, type ListWrites } from "./useListWrites";
 
 /**
  * 005 T027: the Lists tab — FR-502's row of cards, on the shipped board chassis
@@ -33,16 +37,19 @@ import { useListWrites, type ListWrites } from "./useListWrites";
  *                         applies `rowLayoutOf` — whole cards or a pager, never
  *                         a second row (FR-502, Assumption 11)
  *   useColumnPage         which window of cards is on screen (FR-543)
- *   ColumnPager           the swipe and the arrow keys between windows
+ *   ColumnPager           the swipe and the arrow keys between windows; it
+ *                         stands down while a card has a row in hand (R508)
  *   BoardStrip            the grid both boards mount
  *   useListFilters        the per-device Completed switch (FR-520)
+ *   useListFolds          the per-device folded sections (FR-531)
  *
  * **The columns are the visible lists, in the household's order** — every list
  * of the household when a parent is punched in on this device, and every list
  * that is not Parents only otherwise (`visibleListsOf`, FR-514, R505). A list
  * that leaves the visible set while a sheet is open on it — a parent punched
  * out — closes that sheet without a word; one that leaves the household says
- * so, once (FR-393's rule).
+ * so, once (FR-393's rule). An item sheet whose item has gone closes quietly:
+ * its own Delete is the usual way there.
  *
  * **The tab holds the household's two reads once** (R506) and hands every card
  * ITS items: the FULL set for the badge and the section counts, the SHOWN set
@@ -50,11 +57,11 @@ import { useListWrites, type ListWrites } from "./useListWrites";
  *
  * **The model is split from the start** (plan §V): `useListsView` is the tab's
  * own state before any data, `useListsData` the two reads and the two filters,
- * `useListEditor` the list-level write surface (create, edit, delete, clear,
- * the menu), and `useListWrites` the item queue. Every commit goes through the
- * shipped `withActor` interceptor — the punch-in at the tap (FR-534) — and
- * nothing is written to the cache by hand: the tab repaints from the refetch
- * (FR-537).
+ * `useListEditor` the surfaces (the form, the menus, the confirmations, the
+ * item and section sheets — one open at a time), and `useListWrites` the item
+ * queue. Every commit goes through the shipped `withActor` interceptor — the
+ * punch-in at the tap (FR-534) — and nothing is written to the cache by hand:
+ * the tab repaints from the refetch (FR-537).
  */
 
 /** What the shell's "+" is called on this tab, and what it opens (FR-507). */
@@ -138,26 +145,32 @@ function useListsView(columnCount: number) {
     perRow: geometry.layout.perRow,
     mode: geometry.layout.mode,
   });
-  const filters = useListFilters();
-  return { layout: geometry.layout, boardRef: geometry.boardRef, page, filters };
+  // The pager stands down while a card has a row in hand (R508).
+  const [dragging, setDragging] = useState(false);
+  return { layout: geometry.layout, boardRef: geometry.boardRef, page, dragging, setDragging };
 }
 
 /* ----------------------------------------------------------- write surface -- */
 
-/** Which list-level surface is open. One at a time: the menu hands over to the others. */
+/** Which surface is open. One at a time: a menu hands over to the others. */
 type ListSurface =
   | { kind: "closed" }
   | { kind: "create" }
   | { kind: "edit"; list: List }
   | { kind: "menu"; list: List }
   | { kind: "delete"; list: List }
-  | { kind: "clear"; list: List };
+  | { kind: "clear"; list: List }
+  | { kind: "item"; listId: string; itemId: string }
+  | { kind: "section"; list: List; mode: SectionSheetMode }
+  | { kind: "section-menu"; list: List; section: string }
+  | { kind: "remove-section"; list: List; section: string };
 
 const SURFACE_CLOSED: ListSurface = { kind: "closed" };
 
 /** The list an open surface is about, if any. */
-function surfaceListOf(surface: ListSurface): List | null {
-  return surface.kind === "closed" || surface.kind === "create" ? null : surface.list;
+function surfaceListIdOf(surface: ListSurface): string | null {
+  if (surface.kind === "closed" || surface.kind === "create") return null;
+  return surface.kind === "item" ? surface.listId : surface.list.id;
 }
 
 interface ListEditor {
@@ -174,6 +187,10 @@ interface ListEditor {
   openMenu: (list: List) => void;
   openDelete: (list: List) => void;
   openClear: (list: List) => void;
+  openItem: (item: ListItem) => void;
+  openSection: (list: List, mode: SectionSheetMode) => void;
+  openSectionMenu: (list: List, section: string) => void;
+  openRemoveSection: (list: List, section: string) => void;
   close: () => void;
   /** The form's commit: create, or the merged patch of the open edit. */
   submit: (input: ListInput) => Promise<ListSubmitOutcome>;
@@ -181,18 +198,39 @@ interface ListEditor {
   remove: () => Promise<void>;
   /** FR-521: after the confirmation — through the item queue's write. */
   clear: () => Promise<void>;
+  /** FR-533: after the confirmation — the items stay, ungrouped. */
+  removeSection: () => Promise<void>;
+}
+
+/** The surface openers — one `useCallback` each, so a card's props stay stable. */
+function useSurfaceOpeners(open: (surface: ListSurface) => void) {
+  return {
+    openCreate: useCallback(() => open({ kind: "create" }), [open]),
+    openEdit: useCallback((list: List) => open({ kind: "edit", list }), [open]),
+    openMenu: useCallback((list: List) => open({ kind: "menu", list }), [open]),
+    openDelete: useCallback((list: List) => open({ kind: "delete", list }), [open]),
+    openClear: useCallback((list: List) => open({ kind: "clear", list }), [open]),
+    openItem: useCallback(
+      (item: ListItem) => open({ kind: "item", listId: item.listId, itemId: item.id }),
+      [open],
+    ),
+    openSection: useCallback((list: List, mode: SectionSheetMode) => open({ kind: "section", list, mode }), [open]),
+    openSectionMenu: useCallback(
+      (list: List, section: string) => open({ kind: "section-menu", list, section }),
+      [open],
+    ),
+    openRemoveSection: useCallback(
+      (list: List, section: string) => open({ kind: "remove-section", list, section }),
+      [open],
+    ),
+  };
 }
 
 function useListEditor(withActor: FamilyContextValue["withActor"], writes: ListWrites): ListEditor {
   const { surface, notice, open, close, clearNotice, reportGone, setNotice } =
     useWriteSurface<ListSurface>(SURFACE_CLOSED, GONE_MESSAGE);
   const [busy, setBusy] = useState(false);
-
-  const openCreate = useCallback(() => open({ kind: "create" }), [open]);
-  const openEdit = useCallback((list: List) => open({ kind: "edit", list }), [open]);
-  const openMenu = useCallback((list: List) => open({ kind: "menu", list }), [open]);
-  const openDelete = useCallback((list: List) => open({ kind: "delete", list }), [open]);
-  const openClear = useCallback((list: List) => open({ kind: "clear", list }), [open]);
+  const openers = useSurfaceOpeners(open);
 
   const submit = useCallback(
     async (input: ListInput): Promise<ListSubmitOutcome> => {
@@ -224,6 +262,13 @@ function useListEditor(withActor: FamilyContextValue["withActor"], writes: ListW
     await writes.clearCompleted(list);
   }, [surface, close, writes]);
 
+  const removeSection = useCallback(async () => {
+    if (surface.kind !== "remove-section") return;
+    const { list, section } = surface;
+    close();
+    await writes.removeSection(list, section);
+  }, [surface, close, writes]);
+
   return {
     surface,
     notice,
@@ -231,32 +276,36 @@ function useListEditor(withActor: FamilyContextValue["withActor"], writes: ListW
     reportGone,
     closeQuietly: close,
     busy,
-    openCreate,
-    openEdit,
-    openMenu,
-    openDelete,
-    openClear,
+    ...openers,
     close,
     submit,
     remove,
     clear,
+    removeSection,
   };
 }
 
 /**
  * FR-393 and FR-514 together: a surface whose list has left the HOUSEHOLD says
  * so; one whose list has merely left this device's visible set (a parent
- * punched out of a Parents only list) closes without a word.
+ * punched out of a Parents only list) closes without a word — as does an item
+ * sheet whose item has gone (its own Delete, or another device's).
  */
 function useSurfaceGoneCheck(editor: ListEditor, data: ListsData): void {
-  const target = surfaceListOf(editor.surface);
-  const { reportGone, closeQuietly } = editor;
+  const { surface, reportGone, closeQuietly } = editor;
+  const listId = surfaceListIdOf(surface);
+  const itemGone =
+    surface.kind === "item" &&
+    !(data.itemsByList.get(surface.listId) ?? NO_ITEMS).some((item) => item.id === surface.itemId);
   useEffect(() => {
-    if (target === null) return;
-    if (data.lists.some((list) => list.id === target.id)) return;
-    if (data.all.some((list) => list.id === target.id)) closeQuietly();
+    if (listId === null) return;
+    if (data.lists.some((list) => list.id === listId)) {
+      if (itemGone) closeQuietly();
+      return;
+    }
+    if (data.all.some((list) => list.id === listId)) closeQuietly();
     else reportGone();
-  }, [target, data.lists, data.all, reportGone, closeQuietly]);
+  }, [listId, itemGone, data.lists, data.all, reportGone, closeQuietly]);
 }
 
 /* -------------------------------------------------------------- add boxes -- */
@@ -280,19 +329,30 @@ function menuEntriesOf(
   items: readonly ListItem[],
   editor: ListEditor,
   focusAddBox: (listId: string) => void,
-  onAddSection: (list: List) => void,
 ): ListMenuEntry[] {
   const completed = completedCountOf(items);
   return [
     { label: "Add item", onSelect: () => focusAddBox(list.id) },
     { label: "Edit list", onSelect: () => editor.openEdit(list) },
-    { label: "Add section", onSelect: () => onAddSection(list), disabled: items.length === 0 },
+    {
+      label: "Add section",
+      onSelect: () => editor.openSection(list, { kind: "add" }),
+      disabled: items.length === 0,
+    },
     {
       label: completed === 0 ? "Clear Completed" : `Clear Completed (${completed})`,
       onSelect: () => editor.openClear(list),
       disabled: completed === 0,
     },
     { label: "Delete list", onSelect: () => editor.openDelete(list), danger: true },
+  ];
+}
+
+/** The section header's menu (FR-533): Rename, and Remove — the items stay. */
+function sectionMenuEntriesOf(list: List, section: string, editor: ListEditor): ListMenuEntry[] {
+  return [
+    { label: "Rename section", onSelect: () => editor.openSection(list, { kind: "rename", from: section }) },
+    { label: "Remove section", onSelect: () => editor.openRemoveSection(list, section), danger: true },
   ];
 }
 
@@ -312,6 +372,7 @@ function useListsBoardModel(props: ListsBoardProps) {
   const { householdId, actor, withActor } = useFamily();
   const writes = useListWrites();
   const filters = useListFilters();
+  const folds = useListFolds();
   const data = useListsData(householdId, props, actor, filters.filters.completed);
   const view = useListsView(data.lists.length);
   const editor = useListEditor(withActor, writes);
@@ -321,25 +382,26 @@ function useListsBoardModel(props: ListsBoardProps) {
   // The shell's one create control, named for this tab while it is mounted (FR-507).
   useRegisterFabAction(FAB_LABEL, editor.openCreate);
 
-  // T043 wires the section sheet; until then the entry is drawn and disabled.
-  const onAddSection = useCallback((): void => undefined, []);
-
+  const { openSection, openSectionMenu, openItem } = editor;
+  const onAddSection = useCallback((list: List) => openSection(list, { kind: "add" }), [openSection]);
   const onToggle = useCallback(
     (item: ListItem, checked: boolean) => void writes.setChecked(item, checked),
     [writes],
   );
-  // T037 wires the item sheet.
-  const onOpenItem = useCallback((): void => undefined, []);
+  const onMove = useCallback((item: ListItem, target: DropTarget) => void writes.move(item, target), [writes]);
 
   return {
     ...view,
     ...data,
     writes,
     editor,
+    folds,
     addBoxes,
     onAddSection,
+    onSectionMenu: openSectionMenu,
+    onOpenItem: openItem,
     onToggle,
-    onOpenItem,
+    onMove,
     notice: noticeFor(data, editor, writes),
   };
 }
@@ -357,12 +419,16 @@ function drawnColumnsOf(m: ListsBoardModel): PagedColumn[] {
         items={m.itemsByList.get(list.id) ?? NO_ITEMS}
         shownItems={m.shownByList.get(list.id) ?? NO_ITEMS}
         busyKeys={m.writes.busyKeys}
+        folds={m.folds}
         onAdd={m.writes.add}
         onToggle={m.onToggle}
         onOpenItem={m.onOpenItem}
+        onMove={m.onMove}
         onEdit={m.editor.openEdit}
         onMenu={m.editor.openMenu}
+        onSectionMenu={m.onSectionMenu}
         onAddSection={m.onAddSection}
+        onReorderActive={m.setDragging}
         registerAddInput={m.addBoxes.register}
       />
     ),
@@ -387,11 +453,12 @@ function deleteTitleOf(list: List, count: number): string {
   return `Delete “${list.name}”${tail}?`;
 }
 
-/** The list-level surfaces: the form, the menu, the two confirmations — one at a time. */
-function ListSurfaces({ m }: { m: ListsBoardModel }) {
+/** The list-level surfaces: the form, the menu, the two confirmations. */
+function ListLevelSurfaces({ m }: { m: ListsBoardModel }) {
   const { editor } = m;
   const { surface } = editor;
-  const target = surfaceListOf(surface);
+  const listId = surfaceListIdOf(surface);
+  const target = listId === null ? null : (m.all.find((list) => list.id === listId) ?? null);
   const items = target === null ? NO_ITEMS : (m.itemsByList.get(target.id) ?? NO_ITEMS);
   if (surface.kind === "create" || surface.kind === "edit") {
     return (
@@ -409,7 +476,7 @@ function ListSurfaces({ m }: { m: ListsBoardModel }) {
     return (
       <ListMenu
         title={surface.list.name}
-        entries={menuEntriesOf(surface.list, items, editor, m.addBoxes.focus, m.onAddSection)}
+        entries={menuEntriesOf(surface.list, items, editor, m.addBoxes.focus)}
         onClose={editor.close}
       />
     );
@@ -441,6 +508,86 @@ function ListSurfaces({ m }: { m: ListsBoardModel }) {
   return null;
 }
 
+/** The item sheet, over the LIVE item — it re-reads after every write (FR-537). */
+function ItemSurface({ m, listId, itemId }: { m: ListsBoardModel; listId: string; itemId: string }) {
+  const list = m.all.find((one) => one.id === listId);
+  const items = m.itemsByList.get(listId) ?? NO_ITEMS;
+  const item = items.find((one) => one.id === itemId);
+  if (list === undefined || item === undefined) return null; // the gone-check closes it
+  // The sheet's Move steps through the DRAWN sequence — what the person sees (FR-541).
+  const rows = groupedRowsOf(m.shownByList.get(listId) ?? NO_ITEMS);
+  const { writes } = m;
+  return (
+    <ItemSheet
+      item={item}
+      listName={list.name}
+      sections={sectionsOf(items)}
+      canMoveUp={stepOf(rows, item.id, -1) !== null}
+      canMoveDown={stepOf(rows, item.id, 1) !== null}
+      busy={writes.busyKeys.has(itemKeyOf(item))}
+      notice={writes.notice}
+      onSave={(patch) => writes.update(item, patch)}
+      onMove={(direction) => {
+        const target = stepOf(rows, item.id, direction);
+        if (target !== null) void writes.move(item, target);
+      }}
+      onDelete={() => void writes.remove(item)}
+      onClose={m.editor.close}
+    />
+  );
+}
+
+/** The section surfaces: the sheet (add / rename), the header's menu, the remove confirmation. */
+function SectionSurfaces({ m }: { m: ListsBoardModel }) {
+  const { editor, writes } = m;
+  const { surface } = editor;
+  if (surface.kind === "section") {
+    const { list, mode } = surface;
+    const items = m.itemsByList.get(list.id) ?? NO_ITEMS;
+    const onSubmit = (input: SectionSubmit) =>
+      mode.kind === "add"
+        ? writes.sectionItems(list, input.name, input.itemIds)
+        : writes.renameSection(list, mode.from, input.name);
+    return (
+      <SectionSheet list={list} mode={mode} items={items} sections={sectionsOf(items)} onSubmit={onSubmit} onClose={editor.close} />
+    );
+  }
+  if (surface.kind === "section-menu") {
+    return (
+      <ListMenu
+        title={surface.section}
+        entries={sectionMenuEntriesOf(surface.list, surface.section, editor)}
+        onClose={editor.close}
+      />
+    );
+  }
+  if (surface.kind === "remove-section") {
+    const count = sectionCountOf(m.itemsByList.get(surface.list.id) ?? NO_ITEMS, surface.section);
+    return (
+      <ConfirmDialog
+        title={`Remove “${surface.section}”?`}
+        body={`Its ${itemsInWords(count)} stay on the list.`}
+        confirmLabel="Remove section"
+        onConfirm={() => void editor.removeSection()}
+        onCancel={editor.close}
+      />
+    );
+  }
+  return null;
+}
+
+/** Every surface, one at a time. */
+function ListSurfaces({ m }: { m: ListsBoardModel }) {
+  const { surface } = m.editor;
+  if (surface.kind === "item") return <ItemSurface m={m} listId={surface.listId} itemId={surface.itemId} />;
+  return (
+    <>
+      <ListLevelSurfaces m={m} />
+      <SectionSurfaces m={m} />
+    </>
+  );
+}
+
 export function ListsBoard(props: ListsBoardProps) {
   const m = useListsBoardModel(props);
 
@@ -461,6 +608,7 @@ export function ListsBoard(props: ListsBoardProps) {
           perRow={m.layout.perRow}
           columns={drawnColumnsOf(m)}
           gapClassName="gap-(--fam-list-card-gap)"
+          suspended={m.dragging}
         />
       )}
 
