@@ -30,7 +30,7 @@ export const NAV_TABS: readonly NavTab[] = [
   // The Rewards tab is the same board of people — one column per Profile — and
   // declines the row for the same reason (004 FR-422, R409).
   { id: "rewards", label: "Rewards", href: "/family/rewards", icon: Star, showsChipRow: false },
-  { id: "meals", label: "Meals", href: "/family/meals", icon: Utensils, showsChipRow: true },
+  { id: "meals", label: "Meals", href: "/family/meals", icon: Utensils, showsChipRow: false },
   // The Lists tab's cards are lists, not people: the chips would count nothing,
   // and the photographed screen goes from the top bar straight into the cards
   // (005 FR-506, Assumption 12).

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { weekdayOfDate } from "@/lib/family/calendar/dates";
 import type { FieldErrors } from "@/lib/family/errors";
 import {
   WEEKDAYS,
@@ -35,7 +36,8 @@ import {
  * ever touched, and the two layers cannot disagree (FR-262).
  */
 
-export type RepeatKind = RepeatChoice["kind"];
+import type { RepeatKind } from "../../components/RepeatFieldset";
+export type { RepeatKind };
 
 /**
  * What the caller's commit hands back. A result is shown or closed on as
@@ -181,16 +183,6 @@ function draftToEventInput(draft: EventDraft, orderedCategoryIds: string[]): Eve
 }
 
 /**
- * The start date's weekday — the obvious default when weekly is chosen bare.
- * A plain-date fact read in UTC (no zone shifts a `YYYY-MM-DD`); a malformed
- * date falls back to Sunday rather than throwing mid-keystroke.
- */
-function startWeekday(startDate: string): Weekday {
-  const index = new Date(`${startDate}T00:00:00Z`).getUTCDay();
-  return WEEKDAYS[index] ?? WEEKDAYS[0];
-}
-
-/**
  * Validate locally with the actions' own module, then hand the parsed input
  * to the caller (`settleSubmit`). A refusal is what the form must show,
  * leaving every other entry exactly as typed (FR-262).
@@ -256,7 +248,7 @@ export function useEventForm(options: UseEventFormOptions): EventFormState {
       repeatKind: kind,
       weekdays:
         kind === "weekly" && current.weekdays.length === 0
-          ? [startWeekday(current.startDate)]
+          ? [weekdayOfDate(current.startDate)]
           : current.weekdays,
     }));
   }

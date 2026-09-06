@@ -25,7 +25,7 @@ import {
   isoOfEpochDay,
   weekStartDay,
 } from "../recurrence/plain-date";
-import type { WeekStart } from "../types";
+import { WEEKDAYS, type WeekStart, type Weekday } from "../types";
 
 /** A run of household-local days as the read and the expander consume it (R206/R207). */
 export interface DateWindow {
@@ -164,4 +164,15 @@ function wallFormatterFor(zone: string): Intl.DateTimeFormat {
 export function wallMinutesOf(zone: string, instantMs: number): number {
   const text = wallFormatterFor(zone).format(instantMs); // "HH:MM"
   return Number(text.slice(0, 2)) * 60 + Number(text.slice(3, 5));
+}
+
+/**
+ * A plain date's weekday as the rule grammar spells it — the obvious default
+ * when "every week" is chosen bare (the calendar's form, the meal sheet). Read
+ * in UTC because no zone shifts a `YYYY-MM-DD`; a malformed date falls back
+ * to Sunday rather than throwing mid-keystroke.
+ */
+export function weekdayOfDate(date: string): Weekday {
+  const index = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return WEEKDAYS[index] ?? WEEKDAYS[0];
 }

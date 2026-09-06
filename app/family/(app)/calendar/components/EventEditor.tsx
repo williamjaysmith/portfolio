@@ -7,7 +7,7 @@ import { DeleteConfirm } from "./DeleteConfirm";
 import { seedOf } from "./event-drafts";
 import { EventDetails } from "./EventDetails";
 import { EventForm } from "./EventForm";
-import { ScopeDialog } from "./ScopeDialog";
+import { ScopeDialog } from "../../components/ScopeDialog";
 import type { CalendarEditor } from "./useCalendarEditor";
 
 /**

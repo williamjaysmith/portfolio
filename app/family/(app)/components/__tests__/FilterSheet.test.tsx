@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetListFilters } from "@/app/family/(app)/lists/components/useListFilters";
+import { resetCalendarMealSwitch } from "@/app/family/(app)/meals/components/useCalendarMealSwitch";
 import { resetTaskFilters } from "@/app/family/(app)/tasks/components/useTaskFilters";
 import { PALETTE } from "@/lib/family/colors";
 
@@ -260,5 +261,41 @@ describe("FilterSheet — the Lists switch", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
     expect(screen.getByRole("checkbox", { name: "Completed items" })).toBeChecked();
+  });
+});
+
+/**
+ * 006 T053 — the Meals section (FR-635): "Show Meals on the calendar", per
+ * device, on by default, on the calendar's own switch store (R609), and the
+ * same **Show all** turning it back on.
+ */
+describe("FilterSheet — the Show Meals switch", () => {
+  beforeEach(() => {
+    stubDialog();
+    localStorage.clear();
+    resetTaskFilters();
+    resetListFilters();
+    resetCalendarMealSwitch();
+  });
+
+  function renderSheet(): void {
+    render(withFamily(makeContext({ categories: [makeCategory({ id: "a", label: "Alex" })] }), <FilterSheet />));
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+  }
+
+  it("shows Show Meals on the calendar under a Meals heading, on by default", () => {
+    renderSheet();
+    expect(screen.getByRole("heading", { name: "Meals" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Show Meals on the calendar" })).toBeChecked();
+  });
+
+  it("writes the switch to the calendar's store, and Show all turns it back on", () => {
+    renderSheet();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Show Meals on the calendar" }));
+    expect(screen.getByRole("checkbox", { name: "Show Meals on the calendar" })).not.toBeChecked();
+    expect(JSON.parse(localStorage.getItem("family:calendar-meals:v1") ?? "{}")).toEqual({ showMeals: false });
+
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+    expect(screen.getByRole("checkbox", { name: "Show Meals on the calendar" })).toBeChecked();
   });
 });

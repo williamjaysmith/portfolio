@@ -12,6 +12,7 @@ import {
   isLastParent,
   mayRedeemFor,
   ownsOccurrence,
+  type PermissionActor,
 } from "@/lib/family/permissions";
 
 type Outcome = "ok" | "NO_ACTOR" | "FORBIDDEN";
@@ -73,6 +74,11 @@ const MATRIX: Record<Operation, OperationRule> = {
   // sweep supplies no flag, which is a plain list.
   "list.create": { parent: "ok", member: "ok", noActor: "NO_ACTOR", noActorBootstrap: "NO_ACTOR" },
   "list.write": { parent: "ok", member: "ok", noActor: "NO_ACTOR", noActorBootstrap: "NO_ACTOR" },
+  // Phase 6 (006 FR-639, FR-640). Meals and recipes are every punched-in
+  // Profile's, like lists; a mealtime's name and colour are a parent's.
+  "meal.write": { parent: "ok", member: "ok", noActor: "NO_ACTOR", noActorBootstrap: "NO_ACTOR" },
+  "recipe.write": { parent: "ok", member: "ok", noActor: "NO_ACTOR", noActorBootstrap: "NO_ACTOR" },
+  "mealtime.edit": { parent: "ok", member: "FORBIDDEN", noActor: "NO_ACTOR", noActorBootstrap: "NO_ACTOR" },
   // Phase 3 (FR-389). The two target-aware rows read "FORBIDDEN" for a member
   // because this sweep supplies no target — a member with no record in hand
   // owns nothing. What a member may do WITH a target is the FR-351 block below.
@@ -174,7 +180,7 @@ const CASES = OPERATIONS.flatMap((op) =>
 
 describe("can", () => {
   it("covers every operation × actor × household state", () => {
-    expect(CASES).toHaveLength(22 * 3 * 2);
+    expect(CASES).toHaveLength(25 * 3 * 2);
   });
 
   it.each(CASES)(
@@ -616,5 +622,24 @@ describe("the two list operations (005 FR-534, FR-535, R505)", () => {
       allowed: false,
       reason: "FORBIDDEN",
     });
+  });
+});
+
+describe("006 FR-639 / FR-640 — meals, recipes and mealtimes", () => {
+  const parent: PermissionActor = { role: "parent", profileId: "a" };
+  const member: PermissionActor = { role: "member", profileId: "c" };
+
+  it("meal.write and recipe.write are any punched-in Profile's, and nobody's without an actor", () => {
+    for (const op of ["meal.write", "recipe.write"] as const) {
+      expect(can(member, op, STEADY), op).toEqual({ allowed: true });
+      expect(can(parent, op, STEADY), op).toEqual({ allowed: true });
+      expect(can(null, op, STEADY), op).toEqual({ allowed: false, reason: "NO_ACTOR" });
+    }
+  });
+
+  it("mealtime.edit is a parent's alone", () => {
+    expect(can(parent, "mealtime.edit", STEADY)).toEqual({ allowed: true });
+    expect(can(member, "mealtime.edit", STEADY)).toEqual({ allowed: false, reason: "FORBIDDEN" });
+    expect(can(null, "mealtime.edit", STEADY)).toEqual({ allowed: false, reason: "NO_ACTOR" });
   });
 });

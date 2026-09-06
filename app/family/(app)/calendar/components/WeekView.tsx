@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 
 import type { DateWindow } from "@/lib/family/calendar/dates";
 import {
@@ -12,15 +12,18 @@ import {
 } from "@/lib/family/calendar/layout";
 import type { PaletteColor } from "@/lib/family/colors";
 import type { ConfirmStep } from "@/lib/family/drag-state";
-import type { Category, Event, Occurrence, TimeFormat } from "@/lib/family/types";
+import type { Category, Event, Occurrence, TimeFormat, Meal, MealCategory, Recipe } from "@/lib/family/types";
 import { DEFAULT_COLUMN_COUNT, type GridMetrics } from "@/lib/family/week-geometry";
 
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily } from "../../components/FamilyProvider";
 import { AllDayBand } from "./AllDayBand";
+import { MealRow } from "./MealRow";
+import { useCalendarMeals } from "./useCalendarMeals";
 import { slotSeedOf } from "./event-drafts";
 import { EventEditor } from "./EventEditor";
-import { ScopeDialog } from "./ScopeDialog";
+import { ScopeDialog } from "../../components/ScopeDialog";
+import { MealSurfaces } from "../../meals/components/MealSurfaces";
 import { useCalendarEditor, type CalendarEditor } from "./useCalendarEditor";
 import {
   DragSurfaceContext,
@@ -247,6 +250,7 @@ function DayHeaderBand({
   todayDate,
   onOpen,
   bandRef,
+  children,
 }: {
   columnDates: readonly string[];
   layout: AllDayLayout;
@@ -254,6 +258,8 @@ function DayHeaderBand({
   todayDate: string | null;
   onOpen: (occurrence: Occurrence) => void;
   bandRef: (node: HTMLElement | null) => void;
+  /** 006 FR-634: the meal token row, under the band and outside its drag target. */
+  children?: ReactNode;
 }) {
   return (
     <div className="min-h-(--fam-dayheader-h) shrink-0 border-b border-(--fam-hairline)">
@@ -267,6 +273,7 @@ function DayHeaderBand({
           onOpen={onOpen}
         />
       </div>
+      {children}
     </div>
   );
 }
@@ -289,6 +296,10 @@ export interface WeekViewProps {
   initialAnchorDate: string;
   /** The server-fetched rows for that window — the no-flicker first paint (R207). */
   initialEvents: Event[];
+  /** 006 FR-634: the household's meal reads, seeded the same way. */
+  initialMeals: Meal[];
+  initialMealCategories: MealCategory[];
+  initialRecipes: Recipe[];
 }
 
 /**
@@ -297,7 +308,7 @@ export interface WeekViewProps {
  * the two change for different reasons and the cognitive budget is spent on
  * one of them at a time.
  */
-function useWeekViewModel({ initialAnchorDate, initialEvents }: WeekViewProps) {
+function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, initialMealCategories, initialRecipes }: WeekViewProps) {
   const { householdId, settings, categories } = useFamily();
   const zone = settings.timezone;
 
@@ -331,6 +342,13 @@ function useWeekViewModel({ initialAnchorDate, initialEvents }: WeekViewProps) {
   });
 
   const editor = useCalendarEditor({ householdId, window: week.window, zone });
+  const meals = useCalendarMeals({
+    householdId,
+    window: week.window,
+    zone,
+    todayDate: anchor.todayDate,
+    initial: { categories: initialMealCategories, recipes: initialRecipes, meals: initialMeals },
+  });
 
   // Destructured at the call site: what the view reads while rendering must
   // be plain values, and `viewportRef` must keep its identity or the grid's
@@ -377,6 +395,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents }: WeekViewProps) {
     settings,
     week,
     editor,
+    meals,
     createFromSlot: useCreateDoors(editor.openCreate, zone),
     columnCount,
     page,
@@ -428,11 +447,20 @@ export function WeekView(props: WeekViewProps) {
             todayDate={m.todayDate}
             onOpen={m.editor.openDetails}
             bandRef={m.dragBandRef}
-          />
+          >
+            <MealRow
+              columnDates={m.week.columnDates}
+              tokens={m.meals.tokens}
+              categoriesById={m.meals.categoriesById}
+              recipeNames={m.meals.surfaces.recipeNames}
+              onOpen={m.meals.surfaces.editor.openPopover}
+            />
+          </DayHeaderBand>
 
           <Notice message={weekErrorOf(m.week.error)} />
           <Notice message={m.editor.notice} />
           <Notice message={m.dragNotice} />
+          <Notice message={m.meals.surfaces.notice} />
 
           <WeekGrid
             columnDates={m.week.columnDates}
@@ -455,6 +483,7 @@ export function WeekView(props: WeekViewProps) {
       </p>
 
       <EventEditor editor={m.editor} />
+      <MealSurfaces m={m.meals.surfaces} />
       <DragScopeQuestion prompt={m.dragPrompt} dispatch={m.dragDispatch} />
     </div>
   );

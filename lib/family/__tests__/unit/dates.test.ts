@@ -9,6 +9,7 @@ import {
   weekStartFor,
   weekStartOf,
   zoneMidnightMs,
+  weekdayOfDate,
 } from "@/lib/family/calendar/dates";
 
 const CHICAGO = "America/Chicago";
@@ -136,5 +137,19 @@ describe("fetch-window derivation", () => {
     expect(() => viewWindowOf("2026-09-06", 0, CHICAGO)).toThrow(/days/);
     expect(() => viewWindowOf("2026-09-06", -3, CHICAGO)).toThrow(/days/);
     expect(() => viewWindowOf("2026-09-06", 3.5, CHICAGO)).toThrow(/days/);
+  });
+});
+
+describe("weekdayOfDate", () => {
+  it("names a plain date's weekday in the rule grammar, read in UTC so no zone shifts it", () => {
+    expect(weekdayOfDate("2026-09-06")).toBe("SU");
+    expect(weekdayOfDate("2026-09-07")).toBe("MO");
+    expect(weekdayOfDate("2026-09-12")).toBe("SA");
+    expect(weekdayOfDate("2026-12-31")).toBe("TH");
+  });
+
+  it("falls back to Sunday for a malformed date rather than throwing mid-keystroke", () => {
+    expect(weekdayOfDate("2026-13")).toBe("SU");
+    expect(weekdayOfDate("")).toBe("SU");
   });
 });

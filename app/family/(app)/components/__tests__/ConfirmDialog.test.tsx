@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-import { stubDialog } from "../../../components/__tests__/family-test-utils";
+import { stubDialog } from "./family-test-utils";
 import { ConfirmDialog } from "../ConfirmDialog";
 
 /**

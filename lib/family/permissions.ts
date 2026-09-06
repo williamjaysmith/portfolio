@@ -49,7 +49,13 @@ export type Operation =
   // Phase 5's verbs (005 FR-534, R505): every list write is any punched-in
   // Profile's; the one gate is a Parents only list, decided on `parentsOnly`.
   | "list.create"
-  | "list.write";
+  | "list.write"
+  // Phase 6's verbs (006 FR-639, FR-640): meals and recipes are any punched-in
+  // Profile's, like lists; a mealtime's name and colour are a household setting,
+  // and a parent's, like a Label's.
+  | "meal.write"
+  | "recipe.write"
+  | "mealtime.edit";
 
 /**
  * The record a target-aware operation touches (FR-351) — the first rule in this
@@ -179,6 +185,13 @@ export function memberMayWriteList(op: Operation, ctx: Pick<PermissionContext, "
   return op === "list.write" && ctx.parentsOnly !== true;
 }
 
+/** 006 FR-639 / FR-640 for a member: meals and recipes are theirs; a mealtime's name and colour are not. */
+function memberMayWriteMeals(op: Operation): boolean {
+  return op === "meal.write" || op === "recipe.write";
+}
+
+const MEAL_OPERATIONS: ReadonlySet<Operation> = new Set<Operation>(["meal.write", "recipe.write", "mealtime.edit"]);
+
 /**
  * A member is refused every verb FR-389 and R410 reserve, and every target-aware
  * one whose record is not theirs — including one the caller supplied no record
@@ -193,6 +206,7 @@ function decideForMember(
   let allowed = false;
   if (REDEEM_OPERATIONS.has(op)) allowed = memberMayRedeem(actor, ctx);
   else if (TARGET_AWARE.has(op)) allowed = memberOwnsTarget(actor, ctx);
+  else if (MEAL_OPERATIONS.has(op)) allowed = memberMayWriteMeals(op);
   else allowed = memberMayWriteList(op, ctx);
   return allowed ? { allowed: true } : { allowed: false, reason: "FORBIDDEN" };
 }

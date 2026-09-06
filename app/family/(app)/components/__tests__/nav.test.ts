@@ -44,12 +44,13 @@ describe("nav", () => {
  */
 describe("showsChipRow", () => {
   /** The two tabs whose columns are the Profiles themselves, and the one whose cards are lists. */
-  const ROWLESS_TABS = ["tasks", "rewards", "lists"];
+  const ROWLESS_TABS = ["tasks", "rewards", "lists", "meals"];
 
   it("carries the decision on the tab definition, not in the shell", () => {
     expect(NAV_TABS.find((tab) => tab.id === "tasks")?.showsChipRow).toBe(false);
     expect(NAV_TABS.find((tab) => tab.id === "rewards")?.showsChipRow).toBe(false);
     expect(NAV_TABS.find((tab) => tab.id === "lists")?.showsChipRow).toBe(false);
+    expect(NAV_TABS.find((tab) => tab.id === "meals")?.showsChipRow).toBe(false);
     expect(
       NAV_TABS.filter((tab) => !ROWLESS_TABS.includes(tab.id)).every((tab) => tab.showsChipRow),
     ).toBe(true);
@@ -58,7 +59,7 @@ describe("showsChipRow", () => {
   it("keeps the row off the Lists route — the cards are lists, not people (005 FR-506)", () => {
     expect(showsChipRow("/family/lists")).toBe(false);
     expect(showsChipRow("/family/lists/anything")).toBe(false);
-    expect(showsChipRow("/family/meals")).toBe(true);
+    expect(showsChipRow("/family/meals")).toBe(false);
   });
 
   it("keeps the row off the Tasks route and anything nested under it (FR-314)", () => {

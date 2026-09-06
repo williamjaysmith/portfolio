@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Scope } from "@/lib/family/types";
 
-import { stubDialog } from "../../../components/__tests__/family-test-utils";
+import { stubDialog } from "./family-test-utils";
 import { ScopeDialog, type ScopeDialogMode } from "../ScopeDialog";
 
 /**
@@ -119,5 +119,32 @@ describe("ScopeDialog", () => {
     fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
     expect(onCancel).toHaveBeenCalledTimes(2);
     expect(onChoose).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 006 T007 — the noun (FR-629): the Meals tab asks the same question about
+ * meals, in the spec's exact words, and the calendar's call sites — which pass
+ * no noun — read exactly as they did.
+ */
+describe("ScopeDialog — the meal noun", () => {
+  beforeEach(stubDialog);
+
+  it("reads This meal / This and future meals / All meals, titled for the action", () => {
+    render(<ScopeDialog mode="delete" noun="meal" onChoose={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Delete repeating meal" })).toBeInTheDocument();
+    expect(screen.getByText("Which meals should this apply to?")).toBeInTheDocument();
+    expect(screen.getAllByRole("radio").map((radio) => radio.closest("label")?.textContent?.trim())).toEqual([
+      "This meal",
+      "This and future meals",
+      "All meals",
+    ]);
+    expect(screen.getByText(/reaches only the part this meal belongs to/)).toBeInTheDocument();
+  });
+
+  it("defaults to the event, so the calendar's wording is untouched", () => {
+    render(<ScopeDialog mode="edit" onChoose={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "Edit repeating event" })).toBeInTheDocument();
+    expect(screen.getByText("Which events should this apply to?")).toBeInTheDocument();
   });
 });

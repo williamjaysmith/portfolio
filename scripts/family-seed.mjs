@@ -102,7 +102,8 @@ const FIXTURE_PROFILES = [
   // 002's example household (spec: Ana/Ben parents, Cleo child, Label "Bin day").
   { label: "Ana", role: "parent", color: "#915EA1", avatar: "cat" },
   { label: "Ben", role: "parent", color: "#2D8086", avatar: "owl" },
-  { label: "Cleo", role: "member", color: "#93D1E6", avatar: "frog" },
+  // 006 FR-638: one dietary note, so the planning sheets have something to show.
+  { label: "Cleo", role: "member", color: "#93D1E6", avatar: "frog", dietary: "no nuts" },
   { label: "Holidays", color: "#FDC36D", emoji: "🎉", isProfile: false },
   { label: "Bin day", color: "#408257", emoji: "🗑️", isProfile: false },
 ];
@@ -558,6 +559,8 @@ function normaliseProfile(spec, index) {
     avatar: optionalString(spec.avatar),
     emoji: optionalString(spec.emoji),
     birthday: optionalString(spec.birthday),
+    // Absent stays absent (not null): toRow only writes the column for a fixture that names a note.
+    dietary: typeof spec.dietary === "string" ? spec.dietary : undefined,
   };
 }
 
@@ -567,6 +570,8 @@ function toRow(spec) {
     color: spec.color,
     is_profile: spec.isProfile,
     role: spec.role,
+    // Only a fixture that names a note carries the column, so a re-seed never clears a note set in the app.
+    ...(spec.dietary === undefined ? {} : { dietary_prefs: spec.dietary }),
     avatar_kind: spec.avatar ? "illustration" : null,
     avatar_id: spec.avatar,
     emoji: spec.emoji,
@@ -627,6 +632,7 @@ async function ensureHousehold(fam, log) {
     await seedTaskBox(fam, log);
   }
   await seedDefaultLists(fam, log);
+  await seedDefaultMealCategories(fam, log);
   const settings = unwrap(
     await fam.from("household_settings").select("household_id").eq("household_id", HOUSEHOLD_ID).maybeSingle(),
     "read settings",
@@ -1410,6 +1416,7 @@ async function seedLocalFixtures(fam, zone, log) {
   await seedFixtureRewards(fam, log);
   await seedStartingBalance(fam, zone, log);
   await seedFixtureLists(fam, log);
+  await seedFixtureMeals(fam, zone, log);
 }
 
 /** Explicit JSON wins; --local falls back to the fixtures, hosted to nothing. */
@@ -1462,3 +1469,165 @@ main().catch((error) => {
   console.error(`family-seed failed: ${message}`);
   process.exitCode = 1;
 });
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Meals (006 FR-608, R613) — the four default mealtimes on every seed, and the
+ * --local fixtures: seven recipes (one removed), a week of meals across the
+ * mealtimes, a weekly "🍕 Pizza" with a skipped and a moved occurrence, and a
+ * meal that still references the removed recipe.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+function fixtureRecipeId(n) {
+  return `00000000-0000-4000-8000-0000000007${String(n).padStart(2, "0")}`;
+}
+
+function fixtureMealId(n) {
+  return `00000000-0000-4000-8000-0000000008${String(n).padStart(2, "0")}`;
+}
+
+function fixtureMealExceptionId(n) {
+  return `00000000-0000-4000-8000-0000000009${String(n).padStart(2, "0")}`;
+}
+
+/**
+ * The four default mealtimes (006 FR-608, R613): Breakfast, Lunch, Dinner,
+ * Snack in the live API's colours, made ONCE by
+ * family.seed_default_meal_categories() — idempotent by emptiness, so a
+ * household that renamed one never gets the original back. Runs on EVERY seed,
+ * both modes, as the default lists do: the hosted household already exists when
+ * 030 lands, and this is how it gets its mealtimes (006 quickstart §4 step 4).
+ */
+async function seedDefaultMealCategories(fam, log) {
+  const seeded = unwrap(
+    await fam.rpc("seed_default_meal_categories", { p_household_id: HOUSEHOLD_ID }),
+    "seed the default mealtimes",
+  );
+  log(
+    seeded === 0
+      ? "mealtimes   (the household already has mealtimes; the defaults are not re-made)"
+      : `mealtimes   ${seeded} default mealtime${seeded === 1 ? "" : "s"}  (seeded)`,
+  );
+}
+
+/** `category` is a default mealtime's name; `removed` marks FR-616's first delete choice. */
+const FIXTURE_RECIPES = [
+  { id: fixtureRecipeId(1), name: "Pancakes", category: "Breakfast", text: "2 cups flour\n2 eggs\n1½ cups milk\n\nWhisk, rest 10 min, fry." },
+  { id: fixtureRecipeId(2), name: "Sandwiches", category: "Lunch", text: "" },
+  {
+    id: fixtureRecipeId(3),
+    name: "🍝 Spaghetti",
+    category: "Dinner",
+    text: "500 g spaghetti\n1 onion\n2 cloves garlic\n400 g tomatoes\nolive oil\nparmesan\n\nSoften the onion and garlic.\nAdd the tomatoes, simmer 20 min.\nToss with the pasta.",
+  },
+  { id: fixtureRecipeId(4), name: "Garlic bread", category: "Dinner", text: "1 baguette\n50 g butter\n2 cloves garlic" },
+  { id: fixtureRecipeId(5), name: "🍕 Pizza", category: "Dinner", text: "Dough\nPassata\nMozzarella\n\nBake 12 min at 250°C." },
+  { id: fixtureRecipeId(6), name: "Banana bread", category: "Snack", text: "3 ripe bananas\n100 g sugar\n1 egg\n200 g flour\n\nMash, mix, bake 55 min." },
+  { id: fixtureRecipeId(7), name: "Old stew", category: "Dinner", text: "", removed: true },
+];
+
+/**
+ * The household's week (start day Sunday, the seeded default) around today —
+ * `offset` is days from that Sunday. Pizza repeats weekly on Friday for eight
+ * weeks with the second Friday skipped and the third moved to its Saturday.
+ */
+function fixtureMealsOf(today) {
+  const sunday = addDays(today, -weekdayIndex(today));
+  const friday = addDays(sunday, 5);
+  return [
+    { id: fixtureMealId(1), date: sunday, category: "Breakfast", recipe: fixtureRecipeId(1) },
+    { id: fixtureMealId(2), date: addDays(sunday, 3), category: "Lunch", recipe: fixtureRecipeId(2) },
+    { id: fixtureMealId(3), date: addDays(sunday, 3), category: "Dinner", recipe: fixtureRecipeId(3), note: "Ben cooks" },
+    { id: fixtureMealId(4), date: addDays(sunday, 3), category: "Dinner", recipe: fixtureRecipeId(4) },
+    { id: fixtureMealId(5), date: addDays(sunday, 6), category: "Snack", recipe: fixtureRecipeId(6) },
+    {
+      id: fixtureMealId(6),
+      date: friday,
+      category: "Dinner",
+      recipe: fixtureRecipeId(5),
+      rrule: `FREQ=WEEKLY;INTERVAL=1;UNTIL=${untilDate(addDays(friday, 56))};WKST=SU;BYDAY=FR`,
+      exceptions: [
+        { id: fixtureMealExceptionId(1), occurrenceDate: addDays(friday, 7), action: "skip" },
+        { id: fixtureMealExceptionId(2), occurrenceDate: addDays(friday, 14), action: "override", date: addDays(friday, 15) },
+      ],
+    },
+    { id: fixtureMealId(7), date: addDays(today, -1), category: "Dinner", recipe: fixtureRecipeId(7) },
+  ];
+}
+
+/** The household's mealtime ids by name — the defaults are addressed this way. */
+async function householdMealtimeIds(fam) {
+  const rows = unwrap(
+    await fam.from("meal_categories").select("id, name").eq("household_id", HOUSEHOLD_ID),
+    "read household mealtimes",
+  );
+  return new Map(rows.map((row) => [row.name, row.id]));
+}
+
+function mealtimeIdOf(name, mealtimeIds) {
+  const id = mealtimeIds.get(name);
+  if (!id) throw new SeedError(`the meals fixtures need the mealtime "${name}", which this household no longer has`);
+  return id;
+}
+
+function recipeRow(spec, mealtimeIds) {
+  return {
+    id: spec.id,
+    household_id: HOUSEHOLD_ID,
+    name: spec.name,
+    category_id: mealtimeIdOf(spec.category, mealtimeIds),
+    text: spec.text,
+    removed_at: spec.removed ? new Date().toISOString() : null,
+  };
+}
+
+function mealRow(spec, mealtimeIds) {
+  return {
+    id: spec.id,
+    household_id: HOUSEHOLD_ID,
+    date: spec.date,
+    category_id: mealtimeIdOf(spec.category, mealtimeIds),
+    recipe_id: spec.recipe,
+    note: spec.note ?? null,
+    rrule: spec.rrule ?? null,
+  };
+}
+
+function mealExceptionRows(spec) {
+  return (spec.exceptions ?? []).map((one) => ({
+    id: one.id,
+    household_id: HOUSEHOLD_ID,
+    meal_id: spec.id,
+    occurrence_date: one.occurrenceDate,
+    action: one.action,
+    date: one.date ?? null,
+    category_id: null,
+    note: null,
+  }));
+}
+
+/**
+ * --local only. Idempotent by EMPTINESS of meals: a household that has planned
+ * anything keeps exactly what it has — a deleted or moved fixture is never put
+ * back, and a re-run after playing with the tab changes nothing.
+ */
+async function seedFixtureMeals(fam, zone, log) {
+  const existing = unwrap(
+    await fam.from("meals").select("id").eq("household_id", HOUSEHOLD_ID).limit(1),
+    "read meals",
+  );
+  if (existing.length > 0) {
+    log("meals       (the household already has meals; the fixtures are not re-seeded)");
+    return;
+  }
+  const mealtimeIds = await householdMealtimeIds(fam);
+  unwrap(
+    await fam.from("recipes").upsert(FIXTURE_RECIPES.map((spec) => recipeRow(spec, mealtimeIds)), { onConflict: "id" }),
+    "insert fixture recipes",
+  );
+  const meals = fixtureMealsOf(todayInZone(zone));
+  unwrap(await fam.from("meals").upsert(meals.map((spec) => mealRow(spec, mealtimeIds)), { onConflict: "id" }), "insert fixture meals");
+  const exceptions = meals.flatMap(mealExceptionRows);
+  unwrap(await fam.from("meal_exceptions").insert(exceptions), "insert fixture meal exceptions");
+  log(`recipes     ${FIXTURE_RECIPES.length} (one removed, still planned)  (created)`);
+  log(`meals       ${meals.length} this week, the Friday pizza weekly with a skip and a move  (created)`);
+}

@@ -52,6 +52,10 @@ const TABLES = [
   "redemptions",
   "lists",
   "list_items",
+  "meal_categories",
+  "recipes",
+  "meals",
+  "meal_exceptions",
 ] as const;
 type Table = (typeof TABLES)[number];
 
@@ -63,6 +67,9 @@ const REWARD_TABLES = ["rewards", "reward_eligibilities", "star_entries", "redem
 
 /** Realtime: the two Phase 5 tables join the channel (029), replica identity left at default. */
 const LIST_TABLES = ["lists", "list_items"] as const;
+
+/** Realtime: the four Phase 6 tables join the channel (033), replica identity left at default. */
+const MEAL_TABLES = ["meal_categories", "recipes", "meals", "meal_exceptions"] as const;
 
 const FUNCTIONS = [
   "assert_event_timezone",
@@ -86,9 +93,11 @@ const FUNCTIONS = [
   "record_redemption",
   "retract_task_resolution",
   "seed_default_lists",
+  "seed_default_meal_categories",
   "seed_task_box",
   "set_pin",
   "split_event_series",
+  "split_meal_series",
   "sync_has_pin",
   "touch_updated_at",
   "verify_pin",
@@ -218,6 +227,10 @@ describe("privileges: the grant matrix", () => {
         redemptions: READ,
         lists: READ,
         list_items: READ,
+        meal_categories: READ,
+        recipes: READ,
+        meals: READ,
+        meal_exceptions: READ,
       }),
     );
     expect(await executePrivileges(pool, "authenticated")).toEqual(
@@ -246,6 +259,10 @@ describe("privileges: the grant matrix", () => {
         redemptions: ALL,
         lists: ALL,
         list_items: ALL,
+        meal_categories: ALL,
+        recipes: ALL,
+        meals: ALL,
+        meal_exceptions: ALL,
       }),
     );
     expect(await executePrivileges(pool, "service_role")).toEqual(
@@ -258,6 +275,8 @@ describe("privileges: the grant matrix", () => {
         "split_event_series",
         "seed_task_box",
         "seed_default_lists",
+        "seed_default_meal_categories",
+        "split_meal_series",
       ]),
     );
   });
@@ -364,6 +383,26 @@ describe("privileges: the grant matrix", () => {
       [[...LIST_TABLES]],
     );
     expect(identities).toEqual([...LIST_TABLES].sort().map((relname) => ({ relname, relreplident: "d" })));
+  });
+
+  it("the four meals tables are on supabase_realtime at the default replica identity (006 R605)", async () => {
+    const { rows: publication } = await pool.query<{ puballtables: boolean }>(
+      "select puballtables from pg_publication where pubname = 'supabase_realtime'",
+    );
+    expect(publication).toHaveLength(1);
+    const { rows: published } = await pool.query<{ tablename: string }>(
+      "select tablename from pg_publication_tables " +
+        "where pubname = 'supabase_realtime' and schemaname = 'family' and tablename = any($1::text[])",
+      [[...MEAL_TABLES]],
+    );
+    const covered = publication[0]?.puballtables === true || published.length === MEAL_TABLES.length;
+    expect(covered).toBe(true);
+    const { rows: identities } = await pool.query<{ relname: string; relreplident: string }>(
+      "select relname, relreplident from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+        "where n.nspname = 'family' and relname = any($1::text[]) order by relname",
+      [[...MEAL_TABLES]],
+    );
+    expect(identities).toEqual([...MEAL_TABLES].sort().map((relname) => ({ relname, relreplident: "d" })));
   });
 
   it("the four reward tables are on supabase_realtime at the default replica identity (R411)", async () => {

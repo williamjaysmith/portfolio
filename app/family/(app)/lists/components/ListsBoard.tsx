@@ -18,7 +18,7 @@ import { useFamily, type FamilyContextValue } from "../../components/FamilyProvi
 import { PagedColumns, type PagedColumn } from "../../components/PagedColumns";
 import { useBoardGeometry } from "../../components/useBoardGeometry";
 import { settleEdit, useWriteSurface } from "../../components/useWriteSurface";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { ItemSheet } from "./ItemSheet";
 import { ListCard } from "./ListCard";
 import { ListForm } from "./ListForm";

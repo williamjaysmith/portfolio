@@ -681,3 +681,116 @@ export interface ListItem {
 export interface ListFilters {
   completed: boolean;
 }
+
+/* ------------------------------------------------------------------ meals -- */
+
+/**
+ * One of the household's four mealtimes (030; 006 FR-608–FR-612). A record
+ * with an identity — a rename carries every recipe and meal that names it —
+ * seeded once and never deleted (R601, R604).
+ */
+export interface MealCategory {
+  id: string;
+  householdId: string;
+  name: string;
+  color: PaletteColor;
+  /** 1–4, the row order on the grid and the rail. */
+  position: number;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One saved recipe (031; FR-613–FR-617): a name, one mealtime, one free text
+ * of ingredients and instructions. Planned meals REFERENCE it (Assumption 9);
+ * `removedAt` is FR-616's first delete choice — out of the pane and the picker,
+ * still readable for the meals that point at it (R601).
+ */
+export interface Recipe {
+  id: string;
+  householdId: string;
+  name: string;
+  categoryId: string;
+  text: string;
+  removedAt: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One occurrence of a repeating meal that diverges from its series (032):
+ * a skip, or an override of date, mealtime or note — keyed by the occurrence's
+ * ORIGINAL date, as an event's exception is (R602). `note` of `""` clears the
+ * series' note for that occurrence; `null` inherits.
+ */
+export interface MealException {
+  id: string;
+  mealId: string;
+  householdId: string;
+  occurrenceDate: string;
+  action: ExceptionAction;
+  date: string | null;
+  categoryId: string | null;
+  note: string | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One `family.meals` row — a one-off or a whole series (032; FR-622–FR-630).
+ * The read path embeds every exception, so `expandMeals` finds a moved
+ * occurrence without any search-window bookkeeping (R605).
+ */
+export interface Meal {
+  id: string;
+  householdId: string;
+  /** The slot's date — the series anchor when `rrule` is set. */
+  date: string;
+  categoryId: string;
+  recipeId: string;
+  note: string | null;
+  /** Canonical prefix-less RFC 5545 rule with a date UNTIL (R602); `null` = one-off. */
+  rrule: string | null;
+  exceptions: MealException[];
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One drawn meal — a one-off, or one occurrence of a series with any override
+ * merged. `occurrenceDate` is the exception key, NOT necessarily `date`.
+ */
+export interface MealOccurrence {
+  mealId: string;
+  occurrenceDate: string;
+  /** Whether a write on this occurrence must ask the scope question (FR-629). */
+  isRepeating: boolean;
+  /** The drawn date — the override's when one moved it. */
+  date: string;
+  categoryId: string;
+  recipeId: string;
+  note: string | null;
+  /** Planning order within a slot (Assumption 7): the meal's creation. */
+  createdAt: string;
+}
+
+/** `planMeal`'s recipe: one the household has, or a new entry that also becomes one (FR-622). */
+export type RecipeChoice =
+  | { kind: "existing"; id: string }
+  | { kind: "new"; name: string; text?: string };
+
+/** The calendar's three scopes, worded for meals in the dialog (FR-629). */
+export type MealScope = Scope;
+
+/** The calendar's one per-device meals switch (FR-635, R609), on the `ListFilters` pattern. */
+export interface CalendarMealSwitches {
+  showMeals: boolean;
+}

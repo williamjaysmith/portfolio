@@ -1,27 +1,28 @@
 <!-- SPECKIT START -->
-**Active feature**: `005-family-lists` — Phase 5 of the `/family` Skylight Calendar clone: the
-Lists tab (a row of coloured list cards with a count badge, an "Add item" box, square-checkbox item
-rows, freeform sections with counts and folds; two default lists made once per household; add,
-check, uncheck, edit, move, delete and Clear Completed; press-and-hold reorder across sections in
-one write; a per-device Completed switch in the Filter sheet; Parents only lists shown only while a
-parent is punched in). Lists were split out of the locked plan's `family-lists-meals` on
-2026-09-05; Meals follows as `006-family-meals`; notifications/home/offline/search are Phase 7.
-**State: built and green locally (2026-09-06) — migrations 028–029 applied on the local stack, 3139 unit + 431 policies tests, audit clean; NOT yet on the hosted project. Next: `supabase db push --linked` (028–029) → quickstart §4 → merge → deploy → live checks (T054), then the device pass (T055).** There are no subscription
+**Active feature**: `006-family-meals` — Phase 6 of the `/family` Skylight Calendar clone: the
+Meals tab (a week grid of seven days by up to four mealtimes with a rotated rail; four mealtimes
+seeded once, renamable/recolourable by a parent, hideable per device; recipes folded into the tab
+as a pane — never a nav tab; planning from a recipe or a new entry with a note, several meals per
+slot; a popover with Open Recipe / Add to List / Edit / Delete; repeating meals on the calendar's
+recurrence engine with its three scopes; a recipe's lines pushed as a checklist onto a chosen list
+in one write; meal tokens on the Week calendar behind a per-device Show Meals switch; dietary notes
+while planning). Phase 5 (Lists) shipped 2026-09-06; notifications/home/offline/search are Phase 7;
+a Playwright e2e pass over `/family` is planned between this phase and Phase 7.
+**State: built, reviewed and walked on `006-family-meals` (2026-09-06; T001–T060 done, run record in `checklists/quickstart-run.md`); next the hosted `supabase db push` (030–033) → merge → deploy (T061), then the operator's device pass (T062).** There are no subscription
 tiers here — every Skylight feature is simply present.
 
 Read in this order before touching `/family` code:
-1. `specs/005-family-lists/plan.md` — the implementation plan and phasing (the chassis move is step 1)
-2. `specs/005-family-lists/spec.md` — 45 requirements, evidence-tagged
-3. `specs/005-family-lists/research.md` — R501–R516 and why
-4. `specs/005-family-lists/data-model.md` — migrations 028–029, invariants, the privilege delta
-5. `specs/005-family-lists/contracts/server-actions.md` — the twelve actions
-6. `specs/005-family-lists/quickstart.md` — setup, verification per guarantee, operator steps
+1. `specs/006-family-meals/plan.md` — the implementation plan and phasing (the three generalisations are step 1)
+2. `specs/006-family-meals/spec.md` — 49 requirements, evidence-tagged
+3. `specs/006-family-meals/research.md` — R601–R617 and why
+4. `specs/006-family-meals/data-model.md` — migrations 030–033, invariants, the privilege delta
+5. `specs/006-family-meals/contracts/server-actions.md` — the eight actions
+6. `specs/006-family-meals/quickstart.md` — setup, verification per guarantee, operator steps
 
-Phases 1–4 (`specs/001-family-foundation/`, `specs/002-family-week-calendar/`,
-`specs/003-family-tasks/`, `specs/004-family-rewards/`) are shipped and live; their docs bind this
-phase's conventions. **Hard ordering**: the hosted `supabase db push` (028–029) MUST land before
-this branch is merged or deployed — the two new tables join the realtime channel every `/family`
-page mounts.
+Phases 1–5 (`specs/001-family-foundation/` … `specs/005-family-lists/`) are shipped and live;
+their docs bind this phase's conventions. **Hard ordering**: the hosted `supabase db push`
+(030–033) MUST land before this branch is merged or deployed — the four new tables join the
+realtime channel every `/family` page mounts.
 
 Product truth lives in `docs/research/skylight/00-master-map.md`.
 Note: this repo is Next 16 — request interception is `proxy.ts`, not `middleware.ts`,
