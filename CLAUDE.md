@@ -1,36 +1,33 @@
 <!-- SPECKIT START -->
-**Active feature**: `006-family-meals` — Phase 6 of the `/family` Skylight Calendar clone: the
-Meals tab (a week grid of seven days by up to four mealtimes with a rotated rail; four mealtimes
-seeded once, renamable/recolourable by a parent, hideable per device; recipes folded into the tab
-as a pane — never a nav tab; planning from a recipe or a new entry with a note, several meals per
-slot; a popover with Open Recipe / Add to List / Edit / Delete; repeating meals on the calendar's
-recurrence engine with its three scopes; a recipe's lines pushed as a checklist onto a chosen list
-in one write; meal tokens on the Week calendar behind a per-device Show Meals switch; dietary notes
-while planning). Phase 5 (Lists) shipped 2026-09-06; notifications/home/offline/search are Phase 7;
-a Playwright e2e pass over `/family` is planned between this phase and Phase 7.
-**State: shipped 2026-09-06 — 030–033 pushed, merged as `24ef96a`, live at willsmith.dev/family/meals; only T062, the operator's device pass, is outstanding. Next: the Playwright e2e pass over `/family`, then Phase 7 (notifications/home/offline/search).** There are no subscription
-tiers here — every Skylight feature is simply present.
+**Active feature**: `007-family-e2e` — the browser-driven end-to-end pass over `/family`: one
+command that resets and seeds the local stack, starts the app against it, signs in once, sets the
+PINs the seed never sets, and walks the journeys the six shipped phases have only ever had walked by
+hand — the door and the punch-in gate, the calendar's create/edit/delete/drag and its three repeat
+scopes, the tasks board and the stars it moves, the lists and their reorder, the meals grid with its
+recipes and its calendar tokens — plus the four claims no test has ever checked: a change reaching a
+second browser, the narrow layouts, installability, and no serious accessibility violations. It adds
+tests and the harness they need, and changes the app only where a journey proves a defect.
+**State: specified, planned and designed (2026-09-06); tasks next, then implementation — Setup first.**
+Phases 1–6 are shipped and live; Phase 7 (notifications, home, offline, search) follows this.
 
-Read in this order before touching `/family` code:
-1. `specs/006-family-meals/plan.md` — the implementation plan and phasing (the three generalisations are step 1)
-2. `specs/006-family-meals/spec.md` — 49 requirements, evidence-tagged
-3. `specs/006-family-meals/research.md` — R601–R617 and why
-4. `specs/006-family-meals/data-model.md` — migrations 030–033, invariants, the privilege delta
-5. `specs/006-family-meals/contracts/server-actions.md` — the eight actions
-6. `specs/006-family-meals/quickstart.md` — setup, verification per guarantee, operator steps
+Read in this order before touching `e2e/` code:
+1. `specs/007-family-e2e/plan.md` — the plan, the structure and the phasing
+2. `specs/007-family-e2e/spec.md` — 30 requirements, 7 journeys, 13 success criteria
+3. `specs/007-family-e2e/research.md` — R701–R715 and why
+4. `specs/007-family-e2e/harness.md` — the state a run begins in, the fixtures, the rules a journey follows
+5. `specs/007-family-e2e/quickstart.md` — how to run it, verification per guarantee, what to do when it fails
 
-Phases 1–5 (`specs/001-family-foundation/` … `specs/005-family-lists/`) are shipped and live;
-their docs bind this phase's conventions. **Hard ordering**: the hosted `supabase db push`
-(030–033) MUST land before this branch is merged or deployed — the four new tables join the
-realtime channel every `/family` page mounts.
-
-Product truth lives in `docs/research/skylight/00-master-map.md`.
-Note: this repo is Next 16 — request interception is `proxy.ts`, not `middleware.ts`,
-and it is NOT an authorization boundary. Every server action re-checks auth itself.
+The six shipped phases (`specs/001-family-foundation/` … `specs/006-family-meals/`) are the
+subject of this suite and are not changed by it, except where a journey proves a defect — which is
+fixed application-side with its own unit test, in the shipped style. The suite is a **phase gate**,
+run before a phase is merged; it is deliberately not in the pre-commit hook, and it must never be
+able to reach the hosted project.
 
 **Working locally**: `supabase start` (this repo's stack is on **553xx**, not the CLI defaults —
-another project already occupies 543xx), then `supabase db reset`, `npm run family:seed -- --local`,
-then `npm run dev:local` and sign in with password `family-dev-password` (account `dev@family.local`).
+another project already occupies 543xx), then `npm run test:e2e`, which does the reset, the seed and
+the server itself. For the app by hand: `supabase db reset`, `npm run family:seed -- --local`,
+`npm run dev:local`, sign in with password `family-dev-password` (account `dev@family.local`);
+PINs are never seeded — set Ana `1234` and Cleo `2468` in Settings after every reset.
 Policies tests: `npm run test:policies` (reads `.env.local`; needs the local stack).
 
 **The gate needs coverage**: fallow scores untested branchy functions via CRAP, so
