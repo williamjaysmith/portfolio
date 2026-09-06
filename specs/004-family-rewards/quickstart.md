@@ -41,6 +41,11 @@ still never seeded — set one in Settings before redeeming.
 
 ## 4. Hosted project — operator steps
 
+> **State on 2026-09-05**: step 1's push was run from the session (024–027 applied, each in its
+> own transaction) and steps 2–4 passed from the logged-in CLI straight after; the branch was merged
+> and deployed. Step 5's device pass remains.
+
+
 > **Ordering constraint, unchanged from Phase 3**: the push happens **before** the branch is
 > merged or deployed. Four more tables join the single shared realtime channel; a deploy that
 > lands first takes the shipped calendar's and board's live updates down, silently.

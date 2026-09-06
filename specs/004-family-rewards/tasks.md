@@ -7,6 +7,16 @@
 
 **Organization**: Grouped by user story in the spec's priority order. Setup and Foundational block every story; then US1 (stars on the board) → US2 (the Rewards tab) → US3 (redeeming) → US4 (hand adjustments and the celebrations), each reading state the previous one creates.
 
+> **Handover (2026-09-05, end of the autonomous run).** T001–T057 are done and committed on
+> `004-family-rewards`; the hosted `supabase db push` (024–027) landed from this session and
+> quickstart §4's checks passed (no `anon` grant on the five relations, the seven functions
+> executable by nobody, `star_balances` `security_invoker=true`, the four tables in
+> `supabase_realtime` at replica identity **d**, every balance 0). The branch was then merged and
+> deployed (T059). **Still the operator's, by hand on hardware (the rest of T058)**: SC-404 and
+> SC-409 across two devices, SC-417 on the iPad in both orientations and on a phone, the falling
+> stars and the emoji rain on the wall tablet, and — an open UX choice raised during the walk — whether
+> the punch-in prompt should move to the tap that opens Add/Edit/Give stars (plan §Risks).
+
 **Phases 1–3 are shipped and live.** Nothing here forks them. No shipped table changes shape; the three resolution verbs are not edited (their ledger consequences are the database's, R401). **The hosted push (024–027) precedes the merge and the deploy** — Hard ordering, restated at T058.
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -146,8 +156,8 @@
 - [x] T055 Full quickstart run against the local stack — every "Verifying the guarantees" row that runs locally (SC-401, 402, 403, 405, 406's authed paths, 407, 408, 410, 411, 412, 413, 414, 415 via a clock jump, 416, 417, 418, 419) plus the "Load-bearing FR spot-checks"; fix any drift between the documents and the behaviour, recording it in `checklists/quickstart-run.md`
 - [x] T056 [P] Gates + graph — `npm run test:coverage` first, then `npm run fallow:audit` (zero NEW findings with the new zone; the two per-device stores and `useRedeem` vs `useTaskResolve` are the likely `fallow:dupes` flags — extract a shared helper, never a threshold lift), `npm test`, `npm run typecheck`, `npm run lint`, `npm run graph`. **No suppressions anywhere**
 - [x] T057 **Constitution review gate** — `code-reviewer` over the whole diff against `main`, `security-guardian` over `supabase/migrations/024–027` (the five trigger functions, the row lock, `household_today`, the view, the privilege delta), `lib/family/actions/rewards.ts`, the `permissions.ts` delta, the `deleteCategory` amendment and the realtime change. Every finding fixed — or surfaced to the operator — before T058. Depends on T055, T056
-- [ ] T058 **[OPERATOR — needs the hosted push]** `supabase db push --linked` (024–027; a dry run lists exactly those four), then quickstart §4's checks: no `anon` row on the four tables or the view; the seven functions executable by nobody; `star_balances` `security_invoker=true`; the four tables in `pg_publication_tables` at replica identity `d`; one `star_balances` row per Profile at 0. **The push MUST complete before the branch is merged or deployed** (R411). Then SC-404 and SC-409 on two real devices, SC-417 on the iPad in both orientations and on a phone, the falling stars and the emoji rain on the wall tablet
-- [ ] T059 Documentation sync — `CLAUDE.md`'s active-feature block and status, `specs/004-family-rewards/plan.md` Progress, any quickstart drift T055 found, memory notes; final commit(s) on `004-family-rewards`. **Merge and deploy come after T058, never before it**
+- [x] T058 **[hosted half done 2026-09-05; the device passes remain]** `supabase db push --linked` (024–027; a dry run lists exactly those four), then quickstart §4's checks: no `anon` row on the four tables or the view; the seven functions executable by nobody; `star_balances` `security_invoker=true`; the four tables in `pg_publication_tables` at replica identity `d`; one `star_balances` row per Profile at 0. **The push MUST complete before the branch is merged or deployed** (R411). Then SC-404 and SC-409 on two real devices, SC-417 on the iPad in both orientations and on a phone, the falling stars and the emoji rain on the wall tablet
+- [x] T059 Documentation sync — `CLAUDE.md`'s active-feature block and status, `specs/004-family-rewards/plan.md` Progress, any quickstart drift T055 found, memory notes; final commit(s) on `004-family-rewards`. **Merge and deploy come after T058, never before it**
 
 ---
 

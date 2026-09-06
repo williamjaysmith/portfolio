@@ -215,7 +215,7 @@ in the same commit — a move inside one sub-app, no §I question.
 - [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 59 tasks, test-first, US1 as the MVP)
 - [x] Phase 3 — implementation per the phasing table above: T001–T057 done and green (2917 unit +
       policies tests with coverage, fallow audit clean with duplication 0, no suppressions); the walk
-      records in `checklists/`; the review gate's findings applied. **Remaining for the operator
-      (T058, T059's merge)**: `supabase db push --linked` (024–027) and quickstart §4's checks, then
-      the device passes — two devices for SC-404/409, the iPad and phone for SC-417, the falling
+      records in `checklists/`; the review gate's findings applied. The hosted push (024–027) and quickstart §4's
+      checks passed on 2026-09-05 and the branch was merged and deployed. **Remaining for the
+      operator**: the device passes — two devices for SC-404/409, the iPad and phone for SC-417, the falling
       stars and the emoji rain on the wall tablet — and the merge/deploy only after the push.
