@@ -2,6 +2,8 @@
 
 import { ChevronDown, ChevronUp, MoreHorizontal } from "lucide-react";
 
+import { itemsInWords } from "@/lib/family/lists/grouping";
+
 /**
  * A section's header row (005 FR-530, FR-531, FR-533; `shot05` — "Bakery ···
  * 2 items ⌃"): the name, its count of unchecked items, a chevron that folds the
@@ -13,10 +15,6 @@ import { ChevronDown, ChevronUp, MoreHorizontal } from "lucide-react";
  * `gallery/07` — "Add section (0) ⌃"): the label in the muted serif, a count of
  * 0, the chevron — and a tap begins Add section.
  */
-
-function itemsInWords(count: number): string {
-  return count === 1 ? "1 item" : `${count} items`;
-}
 
 const ROW = "flex min-h-(--fam-touch) items-center gap-2 px-3 pt-2 text-(length:--fam-fs-small) text-(--fam-text-muted)";
 const ICON_BUTTON = "grid h-(--fam-touch) w-(--fam-touch) shrink-0 place-items-center rounded-full";

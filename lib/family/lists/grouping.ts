@@ -101,3 +101,8 @@ export function groupedRowsOf(items: readonly ListItem[]): CardRow[] {
   }
   return rows;
 }
+
+/** "1 item" / "N items" — the header's, the menu's and the confirmations' count words. */
+export function itemsInWords(count: number, noun = "item"): string {
+  return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
+}

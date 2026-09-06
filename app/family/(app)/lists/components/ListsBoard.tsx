@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createList, deleteList, updateList } from "@/lib/family/actions/lists";
-import { groupedRowsOf, sectionCountOf, sectionsOf, uncheckedCountOf } from "@/lib/family/lists/grouping";
+import { groupedRowsOf, itemsInWords, sectionCountOf, sectionsOf, uncheckedCountOf } from "@/lib/family/lists/grouping";
 import { rowLayoutOf } from "@/lib/family/lists/layout";
 import { stepOf, type DropTarget } from "@/lib/family/lists/reorder";
 import { itemsShownOf, visibleListsOf } from "@/lib/family/lists/visibility";
@@ -437,11 +437,6 @@ function drawnColumnsOf(m: ListsBoardModel): PagedColumn[] {
 
 /* ------------------------------------------------------------------ view -- */
 
-/** "1 item" / "N items" — the confirmations' and the menu's count words. */
-function itemsInWords(count: number, noun = "item"): string {
-  return count === 1 ? `1 ${noun}` : `${count} ${noun}s`;
-}
-
 /** How many of a list's items are checked — what Clear Completed removes. */
 function completedCountOf(items: readonly ListItem[]): number {
   return items.length - uncheckedCountOf(items);
@@ -609,6 +604,7 @@ export function ListsBoard(props: ListsBoardProps) {
           columns={drawnColumnsOf(m)}
           gapClassName="gap-(--fam-list-card-gap)"
           suspended={m.dragging}
+          label="Lists"
         />
       )}
 

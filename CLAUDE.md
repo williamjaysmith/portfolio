@@ -6,7 +6,7 @@ check, uncheck, edit, move, delete and Clear Completed; press-and-hold reorder a
 one write; a per-device Completed switch in the Filter sheet; Parents only lists shown only while a
 parent is punched in). Lists were split out of the locked plan's `family-lists-meals` on
 2026-09-05; Meals follows as `006-family-meals`; notifications/home/offline/search are Phase 7.
-**State: specified, clarified and planned (2026-09-05); tasks next.** There are no subscription
+**State: built and green locally (2026-09-06) — migrations 028–029 applied on the local stack, 3139 unit + 431 policies tests, audit clean; NOT yet on the hosted project. Next: `supabase db push --linked` (028–029) → quickstart §4 → merge → deploy → live checks (T054), then the device pass (T055).** There are no subscription
 tiers here — every Skylight feature is simply present.
 
 Read in this order before touching `/family` code:

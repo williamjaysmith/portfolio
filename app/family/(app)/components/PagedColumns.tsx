@@ -31,14 +31,17 @@ export interface PagedColumnsProps {
   reorder?: BoardStripReorder;
   /** True while a press-and-hold reorder inside a column owns the pointer: the swipe stands down. */
   suspended?: boolean;
+  /** The pager group's accessible name, when the columns are not Profiles. */
+  label?: string;
 }
 
-export function PagedColumns({ page, boardRef, perRow, columns, gapClassName, reorder, suspended }: PagedColumnsProps) {
+export function PagedColumns({ page, boardRef, perRow, columns, gapClassName, reorder, suspended, label }: PagedColumnsProps) {
   const visible = columns.slice(page.start, page.end);
   return (
     <ColumnPager
       paged={page.paged}
       suspended={suspended}
+      label={label}
       onPage={page.step}
       visibleLabels={visible.map((column) => column.label)}
     >

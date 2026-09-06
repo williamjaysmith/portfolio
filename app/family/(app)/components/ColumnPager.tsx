@@ -126,6 +126,8 @@ export interface ColumnPagerProps {
   onPage: (direction: -1 | 1) => void;
   /** The columns currently on show, in order — announced after every step. */
   visibleLabels: readonly string[];
+  /** What the group is called to a screen reader; the Tasks board's columns unless a board names its own. */
+  label?: string;
   /** The board strip itself: the measured element and its columns. */
   children: ReactNode;
 }
@@ -133,6 +135,7 @@ export interface ColumnPagerProps {
 export function ColumnPager({
   paged,
   suspended = false,
+  label = PAGER_LABEL,
   onPage,
   visibleLabels,
   children,
@@ -164,7 +167,7 @@ export function ColumnPager({
     <div className="flex min-h-0 flex-1 flex-col overflow-x-clip">
       <motion.div
         role="group"
-        aria-label={PAGER_LABEL}
+        aria-label={label}
         tabIndex={0}
         onKeyDown={onKeyDown}
         style={{ x }}

@@ -30,6 +30,13 @@ import { addKeyOf, itemKeyOf, type WriteOutcome } from "./useListWrites";
  * up/down is the keyboard's path, FR-541), and `dropOf` reading the section
  * and the neighbours off the machine's new order. A drop is one write.
  *
+ * **The machine sees exactly the rows in the DOM.** Its contract is that the
+ * container's rows and its `items` are the same sequence, so a folded
+ * section's rows are taken out BEFORE the machine is given the list, not after
+ * — otherwise every index below a fold would be off by the hidden count and a
+ * lift could pick up the wrong item. A drop beside a folded header lands in
+ * that section, between the visible neighbours.
+ *
  * The accent is set once here as `--profile` (FR-504). The badge counts the FULL
  * set; the rows are the SHOWN set (FR-505, FR-520).
  */
@@ -82,7 +89,8 @@ function unfoldedRowsOf(rows: readonly CardRow[], listId: string, folds: ListFol
 
 export function ListCard(props: ListCardProps) {
   const { list, items, shownItems, busyKeys, folds, onMove, onReorderActive } = props;
-  const rows = useMemo(() => groupedRowsOf(shownItems), [shownItems]);
+  // The rows the card draws — the shown set, grouped, with folded sections' rows out.
+  const rows = useMemo(() => unfoldedRowsOf(groupedRowsOf(shownItems), list.id, folds), [shownItems, list.id, folds]);
   const count = useMemo(() => uncheckedCountOf(items), [items]);
   const [pressed, setPressed] = useState<string | null>(null);
 
@@ -94,13 +102,14 @@ export function ListCard(props: ListCardProps) {
     },
     [rows, shownItems, onMove],
   );
+  const labelOf = useCallback((id: string) => labelOfRow(rows, id), [rows]);
 
   const reorder = useListReorder({
     items: useMemo(() => reorderItemsOf(rows), [rows]),
     axis: "vertical",
     rowSelector: "[data-list-row]",
     handleSelector: "[data-item-handle]",
-    labelOf: (id) => labelOfRow(rows, id),
+    labelOf,
     enabled: true,
     keyboard: false,
     onDrop,
@@ -114,7 +123,7 @@ export function ListCard(props: ListCardProps) {
   );
   useEffect(() => onReorderActive?.(active), [active, onReorderActive]);
 
-  const drawn = unfoldedRowsOf(previewed(rows, reorder.order, (row) => row.id), list.id, folds);
+  const drawn = previewed(rows, reorder.order, (row) => row.id);
   const lifted = active ? pressed : null;
 
   return (

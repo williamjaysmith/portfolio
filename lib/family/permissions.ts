@@ -174,7 +174,7 @@ function memberMayRedeem(actor: PermissionActor, ctx: PermissionContext): boolea
  * Rewards tabs' parent-only verbs have no counterpart here — except a Parents
  * only one, which a member never sees and never touches (R505).
  */
-function memberMayWriteList(op: Operation, ctx: PermissionContext): boolean {
+export function memberMayWriteList(op: Operation, ctx: Pick<PermissionContext, "parentsOnly">): boolean {
   if (op === "list.create") return true;
   return op === "list.write" && ctx.parentsOnly !== true;
 }

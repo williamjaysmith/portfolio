@@ -165,6 +165,8 @@ describe("ListCard — sections and the reorder", () => {
       vi.advanceTimersByTime(500);
     });
     expect(container.querySelector("[data-lifted]")).toHaveAttribute("data-item", eggs.id);
+    // FR-541: the live region names the lifted item.
+    expect(within(container).getByRole("status")).toHaveTextContent(/Eggs/);
     fireEvent.pointerMove(list, { clientX: 10, clientY: 2 * ROW_HEIGHT + 10 });
     fireEvent.pointerUp(list, { clientX: 10, clientY: 2 * ROW_HEIGHT + 10 });
     expect(props.onMove).toHaveBeenCalledWith(eggs, { section: "Dairy", previousItemId: milk.id, nextItemId: yoghurt.id });
@@ -198,5 +200,51 @@ describe("ListCard — sections and the reorder", () => {
     const list = container.querySelector("ul[data-column-body]") as HTMLElement;
     fireEvent.pointerUp(list, { clientX: 10, clientY: 10 });
     expect(onReorderActive).toHaveBeenLastCalledWith(false);
+  });
+});
+
+/**
+ * The reviewer's case: with a section folded, the machine must see exactly the
+ * rows in the DOM — a lift below the fold picks up THAT row, not the one the
+ * unfiltered sequence would put at its index.
+ */
+describe("ListCard — reorder with a folded section", () => {
+  const ROW_HEIGHT = 40;
+  function stubLayout(): void {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const siblings = this.parentElement === null ? [] : [...this.parentElement.children];
+      const index = Math.max(0, siblings.indexOf(this));
+      const top = index * ROW_HEIGHT;
+      return { top, bottom: top + ROW_HEIGHT, left: 0, right: 200, width: 200, height: ROW_HEIGHT, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    });
+  }
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("lifts the row under the pointer when a fold sits above it, and drops it where released", () => {
+    vi.useFakeTimers();
+    stubLayout();
+    const eggs = itemOf(GROCERY, "Eggs", { sortOrder: 1000 });
+    const milk = itemOf(GROCERY, "Milk", { sortOrder: 2000, section: "Dairy" });
+    const yoghurt = itemOf(GROCERY, "Yoghurt", { sortOrder: 3000, section: "Dairy" });
+    const bagels = itemOf(GROCERY, "Bagels", { sortOrder: 4000, section: "Bakery" });
+    const { props, container } = renderCard({
+      items: [eggs, milk, yoghurt, bagels],
+      folds: { isFolded: (_, section) => section === "Dairy", toggle: vi.fn(), persistent: true },
+    });
+    // Drawn: Eggs(0) · Dairy header(1, folded) · Bakery header(2) · Bagels(3). Lift Bagels, drop above Eggs.
+    expect(screen.queryByRole("checkbox", { name: "Milk" })).toBeNull();
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Bagels" }), { clientX: 10, clientY: 3 * ROW_HEIGHT + 10 });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    expect(container.querySelector("[data-lifted]")).toHaveAttribute("data-item", bagels.id);
+    expect(within(container).getByRole("status")).toHaveTextContent(/Bagels/);
+    const list = container.querySelector("ul[data-column-body]") as HTMLElement;
+    fireEvent.pointerMove(list, { clientX: 10, clientY: 4 });
+    fireEvent.pointerUp(list, { clientX: 10, clientY: 4 });
+    expect(props.onMove).toHaveBeenCalledWith(bagels, { section: null, previousItemId: null, nextItemId: eggs.id });
   });
 });

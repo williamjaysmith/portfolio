@@ -202,5 +202,5 @@ and imports the moved machine. Nothing leaves the sub-app.
 - [x] Phase 0 — research complete ([research.md](./research.md): R501–R516, no open unknowns, zero new dependencies)
 - [x] Constitution check — pass, before and after design, no deviation claimed
 - [x] Phase 1 — design complete: [data-model.md](./data-model.md) (028–029 in full SQL, invariants, the privilege delta, the fallow zone), [contracts/server-actions.md](./contracts/server-actions.md) (twelve actions, the read path, the error contract), [quickstart.md](./quickstart.md)
-- [ ] Phase 2 — `/speckit.tasks`
-- [ ] Phase 3 — implementation per the phasing table above
+- [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 55 tasks, analysed and reconciled 2026-09-05)
+- [x] Phase 3 — implementation per the phasing table above: US1–US4 built and green locally (T001–T047, 2026-09-06; commits through f57a28e); the seed verified on a fresh reset (T049); what remains is the hosted push of 028–029, merge, deploy and the live checks (T054), then the device pass (T055)

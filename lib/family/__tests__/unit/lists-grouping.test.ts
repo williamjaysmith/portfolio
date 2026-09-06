@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   groupedRowsOf,
   headerRowId,
+  itemsInWords,
   matchSection,
   normaliseSectionName,
   sectionCountOf,
@@ -168,5 +169,14 @@ describe("groupedRowsOf — the flat sequence (FR-530, R502)", () => {
 
   it("gives a header an id no item can collide with", () => {
     expect(headerRowId("Dairy")).toBe("header:Dairy");
+  });
+});
+
+describe("itemsInWords", () => {
+  it("says 1 item, N items, and takes another noun", () => {
+    expect(itemsInWords(1)).toBe("1 item");
+    expect(itemsInWords(0)).toBe("0 items");
+    expect(itemsInWords(3)).toBe("3 items");
+    expect(itemsInWords(2, "completed item")).toBe("2 completed items");
   });
 });

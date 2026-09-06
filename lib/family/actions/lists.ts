@@ -30,6 +30,7 @@ import { ActionFailure, runAction, type ActionResult } from "../errors";
 import { requireVerifiedActor } from "../guards";
 import { matchSection, sectionsOf } from "../lists/grouping";
 import { nextSortOrder, sortOrderBetween } from "../ordering";
+import { memberMayWriteList } from "../permissions";
 import {
   LIST_COLUMNS,
   LIST_ITEM_COLUMNS,
@@ -60,9 +61,9 @@ import { adminFamily, mapDbError, touchActor } from "./shared";
 
 /* ------------------------------------------------------------------ loads -- */
 
-/** FR-514 / R505: a Parents only list exists, for a member, exactly as much as a stranger's. */
+/** FR-514 / R505: a Parents only list exists, for a member, exactly as much as a stranger's — the matrix's own `list.write` rule, so client and server never drift. */
 function mayTouch(actor: Actor, list: List): boolean {
-  return !list.parentsOnly || actor.role === "parent";
+  return actor.role === "parent" || memberMayWriteList("list.write", { parentsOnly: list.parentsOnly });
 }
 
 /** One list of this household the actor may write — or `NOT_FOUND`. */
