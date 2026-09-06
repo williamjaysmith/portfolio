@@ -59,7 +59,9 @@ items in `sort_order`. A drop is resolved by one pure function, `dropOf(rows, mo
 in `lib/family/lists/reorder.ts`, over that flat sequence with the headers included as rows:
 the **nearest section header above the drop position decides the item's section** (none above →
 ungrouped), and the **nearest items above and below decide its `sort_order`** (headers skipped).
-The action writes both in one UPDATE (FR-524, FR-532).
+The action writes both in one UPDATE (FR-524, FR-532). The function's input is the sequence as it
+will read after the move — which is exactly what the shipped machine hands back as `move.order` —
+so `dropOf(orderedRows, movedId)` needs no index arithmetic of its own.
 
 **Rationale**: the reference's `position` is "sort order within its section" `[V]`, but with
 sections as strings there is no section order to fall back on, so a list-wide index is the only
@@ -197,14 +199,20 @@ six-line pure function beside it. On a phone `perRow` is 1 and `minmax(0, 1fr)` 
 **Decision**: one `useListReorder` per card over the card's flat row sequence (R502), `axis:
 "vertical"`, `rowSelector` matching both item rows and section headers, `handleSelector` matching
 only item rows — so a press on a header never lifts anything, but a header is a position a drop can
-land beside. `onDrop(move, movedId)` calls `dropOf` (R502) and commits one `moveListItem`. The
-pointer the reference describes ("a small orange pointer to the left", `[V](37275069922971)`) is
-drawn by the lifted row in `--fam-accent-coral`; the lift's spacing is the machine's existing
-`data-lifted` styling; keyboard reorder (arrow keys after a held press) comes with the machine.
-A drop on the row's own position writes nothing (the machine already reports no move).
+land beside. `onDrop(move, movedId)` receives the machine's `Reorder` — `move.order` is the full new sequence of
+row ids — so `dropOf(orderedRows, movedId)` reads the section and the neighbours straight off that
+sequence and commits one `moveListItem`. The pointer the reference describes ("a small orange
+pointer to the left", `[V](37275069922971)`) is drawn by the lifted row in `--fam-accent-coral`;
+the lift's spacing is the machine's existing lifted styling. A drop on the row's own position
+writes nothing (the machine already answers `null`). **The machine's keyboard pick-up is off**
+(`keyboard: false`, as Phase 3 set it for routine cards): Enter and Space on a row belong to its
+checkbox and its text button, and the machine would `preventDefault` them. The keyboard path is the
+item sheet's **Move up** / **Move down**, each one `moveListItem` computed by `dropOf` over the
+current sequence (FR-541).
 
-**Rationale**: FR-523/FR-532/FR-541 name the shipped machine; the only new need is "a row that
-takes part in positions but cannot be dragged", which `handleSelector` already provides. `previewed`
+**Rationale**: FR-523/FR-532 name the shipped machine; the only new need is "a row that takes part
+in positions but cannot be dragged", which `handleSelector` already provides (`handleRowOf` refuses
+a press whose target is not inside the handle, while `rowAt` still counts every row). `previewed`
 draws the in-flight order. The checkbox inside a row is a tap, not a hold — the same arrangement as
 the completion circle inside a routine card, and the machine's click-capture guard already keeps a
 completed drag from firing the button.
@@ -252,7 +260,8 @@ device's "show me" switches already live.
   To do / Grocery / Other), Colour (the shipped settings `ColorPicker`), **Parents only** switch
   with its one-line note; validated with `listInputSchema` before the send.
 - **`ItemSheet`** (tap the text): the text field, a "Section" chooser (None / each existing section /
-  "New section…"), **Delete**; saved as one `updateListItem`.
+  "New section…"), **Move up** / **Move down** (the keyboard's reorder, one `moveListItem` each via
+  `dropOf`, FR-541), **Delete**; the fields are saved as one `updateListItem`.
 - **`SectionSheet`** (Add section / Move items / Rename): a name field and, for Add/Move, the list's
   items as a checklist (at least one); saved as one `sectionItems` or `renameSection`.
 - **`ConfirmDialog`** in `lists/components/` for Delete list ("Delete "Party" and its 4 items? This

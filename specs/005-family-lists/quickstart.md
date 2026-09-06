@@ -91,7 +91,7 @@ Punch in as Ana to see "Party"; punch out and watch it leave.
 | **SC-509** no stranger's data, no client write | `42501` for anon; zero rows for another household; `authenticated` cannot write | `curl` both REST endpoints with the publishable key and no session → refused; a second household's member sees `[]`; an `authenticated` INSERT → refused |
 | **SC-510** four viewports | 3 / 2 / 1 / 1 whole cards; never a sideways page scroll; swipe pages one; 44 px | 1920×1080, 1180×820, 820×1180, 390×844 on `/family/lists` |
 | **SC-511** tokens | Every list metric is one `--fam-list-*` token, `[ESTIMATED]`, read back by a test | `grep -c "fam-list" app/family/tokens.css`; `list-tokens.test.ts` green |
-| **SC-512** accessible names | Checkbox = item text + state; card = list name; badge = "N to do"; chevron = "Fold/Unfold Dairy" | VoiceOver on the iPad over one card; Tab through the card; arrow keys reorder after a held Space |
+| **SC-512** accessible names | Checkbox = item text + state; card = list name; badge = "N to do"; chevron = "Fold/Unfold Dairy" | VoiceOver on the iPad over one card; Tab through the card; Enter on an item's text opens its sheet, whose Move up / Move down reorder it |
 | **SC-513** tests | Pure logic table-tested; the two tables' policies and the twelve actions covered | `npm test` (unit) and `npm run test:policies` green |
 | **SC-514** channel intact | Calendar, Tasks, Rewards still live ≤5 s after deploy | Two devices: add an event, tick a task, redeem — each follows within 5 s |
 | **SC-515** placeholder gone, no chip row, "Add List" | Audit the tab; Tasks and Rewards unchanged | Open `/family/lists`: no "Coming soon", no chips, the `+` reads "Add List"; screenshot Tasks and Rewards before/after |
