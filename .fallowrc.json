@@ -163,6 +163,7 @@
         "from": "family-lists-core",
         "allow": [
           "family-lists-core",
+          "family-tasks-core",
           "lib"
         ]
       },

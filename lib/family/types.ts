@@ -628,3 +628,56 @@ export interface Redemption {
 export interface RewardFilters {
   redeemed: boolean;
 }
+
+/* ------------------------------------------------------------------ lists -- */
+
+/** FR-510: the three types the device offers; no behaviour hangs on it this phase. */
+export type ListKind = "to_do" | "grocery" | "other";
+
+/**
+ * One shared list of the household (028; 005 FR-509–FR-515). Belongs to the
+ * household, never to a Profile or Label; its count is not stored — it is the
+ * number of its unchecked items (FR-505).
+ */
+export interface List {
+  id: string;
+  householdId: string;
+  name: string;
+  kind: ListKind;
+  color: PaletteColor;
+  /** FR-514: shown only while a parent is punched in on the device (Assumption 5). */
+  parentsOnly: boolean;
+  /** The card's place in the row — a fractional index, set on creation (Assumption 17). */
+  sortOrder: number;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One line on a list (028; FR-516–FR-533). A section is the name it carries,
+ * or none (R501); checked while `checkedAt` is set (R503); one position among
+ * the LIST's items, written once per drop (R502).
+ */
+export interface ListItem {
+  id: string;
+  householdId: string;
+  listId: string;
+  text: string;
+  section: string | null;
+  checkedAt: string | null;
+  /** Who checked it; null while unchecked, and null after that Profile's deletion (FR-540). */
+  checkedBy: string | null;
+  sortOrder: number;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+/**
+ * The Lists tab's one per-device switch (FR-520, R509), on the `TaskFilters`
+ * pattern: on by default, so checked items stay in place, struck through.
+ */
+export interface ListFilters {
+  completed: boolean;
+}

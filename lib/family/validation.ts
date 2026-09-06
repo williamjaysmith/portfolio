@@ -20,6 +20,7 @@ import {
   type Category,
   type CategoryPatch,
   type EventInput,
+  type List,
   type RepeatChoice,
   type Reward,
   type Role,
@@ -987,4 +988,136 @@ export const adjustStarsSchema = z.strictObject({
     .min(-500, { error: AMOUNT_RANGE })
     .max(500, { error: AMOUNT_RANGE })
     .refine((amount) => amount !== 0, { error: "Enter a number other than 0." }),
+});
+
+/* ------------------------------------------------------------------ lists -- */
+
+const LIST_NAME_REQUIRED = "Name is required.";
+const LIST_NAME_LONG = "Keep it under 120 characters.";
+const ITEM_TEXT = "An item is 1 to 200 characters.";
+const SECTION_NAME = "A section name is 1 to 60 characters.";
+const CHOOSE_AN_ITEM = "Choose at least one item.";
+
+/** FR-509: 1–120, trimmed — the same bound 028 carries. */
+const listNameSchema = z
+  .string({ error: LIST_NAME_REQUIRED })
+  .trim()
+  .min(1, { error: LIST_NAME_REQUIRED })
+  .max(120, { error: LIST_NAME_LONG });
+
+/** FR-510: the three types the device offers, in its order. */
+export const listKindSchema = z.enum(["to_do", "grocery", "other"], {
+  error: "Choose To do, Grocery or Other.",
+});
+
+/**
+ * `ListInput` (contracts → `createList`). Strict: a count, a position or any other
+ * derived key a client invents is refused rather than stripped.
+ */
+export const listInputSchema = z.strictObject({
+  name: listNameSchema,
+  kind: listKindSchema,
+  color: paletteColorSchema,
+  parentsOnly: z.boolean({ error: "Parents only must be on or off." }),
+});
+
+export type ListInput = z.output<typeof listInputSchema>;
+
+/** `updateList`'s envelope — the patch is judged as the MERGED list (`updateReward`'s discipline). */
+export const updateListSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  patch: z.record(z.string(), z.unknown(), { error: "That edit didn't look right." }),
+});
+
+/** The stored list as the create form would have sent it. */
+function listInputOf(list: List): ListInput {
+  return { name: list.name, kind: list.kind, color: list.color, parentsOnly: list.parentsOnly };
+}
+
+/** Contracts §updateList: the merged shape through the create schema; throws field-keyed `VALIDATION`. */
+export function validateListPatch(existing: List, patch: Record<string, unknown>): ListInput {
+  return parseOrThrow(listInputSchema, { ...listInputOf(existing), ...patch });
+}
+
+export const deleteListSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  // FR-512: a confirmation that names the count — a literal `true`, never a default.
+  confirm: z.literal(true, { error: "Deleting a list can't be undone — confirm to delete it." }),
+});
+
+/** FR-517: an item is its text, 1–200 trimmed — 028's CHECK. */
+export const listItemTextSchema = z
+  .string({ error: ITEM_TEXT })
+  .trim()
+  .min(1, { error: ITEM_TEXT })
+  .max(200, { error: ITEM_TEXT });
+
+/** FR-528: a section name, 1–60 trimmed — 028's CHECK; the case-insensitive match is the action's. */
+export const sectionNameSchema = z
+  .string({ error: SECTION_NAME })
+  .trim()
+  .min(1, { error: SECTION_NAME })
+  .max(60, { error: SECTION_NAME });
+
+export const addListItemSchema = z.strictObject({
+  listId: z.uuid({ error: INVALID_ID }),
+  text: listItemTextSchema,
+});
+
+/** `updateListItem`: the text, the section (a name, or null for ungrouped), or both. */
+export const updateListItemSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  patch: z
+    .strictObject({
+      text: listItemTextSchema.optional(),
+      section: sectionNameSchema.nullable().optional(),
+    })
+    .refine((patch) => patch.text !== undefined || patch.section !== undefined, {
+      error: "Nothing to change.",
+    }),
+});
+
+export const setListItemCheckedSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  checked: z.boolean({ error: "Checked must be on or off." }),
+});
+
+/** `moveListItem` (R502): the two neighbours and the section, as `dropOf` computed them. */
+export const moveListItemSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  previousItemId: z.uuid({ error: INVALID_ID }).nullable(),
+  nextItemId: z.uuid({ error: INVALID_ID }).nullable(),
+  section: sectionNameSchema.nullable(),
+});
+
+export const deleteListItemSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+});
+
+export const clearCompletedSchema = z.strictObject({
+  listId: z.uuid({ error: INVALID_ID }),
+  confirm: z.literal(true, {
+    error: "Clearing completed items can't be undone — confirm to clear them.",
+  }),
+});
+
+/** FR-528: Add section / Move items — a name and at least one item, each once. */
+export const sectionItemsSchema = z.strictObject({
+  listId: z.uuid({ error: INVALID_ID }),
+  name: sectionNameSchema,
+  itemIds: z
+    .array(z.uuid({ error: INVALID_ID }), { error: "Items must be a list of ids." })
+    .min(1, { error: CHOOSE_AN_ITEM })
+    .refine((ids) => new Set(ids).size === ids.length, { error: "Each item can appear only once." }),
+});
+
+export const renameSectionSchema = z.strictObject({
+  listId: z.uuid({ error: INVALID_ID }),
+  from: sectionNameSchema,
+  to: sectionNameSchema,
+});
+
+export const removeSectionSchema = z.strictObject({
+  listId: z.uuid({ error: INVALID_ID }),
+  name: sectionNameSchema,
 });

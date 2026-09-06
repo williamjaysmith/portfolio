@@ -45,7 +45,11 @@ export type Operation =
   | "reward.delete"
   | "stars.adjust"
   | "reward.redeem"
-  | "reward.unredeem";
+  | "reward.unredeem"
+  // Phase 5's verbs (005 FR-534, R505): every list write is any punched-in
+  // Profile's; the one gate is a Parents only list, decided on `parentsOnly`.
+  | "list.create"
+  | "list.write";
 
 /**
  * The record a target-aware operation touches (FR-351) — the first rule in this
@@ -76,6 +80,12 @@ export interface PermissionContext {
    * by `reward.redeem` and `reward.unredeem`; every other operation ignores it.
    */
   redeemFor?: string;
+  /**
+   * Whether the list a write is about is Parents only (005 FR-514) — read only
+   * by `list.write`; every other operation ignores it. Absent means "a plain
+   * list", which every punched-in Profile may write.
+   */
+  parentsOnly?: boolean;
 }
 
 /** A member's answer depends on the record, so the actor carries its identity. */
@@ -160,9 +170,20 @@ function memberMayRedeem(actor: PermissionActor, ctx: PermissionContext): boolea
 }
 
 /**
+ * 005 FR-534 / FR-535 for a member: any list is theirs to write — the Tasks and
+ * Rewards tabs' parent-only verbs have no counterpart here — except a Parents
+ * only one, which a member never sees and never touches (R505).
+ */
+function memberMayWriteList(op: Operation, ctx: PermissionContext): boolean {
+  if (op === "list.create") return true;
+  return op === "list.write" && ctx.parentsOnly !== true;
+}
+
+/**
  * A member is refused every verb FR-389 and R410 reserve, and every target-aware
  * one whose record is not theirs — including one the caller supplied no record
- * for, since a decision with nothing to own cannot be an allowance.
+ * for, since a decision with nothing to own cannot be an allowance. Lists are
+ * the exception (005 FR-534): open, save for a Parents only list.
  */
 function decideForMember(
   actor: PermissionActor,
@@ -172,6 +193,7 @@ function decideForMember(
   let allowed = false;
   if (REDEEM_OPERATIONS.has(op)) allowed = memberMayRedeem(actor, ctx);
   else if (TARGET_AWARE.has(op)) allowed = memberOwnsTarget(actor, ctx);
+  else allowed = memberMayWriteList(op, ctx);
   return allowed ? { allowed: true } : { allowed: false, reason: "FORBIDDEN" };
 }
 

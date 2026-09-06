@@ -18,6 +18,9 @@ import type {
   ExceptionAction,
   Household,
   HouseholdSettings,
+  List,
+  ListItem,
+  ListKind,
   Redemption,
   RenewUnit,
   ResolutionStatus,
@@ -637,5 +640,74 @@ export function toRedemption(row: RedemptionRow): Redemption {
     redeemedBy: row.redeemed_by,
     reversedAt: row.reversed_at,
     reversedBy: row.reversed_by,
+  };
+}
+
+/* ------------------------------------------------------------------ lists -- */
+
+/** `family.lists` (028) exactly as PostgREST returns it; `sort_order` is `numeric`, which arrives as text. */
+export interface ListRow {
+  id: string;
+  household_id: string;
+  name: string;
+  kind: ListKind;
+  color: PaletteColor;
+  parents_only: boolean;
+  sort_order: number | string;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** `family.list_items` (028). */
+export interface ListItemRow {
+  id: string;
+  household_id: string;
+  list_id: string;
+  text: string;
+  section: string | null;
+  checked_at: string | null;
+  checked_by: string | null;
+  sort_order: number | string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export const LIST_COLUMNS =
+  "id, household_id, name, kind, color, parents_only, sort_order, created_by, updated_by, " +
+  "created_at, updated_at";
+
+export const LIST_ITEM_COLUMNS =
+  "id, household_id, list_id, text, section, checked_at, checked_by, sort_order, created_by, created_at";
+
+export function toList(row: ListRow): List {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    name: row.name,
+    kind: row.kind,
+    color: row.color,
+    parentsOnly: row.parents_only,
+    sortOrder: Number(row.sort_order),
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toListItem(row: ListItemRow): ListItem {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    listId: row.list_id,
+    text: row.text,
+    section: row.section,
+    checkedAt: row.checked_at,
+    checkedBy: row.checked_by,
+    sortOrder: Number(row.sort_order),
+    createdBy: row.created_by,
+    createdAt: row.created_at,
   };
 }

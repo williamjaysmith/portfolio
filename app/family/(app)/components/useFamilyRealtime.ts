@@ -53,6 +53,12 @@ const TABLES: readonly TableSubscription[] = [
   { table: "reward_eligibilities" },
   { table: "star_entries" },
   { table: "redemptions" },
+  // Lists (005 FR-538, R506). Unfiltered for the same reason, and this phase
+  // deletes on the hot path: Clear Completed and Delete list are DELETEs whose
+  // payloads carry only a key. The bare sweep reaches `lists` and `listItems`
+  // because they are prefix-shaped under `familyKeys.all`.
+  { table: "lists" },
+  { table: "list_items" },
 ];
 
 /** `CLOSED` is the ordinary unmount; only these two mean nothing will arrive. */

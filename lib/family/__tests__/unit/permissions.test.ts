@@ -68,6 +68,11 @@ const MATRIX: Record<Operation, OperationRule> = {
     noActor: "NO_ACTOR",
     noActorBootstrap: "NO_ACTOR",
   },
+  // Phase 5 (005 FR-534). Lists are the one surface open to every punched-in
+  // Profile; the Parents only gate is the `parentsOnly` block below, and this
+  // sweep supplies no flag, which is a plain list.
+  "list.create": { parent: "ok", member: "ok", noActor: "NO_ACTOR", noActorBootstrap: "NO_ACTOR" },
+  "list.write": { parent: "ok", member: "ok", noActor: "NO_ACTOR", noActorBootstrap: "NO_ACTOR" },
   // Phase 3 (FR-389). The two target-aware rows read "FORBIDDEN" for a member
   // because this sweep supplies no target — a member with no record in hand
   // owns nothing. What a member may do WITH a target is the FR-351 block below.
@@ -169,7 +174,7 @@ const CASES = OPERATIONS.flatMap((op) =>
 
 describe("can", () => {
   it("covers every operation × actor × household state", () => {
-    expect(CASES).toHaveLength(20 * 3 * 2);
+    expect(CASES).toHaveLength(22 * 3 * 2);
   });
 
   it.each(CASES)(
@@ -571,5 +576,45 @@ describe("bootstrapRole", () => {
   it("defaults to member once a parent exists", () => {
     expect(bootstrapRole({}, steady)).toBe("member");
     expect(bootstrapRole({ role: undefined }, steady)).toBe("member");
+  });
+});
+
+describe("the two list operations (005 FR-534, FR-535, R505)", () => {
+  const member = { role: "member" as const, profileId: CLEO };
+  const parent = { role: "parent" as const, profileId: ANA };
+
+  it("list.create is any punched-in Profile's, and nobody's without an actor", () => {
+    expect(can(member, "list.create", STEADY)).toEqual({ allowed: true });
+    expect(can(parent, "list.create", STEADY)).toEqual({ allowed: true });
+    expect(can(null, "list.create", STEADY)).toEqual({ allowed: false, reason: "NO_ACTOR" });
+  });
+
+  it("list.write on a plain list is any punched-in Profile's — with or without the flag named", () => {
+    expect(can(member, "list.write", STEADY)).toEqual({ allowed: true });
+    expect(can(member, "list.write", { ...STEADY, parentsOnly: false })).toEqual({ allowed: true });
+    expect(can(parent, "list.write", { ...STEADY, parentsOnly: false })).toEqual({ allowed: true });
+  });
+
+  it("list.write on a Parents only list is a parent's alone", () => {
+    expect(can(member, "list.write", { ...STEADY, parentsOnly: true })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
+    expect(can(parent, "list.write", { ...STEADY, parentsOnly: true })).toEqual({ allowed: true });
+    expect(can(null, "list.write", { ...STEADY, parentsOnly: true })).toEqual({
+      allowed: false,
+      reason: "NO_ACTOR",
+    });
+  });
+
+  it("does not let a list flag open any other verb, nor the other targets open a list verb", () => {
+    expect(can(member, "reward.create", { ...STEADY, parentsOnly: false })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
+    expect(can(member, "manage_tasks", { ...STEADY, parentsOnly: false })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
   });
 });

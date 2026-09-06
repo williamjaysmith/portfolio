@@ -15,6 +15,8 @@ import { addDays } from "./calendar/dates";
 import {
   CATEGORY_COLUMNS,
   HOUSEHOLD_COLUMNS,
+  LIST_COLUMNS,
+  LIST_ITEM_COLUMNS,
   REDEMPTION_COLUMNS,
   SETTINGS_COLUMNS,
   STAR_BALANCE_COLUMNS,
@@ -28,6 +30,8 @@ import {
   toCategory,
   toEvent,
   toHousehold,
+  toList,
+  toListItem,
   toRedemption,
   toReward,
   toSettings,
@@ -41,6 +45,8 @@ import {
   type EventWithRelationsRow,
   type HouseholdRow,
   type HouseholdSettingsRow,
+  type ListItemRow,
+  type ListRow,
   type RedemptionRow,
   type RewardWithEligibilitiesRow,
   type StarBalanceRow,
@@ -57,6 +63,8 @@ import type {
   Event,
   Household,
   HouseholdSettings,
+  List,
+  ListItem,
   Redemption,
   Reward,
   StarBalance,
@@ -160,6 +168,9 @@ export const familyKeys = {
   rewards: (householdId: string) => ["family", "rewards", householdId] as const,
   /** Every redemption, standing and reversed — the history card needs all of them. */
   redemptions: (householdId: string) => ["family", "redemptions", householdId] as const,
+  /** 005 R506: the Lists tab's two unwindowed reads — every list, every item. */
+  lists: (householdId: string) => ["family", "lists", householdId] as const,
+  listItems: (householdId: string) => ["family", "list-items", householdId] as const,
 };
 
 const STALE_TIME = 30_000;
@@ -781,6 +792,70 @@ export function useRedemptions(householdId: string, initialData?: Redemption[]) 
   return useQuery({
     queryKey: familyKeys.redemptions(householdId),
     queryFn: () => fetchRedemptions(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+/* ------------------------------------------------------------------ lists -- */
+
+/**
+ * Every list of the household in the row's order (005 R506): unwindowed — a
+ * household has a handful. The Parents only filter runs on the client over this
+ * array (`visibleListsOf`), never here: RLS is by household and the punch-in is
+ * the app's layer (R505).
+ */
+export async function fetchLists(supabase: SupabaseClient, householdId: string): Promise<List[]> {
+  const rows = await fetchInRowOrder<ListRow>(supabase, "lists", LIST_COLUMNS, householdId);
+  return rows.map(toList);
+}
+
+/**
+ * The one read shape both list tables share: named columns, the household
+ * filter, and the order every device draws — position, then age (R502).
+ */
+async function fetchInRowOrder<Row>(
+  supabase: SupabaseClient,
+  table: "lists" | "list_items",
+  columns: string,
+  householdId: string,
+): Promise<Row[]> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from(table)
+    .select(columns)
+    .eq("household_id", householdId)
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as Row[];
+}
+
+/**
+ * Every item of every list, in position order (R506): one array feeds every
+ * card's rows, badge and section counts, and the device's Completed switch hides
+ * rows BELOW those counts (FR-505). Unwindowed on purpose — a few hundred rows at
+ * most, and one invalidation reaches every card.
+ */
+export async function fetchListItems(supabase: SupabaseClient, householdId: string): Promise<ListItem[]> {
+  const rows = await fetchInRowOrder<ListItemRow>(supabase, "list_items", LIST_ITEM_COLUMNS, householdId);
+  return rows.map(toListItem);
+}
+
+/** Seeded by `/family/lists`'s page (data-model "How the tab is read"). */
+export function useLists(householdId: string, initialData?: List[]) {
+  return useQuery({
+    queryKey: familyKeys.lists(householdId),
+    queryFn: () => fetchLists(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+export function useListItems(householdId: string, initialData?: ListItem[]) {
+  return useQuery({
+    queryKey: familyKeys.listItems(householdId),
+    queryFn: () => fetchListItems(createClient(), householdId),
     staleTime: STALE_TIME,
     initialData,
   });

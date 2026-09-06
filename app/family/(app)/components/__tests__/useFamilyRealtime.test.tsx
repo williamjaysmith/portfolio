@@ -73,6 +73,8 @@ const UNFILTERED_TABLES = [
   "reward_eligibilities",
   "star_entries",
   "redemptions",
+  "lists",
+  "list_items",
 ] as const;
 
 function renderRealtime() {
