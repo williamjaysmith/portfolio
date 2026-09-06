@@ -217,5 +217,5 @@ one token row. Nothing leaves the sub-app.
 - [x] Phase 0 — research complete ([research.md](./research.md): R601–R617, no open unknowns, zero new dependencies)
 - [x] Constitution check — pass, before and after design, no deviation claimed
 - [x] Phase 1 — design complete: [data-model.md](./data-model.md) (030–033 in SQL, invariants, the privilege delta), [contracts/server-actions.md](./contracts/server-actions.md) (eight actions, the read path, the error contract), [quickstart.md](./quickstart.md)
-- [ ] Phase 2 — `/speckit.tasks`
+- [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 62 tasks, test-first, the three generalisations first)
 - [ ] Phase 3 — implementation per the phasing table above
