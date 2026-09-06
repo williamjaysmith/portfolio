@@ -10,12 +10,13 @@ import { balanceMapOf, balanceOf } from "@/lib/family/rewards/stars";
 import type { ActorSession, Category, Redemption, Reward, StarBalance } from "@/lib/family/types";
 import type { RewardInput } from "@/lib/family/validation";
 
-import { BoardStrip } from "../../components/BoardStrip";
+import { BoardNotice } from "../../components/BoardNotice";
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
+import { PagedColumns } from "../../components/PagedColumns";
 import type { SubmitOutcome } from "../../components/formSubmit";
 import { settleEdit, useWriteSurface } from "../../components/useWriteSurface";
-import { ColumnPager, useColumnPage } from "../../components/ColumnPager";
+import { useColumnPage } from "../../components/ColumnPager";
 import { useBoardGeometry } from "../../components/useBoardGeometry";
 import { GiveStarsSheet, type GiveStarsInput } from "./GiveStarsSheet";
 import { RedeemModal } from "./RedeemModal";
@@ -640,9 +641,6 @@ export function RewardsBoard(props: RewardsBoardProps) {
   // a const so the Unredeem closure below is narrowed with it.
   const standing = open?.redemption ?? null;
   const celebrating = m.celebration.celebration;
-  // The window the measured layout allows: every column when they all fit,
-  // and a page of them when they do not (FR-394, FR-395, FR-396).
-  const visible = drawnColumnsOf(m).slice(m.page.start, m.page.end);
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-(--fam-task-col-gap)">
@@ -651,29 +649,21 @@ export function RewardsBoard(props: RewardsBoardProps) {
         onGiveStars={m.mayGiveStars ? m.giveStars.show : undefined}
       />
 
-      {m.notice === null ? null : (
-        <p
-          role="alert"
-          className="px-(--fam-edge-inset) py-1 text-(length:--fam-fs-small) text-(--fam-danger)"
-        >
-          {m.notice}
-        </p>
-      )}
+      <BoardNotice notice={m.notice} />
 
       {m.columns.length === 0 ? (
         <p className="px-(--fam-edge-inset) text-(length:--fam-fs-body) text-(--fam-text-secondary)">
           {NO_COLUMNS}
         </p>
       ) : (
-        <ColumnPager
-          paged={m.page.paged}
-          onPage={m.page.step}
-          visibleLabels={visible.map((column) => column.label)}
-        >
-          <BoardStrip boardRef={m.boardRef} perRow={m.layout.perRow} count={visible.length}>
-            {visible.map((column) => column.node)}
-          </BoardStrip>
-        </ColumnPager>
+        // The window the measured layout allows: every column when they all fit,
+        // and a page of them when they do not (FR-394, FR-395, FR-396).
+        <PagedColumns
+          page={m.page}
+          boardRef={m.boardRef}
+          perRow={m.layout.perRow}
+          columns={drawnColumnsOf(m)}
+        />
       )}
 
       {open === null ? null : (

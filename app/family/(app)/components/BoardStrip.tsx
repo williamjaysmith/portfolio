@@ -36,10 +36,19 @@ export interface BoardStripProps {
   count: number;
   /** FR-309: this element is also the column drag's container and its rows. Absent on a board with no drag. */
   reorder?: BoardStripReorder;
+  /** The gap between columns — the Tasks token unless a board (the Lists tab, 005) brings its own. */
+  gapClassName?: string;
   children: ReactNode;
 }
 
-export function BoardStrip({ boardRef, perRow, count, reorder, children }: BoardStripProps) {
+export function BoardStrip({
+  boardRef,
+  perRow,
+  count,
+  reorder,
+  gapClassName = "gap-(--fam-task-col-gap)",
+  children,
+}: BoardStripProps) {
   const rows = Math.max(1, Math.ceil(count / perRow));
   const { ref: reorderRef, ...gestures } = reorder?.containerProps ?? IDLE_CONTAINER;
   const setBoard = useCallback(
@@ -65,7 +74,7 @@ export function BoardStrip({ boardRef, perRow, count, reorder, children }: Board
         // A carried column follows the finger rather than scrolling the board.
         ...(reorder?.active ? { touchAction: "none" as const } : {}),
       }}
-      className="fam-board grid min-h-0 flex-1 gap-(--fam-task-col-gap) overflow-y-auto px-(--fam-edge-inset) pb-(--fam-edge-inset)"
+      className={`fam-board grid min-h-0 flex-1 ${gapClassName} overflow-y-auto px-(--fam-edge-inset) pb-(--fam-edge-inset)`}
     >
       {children}
     </div>
