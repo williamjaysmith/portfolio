@@ -39,7 +39,9 @@ import { useRedeem } from "./useRedeem";
  * viewport, and in the top layer over the columns AND the modal. A sibling
  * outside the dialog would paint under the backdrop instead.
  *
- * **Unredeem goes through `useRedeem`** — the tab's one commit path — rather
+ * **Unredeem goes through its own `useRedeem`** — a second instance of the
+ * tab's commit path, with its own queue and notice, which is safe only because
+ * this is a modal dialog and no card behind it can be tapped meanwhile — rather
  * than out through a callback as the other dialogs' writes do, because the
  * write is this modal's own: the redemption it was rendered from, put back by
  * the person who just made it, with the refusal shown where the tap happened

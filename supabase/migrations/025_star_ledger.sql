@@ -9,6 +9,9 @@
 --   * not columns on family.task_resolutions — a resolution earns at most one credit but a Profile's
 --     stars also move on redemption, refund and hand adjustment, which have no resolution; and a
 --     retraction must outlive the resolution row it reverses;
+--   * not a `kind`-discriminated row on family.task_resolutions — a redemption, a refund and a
+--     hand adjustment have no resolution to attach to, and a retraction must outlive the
+--     resolution row it reverses;
 --   * not a JSONB ledger on family.categories — a sum the redeem check locks against and an index
 --     the board's day window reads cannot reach inside a document.
 

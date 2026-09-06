@@ -3,8 +3,9 @@
 star economy and the Rewards tab (star values and the card chip, credits and retractions as a
 ledger written by database triggers, balances, the stars-today pill, reward cards with a bar or a
 Redeem button, redeem/unredeem with the photographed modal and falling stars, a parent's
-give-and-take, the emoji rain and the Amazing/Strong Week messages). **Specified, clarified and
-planned; implementation not started.**
+give-and-take, the emoji rain and the Amazing/Strong Week messages). **Built and verified locally (T001–T057); migrations 024–027 written and proved
+on the local stack; the hosted push (T058) and the device passes are the operator's step
+(`specs/004-family-rewards/quickstart.md` §4).**
 
 Read in this order before touching `/family` code:
 1. `specs/004-family-rewards/plan.md` — the implementation plan and phasing

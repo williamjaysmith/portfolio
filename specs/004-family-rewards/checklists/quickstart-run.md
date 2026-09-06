@@ -48,3 +48,20 @@ Not walkable here, proved in the tiers or left to T058's devices: SC-404/409 (tw
    §Risks; nothing changed.
 
 Nothing in `quickstart.md`'s rows needed to change.
+
+## The review gate (T057)
+
+- **security-guardian**: PASS WITH FIXES — one Low: 025's header lacked the discriminated-row
+  rejection for `family.task_resolutions`; added. Confirmed clean: the six trigger functions and
+  `household_today` (`security definer`, empty search path, revoked from public), the
+  `security_invoker` view, the grants (nothing to `anon`), the row lock's serialisation under
+  READ COMMITTED, the partial unique indexes, the cascade guards in both triggers, replica identity
+  default, every action's own auth check and `NOT_FOUND`-never-`FORBIDDEN`, strict Zod, affordance-
+  only permissions, the two display-only stores, no secret-shaped strings.
+- **code-reviewer**: PASS WITH FIXES — its one HIGH (migration 016 "untracked and out of order") is
+  a false alarm: 016 is Phase 3's committed hotfix (`7d4eefe`) and `supabase migration list
+  --linked` shows it applied on the hosted project before 017–023. Two comment nits applied
+  (`RedeemModal`'s second `useRedeem` instance is named for what it is; `finishesList`'s claim
+  comment is precise). Confirmed clean: the money rules server-side, the pill and balances above
+  every filter, the rain judged from pre-write counters plus the in-flight ref, celebrations
+  local-write-only, 44-pt targets, the live regions, reduced motion collapsing to nothing.

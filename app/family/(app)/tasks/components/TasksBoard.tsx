@@ -511,8 +511,10 @@ function useBoardReorder(
  * still counts (SC-414); `inFlight` is this device's own completions for the
  * Profile still queued or writing, so the second of two quick taps on the
  * last two cards knows the first is as good as done. Only a completion asks —
- * a skip is not one, an undo lengthens the list, and a claim is refused by
- * `listCompletesWith` itself (it belongs to nobody's list, FR-368).
+ * a skip is not one, an undo lengthens the list, and a claim (verb "complete"
+ * with no assignee) is refused here by the verb-and-assignee check before
+ * `listCompletesWith` would refuse it too — it belongs to nobody's list
+ * (FR-368).
  */
 function finishesList(
   intent: TaskResolveIntent,
