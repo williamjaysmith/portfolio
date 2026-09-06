@@ -2,7 +2,7 @@
 
 import { useCallback, type ReactNode } from "react";
 
-import type { ListReorder } from "../tasks/components/useColumnReorder";
+import type { ListReorder } from "./useListReorder";
 
 /**
  * The columns' own element, and the one the geometry measures — shared by the

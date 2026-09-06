@@ -6,7 +6,7 @@ import { sectionsOf } from "@/lib/family/tasks/layout";
 import type { BoardOccurrence } from "@/lib/family/types";
 
 import { TaskCard, occurrenceKeyOf } from "./TaskCard";
-import { previewed, type ListReorder } from "./useColumnReorder";
+import { previewed, type ListReorder } from "../../components/useListReorder";
 import type { TaskSectionKey } from "./useSectionToggles";
 
 /**

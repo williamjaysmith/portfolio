@@ -2,14 +2,18 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import { boardLayoutOf, type BoardLayout } from "@/lib/family/tasks/layout";
+import {
+  boardLayoutOf,
+  type BoardLayout,
+  type BoardLayoutInput,
+} from "@/lib/family/tasks/layout";
 
 import {
   attachProbe,
   detachProbe,
   hiddenProbeRoot,
   type ProbeAttachment,
-} from "../../components/probeAttachment";
+} from "./probeAttachment";
 
 /**
  * T040 / R320: the board measures ITSELF. FR-394 says decide how many columns
@@ -26,6 +30,11 @@ import {
  * fit is decided against the live token rung, which is what makes the four
  * viewports of the visual brief land where `tasks-layout.test.ts` says they do
  * (1920×1080 → 4 · 1180×820 → 4 · 820×1180 → 3 wrapped · 390×844 → 1 paged).
+ *
+ * Those are the DEFAULTS — the Tasks and Rewards boards' token and rule. The
+ * third board, the Lists tab (005 T006, R507), probes `--fam-list-card-w` and
+ * applies `rowLayoutOf`, which never wraps; both arrive as `options`, and every
+ * shipped call site passes none.
  *
  * This is Phase 2's `useGridGeometry` seam and deliberately not that hook:
  * `GridMetrics` and `LayoutMetrics` are hour-grid concepts — px per minute, an
@@ -65,6 +74,16 @@ export interface BoardMeasurement {
   referenceColumnWidth: number;
 }
 
+/** How a board is measured and decided; the Tasks board's values when absent. */
+export interface BoardGeometryOptions {
+  /** The CSS custom property the probe is sized by — the "whole column that fits" width. */
+  widthToken?: string;
+  /** The pure fit rule the measurement is handed to. */
+  layoutOf?: (input: BoardLayoutInput) => BoardLayout;
+}
+
+const DEFAULT_WIDTH_TOKEN = "--fam-task-col-w";
+
 export interface UseBoardGeometryResult {
   /** Attach to the board element (inside the `.family` scope). */
   boardRef: (node: HTMLElement | null) => void;
@@ -86,12 +105,18 @@ export interface UseBoardGeometryResult {
 export function boardGeometryOf(
   measurement: BoardMeasurement,
   columnCount: number,
+  layoutOf: (input: BoardLayoutInput) => BoardLayout = boardLayoutOf,
 ): BoardLayout | null {
   if (!isMeasurable(measurement)) return null;
-  return boardLayoutOf({ ...measurement, columnCount });
+  return layoutOf({ ...measurement, columnCount });
 }
 
-export function useBoardGeometry(columnCount: number): UseBoardGeometryResult {
+export function useBoardGeometry(
+  columnCount: number,
+  options: BoardGeometryOptions = {},
+): UseBoardGeometryResult {
+  const widthToken = options.widthToken ?? DEFAULT_WIDTH_TOKEN;
+  const layoutOf = options.layoutOf ?? boardLayoutOf;
   const [measurement, setMeasurement] = useState<BoardMeasurement | null>(null);
   const attachmentRef = useRef<Attachment | null>(null);
 
@@ -105,20 +130,21 @@ export function useBoardGeometry(columnCount: number): UseBoardGeometryResult {
   const boardRef = useCallback(
     (node: HTMLElement | null) => {
       detachProbe(attachmentRef.current);
-      attachmentRef.current = node === null ? null : attach(node, measure);
+      attachmentRef.current = node === null ? null : attach(node, measure, widthToken);
       if (node === null) setMeasurement(null);
       else measure();
     },
-    [measure],
+    [measure, widthToken],
   );
 
   // The column count is NOT a dependency of the measurement — a Profile
   // switched off the Tasks tab (FR-313) re-decides the layout without the DOM
   // being touched, and a resize re-decides it without the count moving.
   const geometry = useMemo(() => {
-    const decided = measurement === null ? null : boardGeometryOf(measurement, columnCount);
+    const decided =
+      measurement === null ? null : boardGeometryOf(measurement, columnCount, layoutOf);
     return { layout: decided ?? unmeasuredLayoutOf(columnCount), measured: decided !== null };
-  }, [measurement, columnCount]);
+  }, [measurement, columnCount, layoutOf]);
 
   return { boardRef, layout: geometry.layout, measured: geometry.measured, remeasure: measure };
 }
@@ -145,7 +171,7 @@ function isPositive(value: number): boolean {
 
 interface ProbeElements {
   root: HTMLElement;
-  /** `--fam-task-col-w` wide — measuring it IS resolving the token. */
+  /** The width token wide — measuring it IS resolving the token. */
   column: HTMLElement;
 }
 
@@ -156,17 +182,17 @@ type Attachment = ProbeAttachment<ProbeElements>;
  * it resizes on its own when --fam-u changes (the board's border box does not
  * have to), so a rotation that keeps the width still moves the count.
  */
-function attach(node: HTMLElement, onChange: () => void): Attachment {
-  const probe = buildProbe(node.ownerDocument);
+function attach(node: HTMLElement, onChange: () => void, widthToken: string): Attachment {
+  const probe = buildProbe(node.ownerDocument, widthToken);
   return attachProbe(node, probe, [probe.column], onChange);
 }
 
 /** A hidden in-scope element sized purely by the token, on the shared root. */
-function buildProbe(doc: Document): ProbeElements {
+function buildProbe(doc: Document, widthToken: string): ProbeElements {
   const root = hiddenProbeRoot(doc);
 
   const column = doc.createElement("div");
-  column.style.width = "var(--fam-task-col-w)";
+  column.style.width = `var(${widthToken})`;
   column.style.height = "1px";
 
   root.appendChild(column);

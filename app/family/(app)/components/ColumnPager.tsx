@@ -5,7 +5,7 @@ import { useCallback, useState, type KeyboardEvent, type ReactNode } from "react
 
 import type { BoardLayoutMode } from "@/lib/family/tasks/layout";
 
-import { useSwipePan } from "../../components/useSwipePan";
+import { useSwipePan } from "./useSwipePan";
 
 /**
  * T075: the phone's horizontal swipe between profile columns (FR-396, R320).

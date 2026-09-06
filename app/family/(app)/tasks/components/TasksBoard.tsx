@@ -31,7 +31,7 @@ import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
 import { settleEdit, useWriteSurface } from "../../components/useWriteSurface";
 import { ClaimDialog } from "./ClaimDialog";
-import { ColumnPager, useColumnPage } from "./ColumnPager";
+import { ColumnPager, useColumnPage } from "../../components/ColumnPager";
 import { DeleteScopeDialog } from "./DeleteScopeDialog";
 import { ProfileColumn } from "./ProfileColumn";
 import { TaskStreaksProvider } from "./StreakBadge";
@@ -45,14 +45,9 @@ import {
   UP_FOR_GRABS_TITLE,
   UpForGrabsColumn,
 } from "./UpForGrabsColumn";
-import {
-  householdOrderOf,
-  previewed,
-  useListReorder,
-  type ListReorder,
-  type RoutineMove,
-} from "./useColumnReorder";
-import { useBoardGeometry } from "./useBoardGeometry";
+import { previewed, useListReorder, type ListReorder } from "../../components/useListReorder";
+import { householdOrderOf, type RoutineMove } from "./useColumnReorder";
+import { useBoardGeometry } from "../../components/useBoardGeometry";
 import { useBoardOccurrences, type BoardCounters } from "./useBoardOccurrences";
 import { useDayAnchor } from "./useDayAnchor";
 import { useSectionToggles } from "./useSectionToggles";

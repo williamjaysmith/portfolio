@@ -9,7 +9,8 @@ import type { BoardOccurrence, Category } from "@/lib/family/types";
 
 import { ColumnHeader } from "./ColumnHeader";
 import { ColumnBody } from "./SectionGroup";
-import { useRoutineReorder, type ListReorder, type RoutineMove } from "./useColumnReorder";
+import type { ListReorder } from "../../components/useListReorder";
+import { useRoutineReorder, type RoutineMove } from "./useColumnReorder";
 import type { TaskSectionKey, SectionToggles } from "./useSectionToggles";
 
 /**

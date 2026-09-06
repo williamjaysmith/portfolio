@@ -5,7 +5,7 @@ import {
   boardGeometryOf,
   useBoardGeometry,
   type BoardMeasurement,
-} from "@/app/family/(app)/tasks/components/useBoardGeometry";
+} from "@/app/family/(app)/components/useBoardGeometry";
 
 /**
  * T040 / R320: the board measures itself. `boardGeometryOf` is the branchy,
@@ -84,12 +84,12 @@ class FakeResizeObserver {
  * recognised by the token it is sized with, which is the only thing the hook
  * guarantees about it.
  */
-function stubLayout(boardWidth: number): void {
+function stubLayout(boardWidth: number, probeToken = "var(--fam-task-col-w)"): void {
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
     this: Element,
   ): DOMRect {
     const width =
-      this instanceof HTMLElement && this.style.width === "var(--fam-task-col-w)"
+      this instanceof HTMLElement && this.style.width === probeToken
         ? PROBE_WIDTH
         : boardWidth;
     return { width, height: 0, top: 0, left: 0, right: width, bottom: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
@@ -219,5 +219,23 @@ describe("useBoardGeometry", () => {
     rerender(6);
 
     expect(result.current.layout).toEqual({ perRow: 4, mode: "pager" });
+  });
+
+  it("probes the token it is given and applies the rule it is given (005 T006, R507)", () => {
+    stubLayout(1778, "var(--fam-list-card-w)");
+    const layoutOf = vi.fn(() => ({ perRow: 2, mode: "pager" as const }));
+    const { result } = renderHook(() =>
+      useBoardGeometry(5, { widthToken: "--fam-list-card-w", layoutOf }),
+    );
+
+    act(() => {
+      result.current.boardRef(document.createElement("div"));
+    });
+
+    expect(layoutOf).toHaveBeenCalledWith(
+      expect.objectContaining({ referenceColumnWidth: PROBE_WIDTH, boardWidth: 1778, columnCount: 5 }),
+    );
+    expect(result.current.measured).toBe(true);
+    expect(result.current.layout).toEqual({ perRow: 2, mode: "pager" });
   });
 });

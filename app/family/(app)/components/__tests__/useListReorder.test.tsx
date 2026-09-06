@@ -3,12 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Reorder } from "@/lib/family/tasks/reorder";
 
-import {
-  householdOrderOf,
-  previewed,
-  reorderKeyStepOf,
-  useListReorder,
-} from "../useColumnReorder";
+import { householdOrderOf } from "../../tasks/components/useColumnReorder";
+import { previewed, reorderKeyStepOf, useListReorder } from "../useListReorder";
 
 /**
  * T076 — press-and-hold reordering, both of the board's lists (FR-309, FR-310,
