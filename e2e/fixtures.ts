@@ -46,6 +46,19 @@ function actor(page: Page, profile: PinnedProfile) {
   return (action: () => Promise<void>) => actAs(page, profile, action);
 }
 
+/**
+ * A journey that ends with a dialog open would leave the shell unclickable for
+ * the teardown below, and the failure would name the teardown rather than the
+ * journey. Escape first, then punch out.
+ */
+async function closeAnyDialog(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if ((await page.locator("dialog[open]").count()) === 0) return;
+    await page.keyboard.press("Escape");
+  }
+}
+
 export const test = base.extend<Fixtures>({
   page: async ({ page }, use) => {
     await hideDevOverlay(page);
@@ -55,11 +68,13 @@ export const test = base.extend<Fixtures>({
   actAsAna: async ({ page }, use) => {
     await use(actor(page, "Ana"));
     // Leave nobody punched in, so the next journey starts where harness.md says.
+    await closeAnyDialog(page).catch(() => undefined);
     await punchOut(page, "Ana").catch(() => undefined);
   },
 
   actAsCleo: async ({ page }, use) => {
     await use(actor(page, "Cleo"));
+    await closeAnyDialog(page).catch(() => undefined);
     await punchOut(page, "Cleo").catch(() => undefined);
   },
 
