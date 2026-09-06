@@ -49,12 +49,16 @@ export function punchSheet(page: Page) {
   return page.getByRole("dialog", { name: SHEET });
 }
 
-/** Choose the Profile and enter the PIN on an already-open sheet. */
+/**
+ * Choose the Profile and enter the PIN on an already-open sheet. The sheet
+ * renames itself from "Who's here?" to the Profile once one is chosen, so each
+ * step is scoped to the dialog it is on — a bare `dialog` would be ambiguous
+ * whenever a sheet is open behind it.
+ */
 export async function enterPin(page: Page, profile: string, pin: string): Promise<void> {
-  const sheet = page.getByRole("dialog");
-  await sheet.getByRole("button", { name: profile, exact: true }).click();
-  for (const digit of pin) await sheet.getByRole("button", { name: digit, exact: true }).click();
-  await expect(sheet).toBeHidden();
+  await punchSheet(page).getByRole("button", { name: profile, exact: true }).click();
+  const pad = page.getByRole("dialog", { name: profile });
+  for (const digit of pin) await pad.getByRole("button", { name: digit, exact: true }).click();
 }
 
 /** Answer the sheet if it opened; do nothing if the actor was still punched in. */
