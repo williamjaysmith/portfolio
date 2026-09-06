@@ -59,6 +59,9 @@ export async function enterPin(page: Page, profile: string, pin: string): Promis
   await punchSheet(page).getByRole("button", { name: profile, exact: true }).click();
   const pad = page.getByRole("dialog", { name: profile });
   for (const digit of pin) await pad.getByRole("button", { name: digit, exact: true }).click();
+  // The sheet closes when the actor is in; the write it interrupted resumes
+  // from there, so a journey that carried on now would be racing it.
+  await expect(pad).toBeHidden();
 }
 
 /** Answer the sheet if it opened; do nothing if the actor was still punched in. */

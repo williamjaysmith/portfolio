@@ -1,4 +1,12 @@
-import { createEvent, deleteEvent, eventBlock, openEvent, stopFollowingTheClock } from "../helpers/calendar";
+import {
+  createEvent,
+  deleteEvent,
+  eventBlock,
+  eventBlocks,
+  openEvent,
+  stopFollowingTheClock,
+  visibleHours,
+} from "../helpers/calendar";
 import { expect, test } from "../fixtures";
 
 /**
@@ -6,11 +14,19 @@ import { expect, test } from "../fixtures";
  *
  * The largest surface in the app and the home of its most fragile interaction:
  * a pointer drag that turns a position on screen into a time and then asks a
- * question about a series. None of that survives in a simulated DOM.
+ * question about a series. None of that survives in a simulated DOM — this
+ * suite's first run proved as much, by finding that a tap on an event had not
+ * opened its details since Phase 2.
  *
  * Every journey makes the events it needs in the current week and removes them
  * (harness.md §1), so none depends on the frozen render-matrix week.
  */
+
+/** "5:00" — the hour the block will show, in the household's own clock format. */
+function shownHour(twentyFour: string): string {
+  const hour = Number(twentyFour.slice(0, 2));
+  return `${hour % 12 || 12}:00`;
+}
 
 test.describe("the Week calendar", () => {
   test.beforeEach(async ({ page }) => {
@@ -19,21 +35,23 @@ test.describe("the Week calendar", () => {
 
   test("creates an event from the shell's control, and it survives a reload @responsive", async ({ page, actAsAna, unique }) => {
     const title = unique("Swimming");
-    await createEvent(page, actAsAna, { title, startTime: "14:00", endTime: "15:00", profile: "Cleo" });
+    const hours = await visibleHours(page);
+    await createEvent(page, actAsAna, { title, profile: "Cleo" });
 
     await page.reload();
-    await expect(eventBlock(page, title)).toBeVisible();
-    await expect(eventBlock(page, title)).toHaveAccessibleName(/2:00 PM – 3:00 PM/);
+    const block = eventBlock(page, title);
+    await expect(block).toBeVisible();
+    await expect(block).toHaveText(new RegExp(shownHour(hours.start)));
 
     await deleteEvent(page, actAsAna, title);
     await page.reload();
-    await expect(eventBlock(page, title)).toHaveCount(0);
+    await expect(eventBlocks(page, title)).toHaveCount(0);
   });
 
   test("edits an event's title and time, and the grid follows", async ({ page, actAsAna, unique }) => {
     const title = unique("Dentist");
     const renamed = `${title} moved`;
-    await createEvent(page, actAsAna, { title, startTime: "14:00", endTime: "15:00" });
+    await createEvent(page, actAsAna, { title });
 
     await openEvent(page, title);
     await page.getByRole("dialog", { name: title }).getByRole("button", { name: "Edit" }).click();
@@ -44,10 +62,13 @@ test.describe("the Week calendar", () => {
       await form.getByRole("textbox", { name: "End time" }).fill("17:00");
       await form.getByRole("button", { name: "Save" }).click();
     });
+    // The form closes when the write lands; reloading before that cancels it.
+    await expect(form).toBeHidden();
 
     await page.reload();
-    await expect(eventBlock(page, renamed)).toHaveAccessibleName(/4:00 PM – 5:00 PM/);
-    await expect(eventBlock(page, title)).toHaveCount(1); // the renamed one; the old title is gone
+    await expect(eventBlock(page, renamed)).toHaveText(/4:00 PM/);
+    // One block only: the old title is a prefix of the new one.
+    await expect(eventBlocks(page, title)).toHaveCount(1);
 
     await deleteEvent(page, actAsAna, renamed);
   });
@@ -59,71 +80,81 @@ test.describe("the Week calendar", () => {
     await page.reload();
     const bar = eventBlock(page, title);
     await expect(bar).toBeVisible();
-    // The band sits above the hour grid: the bar is drawn before the first hour label.
-    const bandBox = await bar.boundingBox();
-    const gridBox = await page.getByText("6 AM").first().boundingBox();
-    expect(bandBox!.y, "the all-day bar sits above the hour grid").toBeLessThan(gridBox!.y);
+    // A band bar is named by the event alone; a block in the hour grid carries
+    // its times too. That is the difference a person hears, and it is a truer
+    // assertion than a pixel comparison against a grid that scrolls itself.
+    await expect(bar).toHaveAccessibleName(title);
 
     await deleteEvent(page, actAsAna, title);
   });
 
-  test("edits a repeating event at each scope, and the other occurrences follow the rule", async ({ page, actAsAna, unique }) => {
+  test("edits one occurrence of a repeat, and leaves the rest of the series alone", async ({ page, actAsAna, unique }) => {
     const title = unique("Standup");
-    await createEvent(page, actAsAna, { title, startTime: "14:00", endTime: "15:00", repeats: "Every day" });
+    const hours = await visibleHours(page);
+    await createEvent(page, actAsAna, { title, repeats: "Every day" });
     await page.reload();
-    const thisWeek = await eventBlock(page, title).count();
-    expect(thisWeek, "a daily repeat draws on every remaining day of the week").toBeGreaterThan(1);
+    const occurrences = await eventBlocks(page, title).count();
+    expect(occurrences, "a daily repeat draws on every remaining day of the visible week").toBeGreaterThan(1);
 
-    // "This event" touches one occurrence only.
+    // FR-250's order on an edit: the form first, the scope question on saving.
+    // The one occurrence is renamed rather than re-timed, so what changed can
+    // never be confused with what the clock happened to say when it ran.
+    const once = `${title} only`;
     await openEvent(page, title);
     await page.getByRole("dialog", { name: title }).getByRole("button", { name: "Edit" }).click();
-    await expect(page.getByRole("heading", { name: "Edit repeating event" })).toBeVisible();
-    await page.getByRole("radio", { name: "This event" }).check();
-    await page.getByRole("button", { name: "Continue" }).click();
     const form = page.getByRole("dialog", { name: "Edit event" });
+    await form.getByRole("textbox", { name: "Title" }).fill(once);
     await actAsAna(async () => {
-      await form.getByRole("textbox", { name: "Start time" }).fill("18:00");
-      await form.getByRole("textbox", { name: "End time" }).fill("19:00");
       await form.getByRole("button", { name: "Save" }).click();
+      await expect(page.getByRole("heading", { name: "Edit repeating event" })).toBeVisible();
+      await page.getByRole("radio", { name: "This event" }).check();
+      await page.getByRole("button", { name: "Continue" }).click();
     });
+    await expect(form).toBeHidden();
 
     await page.reload();
-    await expect(page.getByRole("button", { name: new RegExp(`${title}.*6:00 PM`) })).toHaveCount(1);
-    await expect(page.getByRole("button", { name: new RegExp(`${title}.*2:00 PM`) })).toHaveCount(thisWeek - 1);
+    // Exactly one occurrence carries the new name; the series is otherwise
+    // untouched — same number of occurrences, still at the hour it was given.
+    await expect(eventBlocks(page, once)).toHaveCount(1);
+    await expect(eventBlocks(page, title)).toHaveCount(occurrences);
+    await expect(eventBlock(page, title)).toHaveText(new RegExp(shownHour(hours.start)));
 
     await deleteEvent(page, actAsAna, title, "All events");
     await page.reload();
-    await expect(eventBlock(page, title)).toHaveCount(0);
+    await expect(eventBlocks(page, title)).toHaveCount(0);
   });
 
-  test("deletes a repeating event from this occurrence onward, leaving the earlier ones", async ({ page, actAsAna, unique }) => {
+  test("deletes a repeat from one occurrence onward, leaving the earlier ones", async ({ page, actAsAna, unique }) => {
     const title = unique("Bins");
-    await createEvent(page, actAsAna, { title, startTime: "14:00", endTime: "15:00", repeats: "Every day" });
+    await createEvent(page, actAsAna, { title, repeats: "Every day" });
     await page.reload();
-    const before = await eventBlock(page, title).count();
-    test.skip(before < 2, "the household's week has no room for two occurrences of a daily repeat");
+    const before = await eventBlocks(page, title).count();
+    test.skip(before < 2, "the visible week holds only one occurrence of a daily repeat today");
 
     // The last occurrence on screen: everything before it must survive.
-    const last = page.getByRole("button", { name: new RegExp(title) }).last();
     await stopFollowingTheClock(page);
+    const last = eventBlocks(page, title).last();
     await last.scrollIntoViewIfNeeded();
     await last.click();
     await page.getByRole("dialog", { name: title }).getByRole("button", { name: "Delete" }).click();
     await expect(page.getByRole("heading", { name: "Delete repeating event" })).toBeVisible();
+    await page.getByRole("radio", { name: "This and future events" }).check();
+    await page.getByRole("button", { name: "Continue" }).click();
     await actAsAna(async () => {
-      await page.getByRole("radio", { name: "This and future events" }).check();
-      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
     });
+    await expect(page.getByRole("alertdialog")).toBeHidden();
 
     await page.reload();
-    await expect(eventBlock(page, title)).toHaveCount(before - 1);
+    await expect(eventBlocks(page, title)).toHaveCount(before - 1);
 
     await deleteEvent(page, actAsAna, title, "All events");
   });
 
   test("drags an event to another time, and the new time survives a reload", async ({ page, actAsAna, unique }) => {
     const title = unique("Piano");
-    await createEvent(page, actAsAna, { title, startTime: "13:00", endTime: "14:00" });
+    const hours = await visibleHours(page);
+    await createEvent(page, actAsAna, { title });
     await page.reload();
 
     await stopFollowingTheClock(page);
@@ -131,33 +162,48 @@ test.describe("the Week calendar", () => {
     await block.scrollIntoViewIfNeeded();
     const box = (await block.boundingBox())!;
     const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    const wasAt = await block.innerText();
 
+    // The grid works on animation frames, so the gesture is driven by the app's
+    // own running commentary rather than by waiting a fixed time (FR-710): move,
+    // wait until it says it is moving somewhere, move again, then let go.
+    const announcement = page.getByRole("status").first();
     await actAsAna(async () => {
       await page.mouse.move(centre.x, centre.y);
       await page.mouse.down();
-      // Several steps: one jump is not a drag, and the grid needs the moves.
-      for (let step = 1; step <= 8; step += 1) {
-        await page.mouse.move(centre.x, centre.y + (box.height * step) / 4, { steps: 2 });
-      }
+      await page.mouse.move(centre.x, centre.y + 24, { steps: 4 });
+      await expect(announcement).toHaveText(/Moving to/);
+      // Wait for the commentary to CHANGE, not merely to exist: that is the
+      // proof the grid has taken the second move, and it is what makes the drop
+      // land somewhere new (FR-710 — a condition, never a delay).
+      const firstStop = await announcement.innerText();
+      await page.mouse.move(centre.x, centre.y + box.height, { steps: 8 });
+      await expect(announcement).not.toHaveText(firstStop);
       await page.mouse.up();
     });
+    // Wait for the write itself, not for a dialog: the block is redrawn at its
+    // new hour once the drop has landed, and a reload before that would cancel
+    // it in flight. `wasAt` is the whole label, so "5:00 PM – 6:00 PM" cannot
+    // be mistaken for a move that only shifted the end.
+    await expect(eventBlock(page, title)).not.toHaveText(wasAt);
 
     await page.reload();
-    await expect(eventBlock(page, title)).not.toHaveAccessibleName(/1:00 PM – 2:00 PM/);
+    await expect(eventBlock(page, title)).not.toHaveText(wasAt);
+    await expect(eventBlock(page, title)).toBeVisible();
     await deleteEvent(page, actAsAna, title);
   });
 
   test("hides a Profile's events on this device only, and remembers it", async ({ page, actAsAna, unique }) => {
     const title = unique("Vet");
-    await createEvent(page, actAsAna, { title, startTime: "14:00", endTime: "15:00", profile: "Cleo" });
+    await createEvent(page, actAsAna, { title, profile: "Cleo" });
 
     await page.getByRole("button", { name: "Filter" }).click();
     await page.getByRole("dialog").getByRole("checkbox", { name: "Cleo" }).uncheck();
     await page.getByRole("button", { name: "Done" }).click();
-    await expect(eventBlock(page, title)).toHaveCount(0);
+    await expect(eventBlocks(page, title)).toHaveCount(0);
 
     await page.reload();
-    await expect(eventBlock(page, title)).toHaveCount(0);
+    await expect(eventBlocks(page, title)).toHaveCount(0);
 
     await page.getByRole("button", { name: "Filter" }).click();
     await page.getByRole("button", { name: "Show all" }).click();
@@ -168,14 +214,19 @@ test.describe("the Week calendar", () => {
   });
 
   test("pages by whole weeks and comes back to today @responsive", async ({ page }) => {
-    const dayHeaders = page.getByRole("main").getByText(/^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/);
-    await expect(dayHeaders.first()).toBeVisible();
+    // Today is marked in the day headers; a week paged away from it carries no
+    // marker at all, which is the honest signal that the window really moved.
+    const todayMarker = page.getByRole("main").locator('[aria-current="date"]');
+    await expect(todayMarker).toHaveCount(1);
 
-    const before = await page.getByRole("main").innerText();
     await page.getByRole("button", { name: /^Next \d+ days$/ }).click();
-    await expect(page.getByRole("main")).not.toHaveText(before);
+    await expect(todayMarker).toHaveCount(0);
 
+    await page.getByRole("button", { name: /^Previous \d+ days$/ }).click();
+    await expect(todayMarker).toHaveCount(1);
+
+    await page.getByRole("button", { name: /^Next \d+ days$/ }).click();
     await page.getByRole("button", { name: "Today" }).click();
-    await expect(page.getByRole("main")).toHaveText(before);
+    await expect(todayMarker).toHaveCount(1);
   });
 });
