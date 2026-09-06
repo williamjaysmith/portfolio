@@ -946,7 +946,19 @@ function useTasksBoardModel(props: TasksBoardProps) {
   });
 
   const handlers = useBoardHandlers(details, claim, resolve, editor);
-  const reorder = useBoardReorder(profiles, categories, actor, withActor);
+  // **The columns the board is SHOWING, not every column it has.** The reorder
+  // machine matches a pressed row to an item by position among the rendered
+  // rows, and a paged board renders only its window — so handing it the whole
+  // list made a press on the first visible header pick up the household's first
+  // Profile instead. `householdOrderOf` was written for exactly this: it
+  // permutes the shown slots and leaves every other Profile where it was.
+  // Found by the browser pass (007 US4); it cannot happen in a simulated DOM,
+  // where nothing measures itself and every column is drawn.
+  const shownProfiles = useMemo(
+    () => visibleProfilesOf(profiles, page),
+    [profiles, page],
+  );
+  const reorder = useBoardReorder(shownProfiles, categories, actor, withActor);
   // While a column is being carried the board paints the drop's preview; with
   // nothing in flight it paints the stored household order (R321).
   const drawnProfiles = previewed(profiles, reorder.columns.order, (one) => one.id);
@@ -991,6 +1003,15 @@ function useTasksBoardModel(props: TasksBoardProps) {
     ...handlers,
     notice: noticeFor(board, details, claim, resolve, editor, reorder.notice),
   };
+}
+
+/**
+ * The Profiles inside the board's visible window. The window is over the drawn
+ * columns, of which Up for Grabs is the first and belongs to nobody — so the
+ * Profile slice starts one column later.
+ */
+function visibleProfilesOf(profiles: readonly Category[], page: { start: number; end: number }): Category[] {
+  return [...profiles].slice(Math.max(0, page.start - 1), Math.max(0, page.end - 1));
 }
 
 /** One drawn column and the name the pager announces it by (FR-396). */
