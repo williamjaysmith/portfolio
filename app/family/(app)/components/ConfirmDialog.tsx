@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 
-import { useModalDialog } from "../../components/useModalDialog";
+import { useModalDialog } from "./useModalDialog";
 
 /**
  * The Lists tab's confirmation (005 R510; FR-512, FR-521; constitution §VI):

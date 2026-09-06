@@ -4,6 +4,7 @@ import { EyeOff } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { useListFilters } from "@/app/family/(app)/lists/components/useListFilters";
+import { useCalendarMealSwitch } from "@/app/family/(app)/meals/components/useCalendarMealSwitch";
 import { useTaskFilters } from "@/app/family/(app)/tasks/components/useTaskFilters";
 import type { PaletteColor } from "@/lib/family/colors";
 import type { Category, ListFilters, TaskFilters } from "@/lib/family/types";
@@ -167,6 +168,15 @@ function ListFilterSection({
   );
 }
 
+/** 006 FR-635's one switch, per device, on by default (36625171368987 — "Show Meals"). */
+function MealFilterSection({ showMeals, setShowMeals }: { showMeals: boolean; setShowMeals: (on: boolean) => void }) {
+  return (
+    <SheetSection title="Meals" headingId="filter-meals">
+      <ToggleRow label="Show Meals on the calendar" checked={showMeals} onChange={setShowMeals} />
+    </SheetSection>
+  );
+}
+
 /**
  * A Label wears its colour where a Profile wears its face — the same 32 px
  * circle, so the two lists read as one column. Decorative: the name is
@@ -187,6 +197,7 @@ export function FilterSheet() {
     useFamily();
   const taskFilters = useTaskFilters();
   const listFilters = useListFilters();
+  const mealSwitch = useCalendarMealSwitch();
   const [open, setOpen] = useState(false);
   const dialogRef = useModalDialog(open);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -201,6 +212,7 @@ export function FilterSheet() {
     showAll();
     taskFilters.showAll();
     listFilters.showAll();
+    mealSwitch.showAll();
   }
 
   return (
@@ -252,7 +264,9 @@ export function FilterSheet() {
 
         <ListFilterSection filters={listFilters.filters} setFilter={listFilters.setFilter} />
 
-        {visibilityPersists && taskFilters.persistent && listFilters.persistent ? null : (
+        <MealFilterSection showMeals={mealSwitch.showMeals} setShowMeals={mealSwitch.setShowMeals} />
+
+        {visibilityPersists && taskFilters.persistent && listFilters.persistent && mealSwitch.persistent ? null : (
           <p className="mt-3 text-(length:--fam-fs-small) text-(--fam-text-secondary)">
             Filters won&rsquo;t be remembered on this device.
           </p>

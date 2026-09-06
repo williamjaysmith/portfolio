@@ -5,8 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DEFAULT_COLUMN_COUNT } from "@/lib/family/week-geometry";
 
-import { makeContext, withFamily } from "../../../components/__tests__/family-test-utils";
+import { makeContext, stubDialog, withFamily } from "../../../components/__tests__/family-test-utils";
+import { CATEGORIES, DINNER, mealOf, recipeOf } from "../../../meals/components/__tests__/meals-test-fixtures";
 import { WeekView } from "../WeekView";
+import type { CalendarMealSeeds } from "../useCalendarMeals";
 
 // The write surface's actions reach the server-only admin client; nothing
 // here writes, so the module is stubbed at the boundary.
@@ -15,6 +17,21 @@ vi.mock("@/lib/family/actions/events", () => ({
   updateEvent: vi.fn(),
   deleteEvent: vi.fn(),
 }));
+// 006 FR-636: the meal surfaces ride along; their actions and the lists read are stubbed the same way.
+vi.mock("@/lib/family/actions/meals", () => ({
+  updateMealCategory: vi.fn(),
+  createRecipe: vi.fn(),
+  updateRecipe: vi.fn(),
+  deleteRecipe: vi.fn(),
+  planMeal: vi.fn(),
+  updateMeal: vi.fn(),
+  deleteMeal: vi.fn(),
+}));
+vi.mock("@/lib/family/actions/lists", () => ({ addListItems: vi.fn() }));
+vi.mock("@/lib/family/queries", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/family/queries")>();
+  return { ...actual, useLists: () => ({ data: [], error: null }) };
+});
 
 /**
  * The pager is replaced by its SEAM — a control that asks for one page later,
@@ -61,13 +78,21 @@ vi.mock("../WeekPager", () => ({
 const INITIAL_ANCHOR = "2026-08-30";
 const PAGE_LABEL = { next: `Next ${DEFAULT_COLUMN_COUNT} days`, previous: `Previous ${DEFAULT_COLUMN_COUNT} days` };
 
-function renderWeek() {
+const NO_MEALS: CalendarMealSeeds = { categories: [], recipes: [], meals: [] };
+
+function renderWeek(meals: CalendarMealSeeds = NO_MEALS) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
       {withFamily(
         makeContext(),
-        <WeekView initialAnchorDate={INITIAL_ANCHOR} initialEvents={[]} />,
+        <WeekView
+          initialAnchorDate={INITIAL_ANCHOR}
+          initialEvents={[]}
+          initialMeals={meals.meals}
+          initialMealCategories={meals.categories}
+          initialRecipes={meals.recipes}
+        />,
       )}
     </QueryClientProvider>,
   );
@@ -94,6 +119,7 @@ function headerDays(): string[] {
 
 describe("WeekView", () => {
   beforeEach(() => {
+    stubDialog();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-02T18:00:00Z"));
   });
@@ -176,5 +202,16 @@ describe("WeekView", () => {
     const todayCell = document.querySelector('[aria-current="date"]');
     expect(todayCell?.textContent).toContain("Wed");
     expect(todayCell?.textContent).toContain("2");
+  });
+  it("draws the window's meals as tokens under the all-day band, and a token opens the meal popover (006 FR-634, FR-636)", async () => {
+    const spaghetti = recipeOf("🍝 Spaghetti", DINNER);
+    renderWeek({ categories: CATEGORIES, recipes: [spaghetti], meals: [mealOf("2026-09-03", DINNER, spaghetti.id)] });
+
+    const row = screen.getByRole("list", { name: "Meals" });
+    expect(within(row).getAllByRole("listitem")).toHaveLength(DEFAULT_COLUMN_COUNT);
+    expect(within(row).getByRole("button", { name: "🍝 Spaghetti" })).toBeInTheDocument();
+
+    await press("🍝 Spaghetti");
+    expect(screen.getByRole("button", { name: "Open Recipe" })).toBeInTheDocument();
   });
 });

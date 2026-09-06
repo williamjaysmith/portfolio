@@ -17,6 +17,15 @@ import {
   HOUSEHOLD_COLUMNS,
   LIST_COLUMNS,
   LIST_ITEM_COLUMNS,
+  MEAL_CATEGORY_COLUMNS,
+  type MealCategoryRow,
+  type MealRow,
+  RECIPE_COLUMNS,
+  type RecipeRow,
+  mealsSelect,
+  toMeal,
+  toMealCategory,
+  toRecipe,
   REDEMPTION_COLUMNS,
   SETTINGS_COLUMNS,
   STAR_BALANCE_COLUMNS,
@@ -65,6 +74,9 @@ import type {
   HouseholdSettings,
   List,
   ListItem,
+  Meal,
+  MealCategory,
+  Recipe,
   Redemption,
   Reward,
   StarBalance,
@@ -171,6 +183,10 @@ export const familyKeys = {
   /** 005 R506: the Lists tab's two unwindowed reads — every list, every item. */
   lists: (householdId: string) => ["family", "lists", householdId] as const,
   listItems: (householdId: string) => ["family", "list-items", householdId] as const,
+  /** 006 R605: three unwindowed keys, prefix-shaped under `all` for the bare sweep. */
+  mealCategories: (householdId: string) => ["family", "meal-categories", householdId] as const,
+  recipes: (householdId: string) => ["family", "recipes", householdId] as const,
+  meals: (householdId: string) => ["family", "meals", householdId] as const,
 };
 
 const STALE_TIME = 30_000;
@@ -816,17 +832,14 @@ export async function fetchLists(supabase: SupabaseClient, householdId: string):
  */
 async function fetchInRowOrder<Row>(
   supabase: SupabaseClient,
-  table: "lists" | "list_items",
+  table: "lists" | "list_items" | "meal_categories" | "recipes" | "meals",
   columns: string,
   householdId: string,
+  orderBy: readonly string[] = ["sort_order", "created_at"],
 ): Promise<Row[]> {
-  const { data, error } = await supabase
-    .schema("family")
-    .from(table)
-    .select(columns)
-    .eq("household_id", householdId)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
+  let query = supabase.schema("family").from(table).select(columns).eq("household_id", householdId);
+  for (const column of orderBy) query = query.order(column, { ascending: true });
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as Row[];
 }
@@ -856,6 +869,55 @@ export function useListItems(householdId: string, initialData?: ListItem[]) {
   return useQuery({
     queryKey: familyKeys.listItems(householdId),
     queryFn: () => fetchListItems(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+/* ------------------------------------------------------------------ meals -- */
+
+/** The household's four mealtimes in row order (006 R605). */
+export async function fetchMealCategories(supabase: SupabaseClient, householdId: string): Promise<MealCategory[]> {
+  const rows = await fetchInRowOrder<MealCategoryRow>(supabase, "meal_categories", MEAL_CATEGORY_COLUMNS, householdId, [
+    "position",
+  ]);
+  return rows.map(toMealCategory);
+}
+
+/** Every recipe, removed ones included — the pane and the picker filter (R601). */
+export async function fetchRecipes(supabase: SupabaseClient, householdId: string): Promise<Recipe[]> {
+  const rows = await fetchInRowOrder<RecipeRow>(supabase, "recipes", RECIPE_COLUMNS, householdId, ["name", "created_at"]);
+  return rows.map(toRecipe);
+}
+
+/** Every meal with its exceptions embedded, unwindowed (R605): the grid and the calendar expand it. */
+export async function fetchMeals(supabase: SupabaseClient, householdId: string): Promise<Meal[]> {
+  const rows = await fetchInRowOrder<MealRow>(supabase, "meals", mealsSelect(), householdId, ["date", "created_at"]);
+  return rows.map(toMeal);
+}
+
+export function useMealCategories(householdId: string, initialData?: MealCategory[]) {
+  return useQuery({
+    queryKey: familyKeys.mealCategories(householdId),
+    queryFn: () => fetchMealCategories(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+export function useRecipes(householdId: string, initialData?: Recipe[]) {
+  return useQuery({
+    queryKey: familyKeys.recipes(householdId),
+    queryFn: () => fetchRecipes(createClient(), householdId),
+    staleTime: STALE_TIME,
+    initialData,
+  });
+}
+
+export function useMeals(householdId: string, initialData?: Meal[]) {
+  return useQuery({
+    queryKey: familyKeys.meals(householdId),
+    queryFn: () => fetchMeals(createClient(), householdId),
     staleTime: STALE_TIME,
     initialData,
   });

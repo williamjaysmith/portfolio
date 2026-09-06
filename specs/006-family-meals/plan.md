@@ -219,3 +219,6 @@ one token row. Nothing leaves the sub-app.
 - [x] Phase 1 — design complete: [data-model.md](./data-model.md) (030–033 in SQL, invariants, the privilege delta), [contracts/server-actions.md](./contracts/server-actions.md) (eight actions, the read path, the error contract), [quickstart.md](./quickstart.md)
 - [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 62 tasks, test-first, the three generalisations first)
 - [ ] Phase 3 — implementation per the phasing table above
+  - [x] Setup + Foundational (T001–T029, 2026-09-06): 030–033 applied locally; the three generalisations (`ScopeDialog` with its noun, `RepeatFieldset`, `ConfirmDialog`) plus `FormDialog`, `useSheetForm`, `createDeviceKeySet`; `lib/family/meals/*`, `actions/meals.ts`, `addListItems`; 42 policies tests and the unit suites green
+  - [x] US1–US6 (T030–T055, 2026-09-06): the grid and its mealtimes, planning with the popover and the scope step, the recipes pane with its form and two-way delete, Add to List, repeats, and the calendar's token row behind the Filter sheet's Show Meals — the meal surfaces are one model (`useMealSurfaceModel` / `MealSurfaces`) mounted by both the tab and the Week calendar
+  - [ ] Polish (T056–T062): seed re-verified, docs, review, the hand walk, the hosted push → merge → deploy, the device pass

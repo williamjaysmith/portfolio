@@ -75,6 +75,10 @@ const UNFILTERED_TABLES = [
   "redemptions",
   "lists",
   "list_items",
+  "meal_categories",
+  "recipes",
+  "meals",
+  "meal_exceptions",
 ] as const;
 
 function renderRealtime() {

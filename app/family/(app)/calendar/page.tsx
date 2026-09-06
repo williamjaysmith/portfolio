@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { fetchBoundsOf, localDateOf, viewWindowOf, weekAnchorOf } from "@/lib/family/calendar/dates";
 import { getMember } from "@/lib/family/guards";
-import { fetchSettings, fetchWeekEvents } from "@/lib/family/queries";
+import { fetchMealCategories, fetchMeals, fetchRecipes, fetchSettings, fetchWeekEvents } from "@/lib/family/queries";
 import { createClient } from "@/lib/family/supabase/server";
 import type { HouseholdSettings } from "@/lib/family/types";
 import { DEFAULT_COLUMN_COUNT } from "@/lib/family/week-geometry";
@@ -50,7 +50,21 @@ export default async function CalendarPage() {
 
   const anchorDate = currentAnchorDate(settings.timezone, settings.startWeekOn);
   const window = viewWindowOf(anchorDate, DEFAULT_COLUMN_COUNT, settings.timezone);
-  const events = await fetchWeekEvents(supabase, member.householdId, fetchBoundsOf(window));
+  // 006 FR-634: the meal reads ride the same request, so the tokens are on the first paint too.
+  const [events, mealCategories, recipes, meals] = await Promise.all([
+    fetchWeekEvents(supabase, member.householdId, fetchBoundsOf(window)),
+    fetchMealCategories(supabase, member.householdId),
+    fetchRecipes(supabase, member.householdId),
+    fetchMeals(supabase, member.householdId),
+  ]);
 
-  return <WeekView initialAnchorDate={anchorDate} initialEvents={events} />;
+  return (
+    <WeekView
+      initialAnchorDate={anchorDate}
+      initialEvents={events}
+      initialMeals={meals}
+      initialMealCategories={mealCategories}
+      initialRecipes={recipes}
+    />
+  );
 }

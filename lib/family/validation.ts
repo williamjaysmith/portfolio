@@ -1121,3 +1121,151 @@ export const removeSectionSchema = z.strictObject({
   listId: z.uuid({ error: INVALID_ID }),
   name: sectionNameSchema,
 });
+
+/* ------------------------------------------------------------------ meals -- */
+
+const MEALTIME_NAME = "A mealtime name is 1 to 40 characters.";
+const RECIPE_NAME = "A recipe name is 1 to 120 characters.";
+const RECIPE_TEXT = "Keep the recipe under 10 000 characters.";
+const MEAL_NOTE = "Keep the note under 200 characters.";
+const MEAL_DATE = "Choose a date.";
+const SCOPE_FOR_SERIES = "Choose a scope for a repeating meal.";
+const SERIES_ONLY = "A recipe can only change for the whole series.";
+const CHOOSE_A_MEALTIME = "Choose a mealtime.";
+const CHOOSE_A_RECIPE = "Choose a recipe, or type a new entry.";
+
+/** FR-610: 1–40, trimmed — 030's CHECK; uniqueness is the index's, mapped to a field error. */
+export const mealtimeNameSchema = z
+  .string({ error: MEALTIME_NAME })
+  .trim()
+  .min(1, { error: MEALTIME_NAME })
+  .max(40, { error: MEALTIME_NAME });
+
+/** `updateMealCategory`: the name, the colour, or both (FR-610, FR-612). */
+export const updateMealCategorySchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  patch: z
+    .strictObject({
+      name: mealtimeNameSchema.optional(),
+      color: paletteColorSchema.optional(),
+    })
+    .refine((patch) => patch.name !== undefined || patch.color !== undefined, { error: "Nothing to change." }),
+});
+
+/** FR-613: 1–120, trimmed — 031's CHECK. */
+const recipeNameSchema = z
+  .string({ error: RECIPE_NAME })
+  .trim()
+  .min(1, { error: RECIPE_NAME })
+  .max(120, { error: RECIPE_NAME });
+
+/** FR-613: the one free text, up to 10 000 — 031's CHECK. Not trimmed: line breaks are the content. */
+export const recipeTextSchema = z.string({ error: RECIPE_TEXT }).max(10_000, { error: RECIPE_TEXT });
+
+export const createRecipeSchema = z.strictObject({
+  name: recipeNameSchema,
+  categoryId: z.uuid({ error: CHOOSE_A_MEALTIME }),
+  text: recipeTextSchema.optional(),
+});
+
+export const updateRecipeSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  patch: z
+    .strictObject({
+      name: recipeNameSchema.optional(),
+      categoryId: z.uuid({ error: CHOOSE_A_MEALTIME }).optional(),
+      text: recipeTextSchema.optional(),
+    })
+    .refine((patch) => Object.values(patch).some((value) => value !== undefined), { error: "Nothing to change." }),
+});
+
+/** FR-616: the two choices, and a confirmation that is a literal `true`. */
+export const deleteRecipeSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  mode: z.enum(["recipe", "recipe_and_meals"], { error: "Choose what to delete." }),
+  confirm: z.literal(true, { error: "Deleting a recipe can't be undone — confirm to delete it." }),
+});
+
+/** FR-624: up to 200, trimmed; an empty note is no note. */
+export const mealNoteSchema = z
+  .string({ error: MEAL_NOTE })
+  .trim()
+  .max(200, { error: MEAL_NOTE })
+  .transform((note) => (note === "" ? null : note));
+
+const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const mealDateSchema = z.string({ error: MEAL_DATE }).regex(LOCAL_DATE, { error: MEAL_DATE });
+
+/** FR-622: an existing recipe, or a new entry that also becomes one. */
+export const recipeChoiceSchema = z.discriminatedUnion(
+  "kind",
+  [
+    z.strictObject({ kind: z.literal("existing"), id: z.uuid({ error: CHOOSE_A_RECIPE }) }),
+    z.strictObject({ kind: z.literal("new"), name: recipeNameSchema, text: recipeTextSchema.optional() }),
+  ],
+  { error: CHOOSE_A_RECIPE },
+);
+
+export const planMealSchema = z.strictObject({
+  date: mealDateSchema,
+  categoryId: z.uuid({ error: CHOOSE_A_MEALTIME }),
+  recipe: recipeChoiceSchema,
+  note: mealNoteSchema.optional(),
+  repeat: repeatChoiceSchema.optional(),
+});
+
+export type PlanMealInput = z.output<typeof planMealSchema>;
+
+const mealScopeSchema = z.enum(["this", "this_and_future", "all"], { error: SCOPE_FOR_SERIES });
+
+/**
+ * `updateMeal` (FR-626, FR-629, FR-630): `occurrenceDate` names the occurrence;
+ * `scope` is required for a series and refused for a one-off — but only the
+ * action knows which, so the schema checks the one rule it can: at `this` the
+ * recipe and the repeat are not on offer.
+ */
+export const updateMealSchema = z
+  .strictObject({
+    id: z.uuid({ error: INVALID_ID }),
+    occurrenceDate: mealDateSchema,
+    scope: mealScopeSchema.optional(),
+    patch: z
+      .strictObject({
+        date: mealDateSchema.optional(),
+        categoryId: z.uuid({ error: CHOOSE_A_MEALTIME }).optional(),
+        note: mealNoteSchema.nullable().optional(),
+        recipeId: z.uuid({ error: CHOOSE_A_RECIPE }).optional(),
+        repeat: repeatChoiceSchema.optional(),
+      })
+      .refine((patch) => Object.values(patch).some((value) => value !== undefined), { error: "Nothing to change." }),
+  })
+  .superRefine((input, ctx) => {
+    if (input.scope !== "this") return;
+    if (input.patch.recipeId !== undefined) {
+      ctx.addIssue({ code: "custom", path: ["patch", "recipeId"], message: SERIES_ONLY });
+    }
+    if (input.patch.repeat !== undefined) {
+      ctx.addIssue({ code: "custom", path: ["patch", "repeat"], message: SERIES_ONLY });
+    }
+  });
+
+export type UpdateMealInput = z.output<typeof updateMealSchema>;
+
+export const deleteMealSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  occurrenceDate: mealDateSchema,
+  scope: mealScopeSchema.optional(),
+  confirm: z.literal(true, { error: "Deleting a meal can't be undone — confirm to delete it." }),
+});
+
+/** `addListItems` (FR-632): the chosen lines, each an item's text, one write. */
+export const addListItemsSchema = z.strictObject({
+  listId: z.uuid({ error: INVALID_ID }),
+  texts: z
+    .array(listItemTextSchema, { error: "Choose at least one line." })
+    .min(1, { error: "Choose at least one line." })
+    .max(200, { error: "Add at most 200 lines at once." }),
+});
+
+/** The one message the action maps a taken mealtime name to (FR-610). */
+export const MEALTIME_NAME_TAKEN = "That name is already used.";

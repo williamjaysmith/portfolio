@@ -20,6 +20,10 @@ import type {
   HouseholdSettings,
   List,
   ListItem,
+  Meal,
+  MealCategory,
+  MealException,
+  Recipe,
   ListKind,
   Redemption,
   RenewUnit,
@@ -709,5 +713,147 @@ export function toListItem(row: ListItemRow): ListItem {
     sortOrder: Number(row.sort_order),
     createdBy: row.created_by,
     createdAt: row.created_at,
+  };
+}
+
+/* ------------------------------------------------------------------ meals -- */
+
+/** `family.meal_categories` (030) exactly as PostgREST returns it. */
+export interface MealCategoryRow {
+  id: string;
+  household_id: string;
+  name: string;
+  color: PaletteColor;
+  position: number;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** `family.recipes` (031). */
+export interface RecipeRow {
+  id: string;
+  household_id: string;
+  name: string;
+  category_id: string;
+  text: string;
+  removed_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** `family.meal_exceptions` (032). */
+export interface MealExceptionRow {
+  id: string;
+  household_id: string;
+  meal_id: string;
+  occurrence_date: string;
+  action: MealException["action"];
+  date: string | null;
+  category_id: string | null;
+  note: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** `family.meals` (032) with its exceptions embedded (R605). */
+export interface MealRow {
+  id: string;
+  household_id: string;
+  date: string;
+  category_id: string;
+  recipe_id: string;
+  note: string | null;
+  rrule: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+  meal_exceptions: MealExceptionRow[];
+}
+
+export const MEAL_CATEGORY_COLUMNS =
+  "id, household_id, name, color, position, created_by, updated_by, created_at, updated_at";
+
+export const RECIPE_COLUMNS =
+  "id, household_id, name, category_id, text, removed_at, created_by, updated_by, created_at, updated_at";
+
+export const MEAL_COLUMNS =
+  "id, household_id, date, category_id, recipe_id, note, rrule, created_by, updated_by, created_at, updated_at";
+
+export const MEAL_EXCEPTION_COLUMNS =
+  "id, household_id, meal_id, occurrence_date, action, date, category_id, note, created_by, updated_by, " +
+  "created_at, updated_at";
+
+/** The meals select with its embed — one joined array, for `eventsSelect`'s reason. */
+export function mealsSelect(): string {
+  return [MEAL_COLUMNS, `meal_exceptions(${MEAL_EXCEPTION_COLUMNS})`].join(",");
+}
+
+export function toMealCategory(row: MealCategoryRow): MealCategory {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    name: row.name,
+    color: row.color,
+    position: row.position,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toRecipe(row: RecipeRow): Recipe {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    name: row.name,
+    categoryId: row.category_id,
+    text: row.text,
+    removedAt: row.removed_at,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function toMealException(row: MealExceptionRow): MealException {
+  return {
+    id: row.id,
+    mealId: row.meal_id,
+    householdId: row.household_id,
+    occurrenceDate: row.occurrence_date,
+    action: row.action,
+    date: row.date,
+    categoryId: row.category_id,
+    note: row.note,
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function toMeal(row: MealRow): Meal {
+  return {
+    id: row.id,
+    householdId: row.household_id,
+    date: row.date,
+    categoryId: row.category_id,
+    recipeId: row.recipe_id,
+    note: row.note,
+    rrule: row.rrule,
+    exceptions: (row.meal_exceptions ?? []).map(toMealException),
+    createdBy: row.created_by,
+    updatedBy: row.updated_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }

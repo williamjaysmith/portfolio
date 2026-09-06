@@ -35,7 +35,8 @@ import {
  * ever touched, and the two layers cannot disagree (FR-262).
  */
 
-export type RepeatKind = RepeatChoice["kind"];
+import type { RepeatKind } from "../../components/RepeatFieldset";
+export type { RepeatKind };
 
 /**
  * What the caller's commit hands back. A result is shown or closed on as

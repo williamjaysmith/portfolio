@@ -410,6 +410,29 @@
   --fam-list-check-r: calc(10 * var(--fam-u));     /* [ESTIMATED] 07 §3 "radius ~10" */
   --fam-list-badge: calc(53 * var(--fam-u));       /* [ESTIMATED] 07 §3 "count badge circle ~53" — saturated, white numeral */
 
+  /* ---------- Meals (Phase 6, 07 §3.7, gallery/06, pdp/07) ----------------------------------- */
+  /* THIS FILE IS THE SOLE OWNER of every token below: MealsBoard, MealRail, MealDayColumn, MealCell,
+   * MealChip and MealPopover consume them and neither redefine nor extend them. Every number is read
+   * back by lib/family/__tests__/unit/meal-tokens.test.ts. Geometry is px @1920×1080 × --fam-u; every
+   * value is a proportional photo estimate from the device's Meals screen (dossier 07 §3.7 marks the
+   * whole table [ESTIMATED]; the cell height and gaps are [SAMPLED: m1.png]).
+   *
+   * WHAT IS REUSED, AND DECLARES NOTHING NEW HERE (R614):
+   *  · a mealtime row's wash and a chip's tint are the shipped ladder with --profile = the MEALTIME's
+   *    colour (07 §1.6 — the rows are "visually louder than any event block", so the row is
+   *    --fam-profile-20 and the chip --fam-profile-40; FR-605) — never hand-picked;
+   *  · the calendar's meal token is a chip at the all-day pill height (--fam-allday-h) on the
+   *    header grid (FR-634);
+   *  · the popover, the pane and the sheets are the shipped dialog idiom; the touch floor is --fam-touch. */
+  --fam-meal-cell-w: calc(235 * var(--fam-u));     /* [ESTIMATED] 07 §3.7 "cell width ~235 — (1818 − 6×20 − 40)/7" */
+  --fam-meal-cell-h: calc(250 * var(--fam-u));     /* [ESTIMATED] 07 §3.7 — [SAMPLED: m1.png row ≈ 295 × 0.85] */
+  --fam-meal-gap-x: calc(20 * var(--fam-u));       /* [ESTIMATED] 07 §3.7 "gap ~20 h" — [SAMPLED: m1.png] */
+  --fam-meal-gap-y: calc(38 * var(--fam-u));       /* [ESTIMATED] 07 §3.7 "gap ~38 v" — [SAMPLED: m1.png] */
+  --fam-meal-cell-r: calc(25 * var(--fam-u));      /* [ESTIMATED] 07 §3.7 "radius ~25" */
+  --fam-meal-rail-w: calc(40 * var(--fam-u));      /* [ESTIMATED] 07 §3.7 "category rail ~40 wide, text rotated −90°" */
+  --fam-meal-popover-w: calc(700 * var(--fam-u));  /* [ESTIMATED] 07 §3.7 "recipe popover width ~700" */
+  --fam-meal-popover-r: calc(32 * var(--fam-u));   /* [ESTIMATED] 07 §3.7 "recipe popover radius ~32" */
+
   /* ---------- touch ------------------------------------------------------------------------ */
   /* Every interactive control gets min-height/min-width: var(--fam-touch) regardless of scale
    * (FR-035): 52 px pills and 61 px chips fall below 44 px once --fam-u < 0.85. [OURS] */
@@ -484,6 +507,11 @@
   --fam-fs-list-item: max(12px, calc(25 * var(--fam-t)));    /* sans 400 — an item's text. One unit above --fam-fs-body
                                                                (24); the dossier reads them as different sizes, so they
                                                                are different tokens */
+
+  /* Meals type (Phase 6, 07 §2.4 "Meal-cell label sans medium 30 [SAMPLED: m1.png @225,385]"). The rail's
+   * rotated names, the popover title and the pane reuse --fam-fs-small / --fam-fs-title (R614). */
+  --fam-fs-meal-cell: max(12px, calc(30 * var(--fam-t)));    /* sans 500 — a chip's name; between --fam-fs-body (24)
+                                                               and --fam-fs-title (36); the dossier samples it as its own size */
 }
 
 .family[data-text-size="small"],

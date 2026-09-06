@@ -59,6 +59,14 @@ const TABLES: readonly TableSubscription[] = [
   // because they are prefix-shaped under `familyKeys.all`.
   { table: "lists" },
   { table: "list_items" },
+  // Meals (006 FR-643, R605). Unfiltered for the same reason: "This recipe and
+  // planned meals" and Delete meal are DELETEs whose payloads carry only a key.
+  // The bare sweep reaches `mealCategories`, `recipes` and `meals` because they
+  // are prefix-shaped under `familyKeys.all`.
+  { table: "meal_categories" },
+  { table: "recipes" },
+  { table: "meals" },
+  { table: "meal_exceptions" },
 ];
 
 /** `CLOSED` is the ordinary unmount; only these two mean nothing will arrive. */

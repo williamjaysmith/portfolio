@@ -29,7 +29,7 @@
 import { ActionFailure, runAction, type ActionResult } from "../errors";
 import { requireVerifiedActor } from "../guards";
 import { matchSection, sectionsOf } from "../lists/grouping";
-import { nextSortOrder, sortOrderBetween } from "../ordering";
+import { SORT_GAP, nextSortOrder, sortOrderBetween } from "../ordering";
 import { memberMayWriteList } from "../permissions";
 import {
   LIST_COLUMNS,
@@ -42,6 +42,7 @@ import {
 import type { Actor, List, ListItem } from "../types";
 import {
   addListItemSchema,
+  addListItemsSchema,
   clearCompletedSchema,
   deleteListItemSchema,
   deleteListSchema,
@@ -459,5 +460,39 @@ export async function removeSection(input: {
     if (ungrouped === 0) throw new ActionFailure("NOT_FOUND");
     await touchActor(actor);
     return { ungrouped };
+  });
+}
+
+/**
+ * 006 FR-632 / R610: a recipe's chosen lines onto a list — N items in ONE
+ * insert, ungrouped, unchecked, appended after the last item in the recipe's
+ * order, every one attributed to the punched-in Profile. Nothing is
+ * de-duplicated (spec Assumption 10). The Parents only rule is `loadList`'s,
+ * so a member's push onto a hidden list is `NOT_FOUND`, as every list write is.
+ */
+export async function addListItems(input: { listId: string; texts: string[] }): Promise<ActionResult<{ added: number }>> {
+  return runAction(async () => {
+    const actor = await requireVerifiedActor();
+    const parsed = parseOrThrow(addListItemsSchema, input);
+    const list = await loadList(actor.householdId, parsed.listId, actor);
+    const items = await itemsOfList(actor.householdId, list.id);
+    const first = nextSortOrder(items);
+
+    const { error, count } = await adminFamily()
+      .from("list_items")
+      .insert(
+        parsed.texts.map((text, index) => ({
+          household_id: actor.householdId,
+          list_id: list.id,
+          text,
+          section: null,
+          sort_order: first + index * SORT_GAP,
+          created_by: actor.profileId,
+        })),
+        { count: "exact" },
+      );
+    if (error) throw mapDbError(error);
+    await touchActor(actor);
+    return { added: count ?? parsed.texts.length };
   });
 }
