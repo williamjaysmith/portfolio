@@ -374,6 +374,42 @@
   --fam-sprite-spin-max: 540deg;                   /* [ESTIMATED] ibid. — the sign is the component's coin toss */
   --fam-sprite-fade-ms: 400ms;                     /* [OURS] 07 §7.1 "a short fade at the end" — "short" is unmeasured */
 
+  /* ---------- lists tab (Phase 5 — 07 §1.7, §3, §6.5; spec 005 FR-502…FR-505, FR-518, FR-541; R512) --
+   * THIS FILE IS THE SOLE OWNER of every token below, as it is of the two boards': ListCard,
+   * ListCardHeader, ListItemRow, SectionHeader and AddItemBox consume them and neither redefine nor
+   * extend them. Every number is read back by lib/family/__tests__/unit/list-tokens.test.ts.
+   * Geometry is px @1920×1080 × --fam-u; every value is a proportional photo estimate from the
+   * device's Lists screen (gallery/07, pdp/08 — dossier 07 §3 marks all of §3 [ESTIMATED]).
+   *
+   * WHAT IS REUSED, AND DECLARES NOTHING NEW HERE (R512):
+   *  · the card's three tints are the shipped ladder with --profile = the LIST's colour: the panel
+   *    is --fam-profile-20, an item row --fam-profile-40, the count badge --fam-profile-100
+   *    (07 §1.7 "panel (very light) / row (mid) / badge (saturated)"; FR-504) — never hand-picked;
+   *  · the lifted row's pointer (FR-523 "a small orange pointer to the left") is --fam-accent-coral;
+   *  · the menu, the sheets and the confirmations are the shipped dialog idiom (--fam-radius-modal,
+   *    --fam-fs-title, --fam-primary-blue, --fam-btn-secondary-bg); the "Add item" field is the
+   *    shipped FIELD; the touch floor is --fam-touch; the checked text is --fam-text-secondary. */
+
+  /* Card (FR-502, FR-503; 07 §3 "List card width ~495", "gap ~38", "radius ~28", "header ~100",
+   * "'Add section' footer ~110"). The width is what the fit divides by (useBoardGeometry's probe),
+   * never a drawn width: cards share the strip in equal tracks. */
+  --fam-list-card-w: calc(495 * var(--fam-u));     /* [ESTIMATED] 07 §3 — [SAMPLED: l1.png ≈ 490 × 1.02] */
+  --fam-list-card-r: calc(28 * var(--fam-u));      /* [ESTIMATED] 07 §3 "radius ~28" */
+  --fam-list-card-gap: calc(38 * var(--fam-u));    /* [ESTIMATED] 07 §3 "card gap ~38" — [SAMPLED: l1.png] */
+  --fam-list-header-h: calc(100 * var(--fam-u));   /* [ESTIMATED] 07 §3 "header (title + count badge) ~100" */
+  --fam-list-footer-h: calc(110 * var(--fam-u));   /* [ESTIMATED] 07 §3 "'Add section' footer ~110" */
+
+  /* Item row (FR-518, FR-519; 07 §3 "row 76", "pitch ~114 (row 76 + gap 38)", "radius ~14",
+   * "checkbox rounded SQUARE ~63, r ~10 — Lists use a square; Tasks use a circle"). The row and the
+   * checkbox are floored at the touch target (FR-541): 76 and 63 units are 38 and 31.5 px at the
+   * 0.5 unit floor, and every control here is tapped on a phone. */
+  --fam-list-row-h: max(var(--fam-touch), calc(76 * var(--fam-u)));   /* [ESTIMATED] 07 §3 — [SAMPLED: "Eggs" 248→323] */
+  --fam-list-row-r: calc(14 * var(--fam-u));       /* [ESTIMATED] 07 §3 "item radius ~14" */
+  --fam-list-row-gap: calc(38 * var(--fam-u));     /* [ESTIMATED] 07 §3 "pitch ~114 (row 76 + gap 38)" */
+  --fam-list-check: max(var(--fam-touch), calc(63 * var(--fam-u)));  /* [ESTIMATED] 07 §3 "checkbox ~63" — square */
+  --fam-list-check-r: calc(10 * var(--fam-u));     /* [ESTIMATED] 07 §3 "radius ~10" */
+  --fam-list-badge: calc(53 * var(--fam-u));       /* [ESTIMATED] 07 §3 "count badge circle ~53" — saturated, white numeral */
+
   /* ---------- touch ------------------------------------------------------------------------ */
   /* Every interactive control gets min-height/min-width: var(--fam-touch) regardless of scale
    * (FR-035): 52 px pills and 61 px chips fall below 44 px once --fam-u < 0.85. [OURS] */
@@ -439,6 +475,15 @@
                                                                stars on March 22, 2026." (07 §4.13 "sub sans 22px";
                                                                §8's --fs-modal-sub). Same number as --fam-fs-allday
                                                                but a different weight and role; not the same token. */
+
+  /* Lists type (Phase 5, 07 §2.4 "List title ('Grocery List') serif regular cap 33 → 46",
+   * "List item text sans regular cap 18 → 25") — photo-estimated like the rest of this block. The
+   * section header, the count badge and the menu rows reuse --fam-fs-body / --fam-fs-small (R512). */
+  --fam-fs-list-title: max(12px, calc(46 * var(--fam-t)));   /* serif 400 — a card's name. Above --fam-fs-title (36);
+                                                               the largest text in the product after the top-bar date */
+  --fam-fs-list-item: max(12px, calc(25 * var(--fam-t)));    /* sans 400 — an item's text. One unit above --fam-fs-body
+                                                               (24); the dossier reads them as different sizes, so they
+                                                               are different tokens */
 }
 
 .family[data-text-size="small"],

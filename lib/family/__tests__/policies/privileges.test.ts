@@ -50,6 +50,8 @@ const TABLES = [
   "reward_eligibilities",
   "star_entries",
   "redemptions",
+  "lists",
+  "list_items",
 ] as const;
 type Table = (typeof TABLES)[number];
 
@@ -58,6 +60,9 @@ const VIEWS = ["family.task_cursors", "family.star_balances"] as const;
 
 /** Realtime: the four Phase 4 tables join the channel (027), replica identity left at default. */
 const REWARD_TABLES = ["rewards", "reward_eligibilities", "star_entries", "redemptions"] as const;
+
+/** Realtime: the two Phase 5 tables join the channel (029), replica identity left at default. */
+const LIST_TABLES = ["lists", "list_items"] as const;
 
 const FUNCTIONS = [
   "assert_event_timezone",
@@ -80,6 +85,7 @@ const FUNCTIONS = [
   "my_household",
   "record_redemption",
   "retract_task_resolution",
+  "seed_default_lists",
   "seed_task_box",
   "set_pin",
   "split_event_series",
@@ -210,6 +216,8 @@ describe("privileges: the grant matrix", () => {
         reward_eligibilities: READ,
         star_entries: READ,
         redemptions: READ,
+        lists: READ,
+        list_items: READ,
       }),
     );
     expect(await executePrivileges(pool, "authenticated")).toEqual(
@@ -236,6 +244,8 @@ describe("privileges: the grant matrix", () => {
         reward_eligibilities: ALL,
         star_entries: ALL,
         redemptions: ALL,
+        lists: ALL,
+        list_items: ALL,
       }),
     );
     expect(await executePrivileges(pool, "service_role")).toEqual(
@@ -247,8 +257,21 @@ describe("privileges: the grant matrix", () => {
         "my_household",
         "split_event_series",
         "seed_task_box",
+        "seed_default_lists",
       ]),
     );
+  });
+
+  it("seed_default_lists executes for service_role only (005 T010, data-model §Privilege matrix)", async () => {
+    // 028's default lists are made by the seed script, which holds the secret
+    // key, and by nothing a browser can address; the function is `security
+    // definer`, so the explicit `revoke … from public, anon, authenticated` is
+    // what this asserts.
+    for (const role of ["anon", "authenticated", "supabase_auth_admin"]) {
+      const inventory = await executePrivileges(pool, role);
+      expect(inventory.seed_default_lists, role).toBe(false);
+    }
+    expect((await executePrivileges(pool, "service_role")).seed_default_lists).toBe(true);
   });
 
   it("split_event_series executes for service_role only; the timezone triggers for nobody", async () => {
@@ -321,6 +344,26 @@ describe("privileges: the grant matrix", () => {
       // every household's chain tails and balances to any authenticated caller.
       expect(rows[0]?.reloptions, view).toContain("security_invoker=true");
     }
+  });
+
+  it("the two lists tables are on supabase_realtime at the default replica identity (005 R506)", async () => {
+    const { rows: publication } = await pool.query<{ puballtables: boolean }>(
+      "select puballtables from pg_publication where pubname = 'supabase_realtime'",
+    );
+    expect(publication).toHaveLength(1);
+    const { rows: published } = await pool.query<{ tablename: string }>(
+      "select tablename from pg_publication_tables " +
+        "where pubname = 'supabase_realtime' and schemaname = 'family' and tablename = any($1::text[])",
+      [[...LIST_TABLES]],
+    );
+    const covered = publication[0]?.puballtables === true || published.length === LIST_TABLES.length;
+    expect(covered).toBe(true);
+    const { rows: identities } = await pool.query<{ relname: string; relreplident: string }>(
+      "select relname, relreplident from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+        "where n.nspname = 'family' and relname = any($1::text[]) order by relname",
+      [[...LIST_TABLES]],
+    );
+    expect(identities).toEqual([...LIST_TABLES].sort().map((relname) => ({ relname, relreplident: "d" })));
   });
 
   it("the four reward tables are on supabase_realtime at the default replica identity (R411)", async () => {

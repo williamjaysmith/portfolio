@@ -595,6 +595,25 @@ async function seedTaskBox(fam, log) {
   log(`task box    ${seeded} template${seeded === 1 ? "" : "s"}  (seeded)`);
 }
 
+/**
+ * The two default lists (005 FR-513, R511): "Grocery List" and "To-Do List", made
+ * ONCE by family.seed_default_lists() — idempotent by emptiness, so a household
+ * that renamed or deleted a default never gets it back. Unlike the Task Box this
+ * runs on EVERY seed, both modes: the hosted household already existed when 028
+ * landed, and this is how it gets its two lists (005 quickstart §4 step 4).
+ */
+async function seedDefaultLists(fam, log) {
+  const seeded = unwrap(
+    await fam.rpc("seed_default_lists", { p_household_id: HOUSEHOLD_ID }),
+    "seed the default lists",
+  );
+  log(
+    seeded === 0
+      ? "lists       (the household already has lists; the defaults are not re-made)"
+      : `lists       ${seeded} default list${seeded === 1 ? "" : "s"}  (seeded)`,
+  );
+}
+
 async function ensureHousehold(fam, log) {
   const existing = unwrap(
     await fam.from("households").select("id, name").eq("id", HOUSEHOLD_ID).maybeSingle(),
@@ -607,6 +626,7 @@ async function ensureHousehold(fam, log) {
     log(`household   ${HOUSEHOLD_ID}  "${HOUSEHOLD_NAME}"  (created)`);
     await seedTaskBox(fam, log);
   }
+  await seedDefaultLists(fam, log);
   const settings = unwrap(
     await fam.from("household_settings").select("household_id").eq("household_id", HOUSEHOLD_ID).maybeSingle(),
     "read settings",
@@ -1259,17 +1279,137 @@ async function seedStartingBalance(fam, zone, log) {
   log(`${line}  (created)`);
 }
 
+/** Fixed ids keep the fixture lists and items addressable by hand checks, like the tasks'. */
+function fixtureListId(n) {
+  return `00000000-0000-4000-8000-0000000005${String(n).padStart(2, "0")}`;
+}
+
+function fixtureListItemId(n) {
+  return `00000000-0000-4000-8000-0000000006${String(n).padStart(2, "0")}`;
+}
+
+/** The two defaults are seed_default_lists()'s rows, found by name; these two are the fixtures' own. */
+const DEFAULT_GROCERY = "Grocery List";
+const DEFAULT_TO_DO = "To-Do List";
+
+/**
+ * The Lists tab fixtures (005 quickstart §3, R511), --local only: the spec's own
+ * scenarios, so every hand check runs on a fresh reset without typing — items on
+ * the two defaults (three ungrouped, one under Bakery, one checked under Dairy),
+ * a third list of another type, and a Parents only list that must be absent from
+ * the wall until a parent punches in (FR-514).
+ */
+const FIXTURE_LISTS = [
+  { id: fixtureListId(1), name: "Packing List", kind: "other", color: "#FBA994", parentsOnly: false, sortOrder: 3000 },
+  { id: fixtureListId(2), name: "Party", kind: "other", color: "#D5B6EC", parentsOnly: true, sortOrder: 4000 },
+];
+
+/** `list` is a default list's name or a fixture list's id; `checkedBy` a Profile label. */
+const FIXTURE_LIST_ITEMS = [
+  { id: fixtureListItemId(1), list: DEFAULT_GROCERY, text: "🥚 Eggs", section: null, sortOrder: 1000 },
+  { id: fixtureListItemId(2), list: DEFAULT_GROCERY, text: "🥛 Milk", section: null, sortOrder: 2000 },
+  { id: fixtureListItemId(3), list: DEFAULT_GROCERY, text: "🍞 Bread", section: null, sortOrder: 3000 },
+  { id: fixtureListItemId(4), list: DEFAULT_GROCERY, text: "Bagels", section: "Bakery", sortOrder: 4000 },
+  { id: fixtureListItemId(5), list: DEFAULT_GROCERY, text: "Yoghurt", section: "Dairy", sortOrder: 5000, checkedBy: "Ben" },
+  { id: fixtureListItemId(6), list: DEFAULT_TO_DO, text: "Pack for trip", section: null, sortOrder: 1000 },
+  { id: fixtureListItemId(7), list: DEFAULT_TO_DO, text: "Pet sitter (Allie?)", section: null, sortOrder: 2000 },
+  { id: fixtureListItemId(8), list: DEFAULT_TO_DO, text: "Stop mail", section: null, sortOrder: 3000 },
+  { id: fixtureListItemId(9), list: fixtureListId(1), text: "Shirts x5", section: null, sortOrder: 1000 },
+  { id: fixtureListItemId(10), list: fixtureListId(1), text: "Jeans x2", section: null, sortOrder: 2000 },
+  { id: fixtureListItemId(11), list: fixtureListId(1), text: "Undies x7", section: null, sortOrder: 3000 },
+  { id: fixtureListItemId(12), list: fixtureListId(2), text: "Cake", section: null, sortOrder: 1000 },
+  { id: fixtureListItemId(13), list: fixtureListId(2), text: "Balloons", section: null, sortOrder: 2000 },
+];
+
+function listRow(spec) {
+  return {
+    id: spec.id,
+    household_id: HOUSEHOLD_ID,
+    name: spec.name,
+    kind: spec.kind,
+    color: spec.color,
+    parents_only: spec.parentsOnly,
+    sort_order: spec.sortOrder,
+  };
+}
+
+/** The household's list ids by name — the two defaults are addressed this way. */
+async function householdListIds(fam) {
+  const rows = unwrap(
+    await fam.from("lists").select("id, name").eq("household_id", HOUSEHOLD_ID),
+    "read household lists",
+  );
+  return new Map(rows.map((row) => [row.name, row.id]));
+}
+
+/** A default list is named; a fixture list is its own fixed id (never a list's name). */
+function fixtureListIdOf(spec, listIds) {
+  const byName = listIds.get(spec.list);
+  if (byName) return byName;
+  if (FIXTURE_LISTS.some((one) => one.id === spec.list)) return spec.list;
+  throw new SeedError(`fixture item "${spec.text}" names a list that does not exist: ${spec.list}`);
+}
+
+/** Checked while checked_at is set, by the named Profile (028's list_item_checked_shape). */
+function checkedColumnsOf(spec, categoryIds) {
+  if (spec.checkedBy === undefined) return { checked_at: null, checked_by: null };
+  return { checked_at: new Date().toISOString(), checked_by: categoryIds.get(spec.checkedBy) };
+}
+
+function listItemRow(spec, listIds, categoryIds) {
+  return {
+    id: spec.id,
+    household_id: HOUSEHOLD_ID,
+    list_id: fixtureListIdOf(spec, listIds),
+    text: spec.text,
+    section: spec.section,
+    sort_order: spec.sortOrder,
+    ...checkedColumnsOf(spec, categoryIds),
+  };
+}
+
+/**
+ * --local only. Idempotent by EMPTINESS, as the rewards are: a household whose
+ * two default lists carry any item, or that has any list beyond the defaults,
+ * keeps exactly what it has — a cleared, moved or deleted fixture is never put
+ * back, and a re-run after playing with the tab changes nothing.
+ */
+async function seedFixtureLists(fam, log) {
+  const existingItems = unwrap(
+    await fam.from("list_items").select("id").eq("household_id", HOUSEHOLD_ID).limit(1),
+    "read list items",
+  );
+  if (existingItems.length > 0) {
+    log("list        (the household already has list items; the fixtures are not re-seeded)");
+    return;
+  }
+  unwrap(await fam.from("lists").upsert(FIXTURE_LISTS.map(listRow), { onConflict: "id" }), "insert fixture lists");
+  const listIds = await householdListIds(fam);
+  const checkers = FIXTURE_LIST_ITEMS.flatMap((spec) => (spec.checkedBy === undefined ? [] : [spec.checkedBy]));
+  const categoryIds = await fixtureCategoryIds(fam, checkers);
+  unwrap(
+    await fam.from("list_items").insert(FIXTURE_LIST_ITEMS.map((spec) => listItemRow(spec, listIds, categoryIds))),
+    "insert fixture list items",
+  );
+  for (const spec of FIXTURE_LISTS) {
+    log(`list        ${spec.name}  ${spec.kind}${spec.parentsOnly ? "  parents only" : ""}  (created)`);
+  }
+  log(`list items  ${FIXTURE_LIST_ITEMS.length} across the two defaults and the two fixtures  (created)`);
+}
+
 /**
  * --local only, in dependency order: the tasks need the profiles, the rewards'
  * eligibilities and the starting balance need the profiles and, for the value
- * ordering applyStarValues() explains, the resolutions. Hosted data comes from
- * the household, never from fixtures.
+ * ordering applyStarValues() explains, the resolutions; the list items need the
+ * default lists ensureHousehold() already made. Hosted data comes from the
+ * household, never from fixtures.
  */
 async function seedLocalFixtures(fam, zone, log) {
   await seedFixtureWeek(fam, zone, log);
   await seedFixtureTasks(fam, zone, log);
   await seedFixtureRewards(fam, log);
   await seedStartingBalance(fam, zone, log);
+  await seedFixtureLists(fam, log);
 }
 
 /** Explicit JSON wins; --local falls back to the fixtures, hosted to nothing. */
