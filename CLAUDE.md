@@ -8,7 +8,7 @@ recurrence engine with its three scopes; a recipe's lines pushed as a checklist 
 in one write; meal tokens on the Week calendar behind a per-device Show Meals switch; dietary notes
 while planning). Phase 5 (Lists) shipped 2026-09-06; notifications/home/offline/search are Phase 7;
 a Playwright e2e pass over `/family` is planned between this phase and Phase 7.
-**State: implementing — Setup, Foundational and US1–US6 (T001–T055) built and green on `006-family-meals` (2026-09-06); Polish (T056–T062) next: seed check, docs, review, the hand walk, then the hosted push → merge → deploy.** There are no subscription
+**State: built, reviewed and walked on `006-family-meals` (2026-09-06; T001–T060 done, run record in `checklists/quickstart-run.md`); next the hosted `supabase db push` (030–033) → merge → deploy (T061), then the operator's device pass (T062).** There are no subscription
 tiers here — every Skylight feature is simply present.
 
 Read in this order before touching `/family` code:

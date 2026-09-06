@@ -169,11 +169,11 @@
 
 ## Phase 9: Polish & Cross-Cutting Concerns
 
-- [ ] T056 [P] Seed fixtures verified on a fresh `supabase db reset` + `npm run family:seed -- --local`: the four mealtimes, seven recipes (Old stew removed and still planned), the week's meals, the weekly Pizza with its skip and its move; a second seed run adds nothing
-- [ ] T057 [P] Docs sync: plan.md Progress; CLAUDE.md's active-feature block (state, the ordering rule); every task ticked here; `specs/006-family-meals/checklists/quickstart-run.md` with the gates, what was walked and where
-- [ ] T058 Gates: `npm run fallow:audit` (zero new findings, duplication 0 — a flagged clone is extracted, never suppressed; the meal/event series helpers watched), `npm test`, `npm run test:policies`, `npm run typecheck`, `npx eslint app/family lib/family`; `npm run graph`
-- [ ] T059 Review gate: code-reviewer over the whole diff; security-guardian over 030–033, `actions/meals.ts`, the scope helpers, the parent gate, `addListItems`; findings fixed with a red-then-green test each
-- [ ] T060 Hand walk: quickstart §"Verifying the guarantees" on the local stack with chrome-devtools at the four viewports and the phone emulation; the two-device checks on hosted if the local realtime still does not deliver (Phase 5's run record)
+- [x] T056 [P] Seed fixtures verified on a fresh `supabase db reset` + `npm run family:seed -- --local`: the four mealtimes, seven recipes (Old stew removed and still planned), the week's meals, the weekly Pizza with its skip and its move; a second seed run adds nothing
+- [x] T057 [P] Docs sync: plan.md Progress; CLAUDE.md's active-feature block (state, the ordering rule); every task ticked here; `specs/006-family-meals/checklists/quickstart-run.md` with the gates, what was walked and where
+- [x] T058 Gates: `npm run fallow:audit` (zero new findings, duplication 0 — a flagged clone is extracted, never suppressed; the meal/event series helpers watched), `npm test`, `npm run test:policies`, `npm run typecheck`, `npx eslint app/family lib/family`; `npm run graph`
+- [x] T059 Review gate: code-reviewer over the whole diff; security-guardian over 030–033, `actions/meals.ts`, the scope helpers, the parent gate, `addListItems`; findings fixed with a red-then-green test each
+- [x] T060 Hand walk: quickstart §"Verifying the guarantees" on the local stack with chrome-devtools at the four viewports and the phone emulation; the two-device checks on hosted if the local realtime still does not deliver (Phase 5's run record)
 - [ ] T061 **Hosted, in this order** (Hard ordering, R605): `supabase db push --linked` (030–033) → quickstart §4 steps 2–3 (no `anon` grant; both functions `service_role` only; four tables published at replica identity `d`) → `npm run family:seed -- --yes` → exactly four mealtimes → merge to `main`, push, deploy → SC-614 and SC-615 on the live site
 - [ ] T062 Device pass (the operator's, by hand on hardware): SC-602–SC-606 across two devices, SC-610 on the iPad in both orientations and on a phone, SC-612 with VoiceOver, SC-608's airplane mode
 

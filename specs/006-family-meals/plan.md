@@ -221,4 +221,5 @@ one token row. Nothing leaves the sub-app.
 - [ ] Phase 3 — implementation per the phasing table above
   - [x] Setup + Foundational (T001–T029, 2026-09-06): 030–033 applied locally; the three generalisations (`ScopeDialog` with its noun, `RepeatFieldset`, `ConfirmDialog`) plus `FormDialog`, `useSheetForm`, `createDeviceKeySet`; `lib/family/meals/*`, `actions/meals.ts`, `addListItems`; 42 policies tests and the unit suites green
   - [x] US1–US6 (T030–T055, 2026-09-06): the grid and its mealtimes, planning with the popover and the scope step, the recipes pane with its form and two-way delete, Add to List, repeats, and the calendar's token row behind the Filter sheet's Show Meals — the meal surfaces are one model (`useMealSurfaceModel` / `MealSurfaces`) mounted by both the tab and the Week calendar
-  - [ ] Polish (T056–T062): seed re-verified, docs, review, the hand walk, the hosted push → merge → deploy, the device pass
+  - [x] Polish T056–T060 (2026-09-06): seed re-verified on a fresh reset; the three-lens review (12 findings, all fixed red-then-green in `9c1e622`); the hand walk at four viewports — [checklists/quickstart-run.md](./checklists/quickstart-run.md)
+  - [ ] T061 hosted push → merge → deploy; T062 the operator's device pass
