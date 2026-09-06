@@ -216,7 +216,7 @@ describe("PinRow", () => {
 
   it("sets a PIN with nobody punched in, so a household cannot lock itself out", () => {
     render(withFamily(makeContext({ actor: null }), <PinRow profile={profile} />));
-    fireEvent.click(screen.getByRole("button", { name: "Set PIN" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Alex's PIN" }));
 
     fireEvent.change(screen.getByLabelText("New PIN"), { target: { value: "1234" } });
     fireEvent.change(screen.getByLabelText("Confirm"), { target: { value: "1234" } });
@@ -236,7 +236,7 @@ describe("PinRow", () => {
     const context = makeContext({ categories: [parentWithPin], actor: null, withActor });
 
     render(withFamily(context, <PinRow profile={parentWithPin} />));
-    fireEvent.click(screen.getByRole("button", { name: "Reset PIN" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset Alex's PIN" }));
     fireEvent.change(screen.getByLabelText("New PIN"), { target: { value: "1234" } });
     fireEvent.change(screen.getByLabelText("Confirm"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -251,7 +251,7 @@ describe("PinRow", () => {
     const context = makeContext({ categories: [parentNoPin], actor: null, withActor });
 
     render(withFamily(context, <PinRow profile={parentNoPin} />));
-    fireEvent.click(screen.getByRole("button", { name: "Set PIN" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Alex's PIN" }));
     fireEvent.change(screen.getByLabelText("New PIN"), { target: { value: "1234" } });
     fireEvent.change(screen.getByLabelText("Confirm"), { target: { value: "1234" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -262,7 +262,7 @@ describe("PinRow", () => {
 
   it("refuses to submit two different PINs", () => {
     render(withFamily(makeContext({ actor: null }), <PinRow profile={profile} />));
-    fireEvent.click(screen.getByRole("button", { name: "Set PIN" }));
+    fireEvent.click(screen.getByRole("button", { name: "Set Alex's PIN" }));
 
     fireEvent.change(screen.getByLabelText("New PIN"), { target: { value: "1234" } });
     fireEvent.change(screen.getByLabelText("Confirm"), { target: { value: "9999" } });
@@ -282,7 +282,7 @@ describe("PinRow", () => {
     );
     void context;
 
-    expect(screen.getByRole("button", { name: "Set PIN" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Set Alex's PIN" })).toBeDisabled();
     expect(screen.getByText("Parents only")).toBeInTheDocument();
   });
 
@@ -290,8 +290,8 @@ describe("PinRow", () => {
     render(
       withFamily(makeContext({ actor: null }), <PinRow profile={{ ...profile, hasPin: true }} />),
     );
-    expect(screen.getByRole("button", { name: "Reset PIN" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Remove PIN" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reset Alex's PIN" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remove Alex's PIN" })).toBeInTheDocument();
   });
 });
 

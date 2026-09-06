@@ -27,6 +27,22 @@ Run all four; any failure blocks the commit:
 3. `npm run typecheck` — `tsc --noEmit`, zero errors.
 4. `npm run lint` — ESLint, zero errors.
 
+## Before a phase is merged
+
+One gate more, on top of the four above:
+
+5. `npm run test:e2e` — the browser pass over `/family` (`e2e/**`, spec `007-family-e2e`).
+   It resets and seeds the local stack, starts the app against it, and walks the journeys each
+   shipped phase has only ever had walked by hand: the door, punch-in, the calendar's drag and its
+   three repeat scopes, the tasks board and its stars, the lists, the meals grid and its calendar
+   tokens, two browsers watching each other, the narrow layouts, installability, and the
+   accessibility sweep.
+
+**Why it is not in the pre-commit hook**: it is minutes, not seconds, and a gate that slow gets
+disabled. It is a phase gate — run it before merging a feature branch, and read the report rather
+than only the exit code: a live-update journey the environment cannot run is a printed **skip**, not
+a pass.
+
 ## Complexity budget
 
 `.fallowrc.json` sets `maxCyclomatic: 20`, `maxCognitive: 15`. A function over budget gets split,

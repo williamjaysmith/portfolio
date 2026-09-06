@@ -71,6 +71,7 @@ export function CategoryRow({
         </button>
         <button
           type="button"
+          aria-label={`Edit ${category.label}`}
           disabled={disabled}
           onClick={onEdit}
           className="min-h-[44px] rounded-full border border-(--fam-hairline) px-4 text-(length:--fam-fs-small) font-medium disabled:opacity-50"
@@ -79,6 +80,7 @@ export function CategoryRow({
         </button>
         <button
           type="button"
+          aria-label={`Delete ${category.label}`}
           disabled={disabled}
           onClick={onDelete}
           className="min-h-[44px] rounded-full px-3 text-(length:--fam-fs-small) font-medium text-(--fam-danger) disabled:opacity-50"
