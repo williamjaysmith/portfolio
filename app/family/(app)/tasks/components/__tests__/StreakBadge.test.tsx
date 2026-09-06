@@ -58,6 +58,7 @@ function taskOf(overrides: Partial<Task> = {}): Task {
     renewAfterAmount: null,
     renewAfterUnit: null,
     renewUntil: null,
+    rewardPoints: null,
     assignees: [assigneeOf()],
     createdBy: null,
     updatedBy: null,
@@ -69,6 +70,7 @@ function taskOf(overrides: Partial<Task> = {}): Task {
 
 function occurrenceOf(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   return {
+    rewardPoints: null,
     taskId: ROUTINE,
     assigneeId: CLEO,
     scheduledDate: TODAY,

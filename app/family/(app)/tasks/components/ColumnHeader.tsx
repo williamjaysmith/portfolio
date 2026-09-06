@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, Star } from "lucide-react";
 
 import type { PaletteColor } from "@/lib/family/colors";
 import type { TaskCounters } from "@/lib/family/tasks/counters";
@@ -12,24 +12,49 @@ import type { TaskSectionKey, SectionToggles } from "./useSectionToggles";
 
 /**
  * A column's header (T042): the avatar with FR-305's progress ring around it,
- * the Profile's name, the completed-of-total count, and FR-306's four
- * toggles — all on a panel filled with that Profile's colour at 20 %, the
- * third rung of the ladder the cards use at 40 % and full (FR-304).
+ * the Profile's name, the completed-of-total count with FR-407's star pill
+ * beside it, and FR-306's four toggles — all on a panel filled with that
+ * Profile's colour at 20 %, the third rung of the ladder the cards use at 40 %
+ * and full (FR-304).
  *
  * The ring and the count are two indicators, not two readings of one: the ring
  * is the glanceable state at wall distance and the count is the exact one.
  * Both come from a `TaskCounters` computed above from the UNFILTERED list
- * (R317) — nothing here counts anything.
+ * (R317) — nothing here counts anything. The star pill (004 T027) is the same
+ * arrangement for a third number: the stars this Profile EARNED on the
+ * displayed day, summed above in the same memo (R402) and handed down as a
+ * number, so the header holds no ledger it could sum wrongly. It wears the
+ * count's own pill — the photograph pairs them, "✓ 2/20 · ⭐ 10" — and it is
+ * drawn at 0 too, because a header missing a pill reads as broken rather
+ * than as a day with nothing earned yet.
  *
  * `SectionToggleRow` is exported because the Up for Grabs column needs the
  * same four switches on a header that has no Profile behind it (FR-306's "in
  * each column header", FR-308's "no avatar, no ring, no profile accent"), and
- * two copies of the ring-state rule would be two places for it to drift.
+ * two copies of the ring-state rule would be two places for it to drift. The
+ * star pill is deliberately NOT exported for it: stars are credited to a
+ * Profile, and that column belongs to nobody (FR-407).
  */
 
 /** FR-305's arc, as the fraction of a turn it fills. An empty column is a full track. */
 function progressFractionOf(counters: TaskCounters): number {
   return counters.total === 0 ? 0 : counters.complete / counters.total;
+}
+
+/**
+ * The header's pills share one geometry — the count's — so the two read as a
+ * pair. The icon size is the badge family's (FR-372's bolt, FR-403's chip).
+ */
+const HEADER_PILL =
+  "flex w-fit items-center gap-(--fam-task-badge-gap) rounded-(--fam-task-badge-r) " +
+  "bg-(--fam-app-bg) px-(--fam-task-badge-pad) py-(--fam-task-badge-gap) " +
+  "text-(length:--fam-fs-pill) tabular-nums";
+
+const PILL_ICON = "h-(--fam-task-streak-icon) w-(--fam-task-streak-icon)";
+
+/** FR-407's spoken half — "1 star earned", "15 stars earned" — day-neutral, because the board's date names the day. */
+function starsEarnedLabelOf(count: number): string {
+  return `${count} ${count === 1 ? "star" : "stars"} earned`;
 }
 
 /**
@@ -132,6 +157,8 @@ export interface ColumnHeaderProps {
   category: Category;
   /** FR-305, computed above from the UNFILTERED list (R317). */
   counters: TaskCounters;
+  /** FR-407: the stars this Profile EARNED on the displayed day, summed above from the week's entries (R402). */
+  starsToday: number;
   toggles: SectionToggles;
   onToggleSection: (section: TaskSectionKey) => void;
   /** Signed URL for a photo avatar; initials stand in while it loads. */
@@ -168,6 +195,7 @@ function ColumnName({ label, reorderable }: { label: string; reorderable: boolea
 export function ColumnHeader({
   category,
   counters,
+  starsToday,
   toggles,
   onToggleSection,
   photoUrl,
@@ -199,13 +227,21 @@ export function ColumnHeader({
         </span>
         <ColumnName label={category.label} reorderable={reorderable} />
       </div>
-      <p
-        aria-label={`${counters.complete} of ${counters.total} complete`}
-        className="flex w-fit items-center gap-(--fam-task-badge-gap) rounded-(--fam-task-badge-r) bg-(--fam-app-bg) px-(--fam-task-badge-pad) py-(--fam-task-badge-gap) text-(length:--fam-fs-pill) tabular-nums"
-      >
-        <Check aria-hidden="true" className="h-(--fam-task-streak-icon) w-(--fam-task-streak-icon)" />
-        {`${counters.complete}/${counters.total}`}
-      </p>
+      <div className="flex flex-wrap items-center gap-(--fam-task-badge-gap)">
+        <p aria-label={`${counters.complete} of ${counters.total} complete`} className={HEADER_PILL}>
+          <Check aria-hidden="true" className={PILL_ICON} />
+          {`${counters.complete}/${counters.total}`}
+        </p>
+        <p data-star-pill aria-label={starsEarnedLabelOf(starsToday)} className={HEADER_PILL}>
+          {/* Filled, not outlined, and the verified palette gold — the same star the card's chip draws. */}
+          <Star
+            aria-hidden="true"
+            fill="currentColor"
+            className={`${PILL_ICON} text-(--fam-star-gold)`}
+          />
+          {starsToday}
+        </p>
+      </div>
       <SectionToggleRow toggles={toggles} accent={category.color} onToggle={onToggleSection} />
     </header>
   );

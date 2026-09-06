@@ -16,6 +16,7 @@ import type { BoardOccurrence, OccurrenceState } from "@/lib/family/types";
 
 import { CompleteCircle } from "./CompleteCircle";
 import { LateBadge } from "./LateBadge";
+import { StarChip, starsWorthOf } from "./StarChip";
 import { StreakBadge, useTaskStreak } from "./StreakBadge";
 
 /**
@@ -41,6 +42,12 @@ import { StreakBadge, useTaskStreak } from "./StreakBadge";
  * control rather than out at the card's edge, which is where FR-372 puts it
  * and is why the streak is folded into that control's accessible name instead
  * of being announced separately.
+ *
+ * A task worth something carries `StarChip` on the same line (FR-403) — the
+ * stored value the occurrence arrived with, and nothing on a card worth
+ * nothing, so that card is the height it was in Phase 3 (FR-402, SC-418). Its
+ * value is folded into the body's name the same way the streak is, and for the
+ * same reason.
  *
  * A carried-forward occurrence additionally carries `LateBadge`, which shows
  * the date it was DUE rather than the day it is drawn on (FR-358, US3-1) —
@@ -104,14 +111,21 @@ function progressLabelOf(
 
 /**
  * What the body control is CALLED: the title, plus every mark drawn beside it,
- * said once. The visible progress and the streak are folded in rather than
- * left to be read as bare numbers after the title — and rather than announced
- * twice, which is why both marks are `aria-hidden` inside it.
+ * said once. The visible progress, the streak and the star value are folded in
+ * rather than left to be read as bare numbers after the title — and rather
+ * than announced twice, which is why all three marks are `aria-hidden` inside
+ * it.
  */
-function cardLabelOf(summary: string, progress: ProgressLabel | null, streak: number): string {
+function cardLabelOf(
+  summary: string,
+  progress: ProgressLabel | null,
+  streak: number,
+  worth: string | null,
+): string {
   const parts = [summary];
   if (progress !== null) parts.push(progress.spoken);
   if (streak > 0) parts.push(`${streak} day streak`);
+  if (worth !== null) parts.push(worth);
   return parts.join(", ");
 }
 
@@ -166,9 +180,15 @@ export function TaskCard({
     >
       <button
         type="button"
-        // The visible progress and the streak are folded into the name so each
-        // is announced once, rather than read as bare numbers after the title.
-        aria-label={cardLabelOf(occurrence.summary, label, streak)}
+        // The visible progress, the streak and the star value are folded into
+        // the name so each is announced once, rather than read as bare numbers
+        // after the title.
+        aria-label={cardLabelOf(
+          occurrence.summary,
+          label,
+          streak,
+          starsWorthOf(occurrence.rewardPoints),
+        )}
         onClick={() => onOpen(occurrence)}
         className="flex min-h-(--fam-task-card-min-h) flex-1 items-center gap-(--fam-task-card-gap) p-(--fam-task-card-pad) text-left"
       >
@@ -178,8 +198,9 @@ export function TaskCard({
           </span>
         )}
         <span className="flex min-w-0 flex-col gap-(--fam-task-badge-gap)">
-          {/* The name and the streak on one line, because FR-372 puts the
-              badge beside the name and not under it. */}
+          {/* The name, the streak and the star chip on one line, because
+              FR-372 and FR-403 both put their mark beside the name and not
+              under it. */}
           <span className="flex min-w-0 items-center gap-(--fam-task-badge-gap)">
             <span
               className={`truncate text-(length:--fam-fs-body) font-medium ${
@@ -189,6 +210,7 @@ export function TaskCard({
               {occurrence.summary}
             </span>
             <StreakBadge count={streak} />
+            <StarChip count={occurrence.rewardPoints} />
           </span>
           {label === null ? null : (
             <span className="text-(length:--fam-fs-small) tabular-nums opacity-80">

@@ -30,6 +30,12 @@ import { useModalDialog } from "../useModalDialog";
  * because a chore becomes up-for-grabs by an explicit choice and never by
  * attrition. Both are said in the same breath, because a household that read
  * only one of them would be surprised by the other.
+ *
+ * Phase 4 adds a third sentence (004 FR-443, SC-419): the Profile's stars go
+ * with them, so the dialog states how many they forfeit. The balance is a sum
+ * of entries and may sit below zero (Assumption 5), and a debt is worded as a
+ * debt the deletion clears — never "forfeits −20 stars". Nothing is said at
+ * zero, and a Label has no balance to speak of (FR-414).
  */
 
 export interface DeleteDialogProps {
@@ -51,19 +57,35 @@ function orphanedTasksSentence(count: number, label: string): string {
   return `${subject} ${label}'s alone — a task with nobody left to do it is deleted too.`;
 }
 
-/** FR-391's line: what survives this Profile, and what does not. */
+/** "1 star" or "N stars". */
+function starsPhrase(count: number): string {
+  return count === 1 ? "1 star" : `${count} stars`;
+}
+
+/**
+ * FR-443's sentence, from the SIGNED balance: forfeited above zero, a debt
+ * cleared below it (Assumption 5), nothing at zero.
+ */
+function forfeitedStarsSentence(balance: number, label: string): string {
+  if (balance > 0) return `${label} forfeits ${starsPhrase(balance)}.`;
+  if (balance < 0) return `Deleting ${label} clears a debt of ${starsPhrase(-balance)}.`;
+  return "";
+}
+
+/** FR-391's line — and, from Phase 4, FR-443's sentence after it. */
 function affectedTasksLine(
   count: { data?: CategoryTaskCounts; isError: boolean },
   label: string,
 ): string {
   if (count.isError) return "Couldn't count the tasks this affects.";
   if (count.data === undefined) return "Counting the tasks this affects…";
-  const sentences = [
+  const tasks = [
     sharedTasksSentence(count.data.losingAnAssignee, label),
     orphanedTasksSentence(count.data.deleted, label),
   ].filter((sentence) => sentence !== "");
-  if (sentences.length === 0) return `No tasks are assigned to ${label}.`;
-  return sentences.join(" ");
+  const taskLine = tasks.length === 0 ? `No tasks are assigned to ${label}.` : tasks.join(" ");
+  const stars = forfeitedStarsSentence(count.data.starsForfeited, label);
+  return stars === "" ? taskLine : `${taskLine} ${stars}`;
 }
 
 /** FR-274's line: how many events this touches, and that they stay. */

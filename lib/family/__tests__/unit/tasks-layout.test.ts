@@ -21,6 +21,7 @@ const CLEO = "11111111-1111-4111-8111-111111111111";
 
 function occurrence(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   return {
+    rewardPoints: null,
     taskId: "task-1",
     assigneeId: CLEO,
     scheduledDate: TODAY,

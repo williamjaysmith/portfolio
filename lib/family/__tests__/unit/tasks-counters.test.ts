@@ -42,6 +42,7 @@ let uniqueTaskId = 0;
 function occurrence(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   uniqueTaskId += 1;
   return {
+    rewardPoints: null,
     taskId: `task-${uniqueTaskId}`,
     assigneeId: CLEO,
     scheduledDate: TODAY,
@@ -239,6 +240,7 @@ function assignee(taskId: string): TaskAssignee {
 
 function task(id: string, overrides: Partial<Task> = {}): Task {
   return {
+    rewardPoints: null,
     id,
     householdId: "house",
     summary: id,

@@ -50,6 +50,7 @@ const REFUSAL = "That's Ben's task — only Ben or a parent can do it.";
 
 function occurrence(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   return {
+    rewardPoints: null,
     taskId: "22222222-2222-4222-8222-222222222222",
     assigneeId: CLEO,
     scheduledDate: TODAY,
@@ -337,5 +338,93 @@ describe("useTaskResolve", () => {
     expect(result.current.notice).toBe(ACTION_MESSAGES.UNAVAILABLE);
     // One attempt, and nothing held for later.
     expect(completeMock).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * 004 T048 — FR-439's `inFlightLocal`: how many of THIS device's completions
+   * for a Profile are still queued or writing, read at the moment of a tap so
+   * two quick taps on the last two outstanding cards fire the rain once, on
+   * the second (SC-414). Only a completion shortens a list: a skip, an undo
+   * and a claim (which joins a column's total and its count together) do not.
+   */
+  describe("inFlightCompletions (T048, FR-439)", () => {
+    const BEN = "33333333-3333-4333-8333-333333333333";
+
+    it("counts a completion for its Profile from the tap until it settles", async () => {
+      const gate = deferred<ActionResult<null>>();
+      completeMock.mockReturnValue(gate.promise);
+      const { result } = renderResolve();
+
+      let pending: Promise<unknown> = Promise.resolve();
+      await act(async () => {
+        pending = result.current.resolve({ occurrence: occurrence(), verb: "complete" });
+      });
+      expect(result.current.inFlightCompletions(CLEO)).toBe(1);
+      expect(result.current.inFlightCompletions(BEN)).toBe(0);
+
+      await act(async () => {
+        gate.settle({ ok: true, data: null });
+        await pending;
+      });
+      expect(result.current.inFlightCompletions(CLEO)).toBe(0);
+    });
+
+    it("counts the queued one too, and a second tap on the same card not at all", async () => {
+      const gate = deferred<ActionResult<null>>();
+      completeMock.mockReturnValueOnce(gate.promise).mockResolvedValue({ ok: true, data: null });
+      const { result } = renderResolve();
+      const first = occurrence();
+      const second = occurrence({ taskId: "33333333-3333-4333-8333-333333333333" });
+
+      let pending: Promise<unknown>[] = [];
+      await act(async () => {
+        pending = [
+          result.current.resolve({ occurrence: first, verb: "complete" }),
+          result.current.resolve({ occurrence: second, verb: "complete" }),
+          result.current.resolve({ occurrence: second, verb: "complete" }),
+        ];
+      });
+      // One writing, one waiting; the third tap was the second tap twice.
+      expect(result.current.inFlightCompletions(CLEO)).toBe(2);
+
+      await act(async () => {
+        gate.settle({ ok: true, data: null });
+        await Promise.all(pending);
+      });
+      expect(result.current.inFlightCompletions(CLEO)).toBe(0);
+    });
+
+    it("counts no skip, no undo and no claim — none of them shortens a list", async () => {
+      const gates = [deferred<ActionResult<null>>(), deferred<ActionResult<null>>()];
+      skipMock.mockReturnValue(gates[0].promise);
+      unresolveMock.mockReturnValue(gates[0].promise);
+      completeMock.mockReturnValue(gates[1].promise);
+      const { result } = renderResolve();
+      const done = occurrence({
+        taskId: "33333333-3333-4333-8333-333333333333",
+        state: "complete",
+        creditedCategoryId: CLEO,
+      });
+      const grabs = occurrence({
+        taskId: "44444444-4444-4444-8444-444444444444",
+        assigneeId: null,
+        upForGrabs: true,
+      });
+
+      let pending: Promise<unknown>[] = [];
+      await act(async () => {
+        pending = [
+          result.current.resolve({ occurrence: occurrence(), verb: "skip" }),
+          result.current.resolve({ occurrence: done, verb: "uncomplete" }),
+          result.current.resolve({ occurrence: grabs, verb: "claim", creditProfileId: CLEO }),
+        ];
+      });
+      expect(result.current.inFlightCompletions(CLEO)).toBe(0);
+
+      await act(async () => {
+        for (const gate of gates) gate.settle({ ok: true, data: null });
+        await Promise.all(pending);
+      });
+    });
   });
 });

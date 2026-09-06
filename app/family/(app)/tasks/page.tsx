@@ -4,6 +4,7 @@ import { localDateOf, weekStartOf } from "@/lib/family/calendar/dates";
 import { getMember } from "@/lib/family/guards";
 import {
   fetchSettings,
+  fetchStarWeek,
   fetchTaskCarryForward,
   fetchTaskCursors,
   fetchTaskResolutions,
@@ -11,7 +12,14 @@ import {
 } from "@/lib/family/queries";
 import { createClient } from "@/lib/family/supabase/server";
 import { timeOfDayAt } from "@/lib/family/tasks/dates";
-import type { HouseholdSettings, Task, TaskCursor, TaskResolution, TimeOfDay } from "@/lib/family/types";
+import type {
+  HouseholdSettings,
+  StarEntry,
+  Task,
+  TaskCursor,
+  TaskResolution,
+  TimeOfDay,
+} from "@/lib/family/types";
 
 import { TasksBoard } from "./components/TasksBoard";
 
@@ -19,14 +27,16 @@ export const metadata: Metadata = { title: "Tasks" };
 
 /**
  * The Tasks board (T046, R314): a server component that performs the board's
- * **four** reads under the signed-in session (RLS, the server client — never
+ * **five** reads under the signed-in session (RLS, the server client — never
  * the admin client) and seeds each as `initialData` for its own key, so the
  * wall tablet's first paint is the board itself with no loading state.
  *
- * All four, and the cursor tails especially: `family.task_cursors` is a view
+ * All five, and the cursor tails especially: `family.task_cursors` is a view
  * with no foreign key to embed on, so without its own read every Completed Date
  * chore would be missing from that first paint — the one mode this design
- * exists to serve.
+ * exists to serve. The fifth (004 R407) is the anchored week's star entries,
+ * windowed by the SAME week as the resolutions, so FR-407's pill paints with
+ * the count beside it rather than a beat after.
  *
  * The layout above is the gate: with no member and no settings row it is
  * already redirecting the whole render to sign-in or not-authorized, so this
@@ -34,20 +44,21 @@ export const metadata: Metadata = { title: "Tasks" };
  *
  * **The degradation path (constitution §VI).** There is no `error.tsx`
  * anywhere under `app/`, so a failing read here would throw the whole route
- * rather than degrade — and until the migrations are pushed to the hosted
- * project (T084) these four reads hit tables that do not exist. So the reads
- * are taken together and a failure renders an honest unavailable state with the
+ * rather than degrade — and until a phase's migrations are pushed to the
+ * hosted project these reads hit tables that do not exist. So the reads are
+ * taken together and a failure renders an honest unavailable state with the
  * tab's chrome intact. `Promise.all` is what makes it all-or-nothing: a board
- * built from two reads that worked and two that did not would be a *wrong*
+ * built from some reads that worked and some that did not would be a *wrong*
  * board, which is worse than no board.
  */
 
-/** Everything the four reads produce, or nothing at all. */
+/** Everything the five reads produce, or nothing at all. */
 interface BoardData {
   tasks: Task[];
   resolutions: TaskResolution[];
   carry: TaskResolution[];
   cursors: TaskCursor[];
+  starWeek: StarEntry[];
 }
 
 /** The household's own "now", read once so the date and the window agree. */
@@ -73,13 +84,15 @@ async function loadBoard(
 ): Promise<BoardData | null> {
   try {
     const supabase = await createClient();
-    const [tasks, resolutions, carry, cursors] = await Promise.all([
+    const weekStartDate = weekStartOf(day.date, settings.startWeekOn);
+    const [tasks, resolutions, carry, cursors, starWeek] = await Promise.all([
       fetchTasks(supabase, householdId),
-      fetchTaskResolutions(supabase, householdId, weekStartOf(day.date, settings.startWeekOn)),
+      fetchTaskResolutions(supabase, householdId, weekStartDate),
       fetchTaskCarryForward(supabase, householdId, day.date, settings.startWeekOn),
       fetchTaskCursors(supabase, householdId),
+      fetchStarWeek(supabase, householdId, weekStartDate),
     ]);
-    return { tasks, resolutions, carry, cursors };
+    return { tasks, resolutions, carry, cursors, starWeek };
   } catch (error) {
     // Logged as a string server-side and never surfaced verbatim, exactly as
     // the action layer treats a database failure.
@@ -122,6 +135,7 @@ export default async function TasksPage() {
       initialResolutions={board.resolutions}
       initialCarry={board.carry}
       initialCursors={board.cursors}
+      initialStarWeek={board.starWeek}
     />
   );
 }

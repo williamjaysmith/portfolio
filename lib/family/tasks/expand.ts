@@ -25,7 +25,7 @@
  * argument.
  */
 
-import { localDateOf } from "../calendar/dates";
+import { addDays, localDateOf } from "../calendar/dates";
 import { parseRule } from "../recurrence/grammar";
 import { ruleDatesIn } from "../recurrence/expand";
 import { openOccurrence } from "./cursor";
@@ -203,6 +203,40 @@ export function cursorChoreOccurrences(task: Task, context: TaskContext): BoardO
       .filter((part) => part.scheduledDate === displayedDate)
       .map((part) => occurrenceOf(task, context, part)),
   ]);
+}
+
+/* --------------------------------------------------------- week schedule -- */
+
+/** A household week is seven days from its start (`weekStartOf`). */
+const WEEK_DAYS = 7;
+
+/**
+ * The household-local days in `[weekStart, weekStart + 6]` on which a routine
+ * has at least one occurrence — the denominator of 004 FR-440's week verdict
+ * (`weekVerdictOf`), oldest first. Built over the routine generator, day by
+ * day, so a day is "scheduled" exactly when the board would have drawn a
+ * card on it: the rule, `startsOn`, `UNTIL` and the slots are all read the
+ * one way they are read everywhere else (R315). Routines never carry forward
+ * (FR-338), so a per-day walk is exact.
+ *
+ * A chore's days are not a routine's, whatever its rule — the verdict is
+ * judged for tracked routines only — so anything but a routine is `[]`.
+ *
+ * `components` reach this through `family-tasks-core` and never through
+ * `ruleDatesIn` itself: the recurrence zone is closed to them (`.fallowrc.json`).
+ */
+export function scheduledDaysInWeek(task: Task, weekStartDate: string, zone: string): string[] {
+  if (!task.routine) return [];
+  const index = resolutionIndexOf([]);
+  return Array.from({ length: WEEK_DAYS }, (_, offset) => addDays(weekStartDate, offset)).filter(
+    (displayedDate) =>
+      routineOccurrences(task, {
+        index,
+        resolutions: [],
+        cursors: [],
+        options: { displayedDate, todayDate: displayedDate, zone },
+      }).length > 0,
+  );
 }
 
 /* -------------------------------------------------------- carry forward -- */
@@ -411,6 +445,9 @@ function occurrenceOf(task: Task, context: TaskContext, part: OccurrencePart): B
     taskCreatedAt: task.createdAt,
     state: row?.status ?? "unresolved",
     creditedCategoryId: row?.categoryId ?? null,
+    // The value as it is NOW, for the chip (004 FR-403); what a completion
+    // earned is the ledger's, read by the trigger at that moment (FR-409).
+    rewardPoints: task.rewardPoints,
   };
 }
 

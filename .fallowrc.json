@@ -66,6 +66,12 @@
         ]
       },
       {
+        "name": "family-rewards-core",
+        "patterns": [
+          "lib/family/rewards/**/*"
+        ]
+      },
+      {
         "name": "family-actions",
         "patterns": [
           "lib/family/actions/**/*"
@@ -140,13 +146,22 @@
         ]
       },
       {
+        "from": "family-rewards-core",
+        "allow": [
+          "family-rewards-core",
+          "family-tasks-core",
+          "lib"
+        ]
+      },
+      {
         "from": "family-actions",
         "allow": [
           "family-actions",
           "family-recurrence",
           "family-calendar-core",
           "family-tasks-core",
-          "lib"
+          "lib",
+          "family-rewards-core"
         ]
       },
       {
@@ -164,7 +179,8 @@
           "lib",
           "family-calendar-core",
           "family-tasks-core",
-          "family-actions"
+          "family-actions",
+          "family-rewards-core"
         ]
       },
       {
@@ -175,7 +191,8 @@
           "lib",
           "family-calendar-core",
           "family-tasks-core",
-          "family-actions"
+          "family-actions",
+          "family-rewards-core"
         ]
       },
       {
@@ -197,7 +214,8 @@
           "family-recurrence",
           "family-calendar-core",
           "family-tasks-core",
-          "family-actions"
+          "family-actions",
+          "family-rewards-core"
         ]
       },
       {

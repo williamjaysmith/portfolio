@@ -20,11 +20,13 @@ import {
   withFamily,
 } from "../../../components/__tests__/family-test-utils";
 import { matchingTemplates, TaskBoxSheet } from "../TaskBoxSheet";
+import { TaskForm } from "../TaskForm";
+import type { TaskFormSeed } from "../useTaskForm";
 
 /**
  * T072 — the Task Box sheet: FR-376's two sections and its own search box,
- * FR-378's pre-filled create form, and FR-380/FR-381's three-field edit and
- * warned deletion.
+ * FR-378's pre-filled create form, and FR-380/FR-381's edit and warned
+ * deletion — the edit now with 004's fourth field, the star value (T024).
  *
  * What is pinned here:
  *   - **Chores and Routines are separate sections** (FR-376), each listing the
@@ -32,12 +34,12 @@ import { matchingTemplates, TaskBoxSheet } from "../TaskBoxSheet";
  *   - the sheet's **own** search box filters those templates by title as it is
  *     typed — a different control from the board's task search (FR-386);
  *   - choosing a template hands back the ordinary create form's seed carrying
- *     the template's **title, emoji and type and nothing else**, so the
- *     assignment and the schedule are empty and still required (FR-378, US4-10,
- *     SC-318) — and it is a seed rather than a call, because adding from a
- *     template is not an action;
- *   - the template edit offers **exactly three fields** and no star value
- *     anywhere on the surface (FR-380, SC-319, US4-11);
+ *     the template's **title, emoji, type and star value and nothing else**, so
+ *     the assignment and the schedule are empty and still required (FR-378,
+ *     004 FR-404, US4-10, SC-318) — and it is a seed rather than a call,
+ *     because adding from a template is not an action;
+ *   - the template edit offers **exactly four fields** — title, emoji, type,
+ *     stars — and no fifth (FR-380, 004 FR-401, US4-11);
  *   - the delete **warns first** that it cannot be undone, and says that tasks
  *     already made from the template are unaffected (FR-381, US4-12);
  *   - both writes go through `withActor`, and a refusal is shown in the sheet
@@ -68,6 +70,7 @@ const TEETH = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 
 function template(overrides: Partial<TaskBoxItem> & { id: string }): TaskBoxItem {
   return {
+    rewardPoints: null,
     householdId: "household-1",
     summary: "Vacuum",
     emoji: null,
@@ -81,10 +84,13 @@ function template(overrides: Partial<TaskBoxItem> & { id: string }): TaskBoxItem
 }
 
 const TEMPLATES: TaskBoxItem[] = [
-  template({ id: VACUUM, summary: "Vacuum" }),
+  template({ id: VACUUM, summary: "Vacuum", rewardPoints: 25 }),
   template({ id: TRASH, summary: "Take out trash" }),
-  template({ id: TEETH, summary: "Brush teeth", emoji: "🪥", routine: true }),
+  template({ id: TEETH, summary: "Brush teeth", emoji: "🪥", routine: true, rewardPoints: 5 }),
 ];
+
+/** 004 FR-402's guidance, beside the star field on this surface too. */
+const GUIDANCE = /a handful for a daily routine, up to a hundred for a big chore/i;
 
 interface ReadState {
   data?: TaskBoxItem[];
@@ -196,17 +202,22 @@ describe("TaskBoxSheet — the two sections and the search (FR-376, US4-9)", () 
   });
 });
 
-describe("choosing a template opens the pre-filled create form (FR-378, US4-10, SC-318)", () => {
-  it("hands back the title, the emoji and the type — and no assignment or schedule", () => {
+describe("choosing a template opens the pre-filled create form (FR-378, 004 FR-404, US4-10, SC-318)", () => {
+  it("hands back the title, the emoji, the type and the stars — and no assignment or schedule", () => {
     const { onChoose } = renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: "Brush teeth" }));
 
     expect(onChoose).toHaveBeenCalledTimes(1);
-    expect(onChoose).toHaveBeenCalledWith({ summary: "Brush teeth", emoji: "🪥", type: "routine" });
+    expect(onChoose).toHaveBeenCalledWith({
+      summary: "Brush teeth",
+      emoji: "🪥",
+      type: "routine",
+      rewardPoints: "5",
+    });
   });
 
-  it("a chore without an emoji seeds a blank one and the chore type", () => {
+  it("a chore without an emoji or a value seeds both blank, and the chore type", () => {
     const { onChoose } = renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: "Take out trash" }));
@@ -215,7 +226,24 @@ describe("choosing a template opens the pre-filled create form (FR-378, US4-10, 
       summary: "Take out trash",
       emoji: "",
       type: "chore",
+      rewardPoints: "",
     });
+  });
+
+  it("the seed's star value lands in the create form without being asked (SC-401)", () => {
+    const { onChoose } = renderSheet();
+    fireEvent.click(screen.getByRole("button", { name: "Vacuum" }));
+    const seed = onChoose.mock.calls[0][0] as TaskFormSeed;
+
+    render(
+      withFamily(
+        makeContext({ categories: [makeCategory({ id: "ana", label: "Ana", role: "parent" })] }),
+        <TaskForm mode="create" seed={seed} onSubmit={vi.fn()} onClose={vi.fn()} />,
+      ),
+    );
+
+    expect(screen.getByLabelText("Title")).toHaveValue("Vacuum");
+    expect(screen.getByLabelText("Stars")).toHaveValue(25);
   });
 
   it("writes nothing: adding from a template is not an action", () => {
@@ -226,47 +254,52 @@ describe("choosing a template opens the pre-filled create form (FR-378, US4-10, 
   });
 });
 
-describe("editing a template offers three fields and no fourth (FR-380, SC-319, US4-11)", () => {
-  it("offers the title, the emoji and the type, and nothing star-shaped", () => {
+describe("editing a template offers four fields and no fifth (FR-380, 004 FR-401, US4-11)", () => {
+  it("offers the title, the emoji, the type and the stars, pre-filled, with the guidance", () => {
     renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Vacuum" }));
 
-    expect(screen.getByLabelText("Title")).toBeTruthy();
-    expect(screen.getByLabelText("Emoji")).toBeTruthy();
-    expect(screen.getByLabelText("Routine")).toBeTruthy();
-    expect(screen.queryByText(/star|reward|point/i)).toBeNull();
-    // Three inputs, and no fourth: the star value FR-380 does not ship.
-    expect(within(screen.getByRole("form", { name: "Edit Vacuum" })).getAllByRole("textbox")).toHaveLength(2);
+    const form = screen.getByRole("form", { name: "Edit Vacuum" });
+    expect(within(form).getByLabelText("Title")).toHaveValue("Vacuum");
+    expect(within(form).getByLabelText("Emoji")).toHaveValue("");
+    expect(within(form).getByLabelText("Routine")).not.toBeChecked();
+    expect(within(form).getByLabelText("Stars")).toHaveValue(25);
+    expect(within(form).getByLabelText("Stars")).toHaveAccessibleDescription(GUIDANCE);
+    // Four controls, and no fifth.
+    expect(form.querySelectorAll("input, select, textarea")).toHaveLength(4);
   });
 
-  it("saves the three fields through withActor and closes the editor", async () => {
+  it("saves the four fields through withActor, the stars as a NUMBER, and closes the editor", async () => {
     const { withActor } = renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Vacuum" }));
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Hoover" } });
     fireEvent.change(screen.getByLabelText("Emoji"), { target: { value: "🧹" } });
     fireEvent.click(screen.getByLabelText("Routine"));
+    fireEvent.change(screen.getByLabelText("Stars"), { target: { value: "30" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
     expect(updateMock).toHaveBeenCalledWith({
       id: VACUUM,
-      patch: { summary: "Hoover", emoji: "🧹", routine: true },
+      patch: { summary: "Hoover", emoji: "🧹", routine: true, rewardPoints: 30 },
     });
     expect(withActor).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.queryByLabelText("Title")).toBeNull());
   });
 
-  it("a blank emoji is stored as none", async () => {
+  it("a blank emoji, and a blank star value, are stored as none", async () => {
     renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: "Edit Brush teeth" }));
     fireEvent.change(screen.getByLabelText("Emoji"), { target: { value: "  " } });
+    fireEvent.change(screen.getByLabelText("Stars"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
     expect(updateMock.mock.calls[0][0].patch.emoji).toBeNull();
+    expect(updateMock.mock.calls[0][0].patch.rewardPoints).toBeNull();
   });
 
   it("shows a refusal in the sheet and keeps the editor open (FR-393)", async () => {
@@ -335,21 +368,21 @@ describe("FR-389's affordance: managing templates is a parent's", () => {
   });
 });
 
-describe("making a template here (FR-389, FR-377, SC-319)", () => {
-  it("offers the same three fields, blank, and no fourth", () => {
+describe("making a template here (FR-389, FR-377, 004 FR-401)", () => {
+  it("offers the same four fields, blank, and no fifth", () => {
     renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: "New template" }));
 
-    const form = within(screen.getByRole("form", { name: "New template" }));
+    const form = screen.getByRole("form", { name: "New template" });
     expect(screen.getByLabelText("Title")).toHaveValue("");
     expect(screen.getByLabelText("Emoji")).toHaveValue("");
     expect(screen.getByLabelText("Routine")).not.toBeChecked();
-    expect(form.getAllByRole("textbox")).toHaveLength(2);
-    expect(screen.queryByText(/star|reward|point/i)).toBeNull();
+    expect(screen.getByLabelText("Stars")).toHaveValue(null);
+    expect(form.querySelectorAll("input, select, textarea")).toHaveLength(4);
   });
 
-  it("creates through withActor with exactly the three fields", async () => {
+  it("creates through withActor with exactly the four fields", async () => {
     const { withActor } = renderSheet();
 
     fireEvent.click(screen.getByRole("button", { name: "New template" }));
@@ -362,6 +395,7 @@ describe("making a template here (FR-389, FR-377, SC-319)", () => {
       summary: "Water the plants",
       emoji: null,
       routine: true,
+      rewardPoints: null,
     });
     expect(withActor).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(screen.queryByRole("form", { name: "New template" })).toBeNull());

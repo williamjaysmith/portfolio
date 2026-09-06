@@ -27,6 +27,7 @@ let sequence = 0;
 function unclaimed(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   sequence += 1;
   return {
+    rewardPoints: null,
     taskId: `grab-${sequence}`,
     assigneeId: null,
     scheduledDate: TODAY,

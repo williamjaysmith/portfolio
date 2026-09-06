@@ -5,7 +5,12 @@ import {
   EVENT_COLUMNS,
   EVENT_EXCEPTION_COLUMNS,
   HOUSEHOLD_COLUMNS,
+  REDEMPTION_COLUMNS,
+  REWARD_COLUMNS,
+  REWARD_ELIGIBILITY_COLUMNS,
   SETTINGS_COLUMNS,
+  STAR_BALANCE_COLUMNS,
+  STAR_ENTRY_COLUMNS,
   type CategoryRow,
   type EventCategoryRow,
   type EventExceptionRow,
@@ -13,11 +18,21 @@ import {
   type EventWithRelationsRow,
   type HouseholdRow,
   type HouseholdSettingsRow,
+  type RedemptionRow,
+  type RewardEligibilityRow,
+  type RewardRow,
+  type StarBalanceRow,
+  type StarEntryRow,
+  rewardsSelect,
   toCategory,
   toEvent,
   toEventException,
   toHousehold,
+  toRedemption,
+  toReward,
   toSettings,
+  toStarBalance,
+  toStarEntry,
 } from "@/lib/family/rows";
 
 /**
@@ -363,6 +378,68 @@ describe("toEventException", () => {
   });
 });
 
+/* ------------------------------------------------------------------------- *
+ * Rewards (Phase 4 — specs/004-family-rewards, data-model 024–026)
+ * ------------------------------------------------------------------------- */
+
+const REWARD_ID = "55555555-5555-4555-8555-555555555555";
+const CLEO = "66666666-6666-4666-8666-666666666666";
+const BEN = "77777777-7777-4777-8777-777777777777";
+const RESOLUTION_ID = "88888888-8888-4888-8888-888888888888";
+const REDEMPTION_ID = "99999999-9999-4999-8999-999999999999";
+
+const rewardRow: RewardRow = {
+  id: REWARD_ID,
+  household_id: HOUSEHOLD_ID,
+  name: "Bake cookies",
+  description: "With whoever is home",
+  emoji: "🍪",
+  point_value: 20,
+  respawn_on_redemption: true,
+  created_by: "11111111-1111-4111-8111-111111111111",
+  updated_by: null,
+  created_at: "2026-09-01T10:00:00.000Z",
+  updated_at: "2026-09-02T10:00:00.000Z",
+};
+
+const eligibilityRow = (category_id: string): RewardEligibilityRow => ({
+  household_id: HOUSEHOLD_ID,
+  reward_id: REWARD_ID,
+  category_id,
+  created_at: "2026-09-01T10:00:00.000Z",
+});
+
+const creditRow: StarEntryRow = {
+  id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  household_id: HOUSEHOLD_ID,
+  category_id: CLEO,
+  amount: 10,
+  kind: "credit",
+  earned_on: "2026-09-04",
+  resolution_id: RESOLUTION_ID,
+  redemption_id: null,
+  summary: "Feed the cat",
+  created_by: BEN,
+  entered_on: "2026-09-04",
+  created_at: "2026-09-04T13:00:00.000Z",
+};
+
+const balanceRow: StarBalanceRow = { category_id: CLEO, balance: 15 };
+
+const redemptionRow: RedemptionRow = {
+  id: REDEMPTION_ID,
+  household_id: HOUSEHOLD_ID,
+  reward_id: REWARD_ID,
+  category_id: CLEO,
+  point_value: 20,
+  reward_name: "Bake cookies",
+  redeemed_on: "2026-09-05",
+  redeemed_at: "2026-09-05T22:10:00.000Z",
+  redeemed_by: CLEO,
+  reversed_at: null,
+  reversed_by: null,
+};
+
 describe("column constants", () => {
   const ALL_COLUMN_CONSTANTS = [
     HOUSEHOLD_COLUMNS,
@@ -371,6 +448,11 @@ describe("column constants", () => {
     EVENT_COLUMNS,
     EVENT_CATEGORY_COLUMNS,
     EVENT_EXCEPTION_COLUMNS,
+    REWARD_COLUMNS,
+    REWARD_ELIGIBILITY_COLUMNS,
+    STAR_ENTRY_COLUMNS,
+    STAR_BALANCE_COLUMNS,
+    REDEMPTION_COLUMNS,
   ];
 
   it("never selects a wildcard", () => {
@@ -407,10 +489,194 @@ describe("column constants", () => {
       Object.keys(linkRow("cat-a", 0)).sort(),
     );
     expect(columnList(EVENT_EXCEPTION_COLUMNS).sort()).toEqual(Object.keys(skipRow).sort());
+    expect(columnList(REWARD_COLUMNS).sort()).toEqual(Object.keys(rewardRow).sort());
+    expect(columnList(REWARD_ELIGIBILITY_COLUMNS).sort()).toEqual(
+      Object.keys(eligibilityRow(CLEO)).sort(),
+    );
+    expect(columnList(STAR_ENTRY_COLUMNS).sort()).toEqual(Object.keys(creditRow).sort());
+    expect(columnList(STAR_BALANCE_COLUMNS).sort()).toEqual(Object.keys(balanceRow).sort());
+    expect(columnList(REDEMPTION_COLUMNS).sort()).toEqual(Object.keys(redemptionRow).sort());
   });
 
   it("selects has_pin, the boolean flag, and nothing else PIN-shaped", () => {
     const pinish = columnList(CATEGORY_COLUMNS).filter((column) => column.includes("pin"));
     expect(pinish).toEqual(["has_pin"]);
+  });
+});
+
+describe("toReward", () => {
+  it("maps every column and embeds the eligible Profiles as categoryIds", () => {
+    expect(
+      toReward({ ...rewardRow, reward_eligibilities: [eligibilityRow(CLEO)] }),
+    ).toEqual({
+      id: REWARD_ID,
+      householdId: HOUSEHOLD_ID,
+      name: "Bake cookies",
+      description: "With whoever is home",
+      emoji: "🍪",
+      pointValue: 20,
+      respawnOnRedemption: true,
+      categoryIds: [CLEO],
+      createdBy: "11111111-1111-4111-8111-111111111111",
+      updatedBy: null,
+      createdAt: "2026-09-01T10:00:00.000Z",
+      updatedAt: "2026-09-02T10:00:00.000Z",
+    });
+  });
+
+  it("pins the eligibility order by id, not by arrival order", () => {
+    const reward = toReward({
+      ...rewardRow,
+      reward_eligibilities: [eligibilityRow(BEN), eligibilityRow(CLEO)],
+    });
+    expect(reward.categoryIds).toEqual([CLEO, BEN]);
+  });
+
+  it("keeps a one-time reward's flag false and its blanks null", () => {
+    const reward = toReward({
+      ...rewardRow,
+      description: null,
+      emoji: null,
+      respawn_on_redemption: false,
+      reward_eligibilities: [],
+    });
+    expect(reward.respawnOnRedemption).toBe(false);
+    expect(reward.description).toBeNull();
+    expect(reward.emoji).toBeNull();
+    expect(reward.categoryIds).toEqual([]);
+  });
+
+  it("emits no snake_case keys, so a row is never passed through wholesale", () => {
+    for (const key of Object.keys(toReward({ ...rewardRow, reward_eligibilities: [] }))) {
+      expect(key).not.toContain("_");
+    }
+  });
+});
+
+describe("toStarEntry", () => {
+  it("maps a credit with the Profile credited apart from the actor", () => {
+    expect(toStarEntry(creditRow)).toEqual({
+      id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      householdId: HOUSEHOLD_ID,
+      categoryId: CLEO,
+      amount: 10,
+      kind: "credit",
+      earnedOn: "2026-09-04",
+      resolutionId: RESOLUTION_ID,
+      redemptionId: null,
+      summary: "Feed the cat",
+      createdBy: BEN,
+      enteredOn: "2026-09-04",
+      createdAt: "2026-09-04T13:00:00.000Z",
+    });
+  });
+
+  it("keeps a debit negative and a redemption's undated shape null", () => {
+    const debit = toStarEntry({
+      ...creditRow,
+      amount: -20,
+      kind: "redemption",
+      earned_on: null,
+      resolution_id: null,
+      redemption_id: REDEMPTION_ID,
+      summary: "Bake cookies",
+    });
+    expect(debit.amount).toBe(-20);
+    expect(debit.kind).toBe("redemption");
+    expect(debit.earnedOn).toBeNull();
+    expect(debit.resolutionId).toBeNull();
+    expect(debit.redemptionId).toBe(REDEMPTION_ID);
+  });
+
+  it("keeps an adjustment's null summary and actor as null", () => {
+    const adjustment = toStarEntry({
+      ...creditRow,
+      kind: "adjustment",
+      earned_on: null,
+      resolution_id: null,
+      summary: null,
+      created_by: null,
+    });
+    expect(adjustment.summary).toBeNull();
+    expect(adjustment.createdBy).toBeNull();
+    for (const key of Object.keys(adjustment)) {
+      expect(key).not.toContain("_");
+    }
+  });
+});
+
+describe("toStarBalance", () => {
+  it("maps the view's row", () => {
+    expect(toStarBalance(balanceRow)).toEqual({ categoryId: CLEO, balance: 15 });
+  });
+
+  it("keeps zero and a negative balance as numbers rather than dropping them", () => {
+    expect(toStarBalance({ ...balanceRow, balance: 0 }).balance).toBe(0);
+    expect(toStarBalance({ ...balanceRow, balance: -5 }).balance).toBe(-5);
+  });
+});
+
+describe("toRedemption", () => {
+  it("maps a standing redemption with its copied cost and name", () => {
+    expect(toRedemption(redemptionRow)).toEqual({
+      id: REDEMPTION_ID,
+      householdId: HOUSEHOLD_ID,
+      rewardId: REWARD_ID,
+      categoryId: CLEO,
+      pointValue: 20,
+      rewardName: "Bake cookies",
+      redeemedOn: "2026-09-05",
+      redeemedAt: "2026-09-05T22:10:00.000Z",
+      redeemedBy: CLEO,
+      reversedAt: null,
+      reversedBy: null,
+    });
+  });
+
+  it("carries a reversal's pair and keeps a departed actor null", () => {
+    const reversed = toRedemption({
+      ...redemptionRow,
+      redeemed_by: null,
+      reversed_at: "2026-09-06T08:00:00.000Z",
+      reversed_by: BEN,
+    });
+    expect(reversed.redeemedBy).toBeNull();
+    expect(reversed.reversedAt).toBe("2026-09-06T08:00:00.000Z");
+    expect(reversed.reversedBy).toBe(BEN);
+    for (const key of Object.keys(reversed)) {
+      expect(key).not.toContain("_");
+    }
+  });
+});
+
+/**
+ * The rewards select is built as a joined list like `eventsSelect`, because
+ * two adjacent template literals shipped to production folded — the bundler
+ * ate the seam between the embeds (PGRST100 on every client-side read).
+ * These assertions are about the STRING's shape, not the columns.
+ */
+describe("rewardsSelect", () => {
+  const select = rewardsSelect();
+
+  it("closes the one embed it opens and never dips below the top level", () => {
+    let depth = 0;
+    const running = [...select].map((character) => {
+      if (character === "(") depth += 1;
+      if (character === ")") depth -= 1;
+      return depth;
+    });
+    expect(Math.min(...running)).toBe(0);
+    expect(depth).toBe(0);
+    expect(select.split("(")).toHaveLength(2);
+  });
+
+  it("keeps the seam between the columns and the embed", () => {
+    expect(select.startsWith(`${REWARD_COLUMNS},reward_eligibilities(`)).toBe(true);
+    expect(select.endsWith(`(${REWARD_ELIGIBILITY_COLUMNS})`)).toBe(true);
+  });
+
+  it("separates every top-level part with a comma and no blanks", () => {
+    const topLevel = select.replace(/\([^()]*\)/g, "");
+    for (const part of topLevel.split(",")) expect(part.trim()).toMatch(/^[a-z_]+$/);
   });
 });

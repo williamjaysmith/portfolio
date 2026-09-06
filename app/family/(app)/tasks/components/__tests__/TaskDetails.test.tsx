@@ -47,6 +47,7 @@ const CATEGORIES: Category[] = [
 
 function occurrence(overrides: Partial<BoardOccurrence> = {}): BoardOccurrence {
   return {
+    rewardPoints: null,
     taskId: "22222222-2222-4222-8222-222222222222",
     assigneeId: CLEO,
     scheduledDate: TODAY,

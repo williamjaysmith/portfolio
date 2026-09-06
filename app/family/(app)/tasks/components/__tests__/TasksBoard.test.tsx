@@ -17,11 +17,13 @@ import {
   createTask,
   deleteTask,
   skipTaskOccurrence,
+  unresolveTaskOccurrence,
   updateTask,
 } from "@/lib/family/actions/tasks";
 import { PALETTE } from "@/lib/family/colors";
 import { fail } from "@/lib/family/errors";
 import {
+  useStarWeek,
   useTaskBox,
   useTaskCarryForward,
   useTaskCursors,
@@ -31,14 +33,20 @@ import {
 import type {
   BoardOccurrence,
   Category,
+  StarEntry,
   Task,
   TaskAssignee,
+  TaskFilters,
   TaskResolution,
   TimeOfDay,
 } from "@/lib/family/types";
 
 import { FabActionProvider, useFabAction } from "../../../components/FabAction";
 import type { FamilyContextValue } from "../../../components/FamilyProvider";
+import {
+  resetDeviceVisibility,
+  useDeviceVisibility,
+} from "../../../components/useDeviceVisibility";
 import {
   makeActor,
   makeCategory,
@@ -55,6 +63,7 @@ import {
 } from "../TasksBoard";
 import { UP_FOR_GRABS_COLUMN_ID } from "../UpForGrabsColumn";
 import { resetTaskFilters, useTaskFilters } from "../useTaskFilters";
+import { resetWeekCelebrations } from "../useWeekCelebrations";
 
 /**
  * T046 — the board orchestrator: the anchor, the geometry, the memo chain, the
@@ -85,7 +94,9 @@ vi.mock("@/lib/family/queries", async (importOriginal) => {
     useTaskResolutions: vi.fn(),
     useTaskCarryForward: vi.fn(),
     useTaskCursors: vi.fn(),
-    // Read 5, mounted only by the Task Box sheet (T072).
+    // The board's fifth read (004 R407): the anchored week's star entries.
+    useStarWeek: vi.fn(),
+    // Mounted only by the Task Box sheet (T072).
     useTaskBox: vi.fn(),
     prefetchTaskWeek: vi.fn(() => Promise.resolve()),
   };
@@ -108,6 +119,7 @@ vi.mock("@/lib/family/actions/tasks", () => ({
 
 const completeMock = completeTaskOccurrence as Mock;
 const skipMock = skipTaskOccurrence as Mock;
+const unresolveMock = unresolveTaskOccurrence as Mock;
 const createMock = createTask as Mock;
 const updateMock = updateTask as Mock;
 const deleteMock = deleteTask as Mock;
@@ -157,6 +169,7 @@ function assigneeOf(taskId: string, categoryId: string): TaskAssignee {
 
 function taskOf(overrides: Partial<Task> & Pick<Task, "id">): Task {
   return {
+    rewardPoints: null,
     householdId: HOUSEHOLD,
     summary: "Feed the cat",
     description: null,
@@ -242,6 +255,37 @@ const SKIP: TaskResolution = {
   createdAt: `${TODAY}T09:00:00.000Z`,
 };
 
+const YESTERDAY = "2026-09-03";
+
+function entryOf(id: string, categoryId: string, amount: number, earnedOn: string): StarEntry {
+  return {
+    id,
+    householdId: HOUSEHOLD,
+    categoryId,
+    amount,
+    kind: amount < 0 ? "retraction" : "credit",
+    earnedOn,
+    resolutionId: `resolution-${id}`,
+    redemptionId: null,
+    summary: "Brush teeth",
+    createdBy: categoryId,
+    enteredOn: earnedOn,
+    createdAt: `${earnedOn}T12:00:00.000Z`,
+  };
+}
+
+/**
+ * The week's ledger (FR-407): Cleo earned 10 today; Ben earned 8 today and
+ * gave 3 back, and earned 4 yesterday; Ana nothing. Enough that each Profile's
+ * pill, and each day's, reads a number no other Profile's or day's does.
+ */
+const FIXTURE_ENTRIES: StarEntry[] = [
+  entryOf("star-cleo", CLEO, 10, TODAY),
+  entryOf("star-ben", BEN, 8, TODAY),
+  entryOf("star-ben-untick", BEN, -3, TODAY),
+  entryOf("star-ben-yesterday", BEN, 4, YESTERDAY),
+];
+
 interface QueryStub<T> {
   data?: T;
   isPending?: boolean;
@@ -265,6 +309,7 @@ function stubReads(resolutions: TaskResolution[] = []): void {
   stub(vi.mocked(useTaskResolutions), { data: resolutions });
   stub(vi.mocked(useTaskCarryForward), { data: [] });
   stub(vi.mocked(useTaskCursors), { data: [] });
+  stub(vi.mocked(useStarWeek), { data: FIXTURE_ENTRIES });
 }
 
 function boardProps(overrides: Partial<TasksBoardProps> = {}): TasksBoardProps {
@@ -275,6 +320,7 @@ function boardProps(overrides: Partial<TasksBoardProps> = {}): TasksBoardProps {
     initialResolutions: [],
     initialCarry: [],
     initialCursors: [],
+    initialStarWeek: [],
     ...overrides,
   };
 }
@@ -292,10 +338,8 @@ function FabProbe() {
   );
 }
 
-function renderBoard(options: { context?: Partial<FamilyContextValue> } = {}) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const context = makeContext({ categories: CATEGORIES, ...options.context });
-  const view = render(
+function boardTree(client: QueryClient, context: FamilyContextValue) {
+  return (
     <QueryClientProvider client={client}>
       {withFamily(
         context,
@@ -304,9 +348,33 @@ function renderBoard(options: { context?: Partial<FamilyContextValue> } = {}) {
           <FabProbe />
         </FabActionProvider>,
       )}
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
-  return { ...view, client };
+}
+
+function renderBoard(options: { context?: Partial<FamilyContextValue> } = {}) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const context = makeContext({ categories: CATEGORIES, ...options.context });
+  const view = render(boardTree(client, context));
+  /**
+   * Another device's change arriving as data (R408): the week's read is
+   * re-stubbed and the mounted board repaints from it, exactly as a refetch
+   * would repaint it — no tap on this device.
+   */
+  const refetch = (resolutions: TaskResolution[]): void => {
+    stubReads(resolutions);
+    act(() => view.rerender(boardTree(client, context)));
+  };
+  return { ...view, client, refetch };
+}
+
+/** A promise this test resolves by hand, so the in-flight state can be read. */
+function deferred<T>() {
+  let settle: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((resolve) => {
+    settle = resolve;
+  });
+  return { promise, settle };
 }
 
 /** The columns in the order the board draws them. */
@@ -321,21 +389,22 @@ function column(name: string): HTMLElement {
 }
 
 /**
- * Every number a column shows ABOVE its cards — the ring's fraction and the
- * count beside it — for all four columns at once. FR-384 and FR-386 promise
- * this list never moves under a filter or a query, and comparing the whole
- * list is how a single number sneaking is caught rather than only the one a
- * case thought to name.
+ * Every number a column shows ABOVE its cards — the ring's fraction, the count
+ * beside it and, since 004, FR-407's star pill — for all four columns at once.
+ * FR-384 and FR-386 promise this list never moves under a filter or a query,
+ * and comparing the whole list is how a single number sneaking is caught
+ * rather than only the one a case thought to name.
  */
 function columnNumbers(): string[] {
   return Array.from(document.querySelectorAll("[data-column]")).map((col) => {
     const ring = col.querySelector("[data-progress-ring]")?.getAttribute("data-fraction") ?? "—";
     const count = col.querySelector("p[aria-label]")?.getAttribute("aria-label") ?? "—";
-    return `${col.getAttribute("data-column") ?? ""} ring ${ring} · ${count}`;
+    const stars = col.querySelector("[data-star-pill]")?.getAttribute("aria-label") ?? "—";
+    return `${col.getAttribute("data-column") ?? ""} ring ${ring} · ${count} · ${stars}`;
   });
 }
 
-async function press(name: string): Promise<void> {
+async function press(name: string | RegExp): Promise<void> {
   await act(async () => {
     fireEvent.click(screen.getByRole("button", { name }));
   });
@@ -345,10 +414,12 @@ beforeAll(() => {
   stubDialog();
 });
 
-/** The four per-device switches are module state; no case inherits another's. */
+/** The per-device stores are module state; no case inherits another's. */
 function resetSwitches(): void {
   localStorage.clear();
   resetTaskFilters();
+  resetDeviceVisibility();
+  resetWeekCelebrations();
 }
 
 /** Turn the Skipped switch on, as the filter sheet does (FR-361, T067). */
@@ -365,6 +436,7 @@ beforeEach(() => {
   stubReads();
   completeMock.mockResolvedValue({ ok: true, data: null });
   skipMock.mockResolvedValue({ ok: true, data: null });
+  unresolveMock.mockResolvedValue({ ok: true, data: null });
   createMock.mockResolvedValue({ ok: true, data: null });
   updateMock.mockResolvedValue({ ok: true, data: null });
   deleteMock.mockResolvedValue({ ok: true, data: null });
@@ -780,10 +852,83 @@ describe("the search box (T069, FR-386, SC-320)", () => {
   });
 });
 
+/**
+ * 004 T027 — FR-407's star pill on the board: one per Profile column, none on
+ * Up for Grabs, reading the displayed day's net, and — the standing assertion,
+ * grown — unmoved by every filter and by search, because it is computed in the
+ * same memo as every other number above the cards (R317, R402).
+ */
+describe("the star pill (T027, FR-407)", () => {
+  function header(name: string): HTMLElement {
+    return screen.getByRole("group", { name });
+  }
+
+  /** Move one of the four switches from outside the board, as the filter sheet does. */
+  function setSwitch(key: keyof TaskFilters, on: boolean): void {
+    const { result } = renderHook(() => useTaskFilters());
+    act(() => result.current.setFilter(key, on));
+  }
+
+  /** Hide one Profile in the shipped per-device category store (FR-383). */
+  function hideProfile(id: string): void {
+    const { result } = renderHook(() => useDeviceVisibility());
+    act(() => result.current.setHidden(id, true));
+  }
+
+  it("reads each Profile's stars earned today beside the count, and never on Up for Grabs", () => {
+    renderBoard();
+
+    expect(within(header("Cleo")).getByLabelText("10 stars earned")).toHaveTextContent("10");
+    // Ben's 8 less the 3 he gave back, not his week's 9; Ana's day is empty.
+    expect(within(header("Ben")).getByLabelText("5 stars earned")).toHaveTextContent("5");
+    expect(within(header("Ana")).getByLabelText("0 stars earned")).toHaveTextContent("0");
+    // Stars are credited to a Profile, and this column belongs to nobody.
+    expect(column("Up for Grabs").querySelector("[data-star-pill]")).toBeNull();
+    expect(within(column("Up for Grabs")).queryByLabelText(/stars? earned/)).toBeNull();
+  });
+
+  it("reads yesterday's stars when yesterday is on the board — never the balance (FR-407)", async () => {
+    renderBoard();
+    await press("Previous day");
+
+    expect(within(header("Ben")).getByLabelText("4 stars earned")).toBeInTheDocument();
+    expect(within(header("Cleo")).getByLabelText("0 stars earned")).toBeInTheDocument();
+  });
+
+  it("is unmoved by every filter, by hiding a Profile and by search (FR-384, FR-386, SC-320)", async () => {
+    renderBoard();
+    const before = columnNumbers();
+    expect(before.join("\n")).toContain("10 stars earned");
+
+    // Each of the four switches moved off its default, one after another.
+    const moves: [keyof TaskFilters, boolean][] = [
+      ["completed", false],
+      ["late", false],
+      ["skipped", true],
+      ["upForGrabs", false],
+    ];
+    for (const [key, on] of moves) {
+      setSwitch(key, on);
+      expect(columnNumbers()).toEqual(before);
+    }
+
+    hideProfile(CLEO);
+    expect(columnNumbers()).toEqual(before);
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole("searchbox", { name: "Search tasks" }), {
+        target: { value: "trash" },
+      });
+    });
+    expect(columnNumbers()).toEqual(before);
+  });
+});
+
 describe("boardSeedsOf (R314)", () => {
   const props = boardProps({
     initialResolutions: [CLAIM],
     initialCarry: [CLAIM],
+    initialStarWeek: FIXTURE_ENTRIES,
   });
 
   it("seeds the unwindowed reads always, and the windowed ones on their own day", () => {
@@ -793,6 +938,7 @@ describe("boardSeedsOf (R314)", () => {
       initialCursors: [],
       initialResolutions: [CLAIM],
       initialCarry: [CLAIM],
+      initialStarWeek: FIXTURE_ENTRIES,
     });
   });
 
@@ -800,11 +946,14 @@ describe("boardSeedsOf (R314)", () => {
     // 2026-09-04 is a Friday; 2026-09-02 sits in the same Sunday-started week.
     const seeds = boardSeedsOf(props, { displayedDate: "2026-09-02", todayDate: TODAY }, 0);
     expect(seeds.initialResolutions).toEqual([CLAIM]);
+    // The star week is windowed by the SAME week (R407), so it travels with it.
+    expect(seeds.initialStarWeek).toEqual(FIXTURE_ENTRIES);
   });
 
   it("withholds the week's rows once the board has stepped out of that week", () => {
     const seeds = boardSeedsOf(props, { displayedDate: "2026-09-14", todayDate: TODAY }, 0);
     expect(seeds.initialResolutions).toBeUndefined();
+    expect(seeds.initialStarWeek).toBeUndefined();
     // The definitions and the chain tails are not windowed at all, so they
     // seed their one key whatever day is on screen.
     expect(seeds.initialTasks).toEqual(FIXTURE_TASKS);
@@ -926,6 +1075,227 @@ describe("the US3 states (T063)", () => {
   });
 });
 
+/**
+ * 004 T048 — FR-439's emoji rain, mounted by the board and by nothing else
+ * (R408). The judgement is `listCompletesWith` over the PRE-WRITE counters at
+ * the moment of the tap, so it cannot race the refetch that repaints the
+ * board, and the rain is mounted on THAT write's success alone: never on a
+ * skip, never when a filter merely hides the last outstanding card, never
+ * from data that arrived from another device, and again after an undo and a
+ * re-completion (SC-414). Two quick taps on the last two outstanding cards
+ * fire once, on the second, because the first is counted as in flight.
+ */
+describe("the emoji rain (T048, FR-439, SC-414)", () => {
+  /** Ben's one chore for the day, completed — as another device would have stored it. */
+  const TRASH_DONE: TaskResolution = {
+    ...CLAIM,
+    id: "res-trash",
+    taskId: BIN_CHORE,
+    assigneeId: BEN,
+    categoryId: BEN,
+  };
+
+  function rain(): HTMLElement[] {
+    return Array.from(document.querySelectorAll<HTMLElement>("[data-emoji-rain]"));
+  }
+
+  /** The morning routine is behind its section toggle at 13:00 (FR-306). */
+  async function showMorning(): Promise<void> {
+    await act(async () => {
+      fireEvent.click(within(column("Cleo")).getByRole("button", { name: "Morning" }));
+    });
+  }
+
+  it("mounts exactly when the last outstanding occurrence completes by tap, and ends on its own", async () => {
+    renderBoard();
+    // Ben's column holds one outstanding chore: this tap finishes his list.
+    await press("Complete Take out trash");
+
+    expect(rain()).toHaveLength(1);
+    expect(rain()[0].getAttribute("aria-hidden")).toBe("true");
+
+    // Self-unmounting: `onDone` takes it down, and it is not put up again.
+    act(() => {
+      vi.advanceTimersByTime(5500);
+    });
+    expect(rain()).toHaveLength(0);
+  });
+
+  it("stays quiet while another of the Profile's occurrences is outstanding, however hidden", async () => {
+    renderBoard();
+    // Cleo has the cat chore AND the morning routine. The routine sits behind
+    // its section toggle at 13:00, and the query hides it from the drawn slice
+    // too — the list is still two long, because the counters are over the day.
+    await act(async () => {
+      fireEvent.change(screen.getByRole("searchbox", { name: "Search tasks" }), {
+        target: { value: "cat" },
+      });
+    });
+    expect(within(column("Cleo")).queryByText("Brush teeth")).not.toBeInTheDocument();
+
+    await press("Complete Feed the cat");
+
+    expect(completeMock).toHaveBeenCalledTimes(1);
+    expect(rain()).toHaveLength(0);
+  });
+
+  it("never on a skip, even one that settles the last outstanding card (FR-439)", async () => {
+    // Cleo's cat chore is done; her morning routine is the last card left,
+    // and Skip is offered on a repeating occurrence alone (FR-359).
+    stubReads([{ ...CLAIM, id: "res-cat", taskId: CAT_CHORE, assigneeId: CLEO, categoryId: CLEO }]);
+    renderBoard();
+    await showMorning();
+    await press(/^Brush teeth/);
+    await press("Skip");
+
+    expect(skipMock).toHaveBeenCalledTimes(1);
+    expect(rain()).toHaveLength(0);
+  });
+
+  it("never from a refetch: another device's completion arrives as data (R408)", () => {
+    const { refetch } = renderBoard();
+
+    refetch([TRASH_DONE]);
+
+    expect(within(screen.getByRole("group", { name: "Ben" })).getByText("1/1")).toBeInTheDocument();
+    expect(rain()).toHaveLength(0);
+  });
+
+  it("fires once, on the second, when the last two are tapped quickly (SC-414)", async () => {
+    const gates = [deferred<unknown>(), deferred<unknown>()];
+    completeMock.mockReturnValueOnce(gates[0].promise).mockReturnValueOnce(gates[1].promise);
+    renderBoard();
+    await showMorning();
+
+    // Both of Cleo's cards, before either write has settled: the second tap
+    // sees the first still in flight and judges itself the last.
+    await press("Complete Feed the cat");
+    await press("Complete Brush teeth");
+    expect(rain()).toHaveLength(0);
+
+    await act(async () => {
+      gates[0].settle({ ok: true, data: null });
+    });
+    // The first finished nothing; nothing is up.
+    expect(rain()).toHaveLength(0);
+
+    await act(async () => {
+      gates[1].settle({ ok: true, data: null });
+    });
+    expect(rain()).toHaveLength(1);
+  });
+
+  it("plays nothing on a refused write, and nothing on an undo", async () => {
+    const { refetch } = renderBoard();
+    completeMock.mockResolvedValueOnce(fail("CONFLICT", "Ben already did that one."));
+
+    await press("Complete Take out trash");
+    expect(rain()).toHaveLength(0);
+
+    refetch([TRASH_DONE]);
+    await press("Mark Take out trash incomplete");
+    expect(unresolveMock).toHaveBeenCalledTimes(1);
+    expect(rain()).toHaveLength(0);
+  });
+
+  it("plays again after an undo and a re-completion (FR-439)", async () => {
+    const { refetch } = renderBoard();
+    refetch([TRASH_DONE]);
+
+    await press("Mark Take out trash incomplete");
+    expect(unresolveMock).toHaveBeenCalledTimes(1);
+    expect(rain()).toHaveLength(0);
+
+    // The undo's refetch lands, and the list is outstanding again.
+    refetch([]);
+    await press("Complete Take out trash");
+
+    expect(rain()).toHaveLength(1);
+  });
+});
+
+/**
+ * 004 T051 — FR-440's Amazing / Strong Week message on the board, from
+ * `useWeekCelebrations` over the PREVIOUS household week's read. Today is
+ * Friday 2026-09-04 and the household week starts on Sunday, so the live week
+ * began on 2026-08-30 and the judged one runs 2026-08-23 to 2026-08-29.
+ */
+describe("the week message (T051, FR-440, SC-415)", () => {
+  const PREV_WEEK_START = "2026-08-23";
+  const PREV_WEEK_DAYS = [
+    "2026-08-23",
+    "2026-08-24",
+    "2026-08-25",
+    "2026-08-26",
+    "2026-08-27",
+    "2026-08-28",
+    "2026-08-29",
+  ];
+
+  /** Cleo's morning routine, completed on `day`. */
+  function routineDone(day: string): TaskResolution {
+    return {
+      ...CLAIM,
+      id: `res-routine-${day}`,
+      taskId: ROUTINE,
+      occurrenceDate: day,
+      occurrenceSlot: "morning",
+      assigneeId: CLEO,
+      categoryId: CLEO,
+      resolvedOn: day,
+      resolvedAt: `${day}T13:00:00.000Z`,
+      createdBy: CLEO,
+      createdAt: `${day}T13:00:00.000Z`,
+    };
+  }
+
+  /** The routine tracked (FR-440 judges tracked routines only), and the two weeks' reads told apart. */
+  function stubWeeks(previousWeek: TaskResolution[]): void {
+    stub(vi.mocked(useTasks), {
+      data: FIXTURE_TASKS.map((task) => (task.id === ROUTINE ? { ...task, trackHabit: true } : task)),
+    });
+    const weeks = vi.mocked(useTaskResolutions) as unknown as Mock<
+      (householdId: string, weekStartDate: string) => unknown
+    >;
+    weeks.mockImplementation((_householdId, weekStartDate) => ({
+      data: weekStartDate === PREV_WEEK_START ? previousWeek : [],
+      isPending: false,
+      error: null,
+    }));
+  }
+
+  function message(): HTMLElement | null {
+    return document.querySelector<HTMLElement>("[data-week-message]");
+  }
+
+  it("shows Amazing Week for a routine completed on every day of the previous week", () => {
+    stubWeeks(PREV_WEEK_DAYS.map(routineDone));
+    renderBoard();
+
+    expect(message()).toHaveTextContent("Amazing week, Cleo! Brush teeth every day.");
+    expect(message()).toHaveAttribute("data-verdict", "amazing");
+  });
+
+  it("shows nothing for a week that earned nothing", () => {
+    // Two days missed: neither tier (FR-440).
+    stubWeeks(PREV_WEEK_DAYS.slice(2).map(routineDone));
+    renderBoard();
+
+    expect(message()).toBeNull();
+  });
+
+  it("is dismissed by a tap, and not shown again on this device", async () => {
+    stubWeeks(PREV_WEEK_DAYS.map(routineDone));
+    const first = renderBoard();
+    await press(/^Amazing week, Cleo/);
+    expect(message()).toBeNull();
+
+    first.unmount();
+    renderBoard();
+    expect(message()).toBeNull();
+  });
+});
+
 describe("boardNoticeOf", () => {
   const quiet = {
     error: null,
@@ -964,6 +1334,7 @@ describe("boardNoticeOf", () => {
 
 describe("boardColumnsOf (R318)", () => {
   const mine: BoardOccurrence = {
+    rewardPoints: null,
     taskId: CAT_CHORE,
     assigneeId: CLEO,
     scheduledDate: TODAY,

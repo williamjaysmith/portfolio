@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock, type Mocked
 
 import {
   prefetchTaskWeek,
+  useStarWeek,
   useTaskCarryForward,
   useTaskCursors,
   useTaskResolutions,
@@ -13,6 +14,7 @@ import {
 import { expandTaskDay } from "@/lib/family/tasks/expand";
 import { visibleTaskOccurrences } from "@/lib/family/tasks/visibility";
 import type {
+  StarEntry,
   Task,
   TaskAssignee,
   TaskCursor,
@@ -35,17 +37,21 @@ import {
 
 /**
  * T039 / R317: the board's one data path, as memo layers that invalidate
- * independently — the four cached reads (R314) → `expandTaskDay` → and then a
+ * independently — the cached reads (R314) → `expandTaskDay` → and then a
  * BRANCH, with the counters hanging off the unfiltered occurrence list and
  * everything a filter can touch below it.
  *
- * The four queries are mocked; expansion, the counters and the filter rule all
- * run for real. T068 closes the loop: the two per-device stores and the search
+ * The queries are mocked; expansion, the counters and the filter rule all run
+ * for real. T068 closes the loop: the two per-device stores and the search
  * `query` now have something to move, so the standing assertion lands here —
  * toggling any switch, hiding any Profile or typing any string re-runs ONE
  * memo, the filter layer, and cannot reach the counters at all (FR-384,
  * FR-386, SC-310, SC-320). It holds because of where the branch is, not
  * because anything remembered to check.
+ *
+ * 004 T026 adds the fifth read: the anchored week's star entries, keyed by the
+ * SAME week as the resolutions (R407), and FR-407's `starsToday` joins the
+ * counters memo — so the standing assertion now covers the star pill too.
  */
 
 vi.mock("@/lib/family/queries", async (importOriginal) => {
@@ -56,6 +62,7 @@ vi.mock("@/lib/family/queries", async (importOriginal) => {
     useTaskResolutions: vi.fn(),
     useTaskCarryForward: vi.fn(),
     useTaskCursors: vi.fn(),
+    useStarWeek: vi.fn(),
     prefetchTaskWeek: vi.fn(() => Promise.resolve()),
   };
 });
@@ -102,6 +109,7 @@ function assigneeOf(taskId: string, categoryId: string): TaskAssignee {
 
 function taskOf(overrides: Partial<Task> & Pick<Task, "id">): Task {
   return {
+    rewardPoints: null,
     householdId: HOUSEHOLD,
     summary: "Take out the bins",
     description: null,
@@ -164,6 +172,44 @@ const FIXTURE_RESOLUTIONS: TaskResolution[] = [
   resolutionOf({ id: "res-bins", taskId: CHORE, status: "skipped" }),
 ];
 
+/** The Thursday before the fixture's Friday — inside the same anchored week. */
+const YESTERDAY = "2026-09-03";
+
+function entryOf(
+  id: string,
+  categoryId: string,
+  amount: number,
+  earnedOn: string,
+): StarEntry {
+  return {
+    id,
+    householdId: HOUSEHOLD,
+    categoryId,
+    amount,
+    kind: amount < 0 ? "retraction" : "credit",
+    earnedOn,
+    resolutionId: `resolution-${id}`,
+    redemptionId: null,
+    summary: "Brush teeth",
+    createdBy: categoryId,
+    enteredOn: earnedOn,
+    createdAt: `${earnedOn}T12:00:00.000Z`,
+  };
+}
+
+/**
+ * Ana earned 5 and 10 today and 3 yesterday; Ben earned 7 today and gave 2
+ * back — enough that a pill summing the wrong Profile, the wrong day or the
+ * whole week reads a different number from the right one.
+ */
+const FIXTURE_ENTRIES: StarEntry[] = [
+  entryOf("star-ana-morning", ANA, 5, TODAY),
+  entryOf("star-ana-bins", ANA, 10, TODAY),
+  entryOf("star-ana-yesterday", ANA, 3, YESTERDAY),
+  entryOf("star-ben-today", BEN, 7, TODAY),
+  entryOf("star-ben-untick", BEN, -2, TODAY),
+];
+
 interface QueryStub<T> {
   data?: T;
   isPending?: boolean;
@@ -188,11 +234,13 @@ function stubReads(overrides: {
   resolutions?: QueryStub<TaskResolution[]>;
   carry?: QueryStub<TaskResolution[]>;
   cursors?: QueryStub<TaskCursor[]>;
+  stars?: QueryStub<StarEntry[]>;
 } = {}): void {
   stub(vi.mocked(useTasks), overrides.tasks ?? { data: FIXTURE_TASKS });
   stub(vi.mocked(useTaskResolutions), overrides.resolutions ?? { data: FIXTURE_RESOLUTIONS });
   stub(vi.mocked(useTaskCarryForward), overrides.carry ?? { data: [] });
   stub(vi.mocked(useTaskCursors), overrides.cursors ?? { data: [] });
+  stub(vi.mocked(useStarWeek), overrides.stars ?? { data: FIXTURE_ENTRIES });
 }
 
 function optionsOf(
@@ -269,6 +317,24 @@ describe("useBoardOccurrences — the four reads (R314)", () => {
       "2026-09-06",
       undefined,
     );
+  });
+
+  it("keys the star week by the SAME week as the resolutions, seed and all (R407, FR-407)", () => {
+    const { rerender } = renderBoard(optionsOf({ initialStarWeek: FIXTURE_ENTRIES }));
+
+    expect(vi.mocked(useStarWeek)).toHaveBeenLastCalledWith(
+      HOUSEHOLD,
+      WEEK_START,
+      FIXTURE_ENTRIES,
+    );
+
+    // The fifth read rolls with the second: stepping inside the week keeps the
+    // key, stepping across it moves both together.
+    rerender(optionsOf({ displayedDate: "2026-09-05" }));
+    expect(vi.mocked(useStarWeek)).toHaveBeenLastCalledWith(HOUSEHOLD, WEEK_START, undefined);
+
+    rerender(optionsOf({ displayedDate: "2026-09-06" }));
+    expect(vi.mocked(useStarWeek)).toHaveBeenLastCalledWith(HOUSEHOLD, "2026-09-06", undefined);
   });
 
   it("enables the carry tail only while the displayed day IS today (FR-357, US3-3)", () => {
@@ -420,6 +486,7 @@ describe("useBoardOccurrences — the filter layer, below the counters (T068)", 
     expect(result.current.counters).toBe(counters);
     expect(result.current.counters.column(ANA)).toEqual({ complete: 1, total: 2 });
     expect(result.current.counters.upForGrabs).toBe(1);
+    expect(result.current.counters.starsToday(ANA)).toBe(15);
   });
 
   it("re-runs one memo on a typed query, and cannot reach the counters (FR-386, SC-320)", () => {
@@ -435,6 +502,7 @@ describe("useBoardOccurrences — the filter layer, below the counters (T068)", 
     expect(result.current.counters).toBe(counters);
     expect(result.current.counters.column(ANA)).toEqual({ complete: 1, total: 2 });
     expect(result.current.counters.upForGrabs).toBe(1);
+    expect(result.current.counters.starsToday(ANA)).toBe(15);
   });
 
   it("re-runs one memo when a Profile is hidden, and cannot reach the counters", () => {
@@ -446,6 +514,7 @@ describe("useBoardOccurrences — the filter layer, below the counters (T068)", 
     expect(result.current.occurrences.map((one) => one.taskId)).toEqual([GRABS]);
     expect(result.current.counters).toBe(counters);
     expect(result.current.counters.column(ANA)).toEqual({ complete: 1, total: 2 });
+    expect(result.current.counters.starsToday(ANA)).toBe(15);
   });
 
   it("hides the Up for Grabs column's cards without moving its count (FR-308)", () => {
@@ -516,6 +585,27 @@ describe("useBoardOccurrences — the counters branch (R317, FR-305)", () => {
     const { result } = renderBoard(optionsOf());
 
     expect(result.current.counters.upForGrabs).toBe(1);
+  });
+
+  it("sums each Profile's stars EARNED on the displayed day, in the counters memo (FR-407, R402)", () => {
+    const { result, rerender } = renderBoard(optionsOf());
+
+    // Ana's 5 + 10, not her week's 18; Ben's 7 less the 2 he gave back.
+    expect(result.current.counters.starsToday(ANA)).toBe(15);
+    expect(result.current.counters.starsToday(BEN)).toBe(5);
+
+    // It rolls with the board: yesterday reads yesterday's stars, and a
+    // Profile who earned nothing that day reads 0 — never the balance.
+    rerender(optionsOf({ displayedDate: YESTERDAY }));
+    expect(result.current.counters.starsToday(ANA)).toBe(3);
+    expect(result.current.counters.starsToday(BEN)).toBe(0);
+  });
+
+  it("reads 0 stars for everyone while the week's entries are still loading", () => {
+    stubReads({ stars: { data: undefined, isPending: true } });
+    const { result } = renderBoard(optionsOf());
+
+    expect(result.current.counters.starsToday(ANA)).toBe(0);
   });
 
   it("names the two lists apart, so neither can be mistaken for the other", () => {
@@ -590,9 +680,24 @@ describe("useBoardOccurrences — pending, errors and warming", () => {
     expect(result.current.isPending).toBe(true);
   });
 
+  it("waits on the star week like every other read the board needs (FR-407)", () => {
+    stubReads({ stars: { data: undefined, isPending: true } });
+    const { result } = renderBoard(optionsOf());
+
+    expect(result.current.isPending).toBe(true);
+  });
+
   it("surfaces the first failing read", () => {
     const failure = new Error("tasks unavailable");
     stubReads({ resolutions: { data: [], error: failure } });
+    const { result } = renderBoard(optionsOf());
+
+    expect(result.current.error).toBe(failure);
+  });
+
+  it("surfaces a failing star read too — a board without its stars is a wrong board", () => {
+    const failure = new Error("stars unavailable");
+    stubReads({ stars: { data: undefined, error: failure } });
     const { result } = renderBoard(optionsOf());
 
     expect(result.current.error).toBe(failure);

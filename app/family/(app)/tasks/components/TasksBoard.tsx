@@ -7,11 +7,13 @@ import { reorderCategories } from "@/lib/family/actions/categories";
 import { createTask, deleteTask, moveRoutine, updateTask } from "@/lib/family/actions/tasks";
 import { weekStartOf } from "@/lib/family/calendar/dates";
 import type { ActionResult } from "@/lib/family/errors";
-import { useTasks } from "@/lib/family/queries";
+import { useTaskResolutions, useTasks } from "@/lib/family/queries";
+import { listCompletesWith } from "@/lib/family/rewards/celebrations";
 import type {
   ActorSession,
   BoardOccurrence,
   Category,
+  StarEntry,
   Task,
   TaskCursor,
   TaskResolution,
@@ -22,8 +24,12 @@ import type {
 import type { TaskInput } from "@/lib/family/validation";
 
 import { DeleteConfirm } from "../../calendar/components/DeleteConfirm";
+import { BoardStrip } from "../../components/BoardStrip";
+import { EmojiRain } from "../../components/celebrations/EmojiRain";
+import { WeekMessage } from "../../components/celebrations/WeekMessage";
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
+import { settleEdit, useWriteSurface } from "../../components/useWriteSurface";
 import { ClaimDialog } from "./ClaimDialog";
 import { ColumnPager, useColumnPage } from "./ColumnPager";
 import { DeleteScopeDialog } from "./DeleteScopeDialog";
@@ -47,7 +53,7 @@ import {
   type RoutineMove,
 } from "./useColumnReorder";
 import { useBoardGeometry } from "./useBoardGeometry";
-import { useBoardOccurrences } from "./useBoardOccurrences";
+import { useBoardOccurrences, type BoardCounters } from "./useBoardOccurrences";
 import { useDayAnchor } from "./useDayAnchor";
 import { useSectionToggles } from "./useSectionToggles";
 import { taskDraftOf, type TaskFormSeed, type TaskSubmitOutcome } from "./useTaskForm";
@@ -55,8 +61,15 @@ import {
   occurrenceKeyFrom,
   resolveVerbOf,
   useTaskResolve,
+  type ResolveOutcome,
+  type TaskResolveIntent,
   type TaskResolveState,
 } from "./useTaskResolve";
+import {
+  prevWeekStartOf,
+  useWeekCelebrations,
+  type WeekCelebrationsState,
+} from "./useWeekCelebrations";
 
 /**
  * T046: the Tasks board — the FR-301 day of per-profile columns, assembled from
@@ -64,7 +77,7 @@ import {
  *
  *   useDayAnchor          {today | pinned} displayed day over the shared clock
  *   useBoardGeometry      measures the mounted board → how many columns fit
- *   useBoardOccurrences   the four reads → expand → the counter branch (R317)
+ *   useBoardOccurrences   the five reads → expand → the counter branch (R317)
  *   useSectionToggles     the clock's window, with per-column overrides (R322)
  *   useTaskResolve        the one `withActor` commit path (R323)
  *
@@ -83,10 +96,11 @@ import {
  * Nothing here filters, and the board holds the day TWICE for that reason:
  * `occurrences` is the drawn slice, below `useBoardOccurrences`'s filter layer,
  * and `allOccurrences` is the whole day above it. Every number a column shows —
- * FR-305's ring, FR-312's per-routine indicator, FR-308's count — is computed
- * from the second, and only the cards are partitioned out of the first, which
- * is what makes "filters and search never move the counters" structural rather
- * than remembered (FR-384, FR-386, SC-310, SC-320, R317).
+ * FR-305's ring, FR-312's per-routine indicator, FR-308's count, and FR-407's
+ * star pill (004 T027, summed from the week's entries in the same memo) — is
+ * computed from the second, and only the cards are partitioned out of the
+ * first, which is what makes "filters and search never move the counters"
+ * structural rather than remembered (FR-384, FR-386, SC-310, SC-320, R317).
  *
  * **An unclaimed Up for Grabs tap is diverted** rather than written (T063):
  * FR-368 forbids an anonymous completion, so the circle opens `ClaimDialog`,
@@ -107,6 +121,15 @@ import {
  * Delete open the edit form and FR-347's scope question. Every commit goes
  * through the shipped `withActor` interceptor and nothing is written to the
  * cache by hand — the board repaints from the refetch (FR-393).
+ *
+ * **The two celebrations are the board's** (004 T048, T051 — R408), and both
+ * are decided from data the board already holds rather than by anything that
+ * arrives later. FR-439's emoji rain is judged AT THE TAP, from the counters
+ * as they stand and this device's own completions still in flight, and is
+ * mounted on that write's success alone — so a completion from another device
+ * is data, and data never mounts it. FR-440's week message is
+ * `useWeekCelebrations` over the previous household week's read, shown once
+ * per device and dismissed by a tap or its own clock.
  */
 
 /** What the shell's "+" is called on this tab, and what it opens. */
@@ -158,21 +181,23 @@ export function boardColumnsOf(
   return { upForGrabs, byProfile };
 }
 
-/** The four seeds, each offered only to the cache entry it was fetched for. */
+/** The five seeds, each offered only to the cache entry it was fetched for. */
 export interface BoardSeeds {
   initialTasks: Task[];
   initialResolutions?: TaskResolution[];
   initialCarry?: TaskResolution[];
   initialCursors: TaskCursor[];
+  /** 004 R407: windowed by the SAME week as the resolutions, and withheld with them. */
+  initialStarWeek?: StarEntry[];
 }
 
 /**
  * R314's seeding rule. Definitions and cursor tails are unwindowed, so they
- * seed their one key always; the resolutions are keyed by the anchored week and
- * the carry tail by today's date, so each is withheld the moment the board has
- * navigated away from the day the server fetched for — seeding whichever window
- * happens to be mounted would hand it another window's rows for a whole
- * `staleTime`.
+ * seed their one key always; the resolutions and the star week are keyed by
+ * the anchored week and the carry tail by today's date, so each is withheld
+ * the moment the board has navigated away from the day the server fetched
+ * for — seeding whichever window happens to be mounted would hand it another
+ * window's rows for a whole `staleTime`.
  */
 export function boardSeedsOf(
   props: TasksBoardProps,
@@ -187,6 +212,7 @@ export function boardSeedsOf(
     initialCursors: props.initialCursors,
     initialResolutions: sameWeek ? props.initialResolutions : undefined,
     initialCarry: displayed.todayDate === props.initialDate ? props.initialCarry : undefined,
+    initialStarWeek: sameWeek ? props.initialStarWeek : undefined,
   };
 }
 
@@ -284,8 +310,8 @@ interface UseTaskEditorOptions {
  * there is deliberately no `setQueryData` here (FR-393).
  */
 function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
-  const [surface, setSurface] = useState<TaskEditorSurface>(EDITOR_CLOSED);
-  const [notice, setNotice] = useState<string | null>(null);
+  const { surface, notice, open, setSurface, setNotice, close, clearNotice, reportGone } =
+    useWriteSurface<TaskEditorSurface>(EDITOR_CLOSED, GONE_MESSAGE);
 
   const openOn = useCallback(
     (occurrence: BoardOccurrence, next: (task: Task) => TaskEditorSurface) => {
@@ -295,28 +321,17 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
         setNotice(GONE_MESSAGE);
         return;
       }
-      setNotice(null);
-      setSurface(next(task));
+      open(next(task));
     },
-    [tasks],
+    [tasks, open, setNotice],
   );
 
-  const openCreate = useCallback(() => {
-    setNotice(null);
-    setSurface({ kind: "create" });
-  }, []);
-
-  const openTaskBox = useCallback(() => {
-    setNotice(null);
-    setSurface({ kind: "taskBox" });
-  }, []);
+  const openCreate = useCallback(() => open({ kind: "create" }), [open]);
+  const openTaskBox = useCallback(() => open({ kind: "taskBox" }), [open]);
 
   // FR-378: not an action — the ordinary create form, carrying the template's
   // title, emoji and type, with the assignment and the schedule still to ask.
-  const chooseTemplate = useCallback((seed: TaskFormSeed) => {
-    setNotice(null);
-    setSurface({ kind: "create", seed });
-  }, []);
+  const chooseTemplate = useCallback((seed: TaskFormSeed) => open({ kind: "create", seed }), [open]);
 
   const openEdit = useCallback(
     (occurrence: BoardOccurrence) => openOn(occurrence, (task) => ({ kind: "edit", task })),
@@ -337,14 +352,14 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
     [openOn],
   );
 
-  const chooseScope = useCallback((scope: TaskScope) => {
-    setSurface((current) =>
-      current.kind === "delete" ? { ...current, step: "confirm", scope } : current,
-    );
-  }, []);
-
-  const close = useCallback(() => setSurface(EDITOR_CLOSED), []);
-  const clearNotice = useCallback(() => setNotice(null), []);
+  const chooseScope = useCallback(
+    (scope: TaskScope) => {
+      setSurface((current) =>
+        current.kind === "delete" ? { ...current, step: "confirm", scope } : current,
+      );
+    },
+    [setSurface],
+  );
 
   const confirmDelete = useCallback(async () => {
     if (surface.kind !== "delete" || surface.pending) return;
@@ -359,21 +374,20 @@ function useTaskEditor({ tasks, withActor }: UseTaskEditorOptions): TaskEditor {
     );
     setSurface(EDITOR_CLOSED);
     setNotice(deleteNoticeOf(result));
-  }, [surface, withActor]);
+  }, [surface, withActor, setSurface, setNotice]);
 
   const submit = useCallback(
     async (input: TaskInput): Promise<TaskSubmitOutcome> => {
       if (surface.kind === "create") return withActor(() => createTask(input));
       if (surface.kind !== "edit") return null;
-      // FR-331: the whole task, for every assignee, and never a scope.
-      const outcome = await withActor(() => updateTask({ id: surface.task.id, patch: input }));
-      // FR-393: another device deleted it first — close, recreate nothing, say so.
-      if (outcome.ok || outcome.error !== "NOT_FOUND") return outcome;
-      setSurface(EDITOR_CLOSED);
-      setNotice(GONE_MESSAGE);
-      return null;
+      // FR-331: the whole task, for every assignee, and never a scope; FR-393:
+      // another device deleted it first — close, recreate nothing, say so.
+      return settleEdit(
+        () => withActor(() => updateTask({ id: surface.task.id, patch: input })),
+        reportGone,
+      );
     },
-    [surface, withActor],
+    [surface, withActor, reportGone],
   );
 
   return {
@@ -486,6 +500,99 @@ function useBoardReorder(
   );
 
   return { columns, commitRoutine, canReorderRoutines, notice };
+}
+
+/* ----------------------------------------------------------- celebrations -- */
+
+/**
+ * FR-439, judged at the tap and BEFORE the write (R408): does this completion
+ * finish its Profile's list for the displayed day? `counters` are over the
+ * whole day, above every filter, so a card a filter or a query has hidden
+ * still counts (SC-414); `inFlight` is this device's own completions for the
+ * Profile still queued or writing, so the second of two quick taps on the
+ * last two cards knows the first is as good as done. Only a completion asks —
+ * a skip is not one, an undo lengthens the list, and a claim (verb "complete"
+ * with no assignee) is refused here by the verb-and-assignee check before
+ * `listCompletesWith` would refuse it too — it belongs to nobody's list
+ * (FR-368).
+ */
+function finishesList(
+  intent: TaskResolveIntent,
+  counters: BoardCounters,
+  inFlight: (profileId: string) => number,
+): boolean {
+  const profileId = intent.occurrence.assigneeId;
+  if (intent.verb !== "complete" || profileId === null) return false;
+  return listCompletesWith(counters.column(profileId), intent.occurrence, inFlight(profileId));
+}
+
+interface BoardCelebrations {
+  /** The one commit path, with FR-439's judgement made at every tap. */
+  resolve: TaskResolveState;
+  /**
+   * Which rain is on screen — `0` for none, else the run's own key, so a
+   * second finished list while one is still falling rains afresh rather
+   * than inheriting the tail of the first.
+   */
+  rain: number;
+  /** `EmojiRain`'s `onDone`: the rain ended, take it down. */
+  endRain: () => void;
+  /** FR-440's message, and the dismissal that remembers it (T051). */
+  week: WeekCelebrationsState;
+}
+
+interface UseBoardCelebrationsOptions {
+  householdId: string;
+  zone: string;
+  /** The LIVE day (`useDayAnchor`'s `todayDate`) — the week rolls on the household's midnight, not on navigation. */
+  todayDate: string;
+  startWeekOn: WeekStart;
+  tasks: readonly Task[];
+  categories: readonly Category[];
+  counters: BoardCounters;
+}
+
+/**
+ * Both celebrations, over the one commit path (T048, T051). The rain's
+ * judgement wraps `useTaskResolve`'s `resolve` rather than watching the
+ * counters change, because a counters transition happens on the OTHER device
+ * too and races the refetch; the week message wraps nothing, because it is
+ * judged from a read that has already settled.
+ *
+ * The previous week's read is `useTaskResolutions` under the same key the
+ * neighbour prefetch already warmed, so on the ordinary day it costs nothing;
+ * while it is pending `useWeekCelebrations` judges nothing.
+ */
+function useBoardCelebrations(options: UseBoardCelebrationsOptions): BoardCelebrations {
+  const { householdId, zone, todayDate, startWeekOn, tasks, categories, counters } = options;
+  const resolve = useTaskResolve();
+  const { resolve: runResolve, inFlightCompletions } = resolve;
+  const [rain, setRain] = useState(0);
+  const endRain = useCallback(() => setRain(0), []);
+
+  const judged = useCallback(
+    async (intent: TaskResolveIntent): Promise<ResolveOutcome> => {
+      // Decided before the write, from the counters as they stand (R408) —
+      // the refetch that follows a success cannot reach this.
+      const finishes = finishesList(intent, counters, inFlightCompletions);
+      const outcome = await runResolve(intent);
+      if (finishes && outcome !== null && outcome.ok) setRain((run) => run + 1);
+      return outcome;
+    },
+    [counters, inFlightCompletions, runResolve],
+  );
+
+  const prevWeek = useTaskResolutions(householdId, prevWeekStartOf(todayDate, startWeekOn));
+  const week = useWeekCelebrations({
+    zone,
+    weekStartDate: todayDate,
+    startWeekOn,
+    prevWeekResolutions: prevWeek.data,
+    tasks,
+    categories,
+  });
+
+  return { resolve: { ...resolve, resolve: judged }, rain, endRain, week };
 }
 
 /* --------------------------------------------------------------- surfaces -- */
@@ -604,65 +711,6 @@ function BoardNav({
   );
 }
 
-/**
- * The columns' own element, and the one the geometry measures. It takes the
- * callback ref as a plain parameter — the shipped `WeekGrid`'s idiom — so the
- * ref is never read off an object mid-render.
- *
- * The rows are FR-395's wrap, and they are a CONSEQUENCE of the fit rather than
- * a second layout: the columns on show, laid into `perRow` tracks, take
- * `ceil(count / perRow)` rows of equal height — which is one row on the wall
- * tablet, one row on a paged phone (a page is always full), and the reference's
- * photographed two-by-two on a portrait tablet, with no branch anywhere that
- * names any of those three.
- */
-function BoardStrip({
-  boardRef,
-  perRow,
-  count,
-  reorder,
-  children,
-}: {
-  boardRef: (node: HTMLElement | null) => void;
-  perRow: number;
-  /** How many columns are actually drawn — a page's worth when paging. */
-  count: number;
-  /** FR-309: this element is also the column drag's container and its rows. */
-  reorder: ListReorder;
-  children: ReactNode;
-}) {
-  const rows = Math.max(1, Math.ceil(count / perRow));
-  const { ref: reorderRef, ...gestures } = reorder.containerProps;
-  const setBoard = useCallback(
-    (node: HTMLElement | null) => {
-      boardRef(node);
-      reorderRef(node);
-    },
-    [boardRef, reorderRef],
-  );
-  return (
-    // `.fam-board` is `overflow-x: hidden` (tokens.css): twenty occurrences are
-    // reached by scrolling a COLUMN, and the page never scrolls sideways at any
-    // width (FR-394, SC-315). The columns share the width in equal tracks —
-    // `--fam-task-col-w` is what the fit divides by, never a drawn width — and
-    // the rows share the height, so a wrapped column still scrolls its own body.
-    <div
-      data-board
-      ref={setBoard}
-      {...gestures}
-      style={{
-        gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))`,
-        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-        // A carried column follows the finger rather than scrolling the board.
-        ...(reorder.active ? { touchAction: "none" as const } : {}),
-      }}
-      className="fam-board grid min-h-0 flex-1 gap-(--fam-task-col-gap) overflow-y-auto px-(--fam-edge-inset) pb-(--fam-edge-inset)"
-    >
-      {children}
-    </div>
-  );
-}
-
 function Notice({ message }: { message: string | null }) {
   if (message === null) return null;
   return (
@@ -684,6 +732,8 @@ export interface TasksBoardProps {
   initialResolutions: TaskResolution[];
   initialCarry: TaskResolution[];
   initialCursors: TaskCursor[];
+  /** The fifth read (004 R407): the anchored week's star entries, for FR-407's pill. */
+  initialStarWeek: StarEntry[];
 }
 
 /**
@@ -878,7 +928,6 @@ function useTasksBoardModel(props: TasksBoardProps) {
     [board.occurrences, profiles],
   );
 
-  const resolve = useTaskResolve();
   // Over the WHOLE day, not the drawn slice: an occurrence a filter or a query
   // has hidden is still there, so a sheet opened on it stays open and keeps
   // resolving it. `gone` then means what FR-393 says it means — the row has
@@ -888,6 +937,18 @@ function useTasksBoardModel(props: TasksBoardProps) {
   // was drawn from, which the edit and delete surfaces both need.
   const taskRows = useTasks(householdId).data ?? NO_TASKS;
   const editor = useTaskEditor({ tasks: taskRows, withActor });
+
+  // The one commit path, wrapped with FR-439's judgement at the tap, and
+  // FR-440's message over the previous week (T048, T051).
+  const { resolve, rain, endRain, week } = useBoardCelebrations({
+    householdId,
+    zone,
+    todayDate: anchor.todayDate,
+    startWeekOn: settings.startWeekOn,
+    tasks: taskRows,
+    categories,
+    counters: board.counters,
+  });
 
   const handlers = useBoardHandlers(details, claim, resolve, editor);
   const reorder = useBoardReorder(profiles, categories, actor, withActor);
@@ -917,6 +978,9 @@ function useTasksBoardModel(props: TasksBoardProps) {
     // The whole day, for the numbers above the cards; the drawn slice reaches
     // the columns already partitioned, as `columns` (R317, R318).
     allOccurrences: board.allOccurrences,
+    // FR-407's pill per Profile, from the same memo as every other number —
+    // handed down as a closure over the week's entries, never the entries.
+    starsToday: board.counters.starsToday,
     columns,
     drawnProfiles,
     reorder,
@@ -925,6 +989,10 @@ function useTasksBoardModel(props: TasksBoardProps) {
     details,
     claim,
     editor,
+    // FR-439's rain and FR-440's message, each mounted by the board alone.
+    rain,
+    endRain,
+    week,
     ...handlers,
     notice: noticeFor(board, details, claim, resolve, editor, reorder.notice),
   };
@@ -971,6 +1039,7 @@ function drawnColumnsOf(m: TasksBoardModel): DrawnColumn[] {
           category={profile}
           allOccurrences={m.allOccurrences}
           occurrences={m.columns.byProfile[profile.id] ?? []}
+          starsToday={m.starsToday(profile.id)}
           toggles={m.toggles.sectionsFor(profile.id)}
           onToggleSection={(section) => m.toggles.toggleSection(profile.id, section)}
           photoUrl={m.avatarUrls[profile.id]}
@@ -1058,6 +1127,12 @@ export function TasksBoard(props: TasksBoardProps) {
 
       <Notice message={m.notice} />
 
+      {/* FR-440: the earned message, in the board's flow where the notice
+          sits; a tap or its own clock dismisses it and surfaces the next. */}
+      {m.week.message === null ? null : (
+        <WeekMessage message={m.week.message} onDismiss={m.week.dismiss} />
+      )}
+
       {/* FR-371's stored counts, put up once over the task rows the board
           already holds, so every card can read its own without the sections
           and both columns having to carry a number neither has an opinion
@@ -1118,6 +1193,12 @@ export function TasksBoard(props: TasksBoardProps) {
       )}
 
       <TaskEditorSurfaces editor={m.editor} zone={m.zone} />
+
+      {/* FR-439: mounted on THIS device's list-finishing completion alone,
+          keyed per run so a second finished list rains afresh, and taken
+          down by its own `onDone`. Outside every animated wrapper, so its
+          fixed layer keeps the viewport as its containing block. */}
+      {m.rain === 0 ? null : <EmojiRain key={m.rain} onDone={m.endRain} />}
     </div>
   );
 }

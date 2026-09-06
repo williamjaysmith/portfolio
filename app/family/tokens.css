@@ -11,9 +11,10 @@
  * Every custom property is prefixed --fam- so nothing collides with the portfolio's
  * Tailwind theme variables (--font-sans, --color-*, --spacing, ...).
  *
- * Sources: docs/research/skylight/07-visual-design-system.md §1, §2, §3, §4, §8;
+ * Sources: docs/research/skylight/07-visual-design-system.md §1, §2, §3, §4, §7.1, §8;
  *          docs/research/skylight/00-master-map.md §3; specs/001-family-foundation/research.md R8, R12;
- *          specs/002-family-week-calendar/spec.md FR-208/209/212/213/215 (week-grid tokens).
+ *          specs/002-family-week-calendar/spec.md FR-208/209/212/213/215 (week-grid tokens);
+ *          specs/004-family-rewards/research.md R414 (reward tokens).
  * Evidence tags: [VERIFIED] from the API/help centre · [SAMPLED] pixel-sampled from photos (±3/channel)
  *                [ESTIMATED] derived from photographs (±~10 %) · [DERIVED] arithmetic on source values
  *                [OURS] our own decision, not in any source.
@@ -254,6 +255,125 @@
   --fam-task-ink: var(--fam-text-primary);
   --fam-task-toggle-ink: var(--fam-text-primary); /* what makes an OFF toggle still a control */
 
+  /* ---------- rewards tab (Phase 4 — 07 §3.8, §4.12, §4.13, §7.1; spec 004 FR-413…FR-445; R414) --
+   * THIS FILE IS THE SOLE OWNER of every token below, as it is of the board's: RewardColumn,
+   * RewardCard, RedeemModal and the two showers consume them and neither redefine nor extend
+   * them. Every number is read back by lib/family/__tests__/unit/reward-tokens.test.ts.
+   * Geometry is px @1920×1080 × --fam-u; the tags are the dossier's own — the redeem modal's
+   * outer box and its buttons were pixel-read from one screenshot (r1.png) and are [SAMPLED],
+   * everything else is a proportional photo estimate (±~10 %). No written source gives any of it.
+   *
+   * WHAT IS REUSED, AND DECLARES NOTHING NEW HERE (R414):
+   *  · the header BALANCE pill ("⭐ 55" under the name, FR-413) is the shipped counter pill —
+   *    ColumnHeader's HEADER_PILL: --fam-task-badge-gap / --fam-task-badge-r / --fam-task-badge-pad,
+   *    bg --fam-app-bg, type --fam-fs-pill — so the Rewards header and the Tasks header read as
+   *    one header. Negative balances are drawn by the same pill, honestly (FR-413).
+   *  · the column header panel is --fam-profile-20 and the name is --fam-fs-title (07 §4.12
+   *    "same panel as Tasks", "name serif 36px"); the column and pager geometry is
+   *    --fam-task-col-w / -col-gap / -col-pad unchanged (FR-422, R409).
+   *  · the bar's TRACK is --fam-profile-40 and its FILL is --fam-profile-100 (07 §4.12), so the
+   *    card carries .fam-profile with the COLUMN's Profile; the fill is left-aligned.
+   *  · the star itself — chip, pill, sprite — is --fam-star-gold, the verified palette Orange.
+   *  · the modal's title is --fam-fs-title (serif 36) and its radius is --fam-radius-modal;
+   *    "Done" is --fam-primary-blue under white, "Unredeem" is --fam-btn-secondary-bg (07 §4.13).
+   *  · the tab's own chrome (the Redeemed switch, Give stars) is the top-bar pill: --fam-pill-h /
+   *    --fam-pill-r / --fam-pill-btn-bg / --fam-fs-pill (05 shot13 — a toggle beside a button).
+   */
+
+  /* Reward card (FR-423, FR-425; 07 §4.12 "reward card: white, r ~24 · emoji ~110 · title serif
+   * ~30px", §6.4). The card is --fam-app-bg — white — on the column's 20 % panel; its height is
+   * left to content (R414), never fixed. */
+  --fam-reward-card-r: calc(24 * var(--fam-u));    /* [ESTIMATED] 07 §4.12 "r ~24" — rounder than an event
+                                                      block or a task card (--fam-radius-card, 20); the
+                                                      photograph reads them differently, so they differ */
+  --fam-reward-card-pad: var(--fam-reward-card-r); /* [DERIVED] the inset equals the corner radius, so no
+                                                      content meets the curve. No source gives a padding. */
+  --fam-reward-card-gap: calc(16 * var(--fam-u));  /* [ESTIMATED] emoji → title → bar, from the §4.12 sketch */
+  --fam-reward-emoji: calc(110 * var(--fam-u));    /* [ESTIMATED] 07 §4.12 "emoji ~110" — three times the task
+                                                      card's; the reward is the picture, the title is the caption */
+
+  /* The muted "Redeemed on <date>" card (FR-425, FR-426; 05 shot13 "greyed"). Muted by INK, not by
+   * opacity: the shipped past-event dim (--fam-past-dim, 0.55) composites the primary ink to ≈3.9:1
+   * on white, below 1.4.3, and the card still has a date and a title to read and a details view to
+   * open. The secondary ink is 5.74:1 on white. The emoji alone — decoration — may take
+   * --fam-past-dim. [OURS]; the photograph shows the effect, not its recipe. */
+  --fam-reward-muted-ink: var(--fam-text-secondary);
+
+  /* Progress bar (FR-420, FR-423; 07 §4.12 "progress bar: h ~44, r 22 · label '☆ 55/150' centred
+   * ON the bar"). The label straddles the two halves, so it cannot take one ink: the 40 % TRACK is
+   * dark-inked on all twenty accents (≥8.44:1 — task-tokens.test.ts already proves the rung), but
+   * the 100 % FILL flips six of the twenty to white. RewardCard therefore draws the label twice —
+   * once in --fam-reward-bar-ink over the track, once in --fam-reward-bar-fill-ink clipped to the
+   * fill — and sets --fam-reward-bar-fill-ink from `inkOn()` (lib/family/colors.ts) on the accent
+   * it actually drew, exactly as TaskCard sets --fam-task-ink (FR-398). Neither can be decided
+   * in CSS; the defaults below are the always-safe track ink. */
+  --fam-reward-bar-h: calc(44 * var(--fam-u));     /* [ESTIMATED] 07 §4.12 "h ~44" — coincidentally the reference
+                                                      unit's own touch target, but scaled, so see -redeem-h */
+  --fam-reward-bar-r: calc(22 * var(--fam-u));     /* [DERIVED] bar-h / 2 = full pill (the dossier's own "r 22") */
+  --fam-reward-bar-ink: var(--fam-text-primary);   /* [OURS] the label over the TRACK half */
+  --fam-reward-bar-fill-ink: var(--fam-text-primary); /* [OURS] the label over the FILL half — RewardCard
+                                                      overrides from inkOn(accent); the default is only the
+                                                      dark-inked majority */
+  --fam-reward-bar-ms: 240ms;                      /* [OURS] FR-445 "the bar's fill" — the width transition when a
+                                                      balance or a cost changes (FR-420: every card at once).
+                                                      Collapsed by the reduced-motion block below, so a script
+                                                      reading it opts in by construction. Duration and easing are
+                                                      [UNKNOWN] in every source (07 §7). */
+  --fam-reward-bar-ease: var(--fam-task-fade-ease); /* [DERIVED] one curve for the product's state changes */
+
+  /* The Redeem button takes the bar's slot and its pill geometry ("Redeem ⭐ 25" — 05 shot13),
+   * floored at the touch target: 44 units is 22 px at the 0.5 unit floor, and FR-445 wants 44 pt. */
+  --fam-reward-redeem-h: max(var(--fam-touch), var(--fam-reward-bar-h));
+  --fam-reward-redeem-r: calc(var(--fam-reward-redeem-h) / 2); /* [DERIVED] full pill at whichever won */
+
+  /* Redeem modal (FR-432, FR-433; 07 §3.8, §4.13). Width and height are the photographed BOX —
+   * width should be clamped to the viewport by the consumer (min(92vw, …), the shipped dialogs'
+   * rule) and height is a target the content may exceed, never a clip. */
+  --fam-redeem-modal-w: calc(540 * var(--fam-u));  /* [SAMPLED] 07 §3.8 — r1.png 715→1255 = 540 */
+  --fam-redeem-modal-h: calc(700 * var(--fam-u));  /* [SAMPLED] 07 §3.8 — r1.png 265→975 */
+  --fam-redeem-modal-r: var(--fam-radius-modal);   /* [DERIVED] the shipped modal radius IS the photographed 40 */
+  --fam-redeem-modal-pad: calc(40 * var(--fam-u)); /* [ESTIMATED] 07 §3.8 "modal padding ~40" */
+  --fam-redeem-emoji: calc(150 * var(--fam-u));    /* [ESTIMATED] 07 §3.8 / §4.13 "reward emoji ~150" */
+  --fam-redeem-btn-h: max(var(--fam-touch), calc(76 * var(--fam-u)));           /* [SAMPLED] 07 §3.8 — r1.png
+                                                      765→840, primary "Done"; floored at 44 pt (FR-445) */
+  --fam-redeem-btn-r: calc(var(--fam-redeem-btn-h) / 2);                        /* [DERIVED] full pill ("r ~38") */
+  --fam-redeem-btn-secondary-h: max(var(--fam-touch), calc(72 * var(--fam-u))); /* [SAMPLED] 07 §3.8 — secondary
+                                                      "Unredeem", 4 units shorter than the primary */
+  --fam-redeem-btn-secondary-r: calc(var(--fam-redeem-btn-secondary-h) / 2);    /* [DERIVED] full pill ("r ~36") */
+  --fam-redeem-btn-gap: calc(16 * var(--fam-u));   /* [ESTIMATED] 07 §3.8 "button gap ~16" */
+
+  /* FR-438's WARM WASH: "the backdrop is NOT dimmed — the screen behind stays bright" and "the
+   * underlying columns take on a warm wash while it plays" (07 §4.13, §7.1). The shipped dialogs
+   * dim with black at 30 %; this one warms with the verified star gold (#FDC36D) at 28 % alpha
+   * instead — the only celebration colour any source names, made translucent so the columns
+   * behind are tinted, not hidden. The percentage is [OURS]; nothing behind a modal is meant to be
+   * read while it is open. It is part of the CELEBRATION, lasting the sprites' fall, and so is
+   * absent under reduced motion with them (FR-438). Applied as the dialog's ::backdrop — which
+   * inherits custom properties from its dialog in current engines (2024+); an older engine
+   * resolves the var() to transparent, which is a lost decoration and nothing more. */
+  --fam-redeem-wash: rgb(253 195 109 / 0.28);
+
+  /* Celebration sprites (FR-438, FR-439; 07 §7.1's suggested implementation, all [ESTIMATED] —
+   * "no source specifies this"). ONE vocabulary for both showers — the gold stars on redeem and
+   * the emoji rain on a finished list — so they move alike (R416: ~80 absolutely positioned
+   * sprites with staggered CSS transforms). The COUNT (60–90) is the component's constant, not a
+   * length. A sprite's size is one random point between min and max:
+   *   width: calc(var(--fam-sprite-min) + (var(--fam-sprite-max) - var(--fam-sprite-min)) * var(--t))
+   * with --t ∈ [0, 1] set inline. Sizes scale with the unit so the scatter's density reads the
+   * same on a phone as on the wall; the sprite layer must be fixed to the VIEWPORT and must not
+   * descend from a transformed element (a framer-motion entrance on the dialog element itself
+   * would make it the containing block — animate an inner wrapper instead). Under reduced motion
+   * the components render NOTHING (the shipped hook); the durations collapsing below is belt and
+   * braces for anything that reads them. */
+  --fam-sprite-min: calc(28 * var(--fam-u));       /* [ESTIMATED] 07 §4.13 / §7.1 "~28–48 px" @1920 */
+  --fam-sprite-max: calc(48 * var(--fam-u));       /* [ESTIMATED] ibid. */
+  --fam-sprite-fall-min: 2500ms;                   /* [ESTIMATED] 07 §7.1 "translateY … over 2.5–4 s, linear" */
+  --fam-sprite-fall-max: 4000ms;                   /* [ESTIMATED] ibid. — a sprite's fall is one random point between */
+  --fam-sprite-stagger-max: 1500ms;                /* [ESTIMATED] 07 §7.1 "staggered start delays of 0–1.5 s" */
+  --fam-sprite-spin-min: 180deg;                   /* [ESTIMATED] 07 §7.1 "a simultaneous rotate of ±180–540°" */
+  --fam-sprite-spin-max: 540deg;                   /* [ESTIMATED] ibid. — the sign is the component's coin toss */
+  --fam-sprite-fade-ms: 400ms;                     /* [OURS] 07 §7.1 "a short fade at the end" — "short" is unmeasured */
+
   /* ---------- touch ------------------------------------------------------------------------ */
   /* Every interactive control gets min-height/min-width: var(--fam-touch) regardless of scale
    * (FR-035): 52 px pills and 61 px chips fall below 44 px once --fam-u < 0.85. [OURS] */
@@ -308,6 +428,17 @@
                                                                semibold body text in the product */
   --fam-fs-allday: max(12px, calc(22 * var(--fam-t)));      /* sans 500 — all-day pill label [SAMPLED] */
   --fam-fs-today-badge: max(12px, calc(22 * var(--fam-t))); /* sans 600 — digits inside the today circle */
+
+  /* Rewards type (Phase 4, 07 §4.12–4.13) — photo-estimated like the rest of this block. The card's
+   * balance pill, the column name and the modal title reuse --fam-fs-pill / --fam-fs-title (R414). */
+  --fam-fs-reward-title: max(12px, calc(30 * var(--fam-t))); /* serif 400 — reward card title (07 §4.12 "title
+                                                               serif ~30px"; §8's --fs-meal-label is the same
+                                                               number). Between --fam-fs-section (28) and
+                                                               --fam-fs-title (36); do not borrow either. */
+  --fam-fs-redeem-sub: max(12px, calc(22 * var(--fam-t)));   /* sans 400, --fam-text-secondary — "By Ella for 20
+                                                               stars on March 22, 2026." (07 §4.13 "sub sans 22px";
+                                                               §8's --fs-modal-sub). Same number as --fam-fs-allday
+                                                               but a different weight and role; not the same token. */
 }
 
 .family[data-text-size="small"],
@@ -432,5 +563,15 @@
    * getComputedStyle for --fam-task-fade-ms — opts in without having to remember to. */
   .family {
     --fam-task-fade-ms: 0.01ms;
+
+    /* FR-445's four Phase 4 animations — the two showers, the modal's entrance (framer-motion,
+     * which consults useReducedMotion() itself) and the bar's fill — by the same rule. The showers
+     * render nothing under reduced motion anyway (FR-438, FR-439); these collapse for whatever
+     * reads a duration without asking. */
+    --fam-reward-bar-ms: 0.01ms;
+    --fam-sprite-fall-min: 0.01ms;
+    --fam-sprite-fall-max: 0.01ms;
+    --fam-sprite-stagger-max: 0.01ms;
+    --fam-sprite-fade-ms: 0.01ms;
   }
 }

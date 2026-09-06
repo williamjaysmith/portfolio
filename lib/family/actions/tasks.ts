@@ -659,8 +659,11 @@ function renewColumnsOf(choice: TaskRepeatChoice): TaskWrite {
 
 /**
  * Every column a task carries, from the validated input. `reward_points` is
- * absent by construction, not merely unset: nothing this phase writes, reads or
- * accepts it (FR-329, SC-319).
+ * the one column Phase 4 added to this list (004 FR-401, R406): the schema has
+ * already folded blank and 0 into null (004 FR-402), so what lands here is
+ * either a value worth showing or nothing. Writing it touches no ledger row —
+ * every credit already earned keeps the value it was earned at (004 FR-409,
+ * SC-405).
  */
 function taskColumnsOf(input: TaskInput, wkst: RuleWeekday): TaskWrite {
   const startsOn = input.startsOn ?? null;
@@ -669,6 +672,7 @@ function taskColumnsOf(input: TaskInput, wkst: RuleWeekday): TaskWrite {
     description: input.description ?? null,
     emoji: input.emoji ?? null,
     routine: input.routine,
+    reward_points: input.rewardPoints ?? null,
     up_for_grabs: input.upForGrabs ?? false,
     track_habit: input.trackHabit ?? false,
     starts_on: startsOn,
@@ -1019,6 +1023,8 @@ function taskInputOf(task: Task, zone: string): TaskInput {
     dueTime: task.dueTime,
     timesOfDay: [...task.timesOfDay],
     repeat: taskRepeatChoiceOf(task, zone),
+    // Carried into the base so a patch of another field keeps the value (004 FR-401).
+    rewardPoints: task.rewardPoints,
   };
 }
 
@@ -1181,8 +1187,9 @@ async function applyTaskDelete(actor: Actor, task: Task, plan: DeletePlan): Prom
  * ------------------------------------------------------------------------- */
 
 /**
- * FR-377's exact three fields — title, emoji and type, nothing else — written in
- * the same action. A failure here does NOT fail the task: the household asked
+ * FR-377's three fields — title, emoji and type — and the star value that is
+ * the template's fourth since Phase 4 (004 FR-401), written in the same action
+ * and nothing else. A failure here does NOT fail the task: the household asked
  * for a task and got one, and the template is a convenience (FR-379, US2-14).
  */
 async function saveTaskBoxTemplate(actor: Actor, input: TaskInput): Promise<void> {
@@ -1193,6 +1200,7 @@ async function saveTaskBoxTemplate(actor: Actor, input: TaskInput): Promise<void
       summary: input.summary,
       emoji: input.emoji ?? null,
       routine: input.routine,
+      reward_points: input.rewardPoints ?? null,
       created_by: actor.profileId,
       updated_by: actor.profileId,
     });
@@ -1206,8 +1214,10 @@ async function saveTaskBoxTemplate(actor: Actor, input: TaskInput): Promise<void
 /**
  * One `family.tasks` row, one `task_assignees` row per assignee, and — when the
  * form asked — one Task Box template beside them. The rrule is emitted here and
- * never sent; `reward_points` is left at its default and accepted from nothing
- * (FR-329, SC-319).
+ * never sent; `reward_points` is written from the validated `rewardPoints`
+ * (004 FR-401, FR-402) — which, when the form was seeded from a template, is the
+ * template's value as the client carried it over (004 FR-404): the action stores
+ * whatever validated value arrives and reads no template itself.
  */
 export async function createTask(input: TaskInput): Promise<ActionResult<Task>> {
   return runAction(async () => {

@@ -1,28 +1,24 @@
 <!-- SPECKIT START -->
-**Active feature**: `003-family-tasks` — Phase 3 of the `/family` Skylight Calendar clone: the
-Tasks tab (chores and routines, per-Profile columns, the four time-of-day sections, two repeat
-modes, resolutions with skip/claim/late carry-forward, streaks, the per-device filters, search,
-the Task Box, the two press-and-hold reorders, the measured column fit with the portrait wrap and
-the phone pager). **Built, verified, and deployed (2026-09-04): migrations 017–023 are on the
-hosted project with the §4 checks green, and the live `/family/tasks` renders the household's
-columns.** What remains is the hardware half of T084 — the wall-tablet run, the iPad press-and-hold
-feel and portrait wrap, the phone swipe, and the overnight rollover watch
-(`specs/003-family-tasks/quickstart.md` §4.9). Rewards are a later phase: two reserved
-`reward_points` columns exist and nothing reads them (SC-319).
+**Active feature**: `004-family-rewards` — Phase 4 of the `/family` Skylight Calendar clone: the
+star economy and the Rewards tab (star values and the card chip, credits and retractions as a
+ledger written by database triggers, balances, the stars-today pill, reward cards with a bar or a
+Redeem button, redeem/unredeem with the photographed modal and falling stars, a parent's
+give-and-take, the emoji rain and the Amazing/Strong Week messages). **Built, verified, pushed and deployed (2026-09-05): migrations 024–027 are on the hosted project
+with quickstart §4's checks green.** What remains is the hardware half of T058 — two devices for
+SC-404/409, the iPad and phone for SC-417, the falling stars and the emoji rain on the wall tablet.
 
 Read in this order before touching `/family` code:
-1. `specs/003-family-tasks/plan.md` — the implementation plan and phasing
-2. `specs/003-family-tasks/spec.md` — 98 requirements, evidence-tagged
-3. `specs/003-family-tasks/research.md` — R301–R326 and why
-4. `specs/003-family-tasks/data-model.md` — migrations 017–023, policies, invariants
-5. `specs/003-family-tasks/contracts/server-actions.md` — the action surface
-6. `specs/003-family-tasks/quickstart.md` — setup, verification per guarantee, operator steps
+1. `specs/004-family-rewards/plan.md` — the implementation plan and phasing
+2. `specs/004-family-rewards/spec.md` — 45 requirements, evidence-tagged
+3. `specs/004-family-rewards/research.md` — R401–R418 and why
+4. `specs/004-family-rewards/data-model.md` — migrations 024–027, triggers, invariants
+5. `specs/004-family-rewards/contracts/server-actions.md` — the action surface
+6. `specs/004-family-rewards/quickstart.md` — setup, verification per guarantee, operator steps
 
-Phases 1 and 2 (`specs/001-family-foundation/`, `specs/002-family-week-calendar/`) are shipped and
-live; their docs bind this phase's conventions. **Hard ordering**: the hosted `supabase db push`
-(017–023) MUST land before this branch is merged or deployed — Phase 3 adds four tables to the
-realtime channel every `/family` page mounts, and a deploy ahead of the push takes the shipped
-calendar's live updates down with it.
+Phases 1–3 (`specs/001-family-foundation/`, `specs/002-family-week-calendar/`,
+`specs/003-family-tasks/`) are shipped and live; their docs bind this phase's conventions. **Hard
+ordering**: the hosted `supabase db push` (024–027) MUST land before this branch is merged or
+deployed — the four new tables join the realtime channel every `/family` page mounts.
 
 Product truth lives in `docs/research/skylight/00-master-map.md`.
 Note: this repo is Next 16 — request interception is `proxy.ts`, not `middleware.ts`,

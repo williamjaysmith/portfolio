@@ -35,13 +35,27 @@
  * a household created HERE rather than by 007 gets family.seed_task_box()
  * called on it, so the Task Box is never empty (FR-382).
  *
+ * Phase 4 (004-family-rewards): --local also seeds the STAR ECONOMY's fixtures
+ * (004 quickstart §3, R413): star values on five of the tasks above, three
+ * rewards with their eligibilities, and one hand adjustment that starts Cleo
+ * at 15 stars — so the Rewards tab's scenarios (a bar at 15/20, a Redeem
+ * button at 15) hold on a fresh `db reset`. The rewards and the adjustment
+ * are idempotent BY EMPTINESS, like family.seed_task_box(): a redeemed or
+ * deleted reward is never resurrected and a ledger entry is never written
+ * twice. The star values are applied AFTER the fixture resolutions exist —
+ * migration 025 credits a task's value the moment a completion is inserted,
+ * so a value already on the row would pay Cleo for the eleven days of Brush
+ * teeth she "ticked" before stars existed (applyStarValues below). The hosted
+ * seed gains NOTHING this phase.
+ *
  * Usage
  *   npm run family:seed -- --local     local stack (http://127.0.0.1:55321, the CLI's fixed
  *                                      secret key). Creates the dev account dev@family.local,
  *                                      allowlists it, seeds the fixture profiles/labels
  *                                      unless FAMILY_SEED_PROFILES is set, and seeds the
- *                                      fixture calendar week (002 quickstart §3) and the
- *                                      fixture task board (003 quickstart §3).
+ *                                      fixture calendar week (002 quickstart §3), the
+ *                                      fixture task board (003 quickstart §3) and the
+ *                                      star fixtures (004 quickstart §3).
  *   npm run family:seed -- --yes       hosted project from .env.local
  *                                      (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SECRET_KEY).
  *                                      Without --yes a non-local URL is refused.
@@ -227,11 +241,14 @@ function dailyCompletions(assignee, slots, days) {
  * hand check, each anchored to the seed day by `startsOffset`/`dayOffset`.
  * `slots` is what makes a row a routine (the 016 CHECK pairs them), and rule
  * strings are written by hand HERE only — clients never submit them (R301).
+ * `rewardPoints` (004 R413) is NOT written by the task row: applyStarValues()
+ * sets it after the resolutions exist, for the reason given there.
  */
 const FIXTURE_TASKS = [
   // Timed sub-type; weekly on today's weekday from three weeks back, so three
   // missed occurrences carry forward beside today's fresh one (SC-307, FR-341),
-  // and Cleo is refused when she tries to tick it (SC-304).
+  // and Cleo is refused when she tries to tick it (SC-304). Worth 20 stars: the
+  // spec's example of a big chore, and Ben's balance when he ticks it (004 US1).
   {
     id: fixtureTaskId(1),
     summary: "Take out trash",
@@ -239,6 +256,7 @@ const FIXTURE_TASKS = [
     startsOffset: -21,
     dueTime: "18:00",
     rule: (today) => `FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=${ruleWeekday(today)}`,
+    rewardPoints: 20,
   },
   // INTERVAL=2 end to end (FR-345) and FR-357's bound: anchored four weeks back,
   // the today-28 occurrence is off today's board and the today-14 one is on it.
@@ -250,8 +268,9 @@ const FIXTURE_TASKS = [
     dueTime: "09:00",
     rule: (today) => `FREQ=WEEKLY;INTERVAL=2;WKST=SU;BYDAY=${ruleWeekday(today)}`,
   },
-  // All-day sub-type: a date and no time (FR-327).
-  { id: fixtureTaskId(3), summary: "Feed the cat", emoji: "🐱", assignees: ["Cleo"], startsOffset: 0 },
+  // All-day sub-type: a date and no time (FR-327). Worth 10 stars — the chip on
+  // the card, and the 10 Cleo earns and un-earns in 004 US1's scenarios.
+  { id: fixtureTaskId(3), summary: "Feed the cat", emoji: "🐱", assignees: ["Cleo"], startsOffset: 0, rewardPoints: 10 },
   // Anytime sub-type: neither date nor time, so never late and present every day
   // (FR-328). The description is what SC-320's search match reads.
   {
@@ -280,6 +299,7 @@ const FIXTURE_TASKS = [
     startsOffset: -14,
     renewAfter: { amount: 2, unit: "week" },
     resolutions: [{ assignee: "Ana", dayOffset: -14, status: "complete" }],
+    rewardPoints: 15,
   },
   // The chain HEAD case: no resolutions at all, so the open occurrence is
   // max(starts_on, the assignee's chain start) — today, both ways.
@@ -334,6 +354,9 @@ const FIXTURE_TASKS = [
     rule: () => "FREQ=DAILY;INTERVAL=1",
     resolutions: dailyCompletions("Cleo", ["morning", "evening"], 11),
     streak: { count: 11, throughOffset: -1 },
+    // Worth 5 a slot, so both slots make 10 (004 US1-5). The eleven seeded days
+    // earned nothing: their value is applied after them (applyStarValues).
+    rewardPoints: 5,
   },
   // INTERVAL=2 on a routine (SC-313's first half), anchored an even number of
   // days back so today is a matching day.
@@ -364,6 +387,8 @@ const FIXTURE_TASKS = [
       { assignee: "Cleo", dayOffset: 0, slot: "evening", status: "skipped" },
     ],
     streak: { count: 5, throughOffset: 0 },
+    // Worth 5, and skipped today: the skip that earns nothing (004 US1-6).
+    rewardPoints: 5,
   },
   // FR-346 on a routine: the end date lives inside the rule's own UNTIL
   // (renew_until is cursor-mode only), a fortnight out (US2-10).
@@ -916,7 +941,10 @@ async function seedFixtureWeek(fam, zone, log) {
 /**
  * One task row. `slots` decides `routine` on its own: 016's CHECK pairs them, so
  * a fixture that carries slots IS a routine and one that does not is a chore.
- * reward_points is left alone — it is reserved for the rewards phase (FR-329).
+ * reward_points is written as NULL here, on purpose, and set by applyStarValues()
+ * once the resolutions are in — an explicit null rather than an absent key, so a
+ * re-run's re-anchored resolutions never land on a task that still carries last
+ * run's value and earn eleven days of stars.
  */
 /** An undated anytime chore has no first day; everything else counts from today. */
 function taskStartsOn(spec, today) {
@@ -951,6 +979,7 @@ function taskRow(spec, today) {
     routine: Boolean(spec.slots),
     up_for_grabs: Boolean(spec.upForGrabs),
     track_habit: Boolean(spec.trackHabit),
+    reward_points: null,
     ...taskSchedule(spec, today),
     ...taskRenewal(spec),
   };
@@ -1063,6 +1092,31 @@ function taskLine(spec, today) {
   return `${taskKind(spec).padEnd(11)} ${spec.summary}  ${when}${time}  (upserted)`;
 }
 
+/**
+ * R413's star values, applied only AFTER the fixture resolutions are in place.
+ * Migration 025's credit_task_resolution() credits a task's value the moment a
+ * completion is inserted, so a value carried by the task row itself would pay
+ * Cleo 110 stars for the eleven seeded days of Brush teeth and 25 more for
+ * Practice piano — history "ticked" before any value existed — instead of the
+ * 15 that 004 US2's scenarios read. So taskRow() writes reward_points as null
+ * (a re-run's re-anchored resolutions earn nothing either) and this pass sets
+ * the five values afterwards: exactly what happens to a household that gives
+ * its chores stars today, whose past completions stay worth what they were.
+ */
+async function applyStarValues(fam, specs, log) {
+  for (const spec of specs.filter((s) => s.rewardPoints !== undefined)) {
+    unwrap(
+      await fam
+        .from("tasks")
+        .update({ reward_points: spec.rewardPoints })
+        .eq("id", spec.id)
+        .eq("household_id", HOUSEHOLD_ID),
+      `give "${spec.summary}" its star value`,
+    );
+    log(`stars       ${spec.summary}  ${spec.rewardPoints}  (applied)`);
+  }
+}
+
 /** --local only. Hosted task data comes from the household, never from fixtures. */
 async function seedFixtureTasks(fam, zone, log) {
   const today = todayInZone(zone);
@@ -1081,7 +1135,141 @@ async function seedFixtureTasks(fam, zone, log) {
   );
   await replaceFixtureResolutions(fam, specs, categoryIds, today);
   for (const spec of specs) log(taskLine(spec, today));
+  await applyStarValues(fam, specs, log);
   log(`anchored    ${today}  (re-run the seed after the day rolls over)`);
+}
+
+/** Fixed ids keep the fixture rewards addressable by hand checks, like the tasks'. */
+function fixtureRewardId(n) {
+  return `00000000-0000-4000-8000-0000000004${String(n).padStart(2, "0")}`;
+}
+
+/** Every Profile in the household, whoever FAMILY_SEED_PROFILES made them. */
+const EVERY_PROFILE = "everyone";
+
+/**
+ * The Rewards tab fixtures (004 quickstart §3, R413), --local only: one per hand
+ * check on US2/US3 — a renewing reward Cleo is five short of (a bar at 15/20), a
+ * one-time reward she can afford exactly (a Redeem button at 15), and a one-time
+ * reward every Profile is eligible for, each with their own progress (FR-417).
+ */
+const FIXTURE_REWARDS = [
+  { id: fixtureRewardId(1), name: "Bake cookies", emoji: "🍪", pointValue: 20, renews: true, eligible: ["Cleo"] },
+  { id: fixtureRewardId(2), name: "Movie night", emoji: "🍿", pointValue: 15, renews: false, eligible: ["Cleo", "Ben"] },
+  { id: fixtureRewardId(3), name: "Ice cream", emoji: "🍨", pointValue: 25, renews: false, eligible: EVERY_PROFILE },
+];
+
+/** Cleo's starting balance (R413): one hand adjustment by Ana, on the anchor day. */
+const STARTING_BALANCE = { profile: "Cleo", amount: 15, by: "Ana" };
+
+function rewardRow(spec) {
+  return {
+    id: spec.id,
+    household_id: HOUSEHOLD_ID,
+    name: spec.name,
+    emoji: spec.emoji,
+    point_value: spec.pointValue,
+    respawn_on_redemption: spec.renews,
+  };
+}
+
+async function householdProfileIds(fam) {
+  const rows = unwrap(
+    await fam.from("categories").select("id").eq("household_id", HOUSEHOLD_ID).eq("is_profile", true),
+    "read household profiles",
+  );
+  return rows.map((row) => row.id);
+}
+
+/** One row per eligible Profile; 024's trigger refuses a Label, so none is offered. */
+function eligibilityRows(spec, categoryIds, profileIds) {
+  const ids = spec.eligible === EVERY_PROFILE ? profileIds : spec.eligible.map((label) => categoryIds.get(label));
+  return ids.map((categoryId) => ({ household_id: HOUSEHOLD_ID, reward_id: spec.id, category_id: categoryId }));
+}
+
+function rewardLine(spec, outcome) {
+  const who = spec.eligible === EVERY_PROFILE ? "everyone" : spec.eligible.join(", ");
+  const kind = spec.renews ? "renews" : "one-time";
+  return `reward      ${spec.name} ${spec.emoji}  ${spec.pointValue}  ${kind}  ${who}  (${outcome})`;
+}
+
+/**
+ * --local only. Idempotent by EMPTINESS, as family.seed_task_box() is: a household
+ * that has any reward keeps exactly what it has, so a redeemed or deleted fixture
+ * is never resurrected and a re-run after playing with the tab changes nothing.
+ */
+async function seedFixtureRewards(fam, log) {
+  const existing = unwrap(
+    await fam.from("rewards").select("id").eq("household_id", HOUSEHOLD_ID).limit(1),
+    "read rewards",
+  );
+  if (existing.length > 0) {
+    log("reward      (the household already has rewards; the fixtures are not re-seeded)");
+    return;
+  }
+  const named = FIXTURE_REWARDS.flatMap((spec) => (spec.eligible === EVERY_PROFILE ? [] : spec.eligible));
+  const categoryIds = await fixtureCategoryIds(fam, named);
+  const profileIds = await householdProfileIds(fam);
+  unwrap(await fam.from("rewards").insert(FIXTURE_REWARDS.map(rewardRow)), "insert fixture rewards");
+  unwrap(
+    await fam
+      .from("reward_eligibilities")
+      .insert(FIXTURE_REWARDS.flatMap((spec) => eligibilityRows(spec, categoryIds, profileIds))),
+    "make fixture rewards eligible",
+  );
+  for (const spec of FIXTURE_REWARDS) log(rewardLine(spec, "created"));
+}
+
+/**
+ * --local only. Cleo's 15 stars, and why it is a ledger ENTRY rather than a number
+ * on her row: a balance is a sum (FR-412), so a starting balance is one hand
+ * adjustment — a parent's, on the household day of the seed (FR-434, FR-436);
+ * 025's assert_star_adjustment() checks it like any other. Idempotent by
+ * emptiness: once Cleo has any entry at all, hers is the ledger the family
+ * made, and a re-run leaves it alone.
+ */
+async function seedStartingBalance(fam, zone, log) {
+  const categoryIds = await fixtureCategoryIds(fam, [STARTING_BALANCE.profile, STARTING_BALANCE.by]);
+  const profileId = categoryIds.get(STARTING_BALANCE.profile);
+  const existing = unwrap(
+    await fam
+      .from("star_entries")
+      .select("id")
+      .eq("household_id", HOUSEHOLD_ID)
+      .eq("category_id", profileId)
+      .limit(1),
+    "read star entries",
+  );
+  const line = `adjustment  ${STARTING_BALANCE.profile}  +${STARTING_BALANCE.amount}  by ${STARTING_BALANCE.by}`;
+  if (existing.length > 0) {
+    log(`${line}  (kept — ${STARTING_BALANCE.profile} already has ledger entries)`);
+    return;
+  }
+  unwrap(
+    await fam.from("star_entries").insert({
+      household_id: HOUSEHOLD_ID,
+      category_id: profileId,
+      amount: STARTING_BALANCE.amount,
+      kind: "adjustment",
+      created_by: categoryIds.get(STARTING_BALANCE.by),
+      entered_on: todayInZone(zone),
+    }),
+    "give the starting balance",
+  );
+  log(`${line}  (created)`);
+}
+
+/**
+ * --local only, in dependency order: the tasks need the profiles, the rewards'
+ * eligibilities and the starting balance need the profiles and, for the value
+ * ordering applyStarValues() explains, the resolutions. Hosted data comes from
+ * the household, never from fixtures.
+ */
+async function seedLocalFixtures(fam, zone, log) {
+  await seedFixtureWeek(fam, zone, log);
+  await seedFixtureTasks(fam, zone, log);
+  await seedFixtureRewards(fam, log);
+  await seedStartingBalance(fam, zone, log);
 }
 
 /** Explicit JSON wins; --local falls back to the fixtures, hosted to nothing. */
@@ -1123,8 +1311,7 @@ async function main() {
 
   await allowlist(fam, [accountEmail], log);
   await upsertCategories(fam, profiles, log);
-  if (flags.local) await seedFixtureWeek(fam, zone, log);
-  if (flags.local) await seedFixtureTasks(fam, zone, log);
+  if (flags.local) await seedLocalFixtures(fam, zone, log);
 
   console.log(lines.map((line) => `  ${line}`).join("\n"));
   console.log("PINs are never seeded — set them from Settings in the app.");

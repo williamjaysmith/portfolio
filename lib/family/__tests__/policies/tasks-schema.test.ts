@@ -475,10 +475,28 @@ describe("tasks schema: the data-model invariants", () => {
     expect((await insertTask({ summary: "x".repeat(121) })).error?.code).toBe("23514");
     expect((await insertTask({ description: "d".repeat(2001) })).error?.code).toBe("23514");
     expect((await insertTask({ emoji: "e".repeat(17) })).error?.code).toBe("23514");
-    // FR-329: reserved for the rewards phase — only the sign is asserted, and
-    // nothing in this phase writes it.
+    // FR-329: only the sign is asserted at the store; the 0–500 bound is Zod's
+    // (004 Assumption 4, T014), so a value past it is still storable here.
     expect((await insertTask({ reward_points: -1 })).error?.code).toBe("23514");
     expect((await insertTask({ reward_points: 5000 })).error).toBeNull();
+  });
+
+  it("reward_points on a task and on a template: null, 0 and 500 accepted, -1 refused — the shipped CHECK, unchanged (T011)", async () => {
+    // Phase 4 reads and writes the two reserved columns (017, 021) without
+    // touching their shape: `>= 0` or null is the whole store-side rule, and
+    // the 500 ceiling is validation's (004 FR-402, Assumption 4).
+    const insertTemplate = (reward_points: number | null) =>
+      admin
+        .schema("family")
+        .from("task_box_items")
+        .insert({ household_id: householdA, summary: `Template probe ${fx.run}`, reward_points });
+
+    for (const value of [null, 0, 500]) {
+      expect((await insertTask({ reward_points: value })).error, `tasks ${value}`).toBeNull();
+      expect((await insertTemplate(value)).error, `task_box_items ${value}`).toBeNull();
+    }
+    expect((await insertTask({ reward_points: -1 })).error?.code).toBe("23514");
+    expect((await insertTemplate(-1)).error?.code).toBe("23514");
   });
 
   it("assert_task_assignee: a Label is never assignable, and neither is a foreign Profile", async () => {

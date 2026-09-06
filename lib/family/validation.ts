@@ -21,6 +21,7 @@ import {
   type CategoryPatch,
   type EventInput,
   type RepeatChoice,
+  type Reward,
   type Role,
   type Scope,
   type TaskRepeatChoice,
@@ -642,10 +643,36 @@ export const taskRepeatChoiceSchema = z.discriminatedUnion(
   { error: "Choose how this repeats." },
 );
 
+const STARS_RANGE = "Stars must be a whole number from 0 to 500.";
+
 /**
- * `TaskInput` (contracts → `createTask`). Strict: `rrule`, the `renew_after_*`
- * triple and the reserved star value are refused rather than stripped, so a
- * client that tries to write one gets told (FR-329, SC-319, R201).
+ * The star value (004 FR-401, FR-402): a whole number 0–500, where blank and 0
+ * alike mean "no stars" and store null — so a card worth nothing and a card
+ * never given a value are the same card (FR-403). The 500 ceiling is this
+ * schema's alone; 017/021's CHECK stops at `>= 0` and is not tightened
+ * (004 data-model, Assumption 4).
+ */
+const rewardPointsSchema = z
+  .union(
+    [
+      z
+        .number({ error: STARS_RANGE })
+        .int({ error: STARS_RANGE })
+        .min(0, { error: STARS_RANGE })
+        .max(500, { error: STARS_RANGE }),
+      z.literal(""),
+      z.null(),
+    ],
+    { error: STARS_RANGE },
+  )
+  .transform((value) => (value === "" || value === null || value === 0 ? null : value))
+  .optional();
+
+/**
+ * `TaskInput` (contracts → `createTask`). Strict: `rrule` and the
+ * `renew_after_*` triple are refused rather than stripped, so a client that
+ * tries to write one gets told (R201); the star value Phase 3 reserved is now
+ * the one field it grew (004 FR-401).
  */
 const taskObjectSchema = z.strictObject({
   summary: summarySchema,
@@ -665,6 +692,7 @@ const taskObjectSchema = z.strictObject({
     .array(timeOfDaySchema, { error: "Times of day must be a list." })
     .optional(),
   repeat: taskRepeatChoiceSchema,
+  rewardPoints: rewardPointsSchema,
   saveToTaskBox: z.boolean({ error: "Save to task box must be on or off." }).optional(),
 });
 
@@ -824,19 +852,139 @@ export type TaskInput = z.output<typeof taskInputSchema>;
  * ------------------------------------------------------------------------- */
 
 /**
- * One template's whole content. FR-377 fixes the field set EXACTLY — a title,
- * an optional emoji and a type — and the object is strict, so a description, a
- * date, a repeat, an assignment or the reserved star value is REFUSED rather
- * than quietly stripped (FR-329, SC-319).
+ * One template's whole content: FR-377's title, optional emoji and type, and
+ * Phase 4's fourth field, the star value (004 FR-401). The object is strict, so
+ * a description, a date, a repeat or an assignment is REFUSED rather than
+ * quietly stripped.
  *
  * The edit path parses the MERGED template through this same schema rather
- * than a patch schema of its own, so FR-380's "three fields" is one list that
+ * than a patch schema of its own, so FR-380's field list is one list that
  * cannot drift, and a refusal lands against its own top-level field.
  */
 export const taskBoxItemSchema = z.strictObject({
   summary: summarySchema,
   emoji: taskEmojiSchema.nullable().optional(),
   routine: z.boolean({ error: "Choose chore or routine." }),
+  rewardPoints: rewardPointsSchema,
 });
 
 export type TaskBoxItemInput = z.output<typeof taskBoxItemSchema>;
+
+/* ------------------------------------------------------------------------- *
+ * Rewards (Phase 4 — specs/004-family-rewards, contracts/server-actions.md)
+ * ------------------------------------------------------------------------- */
+
+const INVALID_ID = "Invalid id.";
+const CHOOSE_A_PROFILE = "Choose at least one Profile.";
+const COST_RANGE = "Cost must be a whole number from 1 to 500.";
+
+/**
+ * At least one Profile, each once (FR-415, FR-436). That each id IS a Profile
+ * and not a Label needs the rows and is the action's check, backed by 024's
+ * trigger (FR-414).
+ */
+function profileIdsSchema(missing: string) {
+  return z
+    .array(z.uuid({ error: INVALID_ID }), { error: missing })
+    .min(1, { error: CHOOSE_A_PROFILE })
+    .refine((ids) => new Set(ids).size === ids.length, {
+      error: "Each Profile can appear only once.",
+    });
+}
+
+/** FR-416: the reference's own bound, 1..500 — the same CHECK 024 carries. */
+const pointValueSchema = z
+  .number({ error: COST_RANGE })
+  .int({ error: COST_RANGE })
+  .min(1, { error: COST_RANGE })
+  .max(500, { error: COST_RANGE });
+
+/**
+ * `RewardInput` (contracts → `createReward`). Strict: a balance, a progress
+ * counter, a redemption date or any other star-shaped key a client invents is
+ * refused rather than stripped — progress is derived (FR-420), never sent.
+ */
+export const rewardInputSchema = z.strictObject({
+  name: summarySchema,
+  description: longTextSchema("Description", 2000).nullable().optional(),
+  emoji: taskEmojiSchema.nullable().optional(),
+  pointValue: pointValueSchema,
+  respawnOnRedemption: z.boolean({ error: "Renew after redeeming must be on or off." }),
+  categoryIds: profileIdsSchema("Eligible Profiles must be a list of ids."),
+});
+
+export type RewardInput = z.output<typeof rewardInputSchema>;
+
+/**
+ * `updateReward`'s envelope. The patch is carried as bare keys and judged as
+ * part of the MERGED reward by `validateRewardPatch` rather than field by field
+ * here — `updateTask`'s discipline — so there is no second list of allowed
+ * fields to drift from `rewardInputSchema`'s, and a refusal lands against its
+ * own top-level field for the form to show.
+ */
+export const updateRewardSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  patch: z.record(z.string(), z.unknown(), { error: "That edit didn't look right." }),
+});
+
+/** The stored reward as the create form would have sent it. */
+function rewardInputOf(reward: Reward): RewardInput {
+  return {
+    name: reward.name,
+    description: reward.description,
+    emoji: reward.emoji,
+    pointValue: reward.pointValue,
+    respawnOnRedemption: reward.respawnOnRedemption,
+    categoryIds: reward.categoryIds,
+  };
+}
+
+/**
+ * Contracts §updateReward: the MERGED shape is validated through the create
+ * schema, never the patch alone — which is what refuses a patch that empties
+ * the eligible Profiles (FR-415) and one that invents a key. Throws field-keyed
+ * `ActionFailure('VALIDATION')`.
+ */
+export function validateRewardPatch(existing: Reward, patch: Record<string, unknown>): RewardInput {
+  return parseOrThrow(rewardInputSchema, { ...rewardInputOf(existing), ...patch });
+}
+
+export const deleteRewardSchema = z.strictObject({
+  id: z.uuid({ error: INVALID_ID }),
+  // FR-418: a confirmation that says it cannot be undone — a literal `true`,
+  // so a missing flag is a refusal and not a default.
+  confirm: z.literal(true, { error: "Deleting a reward can't be undone — confirm to delete it." }),
+});
+
+/**
+ * `redeemReward` names the reward and the Profile and NOTHING else (FR-428):
+ * the cost, the name and the day are copied from the stored reward by 026's
+ * trigger, never trusted from the caller.
+ */
+export const redeemRewardSchema = z.strictObject({
+  rewardId: z.uuid({ error: INVALID_ID }),
+  categoryId: z.uuid({ error: INVALID_ID }),
+});
+
+export const unredeemRewardSchema = z.strictObject({
+  redemptionId: z.uuid({ error: INVALID_ID }),
+});
+
+const AMOUNT_WHOLE = "Enter a whole number of stars.";
+const AMOUNT_RANGE = "Stars must be between -500 and 500.";
+
+/**
+ * `adjustStars` (FR-434, FR-436): one whole amount, negative to take stars
+ * away, −500…500 and never 0 — the same bound 025's `assert_star_adjustment`
+ * carries. Whether any chosen Profile would end below zero needs the balances
+ * and is the trigger's refusal (`P0004`), shown by the action per Profile.
+ */
+export const adjustStarsSchema = z.strictObject({
+  categoryIds: profileIdsSchema("Profiles must be a list of ids."),
+  amount: z
+    .number({ error: AMOUNT_WHOLE })
+    .int({ error: AMOUNT_WHOLE })
+    .min(-500, { error: AMOUNT_RANGE })
+    .max(500, { error: AMOUNT_RANGE })
+    .refine((amount) => amount !== 0, { error: "Enter a number other than 0." }),
+});

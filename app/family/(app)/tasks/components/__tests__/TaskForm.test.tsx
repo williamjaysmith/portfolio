@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // The real `fail`, not the test helper's: only this one carries `fieldErrors`,
 // which is what a VALIDATION result from the server actually looks like.
 import { fail } from "@/lib/family/errors";
-import type { Category } from "@/lib/family/types";
+import type { Category, Task } from "@/lib/family/types";
 import type { TaskInput } from "@/lib/family/validation";
 
 import { ok } from "../../../components/__tests__/action-result";
@@ -15,6 +15,7 @@ import {
   withFamily,
 } from "../../../components/__tests__/family-test-utils";
 import { TaskForm, type TaskFormProps } from "../TaskForm";
+import { taskDraftOf } from "../useTaskForm";
 
 /**
  * T053 — the create/edit form, driven against a mocked `onSubmit` (T057 hands
@@ -23,7 +24,7 @@ import { TaskForm, type TaskFormProps } from "../TaskForm";
  * What is pinned here:
  *   - FR-330's field ORDER: title, emoji, description, assignment, task type,
  *     the type's own scheduling fields, Up for Grabs (chores only), Track Habit
- *     (routines only), "Save to task box";
+ *     (routines only), "Save to task box" — and then Stars (004 FR-401);
  *   - the type toggle swapping a chore's Date/Time controls for a routine's
  *     repeat + weekdays + Morning/Afternoon/Evening (FR-333, FR-334, US2-7),
  *     with more than one weekday allowed and at least one slot required;
@@ -39,7 +40,9 @@ import { TaskForm, type TaskFormProps } from "../TaskForm";
  *   - refusals landing against their field with every other entry preserved
  *     (FR-330, US2-4);
  *   - the three pieces of copy that are right but not obvious (R303);
- *   - and the absence check: no star value field anywhere (FR-329, SC-319).
+ *   - and Phase 4's one addition: the Stars field after Phase 3's fields, with
+ *     the reference's guidance beside it, its refusal landing on the field, and
+ *     the edit form pre-filled from the task (004 FR-401, FR-402, SC-401).
  */
 
 const ANA = "11111111-1111-4111-8111-111111111111";
@@ -55,6 +58,34 @@ const HOUSEHOLD: Category[] = [
   // FR-323: a Label is never assignable.
   makeCategory({ id: BIN_DAY, label: "Bin day", isProfile: false, sortOrder: 4000 }),
 ];
+
+/** A stored one-off chore, for the edit form's pre-fill (T057's `taskDraftOf`). */
+function taskOf(overrides: Partial<Task>): Task {
+  return {
+    id: "55555555-5555-4555-8555-555555555555",
+    householdId: "household-1",
+    summary: "Feed the cat",
+    description: null,
+    emoji: null,
+    routine: false,
+    upForGrabs: false,
+    trackHabit: false,
+    startsOn: "2026-09-08",
+    dueTime: null,
+    timesOfDay: [],
+    rrule: null,
+    renewAfterAmount: null,
+    renewAfterUnit: null,
+    renewUntil: null,
+    rewardPoints: null,
+    assignees: [],
+    createdBy: null,
+    updatedBy: null,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
 
 function renderForm(overrides: Partial<TaskFormProps> = {}) {
   const onSubmit = vi.fn().mockResolvedValue(ok(null));
@@ -100,6 +131,25 @@ function fillOneOffChore(): void {
   type(screen.getByLabelText("Due date"), "2026-09-08");
 }
 
+/**
+ * Submits past the browser's own range check, which a real device runs first
+ * on a `type="number"` box (as it does for the shipped "Repeat every"). Under
+ * test is the schema's refusal — the same slot a server refusal lands in — not
+ * the browser's tooltip.
+ */
+function submitPastNativeChecks(): void {
+  const form = screen.getByLabelText("Title").closest("form");
+  if (form === null) throw new Error("The form is not there.");
+  fireEvent.submit(form);
+}
+
+/** The Stars field's own block — the label, the guidance and the refusal slot. */
+function starsBlock(): HTMLElement {
+  const block = screen.getByLabelText("Stars").closest("div");
+  if (block === null) throw new Error("The Stars field has no block of its own.");
+  return block;
+}
+
 function expectBefore(earlier: HTMLElement, later: HTMLElement): void {
   const position = earlier.compareDocumentPosition(later);
   expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -122,6 +172,8 @@ describe("TaskForm", () => {
       screen.getByRole("group", { name: "Schedule" }),
       screen.getByRole("switch", { name: "Up for Grabs" }),
       screen.getByRole("switch", { name: "Save to task box" }),
+      // 004 FR-401: the one field Phase 4 adds, after the fields Phase 3 shipped.
+      screen.getByLabelText("Stars"),
     ];
     for (let i = 1; i < order.length; i += 1) expectBefore(order[i - 1], order[i]);
   });
@@ -397,18 +449,88 @@ describe("TaskForm", () => {
     });
   });
 
-  describe("what the form does NOT have", () => {
-    it("offers no star value on either type (FR-329, SC-319)", () => {
-      const { onSubmit } = renderForm();
-      const dialog = screen.getByRole("dialog");
+  describe("the Stars field is one field after Phase 3's (004 FR-401, FR-402, SC-401)", () => {
+    const GUIDANCE = /a handful for a daily routine, up to a hundred for a big chore/i;
+    const RANGE = "Stars must be a whole number from 0 to 500.";
+
+    it("is offered on both types, blank, with the reference's guidance beside it", () => {
+      renderForm();
+      expect(screen.getByLabelText("Stars")).toHaveValue(null);
+      expect(screen.getByLabelText("Stars")).toHaveAccessibleDescription(GUIDANCE);
+
       chooseType("Routine");
-      // Word-bounded, so "Starts on" is not mistaken for a star value.
-      expect(within(dialog).queryByText(/\bstars?\b/i)).toBeNull();
-      expect(within(dialog).queryByText(/\bpoints?\b/i)).toBeNull();
-      expect(within(dialog).queryByText(/\breward/i)).toBeNull();
-      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getByLabelText("Stars")).toHaveAccessibleDescription(GUIDANCE);
     });
 
+    it.each(["", "0"])("%p means no stars, and the task is sent with none", async (value) => {
+      const { onSubmit } = renderForm();
+      fillOneOffChore();
+      type(screen.getByLabelText("Stars"), value);
+      clickSave();
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(submitted(onSubmit).rewardPoints).toBeNull();
+    });
+
+    it("sends the typed value as a NUMBER, never as text", async () => {
+      const { onSubmit } = renderForm();
+      fillOneOffChore();
+      type(screen.getByLabelText("Stars"), "25");
+      clickSave();
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+      expect(submitted(onSubmit).rewardPoints).toBe(25);
+    });
+
+    it.each(["501", "-1", "2.5"])(
+      "refuses %p locally against its own field, once, and keeps everything else",
+      async (value) => {
+        const { onSubmit } = renderForm();
+        fillOneOffChore();
+        type(screen.getByLabelText("Stars"), value);
+        submitPastNativeChecks();
+
+        await waitFor(() =>
+          expect(within(starsBlock()).getByRole("alert")).toHaveTextContent(RANGE),
+        );
+        // Field-anchored, so the form-level line does not say it a second time.
+        const said = screen.getAllByRole("alert").filter((one) => one.textContent === RANGE);
+        expect(said).toHaveLength(1);
+        expect(onSubmit).not.toHaveBeenCalled();
+        expect(screen.getByLabelText("Title")).toHaveValue("Feed the cat");
+        expect(screen.getByLabelText("Stars")).toHaveValue(Number(value));
+      },
+    );
+
+    it("lands the server's own refusal of the value on the field too", async () => {
+      const onSubmit = vi
+        .fn()
+        .mockResolvedValue(fail("VALIDATION", "Nope.", { rewardPoints: [RANGE] }));
+      renderForm({ onSubmit });
+      fillOneOffChore();
+      type(screen.getByLabelText("Stars"), "25");
+      clickSave();
+
+      await waitFor(() =>
+        expect(within(starsBlock()).getByRole("alert")).toHaveTextContent(RANGE),
+      );
+      expect(screen.getByLabelText("Stars")).toHaveValue(25);
+    });
+
+    it("the edit form is pre-filled from the task's own value", () => {
+      const seed = taskDraftOf(taskOf({ rewardPoints: 40 }), "America/Chicago");
+      renderForm({ mode: "edit", seed });
+      expect(screen.getByLabelText("Stars")).toHaveValue(40);
+    });
+
+    it("a task worth nothing edits as a blank field, not a 0", () => {
+      const seed = taskDraftOf(taskOf({ rewardPoints: null }), "America/Chicago");
+      renderForm({ mode: "edit", seed });
+      expect(screen.getByLabelText("Stars")).toHaveValue(null);
+    });
+  });
+
+  describe("what the form does NOT have", () => {
     it("offers 'Save to task box' on create only — it is a create-time choice", () => {
       renderForm({ mode: "edit", seed: { summary: "Dishes", startsOn: "2026-09-08" } });
       expect(screen.queryByRole("switch", { name: "Save to task box" })).toBeNull();

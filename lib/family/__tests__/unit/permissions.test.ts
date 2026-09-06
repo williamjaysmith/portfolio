@@ -10,6 +10,7 @@ import {
   canChangeRole,
   canDelete,
   isLastParent,
+  mayRedeemFor,
   ownsOccurrence,
 } from "@/lib/family/permissions";
 
@@ -94,6 +95,46 @@ const MATRIX: Record<Operation, OperationRule> = {
     noActor: "NO_ACTOR",
     noActorBootstrap: "NO_ACTOR",
   },
+  // Phase 4 (R410). The four things a parent does TO the economy are parent-only
+  // (FR-419, FR-435); the two redeem verbs read "FORBIDDEN" for a member here
+  // because this sweep names no Profile to redeem for — FR-424's rule with a
+  // target is the SC-407 block below.
+  "reward.create": {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
+  "reward.edit": {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
+  "reward.delete": {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
+  "stars.adjust": {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
+  "reward.redeem": {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
+  "reward.unredeem": {
+    parent: "ok",
+    member: "FORBIDDEN",
+    noActor: "NO_ACTOR",
+    noActorBootstrap: "NO_ACTOR",
+  },
 };
 
 const OPERATIONS = Object.keys(MATRIX) as Operation[];
@@ -128,7 +169,7 @@ const CASES = OPERATIONS.flatMap((op) =>
 
 describe("can", () => {
   it("covers every operation × actor × household state", () => {
-    expect(CASES).toHaveLength(14 * 3 * 2);
+    expect(CASES).toHaveLength(20 * 3 * 2);
   });
 
   it.each(CASES)(
@@ -164,6 +205,12 @@ describe("can", () => {
       "manage_task_box",
       "resolve_occurrence",
       "reorder_routines",
+      "reward.create",
+      "reward.edit",
+      "reward.delete",
+      "stars.adjust",
+      "reward.redeem",
+      "reward.unredeem",
     ] as const) {
       expect(can(null, op, bootstrap)).toEqual({ allowed: false, reason: "NO_ACTOR" });
     }
@@ -312,6 +359,107 @@ describe("can, with a target (FR-351, FR-389)", () => {
       reason: "FORBIDDEN",
     });
   });
+});
+
+/* ------------------------------------- FR-424: the redemption target (R410) -- */
+
+const PARENT_ONLY_REWARD_OPERATIONS = [
+  "reward.create",
+  "reward.edit",
+  "reward.delete",
+  "stars.adjust",
+] as const;
+
+const REDEEM_OPERATIONS = ["reward.redeem", "reward.unredeem"] as const;
+
+describe("mayRedeemFor (FR-424, SC-407)", () => {
+  const memberCleo = { role: "member" as const, profileId: CLEO };
+  const parentAna = { role: "parent" as const, profileId: ANA };
+
+  // SC-407's four checks: a member for themselves, a member for another
+  // Profile, a parent for another Profile, and nobody at all.
+  it.each([
+    { who: "a member for themselves", actor: memberCleo, target: CLEO, expected: true },
+    { who: "a member for another Profile", actor: memberCleo, target: ANA, expected: false },
+    { who: "a parent for another Profile", actor: parentAna, target: CLEO, expected: true },
+    { who: "nobody punched in", actor: null, target: CLEO, expected: false },
+  ])("$who → $expected", ({ actor, target, expected }) => {
+    expect(mayRedeemFor(actor, target)).toBe(expected);
+  });
+
+  it("lets a parent redeem for themselves too", () => {
+    expect(mayRedeemFor(parentAna, ANA)).toBe(true);
+  });
+
+  it("refuses a member whose identity the caller does not know — a redemption is never anonymous", () => {
+    expect(mayRedeemFor({ role: "member" }, CLEO)).toBe(false);
+  });
+});
+
+describe("can, with a redemption target (FR-424, FR-431, SC-407)", () => {
+  const member = { role: "member" as const, profileId: CLEO };
+  const parent = { role: "parent" as const, profileId: ANA };
+
+  it.each(REDEEM_OPERATIONS)("%s: a member for themselves, refused for anyone else", (op) => {
+    expect(can(member, op, { ...STEADY, redeemFor: CLEO })).toEqual({ allowed: true });
+    expect(can(member, op, { ...STEADY, redeemFor: ANA })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
+  });
+
+  it.each(REDEEM_OPERATIONS)("%s: a parent for anyone", (op) => {
+    expect(can(parent, op, { ...STEADY, redeemFor: CLEO })).toEqual({ allowed: true });
+    expect(can(parent, op, { ...STEADY, redeemFor: ANA })).toEqual({ allowed: true });
+  });
+
+  it.each(REDEEM_OPERATIONS)("%s: nobody without an actor, bootstrap or not", (op) => {
+    expect(can(null, op, { ...STEADY, redeemFor: CLEO })).toEqual({
+      allowed: false,
+      reason: "NO_ACTOR",
+    });
+    expect(can(null, op, { householdHasParent: false, redeemFor: CLEO })).toEqual({
+      allowed: false,
+      reason: "NO_ACTOR",
+    });
+  });
+
+  it("refuses a member who names no Profile, and one whose identity is unknown", () => {
+    expect(can(member, "reward.redeem", STEADY)).toEqual({ allowed: false, reason: "FORBIDDEN" });
+    expect(can({ role: "member" }, "reward.redeem", { ...STEADY, redeemFor: CLEO })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
+  });
+
+  it("does not let an occurrence target stand in for a redemption target", () => {
+    expect(can(member, "reward.redeem", { ...STEADY, target: cleosOwn })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
+  });
+
+  it("does not let a redemption target open an occurrence verb", () => {
+    expect(can(member, "resolve_occurrence", { ...STEADY, redeemFor: CLEO })).toEqual({
+      allowed: false,
+      reason: "FORBIDDEN",
+    });
+  });
+
+  it.each(PARENT_ONLY_REWARD_OPERATIONS)(
+    "%s stays parent-only however the target reads (FR-419, FR-435)",
+    (op) => {
+      expect(can(member, op, { ...STEADY, redeemFor: CLEO })).toEqual({
+        allowed: false,
+        reason: "FORBIDDEN",
+      });
+      expect(can(member, op, { ...STEADY, target: cleosOwn })).toEqual({
+        allowed: false,
+        reason: "FORBIDDEN",
+      });
+      expect(can(parent, op, STEADY)).toEqual({ allowed: true });
+    },
+  );
 });
 
 type Member = Pick<Category, "id" | "isProfile" | "role">;

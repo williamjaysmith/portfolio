@@ -61,6 +61,24 @@
  *     successful drop writes **one** `sort_order` and leaves every other row's
  *     alone.
  *
+ *   - **004 T022 / FR-401 / FR-402 / SC-405 / SC-418**: the star value Phase 3
+ *     reserved (SC-319's refusal) is now the one field `createTask` and
+ *     `updateTask` grew — stored, returned and editable, with 0 and blank both
+ *     NULL, 501 and a numeric string `VALIDATION`, a member refused as before,
+ *     the value carried into a template saved from the create, and an edit of
+ *     the value writing **no** `star_entries` row, asserted by counting them
+ *     around a credit 025's trigger already wrote.
+ *
+ *   - **004 T053 / FR-443 / SC-419**: `deleteCategory`'s second cleanup —
+ *     after the Profile's eligibilities, entries and redemptions cascade, a
+ *     reward left with nobody eligible is deleted with them; one shared with
+ *     another Profile stays on that Profile's column with their own balance
+ *     and their own redemption intact; every other balance in the household,
+ *     and every other household's rewards, are untouched. The shape the store
+ *     refuses today — a Profile who redeemed as themselves, whose `redeemed_by`
+ *     SET NULL trips 026's reversal-only trigger — is pinned with `it.fails`
+ *     until a migration lets the actor columns be nulled.
+ *
  * The Task Box's three verbs are FR-389's fourth parent-only surface and are
  * asserted in `task-box.test.ts` (T071), which owns `lib/family/actions/task-box.ts`.
  *
@@ -174,6 +192,8 @@ interface TaskInputPayload {
   dueTime?: string | null;
   timesOfDay?: TimeOfDay[];
   repeat: TaskRepeatChoice;
+  /** Phase 4's one new field (004 FR-401): 0–500, blank and 0 both meaning no stars. */
+  rewardPoints?: number | null;
   saveToTaskBox?: boolean;
 }
 
@@ -333,8 +353,16 @@ interface StoredTask {
   routine: boolean;
   rrule: string | null;
   starts_on: string | null;
+  reward_points: number | null;
   created_by: string | null;
   updated_by: string | null;
+}
+
+/** One `family.star_entries` row as SC-405's assertions read it. */
+interface StoredEntry {
+  kind: string;
+  amount: number;
+  summary: string | null;
 }
 
 describe("task writes: FR-389's parent-only rule and the shapes the actions refuse (T048)", () => {
@@ -370,8 +398,8 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
 
   async function storedTasks(): Promise<StoredTask[]> {
     const { rows } = await pool.query<StoredTask>(
-      "select id, summary, routine, rrule, starts_on::text as starts_on, created_by, updated_by " +
-        "from family.tasks where household_id = $1 order by created_at",
+      "select id, summary, routine, rrule, starts_on::text as starts_on, reward_points, " +
+        "created_by, updated_by from family.tasks where household_id = $1 order by created_at",
       [householdId],
     );
     return rows;
@@ -387,6 +415,32 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
       [taskId],
     );
     return rows.map((row) => row.category_id);
+  }
+
+  /** A tick as the store records it — 025's trigger writes the credit (004 FR-405). */
+  async function completeByHand(taskId: string, occurrenceDate: string): Promise<void> {
+    await pool.query(
+      "insert into family.task_resolutions (household_id, task_id, occurrence_date, assignee_id, " +
+        "category_id, status, resolved_on, created_by) values ($1, $2, $3, $4, $4, 'complete', $3, $5)",
+      [householdId, taskId, occurrenceDate, cleoId, anaId],
+    );
+  }
+
+  async function starEntriesOf(profileId: string): Promise<StoredEntry[]> {
+    const { rows } = await pool.query<StoredEntry>(
+      "select kind, amount, summary from family.star_entries where category_id = $1 order by created_at",
+      [profileId],
+    );
+    return rows;
+  }
+
+  /** The Rewards tab's number: `family.star_balances`, one derived sum per Profile (004 FR-412). */
+  async function balanceOf(profileId: string): Promise<number> {
+    const { rows } = await pool.query<{ balance: number }>(
+      "select balance from family.star_balances where category_id = $1",
+      [profileId],
+    );
+    return rows[0]?.balance ?? 0;
   }
 
   async function setZone(zone: string): Promise<void> {
@@ -609,13 +663,12 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
       expect((await storedTasks()).map((row) => row.summary)).not.toContain(`Spoofed ${run}`);
     });
 
-    it("the reserved star value is refused too, never stored (FR-329, SC-319)", async () => {
-      const payload = {
-        ...choreInput({ summary: `Starred ${run}` }),
-        rewardPoints: 5,
-      } as unknown as TaskInputPayload;
-      expectFailure(await createTask(payload), "VALIDATION");
-      expect((await storedTasks()).map((row) => row.summary)).not.toContain(`Starred ${run}`);
+    it("the star value Phase 3 reserved is stored and returned (004 FR-401, SC-418)", async () => {
+      // SC-319's refusal, inverted: the same payload Phase 3 refused is now the
+      // one field the form grew, and the value comes back on the task.
+      const task = expectOk(await createTask(choreInput({ summary: `Starred ${run}`, rewardPoints: 5 })));
+      expect(task.rewardPoints).toBe(5);
+      expect(await storedTask(task.id)).toMatchObject({ summary: `Starred ${run}`, reward_points: 5 });
     });
 
     it("an empty title is VALIDATION on `summary` alone, and nothing is stored (US2-4)", async () => {
@@ -671,6 +724,108 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
       expect((await storedTasks()).map((row) => row.summary)).not.toContain(
         `Foreign assignee ${run}`,
       );
+    });
+  });
+
+  describe("the star value: stored, returned, edited, never rewriting history (T022, 004 US1)", () => {
+    beforeEach(async () => {
+      await punchInAs(anaId, ANA_PIN);
+    });
+
+    it("0, blank and absent all store NULL — no stars and no chip (FR-402, SC-418)", async () => {
+      const worthNothing: Partial<TaskInputPayload>[] = [{ rewardPoints: 0 }, { rewardPoints: null }, {}];
+      for (const overrides of worthNothing) {
+        const task = expectOk(
+          await createTask(choreInput({ summary: `Worth nothing ${run}`, ...overrides })),
+        );
+        expect(task.rewardPoints).toBeNull();
+        expect((await storedTask(task.id))?.reward_points).toBeNull();
+      }
+    });
+
+    it("501 and a numeric string are VALIDATION on `rewardPoints`, and nothing is stored (FR-402)", async () => {
+      const before = await storedTasks();
+      expectFieldError(
+        await createTask(choreInput({ summary: `Too many ${run}`, rewardPoints: 501 })),
+        "rewardPoints",
+      );
+      expectFieldError(
+        await createTask({
+          ...choreInput({ summary: `Stringly ${run}` }),
+          rewardPoints: "5",
+        } as unknown as TaskInputPayload),
+        "rewardPoints",
+      );
+      expect(await storedTasks()).toEqual(before);
+    });
+
+    it("a member is refused a starred create exactly as before (FR-389)", async () => {
+      await punchInAs(cleoId, CLEO_PIN);
+      const before = await storedTasks();
+      expectFailure(
+        await createTask(choreInput({ summary: `Member stars ${run}`, rewardPoints: 5 })),
+        "FORBIDDEN",
+      );
+      expect(await storedTasks()).toEqual(before);
+    });
+
+    it("saving to the Task Box carries the value into the template's fourth field (FR-379, FR-401)", async () => {
+      expectOk(
+        await createTask(
+          choreInput({ summary: `Boxed ${run}`, rewardPoints: 5, saveToTaskBox: true }),
+        ),
+      );
+      const { rows } = await pool.query<{ reward_points: number | null }>(
+        "select reward_points from family.task_box_items where household_id = $1 and summary = $2",
+        [householdId, `Boxed ${run}`],
+      );
+      expect(rows).toEqual([{ reward_points: 5 }]);
+    });
+
+    it("updateTask edits the value, clears it at 0, refuses 501, and keeps it when unnamed", async () => {
+      const task = expectOk(
+        await createTask(choreInput({ summary: `Edited ${run}`, rewardPoints: 5 })),
+      );
+
+      // The merge's base is the stored task, so a patch of another field
+      // carries the value through unchanged (contracts step 3).
+      const renamed = expectOk(
+        await updateTask({ id: task.id, patch: { summary: `Renamed ${run}` } }),
+      );
+      expect(renamed.rewardPoints).toBe(5);
+
+      const raised = expectOk(await updateTask({ id: task.id, patch: { rewardPoints: 10 } }));
+      expect(raised.rewardPoints).toBe(10);
+      expect((await storedTask(task.id))?.reward_points).toBe(10);
+
+      const cleared = expectOk(await updateTask({ id: task.id, patch: { rewardPoints: 0 } }));
+      expect(cleared.rewardPoints).toBeNull();
+      expect((await storedTask(task.id))?.reward_points).toBeNull();
+
+      const before = await storedTasks();
+      expectFieldError(
+        await updateTask({ id: task.id, patch: { rewardPoints: 501 } }),
+        "rewardPoints",
+      );
+      expect(await storedTasks()).toEqual(before);
+    });
+
+    it("editing the value writes NO ledger row and leaves the earned credit alone (SC-405, FR-409)", async () => {
+      const task = expectOk(
+        await createTask(choreInput({ summary: `Ledger ${run}`, rewardPoints: 5 })),
+      );
+      await completeByHand(task.id, SERIES_START);
+      const earned = [{ kind: "credit", amount: 5, summary: `Ledger ${run}` }];
+      expect(await starEntriesOf(cleoId)).toEqual(earned);
+      expect(await balanceOf(cleoId)).toBe(5);
+
+      expectOk(await updateTask({ id: task.id, patch: { rewardPoints: 10 } }));
+
+      // History is untouched — the same one row at the same amount, and the
+      // same balance. Only the next completion earns the new value.
+      expect(await starEntriesOf(cleoId)).toEqual(earned);
+      expect(await balanceOf(cleoId)).toBe(5);
+      expect((await storedTask(task.id))?.reward_points).toBe(10);
     });
   });
 
@@ -994,6 +1149,233 @@ describe("task writes: FR-389's parent-only rule and the shapes the actions refu
         foreignTaskId,
       ]);
       expect(rowCount).toBe(1);
+    });
+  });
+
+  /**
+   * 004 T053 / FR-443 / SC-419 — the second cleanup `deleteCategory` grew,
+   * beside FR-391's. Written before the cleanup exists, as the plan requires.
+   *
+   * The store already does most of the work: 024–026 cascade the Profile's
+   * eligibilities, entries and redemptions with their row, asserted at the SQL
+   * level in `rewards-schema.test.ts`. What a cascade cannot know is whether a
+   * reward is now for NOBODY — that is the action's call, by the same reasoning
+   * as a task left with no assignee: deleted, never left as a card in no column.
+   * A reward shared with another Profile is the contrast under test: it stands
+   * on that Profile's column with their own balance and their own redemption
+   * untouched. Every count below is read through `postgres`, so an assertion
+   * cannot be satisfied by a row RLS merely hides.
+   */
+  describe("deleting a Profile forfeits their stars and takes the rewards left for nobody (004 FR-443, SC-419)", () => {
+    /** A Profile of this block's own, so no other test's fixture depends on it. */
+    let danaId: string;
+
+    /** The three tables whose rows name a Profile and cascade with them. */
+    type StarTable = "star_entries" | "redemptions" | "reward_eligibilities";
+
+    interface RewardSeed {
+      name: string;
+      pointValue: number;
+      eligibleIds: string[];
+    }
+
+    /** A reward and its eligibilities, written straight in: the write path is not the subject. */
+    async function insertReward(targetHouseholdId: string, seed: RewardSeed): Promise<string> {
+      const { rows } = await pool.query<{ id: string }>(
+        "insert into family.rewards (household_id, name, point_value) values ($1, $2, $3) returning id",
+        [targetHouseholdId, seed.name, seed.pointValue],
+      );
+      const [row] = rows;
+      if (!row) throw new Error("insert into family.rewards returned no row");
+      for (const categoryId of seed.eligibleIds) {
+        await pool.query(
+          "insert into family.reward_eligibilities (household_id, reward_id, category_id) values ($1, $2, $3)",
+          [targetHouseholdId, row.id, categoryId],
+        );
+      }
+      return row.id;
+    }
+
+    /** A hand adjustment as `postgres`: the balance a redemption below spends from. */
+    async function giveStars(profileId: string, amount: number): Promise<void> {
+      await pool.query(
+        "insert into family.star_entries (household_id, category_id, amount, kind, created_by, entered_on) " +
+          "values ($1, $2, $3, 'adjustment', $4, current_date)",
+        [householdId, profileId, amount, anaId],
+      );
+    }
+
+    /**
+     * A redemption as `postgres` — 026's trigger copies cost and name and
+     * writes the debit. The actor is explicit because it decides whether the
+     * store lets the Profile be deleted at all (see the pinned case below).
+     */
+    async function redeem(rewardId: string, profileId: string, actorId: string): Promise<string> {
+      const { rows } = await pool.query<{ id: string }>(
+        "insert into family.redemptions (household_id, reward_id, category_id, redeemed_by) " +
+          "values ($1, $2, $3, $4) returning id",
+        [householdId, rewardId, profileId, actorId],
+      );
+      const [row] = rows;
+      if (!row) throw new Error("insert into family.redemptions returned no row");
+      return row.id;
+    }
+
+    async function rewardStands(rewardId: string): Promise<boolean> {
+      const { rowCount } = await pool.query("select 1 from family.rewards where id = $1", [rewardId]);
+      return rowCount === 1;
+    }
+
+    async function redemptionStands(redemptionId: string): Promise<boolean> {
+      const { rowCount } = await pool.query("select 1 from family.redemptions where id = $1", [
+        redemptionId,
+      ]);
+      return rowCount === 1;
+    }
+
+    async function eligibleFor(rewardId: string): Promise<string[]> {
+      const { rows } = await pool.query<{ category_id: string }>(
+        "select category_id from family.reward_eligibilities where reward_id = $1 order by created_at",
+        [rewardId],
+      );
+      return rows.map((row) => row.category_id);
+    }
+
+    /** How many rows of one star-facing table still name the Profile. */
+    async function rowsNaming(table: StarTable, profileId: string): Promise<number> {
+      const { rows } = await pool.query<{ n: number }>(
+        `select count(*)::int as n from family.${table} where category_id = $1`,
+        [profileId],
+      );
+      return rows[0]?.n ?? 0;
+    }
+
+    /** The view's row itself, so "no row" (a deleted Profile) reads differently from 0. */
+    async function balanceRowOf(profileId: string): Promise<number | undefined> {
+      const { rows } = await pool.query<{ balance: number }>(
+        "select balance from family.star_balances where category_id = $1",
+        [profileId],
+      );
+      return rows[0]?.balance;
+    }
+
+    beforeEach(async () => {
+      danaId = await insertCategory(pool, {
+        householdId,
+        label: `Dana ${run}`,
+        color: "#FBA994",
+      });
+      await punchInAs(anaId, ANA_PIN);
+    });
+
+    it("deletes the rewards Dana alone could spend on, and keeps the one she shared — on Cleo's column, with Cleo's own progress (SC-419)", async () => {
+      const cleoBefore = await balanceOf(cleoId);
+      await giveStars(cleoId, 30);
+      await giveStars(danaId, 45);
+      const hers = await insertReward(householdId, {
+        name: `Hers ${run}`,
+        pointValue: 10,
+        eligibleIds: [danaId],
+      });
+      const shared = await insertReward(householdId, {
+        name: `Shared ${run}`,
+        pointValue: 20,
+        eligibleIds: [danaId, cleoId],
+      });
+
+      expectOk(await deleteCategory(danaId, { confirm: true }));
+
+      // The reward for nobody is gone; the shared one stands, for Cleo alone,
+      // and her progress towards it — her balance against its cost — is hers.
+      expect(await rewardStands(hers)).toBe(false);
+      expect(await rewardStands(shared)).toBe(true);
+      expect(await eligibleFor(shared)).toEqual([cleoId]);
+      expect(await balanceOf(cleoId)).toBe(cleoBefore + 30);
+    });
+
+    it("takes Dana's entries and redemptions with her, by cascade, and leaves Cleo's redemption of the same reward standing", async () => {
+      const cleoBefore = await balanceOf(cleoId);
+      await giveStars(danaId, 50);
+      await giveStars(cleoId, 30);
+      const treat = await insertReward(householdId, {
+        name: `Treat ${run}`,
+        pointValue: 20,
+        eligibleIds: [danaId, cleoId],
+      });
+      // Ana redeemed it FOR Dana: the one shape 026 lets a deleted Profile's
+      // redemption take today (the pinned case below is the other).
+      await redeem(treat, danaId, anaId);
+      const cleosRedemption = await redeem(treat, cleoId, cleoId);
+      // The adjustment and the debit, one redemption, a balance of 30: what
+      // the cascade must take, counted so the zeros below mean something.
+      expect(await rowsNaming("star_entries", danaId)).toBe(2);
+      expect(await rowsNaming("redemptions", danaId)).toBe(1);
+      expect(await balanceRowOf(danaId)).toBe(30);
+
+      expectOk(await deleteCategory(danaId, { confirm: true }));
+
+      expect(await rowsNaming("star_entries", danaId)).toBe(0);
+      expect(await rowsNaming("redemptions", danaId)).toBe(0);
+      expect(await rowsNaming("reward_eligibilities", danaId)).toBe(0);
+      expect(await balanceRowOf(danaId)).toBeUndefined();
+      // Cleo's history of the shared reward is hers, not Dana's: the reward,
+      // her redemption of it and the stars it cost all stand.
+      expect(await rewardStands(treat)).toBe(true);
+      expect(await redemptionStands(cleosRedemption)).toBe(true);
+      expect(await balanceOf(cleoId)).toBe(cleoBefore + 30 - 20);
+    });
+
+    it("leaves every other balance in the household, and every other household's rewards, alone", async () => {
+      const beaBefore = await balanceOf(beaId);
+      const cleoBefore = await balanceOf(cleoId);
+      await giveStars(beaId, 12);
+      await giveStars(danaId, 7);
+      const hers = await insertReward(householdId, {
+        name: `Hers too ${run}`,
+        pointValue: 5,
+        eligibleIds: [danaId],
+      });
+      // A reward eligible for nobody in ANOTHER household: exactly what a
+      // cleanup that forgot its household filter would sweep up.
+      const foreign = await insertReward(otherHouseholdId, {
+        name: `Foreign ${run}`,
+        pointValue: 5,
+        eligibleIds: [],
+      });
+
+      expectOk(await deleteCategory(danaId, { confirm: true }));
+
+      expect(await rewardStands(hers)).toBe(false);
+      expect(await rewardStands(foreign)).toBe(true);
+      expect(await balanceOf(beaId)).toBe(beaBefore + 12);
+      expect(await balanceOf(cleoId)).toBe(cleoBefore);
+    });
+
+    /**
+     * The shape the store refuses today, pinned so the fix cannot land quietly.
+     * `redemptions.redeemed_by` is `on delete set null` (026); that SET NULL is
+     * an UPDATE, and `record_redemption()` refuses every UPDATE that is not a
+     * reversal with 23514 ("a redemption can only be reversed"). So deleting a
+     * Profile who ever tapped Redeem — for themselves, as here, or for somebody
+     * else — fails at the store before any cleanup runs, where FR-443 promises
+     * the opposite. `it.fails` inverts the verdict: the day a migration lets the
+     * actor columns be nulled, this case reports "expected to fail" and is
+     * flipped to `it`. Last in the block because the refused delete leaves this
+     * Dana standing.
+     */
+    it("a Profile who redeemed for themselves can be deleted, and their redemption goes with them (FR-443 — refused by 026 today)", async () => {
+      await giveStars(danaId, 50);
+      const treat = await insertReward(householdId, {
+        name: `Own treat ${run}`,
+        pointValue: 20,
+        eligibleIds: [danaId],
+      });
+      await redeem(treat, danaId, danaId);
+
+      expectOk(await deleteCategory(danaId, { confirm: true }));
+
+      expect(await rowsNaming("redemptions", danaId)).toBe(0);
+      expect(await rewardStands(treat)).toBe(false);
     });
   });
 

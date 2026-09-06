@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import type { Category, RenewUnit, TimeOfDay, Weekday } from "@/lib/family/types";
 import { WEEKDAYS } from "@/lib/family/types";
 
@@ -18,7 +20,8 @@ import type { TaskInput } from "@/lib/family/validation";
 /**
  * Create or edit a task (T053) — FR-330's fields in FR-330's order: title,
  * emoji, description, assignment, task type, the type's own scheduling fields,
- * Up for Grabs (chores only), Track Habit (routines only), "Save to task box".
+ * Up for Grabs (chores only), Track Habit (routines only), "Save to task box" —
+ * and after them all, Phase 4's one addition, the Stars field (004 FR-401).
  *
  * **The type toggle swaps the schedule, not the record.** A chore offers a due
  * date and a due time, plus one of two mutually exclusive repeats — Scheduled
@@ -31,8 +34,10 @@ import type { TaskInput } from "@/lib/family/validation";
  * *Show on Tasks tab* switch is off, because such a Profile has no column on
  * any device (FR-313, FR-323, US2-6). A Label is never offered.
  *
- * Deliberately absent: any star value, on either type and on any surface
- * (FR-329, SC-319).
+ * **The Stars field is one field, on both types** (004 FR-401, SC-401): a whole
+ * number 0–500 where blank and 0 alike mean no stars, with the reference's
+ * guidance beside it (FR-402). It is `StarsField` below, and the Task Box's
+ * template form mounts the same component for its fourth field.
  *
  * The commit is the caller's: `TasksBoard` passes an `onSubmit` that wraps the
  * real action in `withActor(...)`, so punch-in happens at the moment of the
@@ -81,6 +86,10 @@ const CHIP =
 const LEGEND = "text-(length:--fam-fs-small) text-(--fam-text-muted)";
 const NOTE = "text-(length:--fam-fs-small) text-(--fam-text-secondary)";
 
+/** 004 FR-402's guidance — the reference's own range, put beside the field. */
+const STARS_GUIDANCE =
+  "Blank or 0 means no stars. A handful for a daily routine, up to a hundred for a big chore.";
+
 function unitOf(value: string): RenewUnit {
   if (value === "week" || value === "month") return value;
   return "day";
@@ -112,6 +121,46 @@ function Switch({
       />
       {label}
     </label>
+  );
+}
+
+/**
+ * 004 FR-401/FR-402: the star value, as text in and text out — the draft holds
+ * what was typed and its translator (`starsOf`) sends a number or nothing. The
+ * browser's own range check runs first on a real device; the schema's refusal,
+ * when it comes, lands in this block's own slot.
+ */
+export function StarsField({
+  value,
+  onChange,
+  errors,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  /** The field's refusal, where the surface anchors refusals per field. */
+  errors?: string[];
+}) {
+  const helpId = useId();
+  return (
+    <div className="flex flex-col gap-1">
+      <label className={LABEL}>
+        Stars
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={500}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          aria-describedby={helpId}
+          className={FIELD}
+        />
+      </label>
+      <p id={helpId} className={NOTE}>
+        {STARS_GUIDANCE}
+      </p>
+      <FieldError messages={errors} />
+    </div>
   );
 }
 
@@ -560,6 +609,13 @@ export function TaskForm({ mode, seed, onSubmit, onClose, onOpenTaskBox }: TaskF
             onChange={(value) => form.set("saveToTaskBox", value)}
           />
         ) : null}
+
+        {/* 004 FR-401: after the fields Phase 3 shipped, on both types. */}
+        <StarsField
+          value={form.draft.rewardPoints}
+          onChange={(value) => form.set("rewardPoints", value)}
+          errors={form.errors.rewardPoints}
+        />
 
         <p
           role="alert"

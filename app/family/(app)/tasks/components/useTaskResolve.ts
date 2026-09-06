@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 
 import {
   completeTaskOccurrence,
@@ -10,19 +10,18 @@ import {
 import type { ActionResult } from "@/lib/family/errors";
 import type { BoardOccurrence, OccurrenceKey, OccurrenceState } from "@/lib/family/types";
 
-import { useFamily } from "../../components/FamilyProvider";
+import { useSerialisedWrites } from "../../components/useSerialisedWrites";
 import { occurrenceKeyOf } from "./TaskCard";
 
 /**
  * T044 / R323: the board's **one** commit path, and the only place a task
  * resolution is ever written from.
  *
- * Every verb goes `withActor(() => action(payload))` through Phase 1's shipped
- * interceptor, unchanged: it produces the punch-in **at the moment of the tap**
- * when nobody is punched in (FR-350, US1-3), retries once on a lapsed cookie,
- * extends the idle expiry on success and invalidates `familyKeys.all`, which
- * is how all four board reads refresh. This hook adds no plumbing of its own —
- * that was the point of the interceptor.
+ * The queue itself — `withActor` at the tap, busy from the tap until the write
+ * settles, a second card waiting its turn, a second tap on the same card
+ * ignored, `NO_ACTOR` silent — is `useSerialisedWrites`, shared with the
+ * Rewards tab's `useRedeem` (004 T048). This file is the five verbs on top of
+ * it, and one count the board reads at the tap.
  *
  * **Pessimistic, with no optimistic cache write anywhere** (FR-393): the tapped
  * circle shows a busy state for one sub-second round trip and then paints from
@@ -31,6 +30,16 @@ import { occurrenceKeyOf } from "./TaskCard";
  * Completed Date chain's next occurrence and the streak counter — both move
  * server-side on the same write. There is deliberately no `setQueryData` here
  * and no reference to the query client at all.
+ *
+ * **`inFlightCompletions` is FR-439's `inFlightLocal`** (004 T048, SC-414):
+ * how many of THIS device's completions for one Profile are still queued or
+ * writing, counted from the moment the tap is accepted. The board judges
+ * "does this completion finish the list?" at the tap, from the counters as
+ * they stand (R408), and two quick taps on the last two outstanding cards
+ * must fire once, on the second — the first is not yet in the counters, so it
+ * is counted here instead. Only a completion shortens a list: a skip, an undo
+ * and a claim (which joins a column's total and its count together) are never
+ * counted.
  *
  * **The payload asserts nothing about identity** (FR-387): the acting Profile
  * comes from the signed punch-in cookie server-side. What travels is FR-353's
@@ -79,6 +88,11 @@ export interface TaskResolveState {
   notice: string | null;
   clearNotice: () => void;
   resolve: (intent: TaskResolveIntent) => Promise<ResolveOutcome>;
+  /**
+   * FR-439's `inFlightLocal` (004 T048): this device's own completions for
+   * `profileId` still queued or writing, read synchronously at the tap.
+   */
+  inFlightCompletions: (profileId: string) => number;
 }
 
 /**
@@ -134,55 +148,45 @@ function withoutData(result: ActionResult<unknown>): ActionResult<null> {
 }
 
 /**
- * What a refusal says on the board. `NO_ACTOR` is the one silence: it means the
- * punch-in sheet was dismissed, which is a decision rather than a failure, and
- * FR-350's promise is that the card is simply left as it was.
+ * The Profile whose list this write shortens, or nobody. Only a plain
+ * completion of an assigned occurrence does: an undo lengthens the list, a
+ * skip leaves its total (FR-360), and a claim joins a column's total and its
+ * count in the same write (FR-367), which is why `listCompletesWith` refuses
+ * it too.
  */
-function noticeOf(result: ActionResult<null>): string | null {
-  if (result.ok) return null;
-  return result.error === "NO_ACTOR" ? null : result.message;
+function completesFor(intent: TaskResolveIntent): string | null {
+  return intent.verb === "complete" ? intent.occurrence.assigneeId : null;
 }
 
-const NO_KEYS: ReadonlySet<string> = new Set();
-
 export function useTaskResolve(): TaskResolveState {
-  const { withActor } = useFamily();
-  const [busyKeys, setBusyKeys] = useState<ReadonlySet<string>>(NO_KEYS);
-  const [notice, setNotice] = useState<string | null>(null);
-  // Refs, not `busyKeys`: two taps landing in one tick would both read the
-  // same rendered state. `waiting` is every card with a write queued or in
-  // flight; `chain` is the queue itself.
-  const waiting = useRef(new Set<string>());
-  const chain = useRef<Promise<unknown>>(Promise.resolve());
+  const { busyKeys, notice, clearNotice, commit } = useSerialisedWrites();
+  // Every accepted completion's key → the Profile it is for, from the tap
+  // until its write settles. A ref, not state: it is read at the NEXT tap,
+  // which may land in the same tick.
+  const completing = useRef(new Map<string, string>());
 
-  const clearNotice = useCallback(() => setNotice(null), []);
+  const inFlightCompletions = useCallback((profileId: string): number => {
+    let count = 0;
+    for (const one of completing.current.values()) if (one === profileId) count += 1;
+    return count;
+  }, []);
 
-  // Writes are serialised, never dropped. One person ticking off several
-  // children's chores in a row is the wall tablet's ordinary evening: a tap on
-  // a SECOND card while the first is writing waits its turn — one punch-in
-  // sheet at a time, and the actor the first tap earned serves the second —
-  // and shows busy while it waits. A second tap on the SAME card while it is
-  // waiting or writing is the same tap twice, and is ignored.
   const resolve = useCallback(
     async (intent: TaskResolveIntent): Promise<ResolveOutcome> => {
       const key = occurrenceKeyOf(intent.occurrence);
-      if (waiting.current.has(key)) return null;
-      waiting.current.add(key);
-      setBusyKeys(new Set(waiting.current));
-      const turn = chain.current.then(() => withActor(() => WRITES[intent.verb](intent)));
-      // The queue moves on whatever this write's fate; the caller still sees it.
-      chain.current = turn.catch(() => undefined);
+      const turn = commit(key, () => WRITES[intent.verb](intent));
+      // The same tap twice: nothing was queued, so there is nothing to count.
+      if (turn === null) return null;
+      const profileId = completesFor(intent);
+      if (profileId !== null) completing.current.set(key, profileId);
       try {
-        const result = withoutData(await turn);
-        setNotice(noticeOf(result));
-        return result;
+        return withoutData(await turn);
       } finally {
-        waiting.current.delete(key);
-        setBusyKeys(waiting.current.size === 0 ? NO_KEYS : new Set(waiting.current));
+        completing.current.delete(key);
       }
     },
-    [withActor],
+    [commit],
   );
 
-  return { busyKeys, notice, clearNotice, resolve };
+  return { busyKeys, notice, clearNotice, resolve, inFlightCompletions };
 }

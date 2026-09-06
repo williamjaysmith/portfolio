@@ -9,7 +9,7 @@ import type { BoardOccurrence, Category } from "@/lib/family/types";
 
 import { ColumnHeader } from "./ColumnHeader";
 import { ColumnBody } from "./SectionGroup";
-import { useRoutineReorder, type RoutineMove } from "./useColumnReorder";
+import { useRoutineReorder, type ListReorder, type RoutineMove } from "./useColumnReorder";
 import type { TaskSectionKey, SectionToggles } from "./useSectionToggles";
 
 /**
@@ -26,6 +26,11 @@ import type { TaskSectionKey, SectionToggles } from "./useSectionToggles";
  * A Profile with nothing to do still gets a column, a header and a zero-of-
  * zero count (FR-316): a person who has finished must not disappear from the
  * board, and neither must one who was never given anything.
+ *
+ * FR-407's star pill (004 T027) arrives as a NUMBER, `starsToday`, and not as
+ * the week's entries: the board's counters memo has already summed the
+ * displayed day per Profile above the filter layer (R317, R402), and a column
+ * handed no ledger cannot sum the wrong day, the wrong Profile or the balance.
  *
  * The column fills the track the board gives it rather than the width of
  * `--fam-task-col-w`: that token is what the FIT divides by (`boardLayoutOf`),
@@ -47,6 +52,8 @@ export interface ProfileColumnProps {
   allOccurrences: readonly BoardOccurrence[];
   /** What this column draws: this Profile's visible occurrences, already split out. */
   occurrences: readonly BoardOccurrence[];
+  /** FR-407: the stars this Profile EARNED on the displayed day — `counters.starsToday(id)`, computed above. */
+  starsToday: number;
   toggles: SectionToggles;
   onToggleSection: (section: TaskSectionKey) => void;
   /** Signed URL for a photo avatar. */
@@ -66,10 +73,37 @@ export interface ProfileColumnProps {
   onResolve: (occurrence: BoardOccurrence) => void;
 }
 
+/**
+ * FR-310's per-column routine carry, as one lookup the body renders with.
+ *
+ * The three lists are split by the SAME pure `sectionsOf` the body renders
+ * from, so a routine is carried within exactly the section it is drawn in —
+ * and Chores is never handed a binding at all (FR-311). Without a handler, or
+ * without the right to (FR-389), nothing is draggable.
+ */
+function useColumnRoutines(
+  occurrences: readonly BoardOccurrence[],
+  profileId: string,
+  canReorder: boolean,
+  onMoveRoutine: ((profileId: string, move: RoutineMove) => void) | undefined,
+): (section: TaskSectionKey) => ListReorder | null {
+  const sections = useMemo(() => sectionsOf(occurrences), [occurrences]);
+  const onMove = useCallback(
+    (move: RoutineMove) => onMoveRoutine?.(profileId, move),
+    [onMoveRoutine, profileId],
+  );
+  const routines = useRoutineReorder(sections, canReorder && onMoveRoutine !== undefined, onMove);
+  return useCallback(
+    (section: TaskSectionKey) => (section === "chores" ? null : routines[section]),
+    [routines],
+  );
+}
+
 export function ProfileColumn({
   category,
   allOccurrences,
   occurrences,
+  starsToday,
   toggles,
   onToggleSection,
   photoUrl,
@@ -85,23 +119,7 @@ export function ProfileColumn({
     [allOccurrences, category.id],
   );
 
-  // FR-310's three lists. The split is the SAME pure `sectionsOf` the body
-  // renders from, so a routine is carried within exactly the section it is
-  // drawn in — and Chores is never handed a binding at all (FR-311).
-  const sections = useMemo(() => sectionsOf(occurrences), [occurrences]);
-  const onMove = useCallback(
-    (move: RoutineMove) => onMoveRoutine?.(category.id, move),
-    [onMoveRoutine, category.id],
-  );
-  const routines = useRoutineReorder(
-    sections,
-    canReorderRoutines && onMoveRoutine !== undefined,
-    onMove,
-  );
-  const reorderFor = useCallback(
-    (section: TaskSectionKey) => (section === "chores" ? null : routines[section]),
-    [routines],
-  );
+  const reorderFor = useColumnRoutines(occurrences, category.id, canReorderRoutines, onMoveRoutine);
 
   // FR-312 from the same unfiltered list as the column's own count, so a
   // routine's indicator and the ring above it can never disagree.
@@ -125,6 +143,7 @@ export function ProfileColumn({
       <ColumnHeader
         category={category}
         counters={counters}
+        starsToday={starsToday}
         toggles={toggles}
         onToggleSection={onToggleSection}
         photoUrl={photoUrl}
