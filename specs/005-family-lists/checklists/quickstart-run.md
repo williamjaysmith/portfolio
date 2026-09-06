@@ -72,3 +72,9 @@ checks via `supabase db query --linked`: `lists` / `list_items` grants — `auth
 `service_role` ALL, **no `anon` row**; `seed_default_lists` executable by `service_role` only; both
 tables in `supabase_realtime` with replica identity `d`. `npm run family:seed -- --yes` → "2 default
 lists (seeded)": Grocery List (`grocery`, `#B6E085`, 1000) and To-Do List (`to_do`, `#A8D4D3`, 2000).
+
+**Deployed**: main fast-forwarded to `57a87cc` and pushed; Vercel's status for the commit settled
+green. Live check (a server-side sign-in with the household account, then `GET /family/lists` with
+that session): `200`, title "Lists · Family", the HTML carries **Grocery List** and **To-Do List**,
+no "Coming soon". The two-device realtime check (SC-502/503/514) and the rest of the device pass
+(SC-504, SC-508, SC-510 on hardware, SC-512) are T055, the operator's.
