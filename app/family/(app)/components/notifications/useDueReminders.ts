@@ -21,8 +21,16 @@ import { expandTaskDay } from "@/lib/family/tasks/expand";
 import { weekStartOf } from "@/lib/family/calendar/dates";
 
 import { useNow } from "../Clock";
+import { useAfterLoad } from "./useAfterLoad";
 import { createDeviceKeySet } from "../useDeviceKeySet";
 import { useFamily } from "../FamilyProvider";
+import type {
+  Category,
+  Event,
+  HouseholdSettings,
+  Task,
+  TaskResolution,
+} from "@/lib/family/types";
 
 /**
  * What this screen should be showing right now (008 FR-814–FR-817).
@@ -62,18 +70,66 @@ export interface DueRemindersState {
   dismiss: () => void;
 }
 
+/** Everything the three sources need, gathered once so the hook stays readable. */
+interface Ingredients {
+  nowMs: number;
+  today: string;
+  settings: HouseholdSettings;
+  events: readonly Event[];
+  tasks: readonly Task[];
+  resolutions: readonly TaskResolution[];
+  categories: readonly Category[];
+  actorId: string | null;
+}
+
+/**
+ * The three sources, combined. Pure, and outside the hook on purpose: this is
+ * the part with the branches, and keeping it here means the hook itself reads
+ * as the list of things it subscribes to.
+ */
+function gather(input: Ingredients): DueReminder[] {
+  const { settings, nowMs, today } = input;
+  const notifications = notificationSettingsOf(settings);
+  const nameOf = (id: string | null) =>
+    input.categories.find((category) => category.id === id)?.label ?? null;
+
+  const bounds = reminderHorizonOf(settings.timezone, nowMs);
+  const days = diffDays(bounds.startDate, bounds.endDate) + 1;
+  const window = viewWindowOf(bounds.startDate, days, settings.timezone);
+  const occurrences = expandWindow(input.events, window, settings.timezone);
+
+  const board = expandTaskDay(input.tasks, input.resolutions, [], {
+    displayedDate: today,
+    todayDate: today,
+    zone: settings.timezone,
+  });
+
+  return [
+    ...eventReminders(occurrences, input.events, notifications, settings.timezone),
+    ...taskReminders(board, notifications, nameOf),
+    ...completionNotices(input.resolutions, summaryOf(input.tasks), notifications, {
+      nameOf,
+      actorId: input.actorId,
+    }),
+  ];
+}
+
+const NOTHING: DueRemindersState = { reminders: [], key: "", dismiss: () => {} };
+
 export function useDueReminders(): DueRemindersState {
   const { household, settings, categories, actor } = useFamily();
   const now = useNow();
-  const nowMs = now?.getTime() ?? null;
+  // The banner's own read waits for `load`. It reads the whole reminder horizon
+  // from the app shell, so without this it competes with hydration on every
+  // route — and a banner about something ten minutes away is never worth that.
+  const loaded = useAfterLoad();
+  const nowMs = !loaded || now === null ? null : now.getTime();
+  const today = nowMs === null ? null : localDateOf(settings.timezone, nowMs);
 
-  // The server renders no clock (`useNow` returns null until hydration), so
-  // there is nothing to compute and nothing to draw until the browser has it.
   const horizon = useReminderHorizon(household.id, settings.timezone, nowMs);
   // The board's task reads, reused rather than duplicated: both are already
   // household-wide and keyed by household alone (Phase 3 R314), so the banner
   // shares the cache entry the Tasks tab fills and adds no read of its own.
-  const today = nowMs === null ? null : localDateOf(settings.timezone, nowMs);
   const tasks = useTasks(household.id);
   const resolutions = useTaskResolutions(
     household.id,
@@ -81,42 +137,19 @@ export function useDueReminders(): DueRemindersState {
   );
   const { keys } = shown.useKeys();
 
-  if (nowMs === null || horizon.data === undefined) {
-    return { reminders: [], key: "", dismiss: () => {} };
-  }
+  // Nothing to draw until the browser has a clock and the horizon has answered.
+  if (nowMs === null || today === null || horizon.data === undefined) return NOTHING;
 
-  const bounds = reminderHorizonOf(settings.timezone, nowMs);
-  const days = diffDays(bounds.startDate, bounds.endDate) + 1;
-  const window = viewWindowOf(bounds.startDate, days, settings.timezone);
-  const occurrences = expandWindow(horizon.data, window, settings.timezone);
-  const events = eventReminders(
-    occurrences,
-    horizon.data,
-    notificationSettingsOf(settings),
-    settings.timezone,
-  );
-
-  const notifications = notificationSettingsOf(settings);
-  const nameOf = (id: string | null) =>
-    categories.find((category) => category.id === id)?.label ?? null;
-
-  const board =
-    tasks.data === undefined || today === null
-      ? []
-      : expandTaskDay(tasks.data, resolutions.data ?? [], [], {
-          displayedDate: today,
-          todayDate: today,
-          zone: settings.timezone,
-        });
-
-  const all = [
-    ...events,
-    ...taskReminders(board, notifications, nameOf),
-    ...completionNotices(resolutions.data ?? [], summaryOf(tasks.data), notifications, {
-      nameOf,
-      actorId: actor?.profileId ?? null,
-    }),
-  ];
+  const all = gather({
+    nowMs,
+    today,
+    settings,
+    events: horizon.data,
+    tasks: tasks.data ?? [],
+    resolutions: resolutions.data ?? [],
+    categories,
+    actorId: actor?.profileId ?? null,
+  });
 
   const reminders = remindersDueNow(all, nowMs).filter(
     (reminder) => !keys.has(reminderKeyOf(reminder.identity)),
@@ -132,8 +165,8 @@ export function useDueReminders(): DueRemindersState {
 }
 
 /** A task's summary by id — what a completion notice needs and a resolution lacks. */
-function summaryOf(tasks: readonly { id: string; summary: string }[] | undefined) {
-  return (taskId: string) => tasks?.find((task) => task.id === taskId)?.summary ?? null;
+function summaryOf(tasks: readonly Task[]) {
+  return (taskId: string) => tasks.find((task) => task.id === taskId)?.summary ?? null;
 }
 
 /** Test seam. */
