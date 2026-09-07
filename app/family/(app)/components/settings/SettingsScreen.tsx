@@ -5,6 +5,7 @@ import { signOut } from "@/lib/family/actions/auth";
 import { useFamily } from "../FamilyProvider";
 import { CategorySection } from "./CategorySection";
 import { HouseholdSection } from "./HouseholdSection";
+import { NotificationsSection } from "./NotificationsSection";
 
 /**
  * Settings (FR-043).
@@ -19,6 +20,7 @@ export function SettingsScreen() {
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-10 p-(--fam-edge-inset) pb-24">
       <HouseholdSection />
+      <NotificationsSection />
       <CategorySection kind="profile" />
       <CategorySection kind="label" />
 

@@ -129,29 +129,29 @@ engine is correct before anything renders it.
 where a reminder will actually appear.
 **Independent test**: change each setting, reload, see it kept; punch in as Cleo and find it read-only.
 
-- [ ] T017 [US1] Extend `SETTINGS_FIELDS` in `lib/family/actions/settings.ts` with the five
+- [x] T017 [US1] Extend `SETTINGS_FIELDS` in `lib/family/actions/settings.ts` with the five
   field→column entries (contracts §updateHouseholdSettings)
 - [x] T018 [P] [US1] Test `lib/family/__tests__/policies/notifications-schema.test.ts` — `034` and
   `035` pinned at the store: FR-807's defaults from the schema and not a seed, the `1…10080` bound,
   the three modes and no fourth, a `custom` carrying neither half refused, and the same on
   `event_exceptions` where null means inherit
-- [ ] T019 [P] [US1] Extend that file with SC-815's access half — an anonymous reader of the five
+- [x] T019 [P] [US1] Extend that file with SC-815's access half — an anonymous reader of the five
   settings columns and the six reminder columns gets a refusal, not an empty result. Data-model §The
   privilege delta is explicit that there is no new policy to write, so this proves the inherited one
   actually covers the new columns
-- [ ] T020 [P] [US1] Test
+- [x] T020 [P] [US1] Test
   `app/family/(app)/components/settings/__tests__/NotificationsSection.test.tsx` — the four labelled
   controls, the defaults, a member seeing them disabled with a reason, and the line telling the
   household that reminders appear on the screens that are open (spec Assumption 15)
-- [ ] T021 [US1] Build `app/family/(app)/components/settings/NotificationsSection.tsx` — two groups,
+- [x] T021 [US1] Build `app/family/(app)/components/settings/NotificationsSection.tsx` — two groups,
   four controls, the shipped switch component, `requireParent` reflected in the UI, and that one plain
   sentence about where reminders appear. It is a product statement, not a footnote: a household that
   is not told will assume its phones buzz (FR-802–FR-805)
-- [ ] T022 [P] [US1] Test `app/family/(app)/components/settings/__tests__/LeadTimeField.test.tsx` — the
+- [x] T022 [P] [US1] Test `app/family/(app)/components/settings/__tests__/LeadTimeField.test.tsx` — the
   three presets, custom with each unit, and `8 days` refused with a field error (FR-806)
-- [ ] T023 [US1] Build `app/family/(app)/components/settings/LeadTimeField.tsx`, storing minutes
+- [x] T023 [US1] Build `app/family/(app)/components/settings/LeadTimeField.tsx`, storing minutes
   whatever unit is shown (R810)
-- [ ] T024 [US1] Mount the section in `app/family/(app)/components/settings/SettingsScreen.tsx`
+- [x] T024 [US1] Mount the section in `app/family/(app)/components/settings/SettingsScreen.tsx`
 
 **Checkpoint**: US1 works alone and is shippable.
 

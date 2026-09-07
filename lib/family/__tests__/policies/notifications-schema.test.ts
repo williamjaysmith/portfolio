@@ -26,7 +26,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Pool } from "pg";
 
-import { createPool, deleteHousehold, insertCategory, insertHousehold } from "./helpers";
+import { anonClient, createPool, deleteHousehold, insertCategory, insertHousehold } from "./helpers";
 
 /** A refusal's SQLSTATE and the constraint that produced it. */
 async function refusal(pool: Pool, sql: string, params: unknown[] = []): Promise<{
@@ -249,6 +249,47 @@ describe("008 notifications schema", () => {
       );
       expect(nullWithPayload.code).toBe(CHECK_VIOLATION);
       expect(nullWithPayload.constraint).toBe("event_exceptions_reminder_payload");
+    });
+  });
+
+  describe("SC-815 — the new columns inherit the shipped policy", () => {
+    /**
+     * Data-model §The privilege delta says there is no new policy to write: the
+     * five settings columns and the six reminder columns sit on tables that
+     * already carry `is_member()` SELECT and service-role ALL. That is a claim
+     * worth proving rather than asserting, because "we added columns to a table
+     * that was already protected" is exactly the reasoning that leaks a column
+     * one day.
+     *
+     * An anonymous reader must get a REFUSAL (42501), never an empty result —
+     * an empty result would mean the row was found and filtered, which tells a
+     * stranger the household exists.
+     */
+    it("refuses an anonymous reader the household's reminder settings", async () => {
+      const anon = anonClient();
+      const result = await anon
+        .schema("family")
+        .from("household_settings")
+        .select(
+          "notify_event_at_time, notify_event_before, notify_event_before_minutes, " +
+            "notify_task_due, notify_task_completed",
+        );
+
+      expect(result.error?.code).toBe("42501");
+      expect(result.data).toBeNull();
+    });
+
+    it("refuses an anonymous reader an event's own reminder", async () => {
+      const anon = anonClient();
+      for (const table of ["events", "event_exceptions"]) {
+        const result = await anon
+          .schema("family")
+          .from(table)
+          .select("reminder_mode, reminder_at_time, reminder_before_minutes");
+
+        expect(result.error?.code, table).toBe("42501");
+        expect(result.data, table).toBeNull();
+      }
     });
   });
 });
