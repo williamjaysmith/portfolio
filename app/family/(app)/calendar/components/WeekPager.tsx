@@ -78,7 +78,16 @@ export function WeekPager({ onPage, children }: WeekPagerProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-x-clip">
       <motion.div
-        style={{ x }}
+        // `pan-y` and not the default: framer's pan handlers listen for pointer
+        // events, and on iOS Safari a horizontal drag on an element with no
+        // declared touch-action is claimed by the browser for its own scroll
+        // and overscroll gestures, so `onPan` never fires. Vertical stays with
+        // the browser, which is what the axis lock wants anyway.
+        //
+        // The household found this the hard way: on an iPhone the Lists tab
+        // showed one card with no way to reach the others at all, because that
+        // board pages by swipe alone and has no arrows to fall back on.
+        style={{ x, touchAction: "pan-y" }}
         className="flex min-h-0 flex-1 flex-col"
         onPanSessionStart={handlers.onPanSessionStart}
         onPan={handlers.onPan}

@@ -89,3 +89,33 @@ export async function columnOrder(page: Page, label = "Profile columns"): Promis
   }
   return seen;
 }
+
+/**
+ * Page a board with a FINGER rather than the arrow keys.
+ *
+ * `showColumn` presses ArrowRight, which proves the pager exists and that its
+ * keyboard equivalent works — and would have gone on passing while a real
+ * iPhone could not page at all. The household reported exactly that on the
+ * Lists tab, which has no arrows to fall back on: the swipe was being eaten by
+ * iOS Safari because the panning element declared no `touch-action`.
+ *
+ * A pan, not a flick: press, move past the 10px axis lock in several steps so
+ * framer sees a gesture rather than a teleport, hold past the 48px commit, then
+ * release.
+ */
+export async function swipeBoard(page: Page, direction: -1 | 1, label = "Profile columns"): Promise<void> {
+  const box = await strip(page, label).boundingBox();
+  if (box === null) throw new Error(`the ${label} strip has no box to swipe`);
+
+  const y = box.y + box.height / 2;
+  const from = box.x + box.width / 2;
+  // Swiping LEFT (a negative delta) moves the board forward, as a finger does.
+  const to = from - direction * Math.min(200, box.width / 3);
+
+  await page.mouse.move(from, y);
+  await page.mouse.down();
+  for (let step = 1; step <= 8; step += 1) {
+    await page.mouse.move(from + ((to - from) * step) / 8, y);
+  }
+  await page.mouse.up();
+}

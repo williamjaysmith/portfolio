@@ -1,4 +1,4 @@
-import { showColumn } from "../helpers/board";
+import { showColumn, strip, swipeBoard } from "../helpers/board";
 import { expect, test } from "../fixtures";
 
 /**
@@ -69,6 +69,63 @@ test.describe("the Lists tab", () => {
     await expect(list(page, "Grocery List").getByRole("checkbox", { name: item })).toHaveCount(0);
     // The unchecked items are all still there.
     await expect(list(page, "Grocery List").getByRole("checkbox", { name: "🥚 Eggs" })).toBeVisible();
+  });
+
+  test("reaches every list on a narrow screen, one card at a time @responsive", async ({ page }) => {
+    // 005 FR-502/FR-543. On a phone one card fills the width and the rest are
+    // reached by paging — which means the pager must actually BE there. The
+    // household reported seeing Grocery List on an iPhone with no way to get to
+    // To-Do List at all, and no journey had ever paged this board: the only
+    // @responsive journey here adds an item and clears it, which one card is
+    // enough for.
+    await expect(list(page, "Grocery List")).toBeVisible();
+
+    // Whatever the width, every list the household owns must be reachable.
+    for (const name of ["To-Do List", "Packing List"]) {
+      await showColumn(page, name, "Lists");
+      await expect(list(page, name)).toBeVisible();
+    }
+
+    // And back again, so paging is not one-way.
+    await showColumn(page, "Grocery List", "Lists");
+    await expect(list(page, "Grocery List")).toBeVisible();
+  });
+
+  test("pages by a finger, not only by the arrow keys @responsive", async ({ page }) => {
+    // `showColumn` pages with ArrowRight, so every earlier journey proved the
+    // pager existed while a real iPhone could not move at all. This one uses the
+    // pan handlers.
+    //
+    // BE CLEAR ABOUT WHAT IT CANNOT DO: it passes with and without the
+    // `touch-action` fix, because Playwright's synthetic pointer events are not
+    // subject to the browser's touch-action arbitration at all. The assertion
+    // below is what actually guards the regression.
+    await expect(list(page, "Grocery List")).toBeVisible();
+    if ((await strip(page, "Lists").count()) === 0) return; // every list fits: nothing to page
+
+    await swipeBoard(page, 1, "Lists");
+    await expect(list(page, "To-Do List")).toBeVisible();
+
+    await swipeBoard(page, -1, "Lists");
+    await expect(list(page, "Grocery List")).toBeVisible();
+  });
+
+  test("leaves the horizontal gesture to the app on a touch screen @responsive", async ({ page }) => {
+    // The one assertion in this suite that reads a computed STYLE rather than a
+    // role and a name, and it is deliberate: on iOS Safari `touch-action` IS the
+    // behaviour. Without `pan-y` the browser claims a horizontal drag for its own
+    // scroll and overscroll gestures and framer's `onPan` never fires, so the
+    // Lists tab — which has no arrows to fall back on — cannot be paged by a
+    // finger at all. That is what the household hit on an iPhone.
+    //
+    // No gesture-driven journey can catch it, because a synthetic pointer event
+    // bypasses that arbitration. So the property is asserted directly.
+    if ((await strip(page, "Lists").count()) === 0) return;
+
+    const touchAction = await strip(page, "Lists").evaluate(
+      (node) => getComputedStyle(node).touchAction,
+    );
+    expect(touchAction, "the pager must leave horizontal pans to the app").toBe("pan-y");
   });
 
   test("reorders two items by press and hold, and the order survives a reload", async ({ page, actAsAna }) => {
