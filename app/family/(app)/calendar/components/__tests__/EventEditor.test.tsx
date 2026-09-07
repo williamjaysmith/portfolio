@@ -59,6 +59,7 @@ function makeSeries(overrides: Partial<Event> = {}): Event {
     timezone: ZONE,
     rrule: "FREQ=WEEKLY;INTERVAL=1;UNTIL=20261216T055959Z;WKST=SU;BYDAY=TU",
     countdownEnabled: false,
+    reminder: { mode: "inherit" },
     categoryIds: [CLEO],
     exceptions: [],
     createdBy: null,

@@ -8,6 +8,7 @@ import { Fab } from "./Fab";
 import { FabActionProvider } from "./FabAction";
 import { useFamily } from "./FamilyProvider";
 import { showsChipRow } from "./nav";
+import { ReminderBanner } from "./notifications/ReminderBanner";
 import { ProfileChipRow } from "./ProfileChipRow";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
@@ -51,6 +52,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           <TopBar />
           {showsChipRow(pathname) ? <ProfileChipRow /> : null}
           <main className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+            {/* Mounted once, here, so a reminder appears on whichever tab is
+                showing — the calendar's data is not loaded on Lists or Meals,
+                which is exactly why the banner brings its own (008 R802). */}
+            <ReminderBanner />
             {children}
             <Fab />
           </main>

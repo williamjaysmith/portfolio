@@ -7,12 +7,15 @@ import type {
   Category,
   EventTimes,
   Occurrence,
+  ReminderInForce,
   RepeatChoice,
   TimeFormat,
   Weekday,
 } from "@/lib/family/types";
 
 import { useModalDialog } from "../../components/useModalDialog";
+import { leadPhrase } from "@/lib/family/notifications/message";
+
 import { DetailRow } from "../../components/DetailRow";
 
 /**
@@ -149,6 +152,20 @@ function assignedOf(
 }
 
 
+/**
+ * The reminder this occurrence will give, in words (008 FR-811).
+ *
+ * It is the RESOLVED reminder, not the event's setting: an event on "the
+ * household's setting" reads as what the household actually does, because
+ * "Inherited" would tell a person nothing about whether they will be reminded.
+ */
+function reminderInWords(reminder: ReminderInForce): string {
+  const parts: string[] = [];
+  if (reminder.atTime) parts.push("as it starts");
+  if (reminder.beforeMinutes !== null) parts.push(`${leadPhrase(reminder.beforeMinutes)} before`);
+  return parts.length === 0 ? "None" : parts.join(", and ");
+}
+
 export interface EventDetailsProps {
   /** The tapped occurrence — effective fields, any override already merged. */
   occurrence: Occurrence;
@@ -159,6 +176,8 @@ export interface EventDetailsProps {
   /** Household IANA zone — the one zone every render works in (FR-219/284). */
   zone: string;
   timeFormat: TimeFormat;
+  /** The reminder this occurrence will actually give (008 FR-811). */
+  reminder: ReminderInForce;
   /** FR-257: editing is reached from here only. */
   onEdit: () => void;
   /** Continues into the parent's delete flow — confirmation is FR-258's job there. */
@@ -172,6 +191,7 @@ export function EventDetails({
   categories,
   zone,
   timeFormat,
+  reminder,
   onEdit,
   onDelete,
   onClose,
@@ -180,6 +200,7 @@ export function EventDetails({
   const dialogRef = useModalDialog(true, closeRef);
 
   const repeatText = repeatInWords(repeat, occurrence.occurrenceDate);
+  const reminderText = reminderInWords(reminder);
   const assigned = assignedOf(occurrence.categoryIds, categories);
 
   return (
@@ -204,6 +225,7 @@ export function EventDetails({
       </p>
 
       {repeatText ? <DetailRow label="Repeats">{repeatText}</DetailRow> : null}
+      <DetailRow label="Reminder">{reminderText}</DetailRow>
 
       {assigned.length > 0 ? (
         <ul aria-label="Assigned to" className="mt-3 flex flex-wrap gap-2">

@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
-
 import { updateHouseholdSettings } from "@/lib/family/actions/settings";
-import type { FieldErrors } from "@/lib/family/errors";
 import type { HouseholdSettingsPatch } from "@/lib/family/types";
 
 import { useFamily } from "../FamilyProvider";
 import { FIELD, FieldError, LABEL } from "./CategoryFields";
+import { SaveRow } from "./SaveRow";
 import { useSettingsForm, type SettingsDraft } from "./useSettingsForm";
+import { useSettingsSave } from "./useSettingsSave";
 
 /**
  * Household name and display preferences (FR-031, FR-043).
@@ -66,28 +65,12 @@ export function HouseholdSection() {
   const disabled = actor?.role === "member";
 
   const { draft, set, toPatch } = useSettingsForm(household, settings);
-  const [errors, setErrors] = useState<FieldErrors>({});
-  const [message, setMessage] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const { errors, message, status, pending, submit } = useSettingsSave();
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    setPending(true);
-    setErrors({});
-    setMessage(null);
-    setStatus(null);
-
     const patch: HouseholdSettingsPatch = toPatch();
-    const result = await withActor(() => updateHouseholdSettings(patch));
-    setPending(false);
-
-    if (result.ok) {
-      setStatus("Saved");
-      return;
-    }
-    setErrors(result.fieldErrors ?? {});
-    setMessage(result.message);
+    await submit(() => withActor(() => updateHouseholdSettings(patch)));
   }
 
   return (
@@ -159,24 +142,7 @@ export function HouseholdSection() {
           <FieldError messages={errors.punchOutMinutes} />
         </label>
 
-        {message ? (
-          <p role="alert" className="text-(length:--fam-fs-body)">
-            {message}
-          </p>
-        ) : null}
-
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={disabled || pending}
-            className="min-h-[44px] rounded-full bg-(--fam-primary-blue) px-6 text-(length:--fam-fs-body) font-medium text-white disabled:opacity-60"
-          >
-            Save
-          </button>
-          <span role="status" className="text-(length:--fam-fs-small) text-(--fam-text-secondary)">
-            {status}
-          </span>
-        </div>
+        <SaveRow message={message} status={status} pending={pending} disabled={disabled} />
       </form>
     </section>
   );

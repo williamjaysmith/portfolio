@@ -23,6 +23,14 @@ export interface NewEvent {
   /** A repeat chosen by the words the form uses. */
   repeats?: "Every day" | "Every week on chosen weekdays" | "Every month on the date";
   profile?: string;
+  /**
+   * This event's own reminder (008 FR-808). Omit to leave it on "The
+   * household's setting" — the form's own default. `"none"` is deliberate
+   * silence; a number is "Its own", read as minutes before the event starts
+   * (the form's default lead once "Its own" is chosen is 10, which this
+   * overwrites when a different value is given).
+   */
+  reminder?: "none" | { beforeMinutes: number };
 }
 
 /**
@@ -80,13 +88,40 @@ export async function visibleHours(page: Page): Promise<{ start: string; end: st
   return { start: `${two(start)}:00`, end: `${two(start + 1)}:00` };
 }
 
-/** Open one event's details from the grid, the way a tap does. */
-export async function openEvent(page: Page, title: string): Promise<void> {
+/**
+ * Open one OCCURRENCE of an event from the grid, by its position among that
+ * title's blocks — left to right, so 0 is the earliest visible occurrence of
+ * a repeat. A one-off has exactly one, at index 0.
+ */
+export async function openEventAt(page: Page, title: string, index: number): Promise<void> {
   await stopFollowingTheClock(page);
-  const block = eventBlock(page, title);
+  const block = eventBlocks(page, title).nth(index);
   await block.scrollIntoViewIfNeeded();
   await block.click();
   await expect(page.getByRole("dialog", { name: title })).toBeVisible();
+}
+
+/** Open one event's details from the grid, the way a tap does. */
+export async function openEvent(page: Page, title: string): Promise<void> {
+  await openEventAt(page, title, 0);
+}
+
+/**
+ * The words the details dialog gives for one occurrence's reminder (008
+ * FR-811), read from the dialog `openEventAt` opens and then closed again —
+ * a caller reads several occurrences in a row without a dialog left over the
+ * next one it opens.
+ */
+export async function reminderTextAt(page: Page, title: string, index: number): Promise<string> {
+  await openEventAt(page, title, index);
+  const dialog = page.getByRole("dialog", { name: title });
+  // By role and name, not by walking the DOM: `DetailRow` labels its value
+  // group, so the reminder row is findable the way harness.md §4 rule 1 requires.
+  const value = dialog.getByRole("group", { name: "Reminder" });
+  const text = (await value.textContent())?.trim() ?? "";
+  await dialog.getByRole("button", { name: "Close" }).click();
+  await expect(dialog).toBeHidden();
+  return text;
 }
 
 /** Fill and save the event form, answering the punch-in sheet through `act`. */
@@ -110,6 +145,17 @@ export async function createEvent(
       await form.getByRole("combobox", { name: "Repeats" }).selectOption({ label: event.repeats });
     }
     if (event.profile !== undefined) await form.getByRole("checkbox", { name: event.profile }).check();
+    if (event.reminder !== undefined) {
+      const reminder = form.getByRole("combobox", { name: "Reminder" });
+      if (event.reminder === "none") {
+        await reminder.selectOption({ label: "No reminder" });
+      } else {
+        // "Its own" opens already valid — Before it starts, at 10 minutes
+        // (ReminderFieldset's own default) — so only the number needs setting.
+        await reminder.selectOption({ label: "Its own" });
+        await form.getByRole("spinbutton", { name: "Minutes before" }).fill(String(event.reminder.beforeMinutes));
+      }
+    }
     await form.getByRole("button", { name: "Save" }).click();
   });
   await expect(eventBlock(page, event.title)).toBeVisible();

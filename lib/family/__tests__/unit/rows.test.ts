@@ -110,6 +110,11 @@ const settingsRow: HouseholdSettingsRow = {
   text_size: "large",
   density: "roomy",
   timezone: "America/Chicago",
+  notify_event_at_time: false,
+  notify_event_before: true,
+  notify_event_before_minutes: 10,
+  notify_task_due: true,
+  notify_task_completed: false,
   updated_at: "2026-02-02T11:30:00.000Z",
 };
 
@@ -217,6 +222,11 @@ describe("toSettings", () => {
       textSize: "large",
       density: "roomy",
       timezone: "America/Chicago",
+      notifyEventAtTime: false,
+      notifyEventBefore: true,
+      notifyEventBeforeMinutes: 10,
+      notifyTaskDue: true,
+      notifyTaskCompleted: false,
       updatedAt: "2026-02-02T11:30:00.000Z",
     });
   });
@@ -250,6 +260,9 @@ const baseEventRow: EventRow = {
   timezone: "America/Chicago",
   rrule: "FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=TU",
   countdown_enabled: false,
+  reminder_mode: "inherit",
+  reminder_at_time: null,
+  reminder_before_minutes: null,
   created_by: null,
   updated_by: null,
   created_at: "2026-09-01T10:00:00.000Z",
@@ -283,6 +296,9 @@ const skipRow: EventExceptionRow = {
   ends_at: null,
   start_date: null,
   end_date: null,
+  reminder_mode: null,
+  reminder_at_time: null,
+  reminder_before_minutes: null,
   created_by: null,
   updated_by: null,
   created_at: "2026-09-01T10:00:00.000Z",

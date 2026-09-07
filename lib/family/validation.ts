@@ -184,6 +184,17 @@ export function validateCategoryPatch(existing: Category, patch: unknown): Categ
   return parsed;
 }
 
+/**
+ * A lead time, ALWAYS IN MINUTES whatever unit the field offered (008 R810):
+ * "2 hours" arrives as 120. 10080 is seven days — the ceiling this project set
+ * where the reference documents none (spec Assumption 5).
+ */
+const leadMinutes = z
+  .number({ error: "A lead time must be a number." })
+  .int({ error: "A lead time must be whole minutes." })
+  .min(1, { error: "A lead time must be at least a minute." })
+  .max(10080, { error: "A lead time cannot be more than 7 days." });
+
 export const settingsPatchSchema = z
   .object({
     householdName: z
@@ -203,6 +214,15 @@ export const settingsPatchSchema = z
       .optional(),
     textSize: z.enum(["small", "medium", "large"], { error: "Text size must be small, medium or large." }).optional(),
     density: z.enum(["cozy", "snug", "roomy"], { error: "Density must be cozy, snug or roomy." }).optional(),
+
+    /* Reminders (008 FR-802..FR-807). The bounds mirror 034's CHECK: the schema
+       exists to give the field a good message, the constraint to make a bad row
+       impossible. */
+    notifyEventAtTime: z.boolean({ error: "Choose whether events remind as they start." }).optional(),
+    notifyEventBefore: z.boolean({ error: "Choose whether events remind beforehand." }).optional(),
+    notifyEventBeforeMinutes: leadMinutes.optional(),
+    notifyTaskDue: z.boolean({ error: "Choose whether a due chore reminds." }).optional(),
+    notifyTaskCompleted: z.boolean({ error: "Choose whether a finished chore is announced." }).optional(),
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     error: "Nothing to update.",
@@ -330,6 +350,28 @@ interface FieldIssue {
   message: string;
 }
 
+/**
+ * A reminder as an event carries it (008 FR-808), in the three named states.
+ *
+ * A `custom` carrying neither half is refused here and by
+ * `events_reminder_payload` — it is just `none` written badly. The schema
+ * exists to give the form a good message; the constraint exists to make a bad
+ * row impossible.
+ */
+const eventReminderSchema = z
+  .discriminatedUnion("mode", [
+    z.object({ mode: z.literal("inherit") }),
+    z.object({ mode: z.literal("none") }),
+    z.object({
+      mode: z.literal("custom"),
+      atTime: z.boolean({ error: "Choose whether it reminds as it starts." }),
+      beforeMinutes: leadMinutes.nullable(),
+    }),
+  ])
+  .refine((value) => value.mode !== "custom" || value.atTime || value.beforeMinutes !== null, {
+    error: "Choose when it reminds, or choose no reminder.",
+  });
+
 const eventBaseFields = {
   summary: summarySchema,
   description: descriptionSchema.nullable().optional(),
@@ -337,6 +379,9 @@ const eventBaseFields = {
   timezone: timezoneSchema,
   repeat: repeatChoiceSchema,
   categoryIds: categoryIdsSchema,
+  // 008 FR-808. Optional on the way in: an event that says nothing about
+  // reminders inherits the household's, which is `inherit` and the column default.
+  reminder: eventReminderSchema.optional(),
 };
 
 /**
@@ -484,6 +529,7 @@ const eventPatchSchema = z
     location: locationSchema.nullable().optional(),
     repeat: repeatChoiceSchema.optional(),
     categoryIds: categoryIdsSchema.optional(),
+    reminder: eventReminderSchema.optional(),
     allDay: z.boolean({ error: "Choose timed or all-day." }).optional(),
     startsAt: instantSchema.optional(),
     endsAt: instantSchema.optional(),

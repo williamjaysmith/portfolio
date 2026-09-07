@@ -8,6 +8,7 @@ import {
   WEEKDAYS,
   type Category,
   type EventInput,
+  type EventReminder,
   type EventTimes,
   type RepeatChoice,
   type Weekday,
@@ -67,6 +68,11 @@ export interface EventDraft {
   categoryIds: string[];
   location: string;
   notes: string;
+  /**
+   * This event's own reminder (008 FR-808). `inherit` is the default and what
+   * a new event carries, so an event nobody thinks about follows the household.
+   */
+  reminder: EventReminder;
 }
 
 /** Prefill — a tapped slot's times (T050), or the occurrence being edited (T047). */
@@ -93,6 +99,7 @@ function blankDraft(): EventDraft {
     endTime: "10:00",
     repeatKind: "never",
     weekdays: [],
+    reminder: { mode: "inherit" },
     until: "",
     categoryIds: [],
     location: "",
@@ -179,6 +186,7 @@ function draftToEventInput(draft: EventDraft, orderedCategoryIds: string[]): Eve
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     repeat: repeatOf(draft),
     categoryIds: orderedCategoryIds,
+    reminder: draft.reminder,
   };
 }
 

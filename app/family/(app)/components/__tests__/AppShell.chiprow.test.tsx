@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -25,13 +26,18 @@ const CHIP_ROW = "Family";
 
 function renderAt(pathname: string) {
   route.pathname = pathname;
+  // The shell mounts the reminder banner, which reads (008 R802), so it needs
+  // a client here exactly as it has one in the app.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    withFamily(
+    <QueryClientProvider client={client}>
+      {withFamily(
       makeContext({ categories: [makeCategory({ id: "profile-ana", label: "Ana" })] }),
       <AppShell>
         <p>tab content</p>
       </AppShell>,
-    ),
+      )}
+    </QueryClientProvider>,
   );
 }
 

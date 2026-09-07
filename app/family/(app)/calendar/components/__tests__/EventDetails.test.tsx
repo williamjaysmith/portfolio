@@ -49,6 +49,7 @@ function renderDetails(overrides: Partial<EventDetailsProps> = {}) {
       categories={[]}
       zone={ZONE}
       timeFormat="12h"
+      reminder={{ atTime: false, beforeMinutes: 10 }}
       onEdit={onEdit}
       onDelete={onDelete}
       onClose={onClose}
@@ -223,7 +224,9 @@ describe("EventDetails", () => {
     expect(screen.queryByText("Notes")).not.toBeInTheDocument();
   });
 
-  it("has no invitee, reminder or countdown row anywhere (FR-229/230/228)", () => {
+  it("has no invitee or countdown row anywhere (FR-229/230/228)", () => {
+    // The reminder row joined this dialog in Phase 7 (008 FR-811); invitees and
+    // countdowns remain excluded, invitees permanently — this app sends no mail.
     renderDetails({
       occurrence: makeOccurrence({ location: "Rec centre", description: "Notes text" }),
       repeat: { kind: "daily" },
@@ -232,8 +235,24 @@ describe("EventDetails", () => {
 
     const text = screen.getByRole("dialog").textContent ?? "";
     expect(text).not.toMatch(/invit/i);
-    expect(text).not.toMatch(/remind/i);
     expect(text).not.toMatch(/countdown/i);
+  });
+
+  it("names the reminder this occurrence will actually give (008 FR-811)", () => {
+    renderDetails({ reminder: { atTime: false, beforeMinutes: 120 } });
+    expect(screen.getByText("2 hours before")).toBeInTheDocument();
+  });
+
+  it("says None when nothing will remind, rather than staying silent about it", () => {
+    renderDetails({ reminder: { atTime: false, beforeMinutes: null } });
+    expect(screen.getByText("None")).toBeInTheDocument();
+  });
+
+  it("reads the RESOLVED reminder, so an inheriting event still says what it does", () => {
+    // "Inherited" would tell a person nothing about whether they will be
+    // reminded, which is the whole question they opened this dialog to answer.
+    renderDetails({ reminder: { atTime: true, beforeMinutes: 10 } });
+    expect(screen.getByText("as it starts, and 10 minutes before")).toBeInTheDocument();
   });
 
   it("reaches editing through the Edit button only (FR-257)", () => {

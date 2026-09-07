@@ -6,6 +6,12 @@
  * `households.name` is the one household name — `household_settings` has no
  * `display_name`, so there is nothing to keep in sync. `showNameNotDate`
  * chooses whether the top bar shows that name or today's date (FR-031).
+ *
+ * Phase 7 adds the household's five reminder choices to the same row and the
+ * same parent-guarded action (008 R810): the table already holds every
+ * household-wide choice, its row is already read by every page and already
+ * carried by the realtime channel, so a notifications table would have added a
+ * join and a policy to hold five booleans and an integer.
  */
 
 import { revalidatePath } from "next/cache";
@@ -34,6 +40,15 @@ const SETTINGS_FIELDS = {
   punchOutMinutes: "punch_out_minutes",
   textSize: "text_size",
   density: "density",
+  // 008 FR-802..FR-807. Household-wide, never per person: every documented
+  // Skylight reminder is an unaddressed pop-up on a shared display
+  // [VERIFIED](36836043247131), and this project knows who somebody is only
+  // while they are punched in (spec Assumption 2).
+  notifyEventAtTime: "notify_event_at_time",
+  notifyEventBefore: "notify_event_before",
+  notifyEventBeforeMinutes: "notify_event_before_minutes",
+  notifyTaskDue: "notify_task_due",
+  notifyTaskCompleted: "notify_task_completed",
 } as const satisfies Partial<Record<keyof HouseholdSettingsPatch, string>>;
 
 function settingsColumns(patch: HouseholdSettingsPatch): SettingsWrite {

@@ -11,7 +11,7 @@
 import { useQuery, type QueryClient } from "@tanstack/react-query";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { addDays } from "./calendar/dates";
+import { addDays, localDateOf, zoneMidnightMs } from "./calendar/dates";
 import {
   CATEGORY_COLUMNS,
   HOUSEHOLD_COLUMNS,
@@ -142,6 +142,16 @@ export const familyKeys = {
    */
   week: (householdId: string, window: WeekCacheWindow) =>
     [...familyKeys.events(householdId), `${window.startDate}..${window.endDate}`] as const,
+  /**
+   * The banner's own horizon (008 R802). Keyed by its END DAY and deliberately
+   * NOT by `week(...)`: the banner lives in the shell, so it must not share a
+   * cache entry with whatever window a tab happens to be displaying — a tab
+   * change would otherwise refetch it, or drop it, for no reason. It is still
+   * under the `family` prefix, so the Realtime sweep reaches it like everything
+   * else.
+   */
+  reminderHorizon: (householdId: string, endDate: string) =>
+    ["family", "reminder-horizon", householdId, endDate] as const,
   /** FR-274's affected-event count for one category's delete confirmation. */
   categoryEventCount: (householdId: string, categoryId: string) =>
     ["family", "category-event-count", householdId, categoryId] as const,
@@ -443,6 +453,55 @@ export function useWeekEvents(householdId: string, weekWindow: WeekFetchBounds, 
     queryFn: () => fetchWeekEvents(createClient(), householdId, weekWindow),
     staleTime: STALE_TIME,
     initialData,
+  });
+}
+
+/**
+ * The banner's own read (008 R802, FR-829).
+ *
+ * The reminder banner mounts in the app shell, so it is on screen on the Lists
+ * and Meals tabs where the calendar's data was never fetched — and a lead time
+ * of up to seven days (FR-806) can owe a reminder for an event outside any
+ * window a tab would ask for. So it brings its own.
+ *
+ * The window is yesterday through a week ahead in the household's zone.
+ * Yesterday, because an event that began at 23:58 still has a current at-time
+ * reminder just after midnight; a week ahead, because that is the longest lead
+ * the household can set. It reuses `fetchWeekEvents` rather than growing a
+ * second read of the same table — the bounds are the only thing that differs.
+ *
+ * Task reads are NOT duplicated here: `familyKeys.tasks` is already
+ * household-wide and keyed by household alone (R314), so the banner reads the
+ * same cache entry the board does and adds nothing to any tab's path (FR-832).
+ */
+export function reminderHorizonOf(zone: string, nowMs: number): WeekFetchBounds {
+  const today = localDateOf(zone, nowMs);
+  const startDate = addDays(today, -1);
+  const endDate = addDays(today, HORIZON_DAYS);
+  return {
+    startDate,
+    endDate,
+    startsAt: new Date(zoneMidnightMs(zone, startDate)).toISOString(),
+    endsAt: new Date(zoneMidnightMs(zone, addDays(endDate, 1))).toISOString(),
+  };
+}
+
+/** Seven days, the ceiling on a lead time (008 Assumption 5). */
+const HORIZON_DAYS = 7;
+
+export function useReminderHorizon(householdId: string, zone: string, nowMs: number | null) {
+  // The bounds move only when the household-local DAY moves, so the query key
+  // is the end day: a clock ticking every minute must not refetch every minute.
+  //
+  // `nowMs` is null until the browser has a clock — the server renders none —
+  // and the query waits rather than fetching a horizon around the epoch and
+  // then refetching the real one a moment later.
+  const horizon = reminderHorizonOf(zone, nowMs ?? 0);
+  return useQuery({
+    queryKey: familyKeys.reminderHorizon(householdId, horizon.endDate),
+    queryFn: () => fetchWeekEvents(createClient(), householdId, horizon),
+    staleTime: STALE_TIME,
+    enabled: nowMs !== null,
   });
 }
 

@@ -50,6 +50,7 @@ function makeSeries(overrides: Partial<Event> = {}): Event {
     timezone: ZONE,
     rrule: "FREQ=WEEKLY;INTERVAL=1;UNTIL=20261216T055959Z;WKST=SU;BYDAY=TU",
     countdownEnabled: false,
+    reminder: { mode: "inherit" },
     categoryIds: [CLEO],
     exceptions: [],
     createdBy: null,
@@ -141,6 +142,9 @@ describe("seedOf", () => {
 
     expect(seed).toEqual({
       summary: "Piano recital",
+      // The occurrence's EFFECTIVE reminder — its exception's if it has one,
+      // otherwise the series' (008 FR-808).
+      reminder: { mode: "inherit" },
       allDay: false,
       startDate: start.date,
       startTime: start.time,

@@ -85,6 +85,12 @@
         ]
       },
       {
+        "name": "family-notifications-core",
+        "patterns": [
+          "lib/family/notifications/**/*"
+        ]
+      },
+      {
         "name": "family-actions",
         "patterns": [
           "lib/family/actions/**/*"
@@ -185,6 +191,16 @@
         ]
       },
       {
+        "from": "family-notifications-core",
+        "allow": [
+          "family-notifications-core",
+          "family-recurrence",
+          "family-calendar-core",
+          "family-tasks-core",
+          "lib"
+        ]
+      },
+      {
         "from": "family-actions",
         "allow": [
           "family-actions",
@@ -215,7 +231,8 @@
           "family-actions",
           "family-rewards-core",
           "family-lists-core",
-          "family-meals-core"
+          "family-meals-core",
+          "family-notifications-core"
         ]
       },
       {
@@ -229,7 +246,8 @@
           "family-actions",
           "family-rewards-core",
           "family-lists-core",
-          "family-meals-core"
+          "family-meals-core",
+          "family-notifications-core"
         ]
       },
       {
@@ -254,7 +272,8 @@
           "family-actions",
           "family-rewards-core",
           "family-lists-core",
-          "family-meals-core"
+          "family-meals-core",
+          "family-notifications-core"
         ]
       },
       {

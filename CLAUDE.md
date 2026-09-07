@@ -1,27 +1,41 @@
 <!-- SPECKIT START -->
-**Active feature**: `007-family-e2e` — the browser-driven end-to-end pass over `/family`: one
-command that resets and seeds the local stack, starts the app against it, signs in once, sets the
-PINs the seed never sets, and walks the journeys the six shipped phases have only ever had walked by
-hand — the door and the punch-in gate, the calendar's create/edit/delete/drag and its three repeat
-scopes, the tasks board and the stars it moves, the lists and their reorder, the meals grid with its
-recipes and its calendar tokens — plus the four claims no test has ever checked: a change reaching a
-second browser, the narrow layouts, installability, and no serious accessibility violations. It adds
-tests and the harness they need, and changes the app only where a journey proves a defect.
-**State: built and green (2026-09-06) — 53 journeys at the wall, 12 of them also on the tablet and phone, run record in `checklists/quickstart-run.md`; merging next.**
-Phases 1–6 are shipped and live; Phase 7 (notifications, home, offline, search) follows this.
+**Active feature**: `008-family-notifications` — Phase 7: the household decides what it wants to be
+reminded of, and a banner says so on whichever `/family` page is open. Settings gains a Notifications
+section with the reference's own four choices (At time of event, Before event with a lead time, When
+Due, When Completed); an event can carry its own reminder — the household's setting, none, or its own
+— changeable under the three shipped repeat scopes; a timed chore reminds when it falls due, and a
+finished one can announce who finished it.
 
-Read in this order before touching `e2e/` code:
-1. `specs/007-family-e2e/plan.md` — the plan, the structure and the phasing
-2. `specs/007-family-e2e/spec.md` — 30 requirements, 7 journeys, 13 success criteria
-3. `specs/007-family-e2e/research.md` — R701–R715 and why
-4. `specs/007-family-e2e/harness.md` — the state a run begins in, the fixtures, the rules a journey follows
-5. `specs/007-family-e2e/quickstart.md` — how to run it, verification per guarantee, what to do when it fails
+**Web Push was dropped by the operator partway through, deliberately.** Nothing reaches a device with
+no page open: no service worker, no scheduled scan, no push subscriptions, no route handlers. The
+household will open the app as needed and the wall display is the shared surface. `docs/` and the
+spec record it; if you find something that promises a phone will buzz, it is a leftover and should go.
 
-The six shipped phases (`specs/001-family-foundation/` … `specs/006-family-meals/`) are the
-subject of this suite and are not changed by it, except where a journey proves a defect — which is
-fixed application-side with its own unit test, in the shipped style. The suite is a **phase gate**,
-run before a phase is merged; it is deliberately not in the pre-commit hook, and it must never be
-able to reach the hosted project.
+**State: complete (2026-09-07) — 58 of 58 tasks, four gates green, browser journeys walked, and
+migrations 034, 035 and 038 pushed to the hosted project. Ready to merge and deploy.**
+Phases 1–6 are shipped and live; the home screen, cross-tab search and the offline cache became a
+following phase (`009-family-home-search-offline`), which does not exist yet.
+
+Read in this order before touching notification code:
+1. `specs/008-family-notifications/spec.md` — 23 requirements, 14 criteria, the numbered assumptions
+2. `specs/008-family-notifications/research.md` — R801–R818 and why; **R802 is the one that matters**
+3. `specs/008-family-notifications/plan.md` — the structure and the phasing
+4. `specs/008-family-notifications/data-model.md` — migrations 034, 035 and 038, and what enforces what
+5. `specs/008-family-notifications/quickstart.md` — how to run it and verify each guarantee
+
+**R802, because it is easy to get wrong**: there is ONE pure due-computation
+(`lib/family/notifications/due.ts`) and the banner is its only reader. The banner mounts in the app
+shell, so it must NOT read a tab's cache — on Lists or Meals the calendar's events were never
+fetched, and a seven-day lead can owe a reminder for an event outside any window a tab would ask
+for. It brings its own query (`useReminderHorizon`). "Shown once" is a `Set` in the device's own
+storage, not a database constraint, and the two places that gives way are written down rather than
+hidden.
+
+The browser pass (`specs/007-family-e2e/`) is the **phase gate**: run `npm run test:e2e` before a
+phase is merged, and read the report rather than only the exit code. It is deliberately not in the
+pre-commit hook — it is minutes, and a gate that slow gets disabled — and it must never be able to
+reach the hosted project. Its harness contract is `specs/007-family-e2e/harness.md`; read §4 and §5
+before writing a journey.
 
 **Working locally**: `supabase start` (this repo's stack is on **553xx**, not the CLI defaults —
 another project already occupies 543xx), then `npm run test:e2e`, which does the reset, the seed and
