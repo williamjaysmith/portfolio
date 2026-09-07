@@ -248,10 +248,10 @@ a late chore reminds once in total.
 
 ### When Due
 
-- [ ] T042 [P] [US4] Test `lib/family/__tests__/notifications/task-due.test.ts` — the
+- [x] T042 [P] [US4] Test `lib/family/__tests__/notifications/task-due.test.ts` — the
   `routine = false and due_time is not null` predicate; an anytime chore, a routine and an all-day
   chore each showing nothing; a carried-forward chore reminding once (FR-818, R812)
-- [ ] T043 [US4] Extend `lib/family/notifications/due.ts` with the task-due source
+- [x] T043 [US4] Extend `lib/family/notifications/due.ts` with the task-due source
 
 ### When Completed, derived on the page that is open
 
@@ -259,22 +259,22 @@ a late chore reminds once in total.
 `resolved_at`, `occurrence_date` and the credited Profile, so an open page learns of a completion
 through the channel it already has. Nothing is written server-side for it.
 
-- [ ] T044 [P] [US4] Test that a completion's key is the **resolution row's own identity**, not
+- [x] T044 [P] [US4] Test that a completion's key is the **resolution row's own identity**, not
   `(task, date)` — a routine can be completed in two slots on one day, and an Anytime chore has no
   date at all, so keying on the pair would swallow the second announcement and lose the Anytime one
   entirely (FR-819)
-- [ ] T045 [US4] Change `task_done`'s key in `lib/family/notifications/identity.ts` accordingly. It
+- [x] T045 [US4] Change `task_done`'s key in `lib/family/notifications/identity.ts` accordingly. It
   currently keys on the subject and the occurrence date, which was right when a database row claimed
   each reminder and is wrong now that a browser's `Set` is the only arbiter (R808)
-- [ ] T046 [P] [US4] Test
+- [x] T046 [P] [US4] Test
   `app/family/(app)/components/notifications/__tests__/useCompletionNotices.test.ts` — an announcement
   only while `notifyTaskCompleted` is on; nothing for a skip or an un-tick; nothing twice for a re-tick;
   and **nothing at all on the device that performed the tick**, which is looking at the card that just
   flipped
-- [ ] T047 [US4] Build `app/family/(app)/components/notifications/useCompletionNotices.ts`, feeding the
+- [x] T047 [US4] Build `app/family/(app)/components/notifications/useCompletionNotices.ts`, feeding the
   same banner. It reads the refreshed resolutions rather than the realtime payload, because
   `useFamilyRealtime` treats payloads as a signal to refetch and never renders them
-- [ ] T048 [P] [US4] Test that nothing at all is announced for a star, a redemption, a streak or a
+- [x] T048 [P] [US4] Test that nothing at all is announced for a star, a redemption, a streak or a
   finished week (FR-820, SC-810)
 
 ### Nothing for what is no longer there
@@ -282,7 +282,7 @@ through the channel it already has. Nothing is written server-side for it.
 This belongs to no single story: it is a property of the one due-computation, and it is the part of
 the old trustworthiness story that still means something without a delivery ledger.
 
-- [ ] T049 [P] Test that a deleted event, a skipped occurrence and a moved event each show nothing at
+- [x] T049 [P] Test that a deleted event, a skipped occurrence and a moved event each show nothing at
   the old moment — the moved one shows at its new moment instead, on its new key (FR-821, SC-813)
 
 ---

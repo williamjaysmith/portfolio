@@ -23,6 +23,7 @@ const EVENT: ReminderIdentity = {
 
 const COMPLETION: ReminderIdentity = {
   subjectKind: "task_done",
+  // A completion names its RESOLUTION row, not its task.
   subjectId: "task-1",
   occurrenceDate: "2026-09-09",
   fireAtMs: Date.parse("2026-09-09T17:00:00.000Z"),
@@ -54,17 +55,26 @@ describe("a scheduled reminder", () => {
 });
 
 describe("a completion", () => {
-  it("ignores the instant, so an un-tick and a re-tick say nothing twice", () => {
-    const reTicked = { ...COMPLETION, fireAtMs: COMPLETION.fireAtMs + 60 * 60_000 };
-    expect(same(COMPLETION, reTicked)).toBe(true);
+  it("is the resolution row itself, so nothing else about it can collide", () => {
+    // Keyed on (task, date) this used to be right; it is not any more. A routine
+    // can be completed in two slots on one day and an Anytime chore has no date
+    // at all, so the pair swallowed one announcement and lost the other. The row
+    // id is unique by construction, which is what a browser's Set needs.
+    expect(reminderKeyOf(COMPLETION)).toBe("task_done:task-1");
   });
 
-  it("still tells one day's occurrence from the next", () => {
-    expect(same(COMPLETION, { ...COMPLETION, occurrenceDate: "2026-09-10" })).toBe(false);
+  it("ignores the instant, so a re-render of the same row says nothing twice", () => {
+    const later = { ...COMPLETION, fireAtMs: COMPLETION.fireAtMs + 60 * 60_000 };
+    expect(same(COMPLETION, later)).toBe(true);
   });
 
-  it("still tells two chores apart", () => {
-    expect(same(COMPLETION, { ...COMPLETION, subjectId: "task-2" })).toBe(false);
+  it("ignores the date, because the row already identifies the occurrence", () => {
+    expect(same(COMPLETION, { ...COMPLETION, occurrenceDate: "2026-09-10" })).toBe(true);
+    expect(same(COMPLETION, { ...COMPLETION, occurrenceDate: null })).toBe(true);
+  });
+
+  it("tells two resolution rows apart, which is how a re-tick announces again", () => {
+    expect(same(COMPLETION, { ...COMPLETION, subjectId: "resolution-2" })).toBe(false);
   });
 });
 

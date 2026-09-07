@@ -315,6 +315,61 @@ describe("isCurrent", () => {
   });
 });
 
+
+describe("nothing for what is no longer there (FR-821, SC-813)", () => {
+  // The old design needed a rule for this: a reminder was claimed ahead of its
+  // moment, so something had to notice the event had gone. There is no claim
+  // any more — the computation reads the events that exist — so these are
+  // properties of the pipeline rather than code, and this is the test that says
+  // so rather than leaving it to be rediscovered.
+
+  it("says nothing for an event that has been deleted", () => {
+    const gone = event({ times: SWIM });
+    const before = remindersFor([gone]);
+    expect(before).toHaveLength(1);
+
+    // Deleted means absent from the read, and absent means no reminder.
+    expect(remindersFor([])).toEqual([]);
+  });
+
+  it("says nothing for a skipped occurrence, at its own moment", () => {
+    const series = event({
+      summary: "Piano",
+      times: SWIM,
+      rrule: "FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=WE",
+    });
+    series.exceptions = [
+      exception({ eventId: series.id, occurrenceDate: "2026-09-16", action: "skip" }),
+    ];
+
+    const skippedMoment = Date.parse("2026-09-16T16:20:00.000Z");
+    expect(remindersDueNow(remindersFor([series]), skippedMoment)).toEqual([]);
+  });
+
+  it("says nothing at a moved occurrence's OLD moment, and does at its new one", () => {
+    const series = event({
+      summary: "Piano",
+      times: SWIM,
+      rrule: "FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=WE",
+    });
+    series.exceptions = [
+      exception({
+        eventId: series.id,
+        occurrenceDate: "2026-09-16",
+        times: {
+          allDay: false,
+          startsAt: "2026-09-16T20:00:00.000Z",
+          endsAt: "2026-09-16T21:00:00.000Z",
+        },
+      }),
+    ];
+    const all = remindersFor([series]);
+
+    expect(remindersDueNow(all, Date.parse("2026-09-16T16:20:00.000Z"))).toEqual([]);
+    expect(remindersDueNow(all, Date.parse("2026-09-16T19:50:00.000Z"))).toHaveLength(1);
+  });
+});
+
 describe("an occurrence whose series is missing", () => {
   it("is skipped rather than guessed at", () => {
     const series = event({ times: SWIM });

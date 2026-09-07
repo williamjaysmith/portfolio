@@ -19,9 +19,15 @@
  */
 
 import { localDateOf, zoneMidnightMs } from "../calendar/dates";
-import type { Event, EventTimes, Occurrence, ReminderInForce } from "../types";
+import type {
+  BoardOccurrence,
+  Event,
+  EventTimes,
+  Occurrence,
+  ReminderInForce,
+} from "../types";
 import { reminderKeyOf, type ReminderIdentity } from "./identity";
-import { eventReminderMessage } from "./message";
+import { eventReminderMessage, taskDueMessage } from "./message";
 import { isSilent, occurrenceReminder, reminderInForce } from "./resolve";
 import type { NotificationSettings } from "./settings";
 
@@ -136,6 +142,55 @@ export function eventReminders(
     }
   }
 
+  return reminders.sort(byFiringThenKey);
+}
+
+
+/**
+ * A chore falling due (008 FR-818, R812).
+ *
+ * The predicate is one line and needs no new data: a chore that carries a TIME,
+ * and nothing else. `family.tasks.due_time` is already a wall clock in the
+ * household's zone, null on an anytime chore, and a routine carries
+ * `times_of_day` slots instead of a due time — so `routine === false` with a
+ * `dueAt` says exactly what the reference says, which is that a notification
+ * "will only appear for those chores that are due at a specific time"
+ * [VERIFIED](36836043247131).
+ *
+ * A chore that is already resolved says nothing: it has been done or skipped,
+ * and reminding about it would be wrong in both directions.
+ *
+ * "A late chore reminds once, not once a day" (FR-818) needs no special case at
+ * all. `dueAt` is the occurrence's OWN due instant, not the day it is drawn on,
+ * so a chore carried forward from yesterday has a `fireAtMs` a day old and the
+ * staleness rule drops it. The behaviour falls out of the identity rather than
+ * being coded.
+ */
+export function taskReminders(
+  occurrences: readonly BoardOccurrence[],
+  settings: NotificationSettings,
+  nameOf: (categoryId: string | null) => string | null,
+): DueReminder[] {
+  if (!settings.taskDue) return [];
+
+  const reminders: DueReminder[] = [];
+  for (const occurrence of occurrences) {
+    if (occurrence.routine || occurrence.dueAt === null) continue;
+    if (occurrence.state !== "unresolved") continue;
+
+    const { title, body } = taskDueMessage(occurrence.summary, nameOf(occurrence.assigneeId));
+    reminders.push({
+      identity: {
+        subjectKind: "task_due",
+        subjectId: occurrence.taskId,
+        occurrenceDate: occurrence.scheduledDate,
+        fireAtMs: Date.parse(occurrence.dueAt),
+      },
+      title,
+      body,
+      path: "/family/tasks",
+    });
+  }
   return reminders.sort(byFiringThenKey);
 }
 

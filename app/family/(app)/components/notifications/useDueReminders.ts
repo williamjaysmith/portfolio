@@ -1,11 +1,24 @@
 "use client";
 
 import { expandWindow } from "@/lib/family/calendar/expand";
-import { diffDays, viewWindowOf } from "@/lib/family/calendar/dates";
-import { eventReminders, remindersDueNow, type DueReminder } from "@/lib/family/notifications/due";
+import { diffDays, localDateOf, viewWindowOf } from "@/lib/family/calendar/dates";
+import { completionNotices } from "@/lib/family/notifications/completions";
+import {
+  eventReminders,
+  remindersDueNow,
+  taskReminders,
+  type DueReminder,
+} from "@/lib/family/notifications/due";
 import { notificationSettingsOf } from "@/lib/family/notifications/settings";
 import { reminderKeyOf } from "@/lib/family/notifications/identity";
-import { reminderHorizonOf, useReminderHorizon } from "@/lib/family/queries";
+import {
+  reminderHorizonOf,
+  useReminderHorizon,
+  useTaskResolutions,
+  useTasks,
+} from "@/lib/family/queries";
+import { expandTaskDay } from "@/lib/family/tasks/expand";
+import { weekStartOf } from "@/lib/family/calendar/dates";
 
 import { useNow } from "../Clock";
 import { createDeviceKeySet } from "../useDeviceKeySet";
@@ -50,13 +63,22 @@ export interface DueRemindersState {
 }
 
 export function useDueReminders(): DueRemindersState {
-  const { household, settings } = useFamily();
+  const { household, settings, categories, actor } = useFamily();
   const now = useNow();
   const nowMs = now?.getTime() ?? null;
 
   // The server renders no clock (`useNow` returns null until hydration), so
   // there is nothing to compute and nothing to draw until the browser has it.
   const horizon = useReminderHorizon(household.id, settings.timezone, nowMs);
+  // The board's task reads, reused rather than duplicated: both are already
+  // household-wide and keyed by household alone (Phase 3 R314), so the banner
+  // shares the cache entry the Tasks tab fills and adds no read of its own.
+  const today = nowMs === null ? null : localDateOf(settings.timezone, nowMs);
+  const tasks = useTasks(household.id);
+  const resolutions = useTaskResolutions(
+    household.id,
+    today === null ? "1970-01-01" : weekStartOf(today, settings.startWeekOn),
+  );
   const { keys } = shown.useKeys();
 
   if (nowMs === null || horizon.data === undefined) {
@@ -67,12 +89,34 @@ export function useDueReminders(): DueRemindersState {
   const days = diffDays(bounds.startDate, bounds.endDate) + 1;
   const window = viewWindowOf(bounds.startDate, days, settings.timezone);
   const occurrences = expandWindow(horizon.data, window, settings.timezone);
-  const all = eventReminders(
+  const events = eventReminders(
     occurrences,
     horizon.data,
     notificationSettingsOf(settings),
     settings.timezone,
   );
+
+  const notifications = notificationSettingsOf(settings);
+  const nameOf = (id: string | null) =>
+    categories.find((category) => category.id === id)?.label ?? null;
+
+  const board =
+    tasks.data === undefined || today === null
+      ? []
+      : expandTaskDay(tasks.data, resolutions.data ?? [], [], {
+          displayedDate: today,
+          todayDate: today,
+          zone: settings.timezone,
+        });
+
+  const all = [
+    ...events,
+    ...taskReminders(board, notifications, nameOf),
+    ...completionNotices(resolutions.data ?? [], summaryOf(tasks.data), notifications, {
+      nameOf,
+      actorId: actor?.profileId ?? null,
+    }),
+  ];
 
   const reminders = remindersDueNow(all, nowMs).filter(
     (reminder) => !keys.has(reminderKeyOf(reminder.identity)),
@@ -85,6 +129,11 @@ export function useDueReminders(): DueRemindersState {
       for (const reminder of reminders) shown.add(reminderKeyOf(reminder.identity));
     },
   };
+}
+
+/** A task's summary by id — what a completion notice needs and a resolution lacks. */
+function summaryOf(tasks: readonly { id: string; summary: string }[] | undefined) {
+  return (taskId: string) => tasks?.find((task) => task.id === taskId)?.summary ?? null;
 }
 
 /** Test seam. */
