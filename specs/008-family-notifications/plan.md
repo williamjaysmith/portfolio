@@ -48,7 +48,7 @@ their own banner.
 **Language/Version**: TypeScript 5 (strict), Next.js 16.1.6 App Router, React 19.1.0
 **Primary Dependencies**: `@supabase/supabase-js` · `@supabase/ssr` · TanStack Query 5 · Zod 4 ·
 Tailwind 4 · lucide-react. **No new dependency.**
-**Storage**: Supabase Postgres, `family` schema, RLS by `is_member()`; migrations `034`–`035`, both
+**Storage**: Supabase Postgres, `family` schema, RLS by `is_member()`; migrations `034`, `035` and `038`, all
 columns on existing tables
 **Testing**: Vitest 4 (`unit`, jsdom) · policies tests (node, local stack) · Playwright (`007`)
 **Target Platform**: a wall tablet, an iPad, phones; deployed on Vercel
@@ -110,7 +110,7 @@ specs/008-family-notifications/
 ├── spec.md              # 23 requirements, 14 criteria, 11 assumptions, evidence-tagged
 ├── plan.md              # this file
 ├── research.md          # thirteen decisions, R801–R818 (gaps where push went)
-├── data-model.md        # migrations 034–035, invariants, the privilege delta
+├── data-model.md        # migrations 034, 035, 038; invariants; the privilege delta
 ├── contracts/
 │   └── server-actions.md    # three extended actions; no new actions and no routes
 ├── quickstart.md        # setup, verification per criterion
@@ -186,7 +186,7 @@ built on top of things already proved, not underneath them.
    from `task_resolutions` off the channel the shell already holds, deduped on the resolution row and
    suppressed on the device that ticked.
 7. **The gates and the browser pass** — the four gates, the new e2e journeys, the quickstart run
-   record, then the hosted `db push` of `034` and `035`.
+   record, then the hosted `db push` of `034`, `035` and `038`.
 
 ## Risks
 

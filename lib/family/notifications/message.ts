@@ -1,13 +1,13 @@
 /**
  * The words a reminder says (008 FR-814, FR-818, FR-819).
  *
- * One implementation, composed once by the scan and stored on the delivery row
- * so the service worker reads them back rather than recomputing (R819). A
- * second implementation reachable by a different path is how the wall and the
- * phone come to say different things about the same event.
+ * One implementation, called by whichever source produced the reminder — an
+ * event, a chore falling due, a chore finished. A second implementation
+ * reachable by a different path is how two screens come to say different things
+ * about the same event.
  *
- * The completion's shape is the reference's own: its documented example is a
- * real push banner reading "Olivia dried the dinner dishes"
+ * The completion's shape is the reference's own. Its documented example is a
+ * push banner reading "Olivia dried the dinner dishes"
  * [VERIFIED](54930439904923) — the person, the verb, the thing. Ours reads
  * "Cleo finished Practice piano", which is the same sentence over a task
  * summary that is already imperative.

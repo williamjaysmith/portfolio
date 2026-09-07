@@ -296,17 +296,17 @@ the old trustworthiness story that still means something without a delivery ledg
   rules on what each helper may know
 - [ ] T052 Run `npm run test:e2e` in full and fix what it proves broken, application-side, each with a
   unit test (harness.md §6)
-- [ ] T053 [P] Accessibility pass on the banner and the Notifications section — serious and critical
+- [x] T053 [P] Accessibility pass on the banner and the Notifications section — serious and critical
   clean, 44px targets, contrast (§III)
-- [ ] T054 Run all four gates: `npm run fallow:audit`, `npm test`, `npm run typecheck`, `npm run lint`.
+- [x] T054 Run all four gates: `npm run fallow:audit`, `npm test`, `npm run typecheck`, `npm run lint`.
   No suppressions; split anything over budget
-- [ ] T055 [P] Read the whole diff for anything left of the dropped design — a stray environment
+- [x] T055 [P] Read the whole diff for anything left of the dropped design — a stray environment
   reader, a service worker registration, a comment that still promises a phone will buzz. The feature
   should read as though push was never in scope
-- [ ] T056 [P] Update `CLAUDE.md`'s active-feature block to `008-family-notifications` with its reading
+- [x] T056 [P] Update `CLAUDE.md`'s active-feature block to `008-family-notifications` with its reading
   order
 - [ ] T057 Write `checklists/quickstart-run.md` — the run record: every criterion, and what was seen
-- [ ] T058 Hosted `supabase db push` (`034`–`035`) **before** the merge (R818). The ordering is weaker
+- [ ] T058 Hosted `supabase db push` (`034`, `035` and `038`) **before** the merge (R818). The ordering is weaker
   than it was but still real: `SETTINGS_COLUMNS` and `EVENT_COLUMNS` name the new columns, so a
   deployment against a database without them fails the settings and calendar reads
 

@@ -1,6 +1,7 @@
 # Data Model — 008 Family Notifications
 
-Two migrations, `034` and `035`. Both only add columns to tables that already exist. This phase adds
+Three migrations: `034` and `035` add columns to tables that already exist, and `038` repairs a
+function that predates them. This phase adds
 **no new table**: a reminder is drawn by a page that is open and remembered by the browser that drew
 it, so there is nothing for the database to hold.
 
@@ -137,6 +138,25 @@ permission to honour.
 | A completion is announced once, and never for an un-ticking | the resolution row's identity in that same Set, plus the resolution's own `status` |
 
 ---
+
+## 038 — the split has to carry the reminder too
+
+`015`'s `split_event_series` names its tail's columns explicitly, and `035` added three it does not
+name. So every `this_and_future` split silently reset the new tail's reminder to the column default
+`inherit` — losing both an explicit change made at that scope AND the head's own carried-over
+setting. An event reminding two hours ahead, edited from "this and future events", quietly went back
+to the household's ten minutes from the cut onwards.
+
+`038` re-creates the function with the three columns in its list, its select list and its
+`jsonb_to_record` shape. `reminder_mode` coalesces to `'inherit'` so a caller that says nothing gets
+the column's own default rather than a null its NOT NULL would refuse.
+
+**There is no data to migrate.** The columns were being defaulted, not corrupted, so every existing
+tail is simply an event on the household's setting — which is what it would have been had nobody
+touched its reminder.
+
+It was found by the scope test rather than by reading the code, which is the argument for running
+that test against a real database instead of a mock.
 
 ## The privilege delta
 
