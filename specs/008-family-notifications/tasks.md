@@ -9,16 +9,23 @@ Constitution §II is non-negotiable, so **every pure-logic task is a test first*
 
 `[P]` = parallelisable (different files, no dependency on an incomplete task).
 
+**Progress (2026-09-06).** Phases 1 and 2 are complete and committed: the four migrations are applied
+and pinned by a schema test at the store, and the pure due-computation is five modules and 64 tests
+under its own fallow zone. `T028`/`T057` were written early, with the migrations they check. The four
+gates are green. Two Setup items moved: `T001`'s dependency to the phase that imports it, and `T006`
+is blocked on the operator. Phases 3–9 — the settings screen, the banner, the per-event override, the
+task notifications, the push path and the browser pass — are not started.
+
 ---
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `web-push` to `dependencies` and `@types/web-push` to `devDependencies` in `package.json`, then `npm install` (R805)
-- [ ] T002 [P] Add the `family-notifications-core` zone (`lib/family/notifications/**`) and its rule (`allow: ["family-notifications-core", "lib"]`) to `.fallowrc.json`, and extend the `family-actions` and `components` rules to allow it
-- [ ] T003 [P] Add the four environment variables to `lib/family/env.ts` with the project's existing loud-failure behaviour, keeping the private key server-only
-- [ ] T004 [P] Add `"family:reminders": "node scripts/family-reminders.mjs"` to `package.json` scripts
-- [ ] T005 [P] Create `scripts/family-reminders.mjs` — reads the secret from `.env.local`, posts to the run route, prints the counts it gets back (contracts §The local trigger)
-- [ ] T006 Verify `pg_cron` and `pg_net` are available on the hosted project (quickstart §3 step 1) and record the answer in `checklists/quickstart-run.md`; if either is missing, stop and raise it
+- [ ] T001 Add `web-push` to `dependencies` and `@types/web-push` to `devDependencies` in `package.json`, then `npm install` (R805) — **moved to Phase 7 (T063)**: verified it installs and adds no advisories, then removed. An unused dependency is a fallow finding, and this repository's rule is that every commit is green, so it arrives with the sender that imports it. The same applies to the VAPID and secret readers in `lib/family/env.ts`, drafted and held back; `.env.example` documents all four now.
+- [x] T002 [P] Add the `family-notifications-core` zone (`lib/family/notifications/**`) and its rule (`allow: ["family-notifications-core", "lib"]`) to `.fallowrc.json`, and extend the `family-actions` and `components` rules to allow it
+- [x] T003 [P] Add the four environment variables to `lib/family/env.ts` with the project's existing loud-failure behaviour, keeping the private key server-only
+- [x] T004 [P] Add `"family:reminders": "node scripts/family-reminders.mjs"` to `package.json` scripts
+- [x] T005 [P] Create `scripts/family-reminders.mjs` — reads the secret from `.env.local`, posts to the run route, prints the counts it gets back (contracts §The local trigger)
+- [ ] T006 **BLOCKED, needs the operator.** Verify `pg_cron` and `pg_net` on the hosted project (quickstart §3 step 1). The Supabase MCP server returns `Unauthorized` in this session, so it could not be checked from here. Both are standard on hosted Supabase and nothing before Phase 7 depends on them, so this does not block the work — but it must be answered before the scheduler is relied on.
 
 ## Phase 2: Foundational — the schema, the types, and the one pure function
 
@@ -27,32 +34,32 @@ this phase is green.
 
 ### The migrations
 
-- [ ] T007 Write `supabase/migrations/034_notification_settings.sql` — five columns on `family.household_settings` with FR-807's defaults and the `1…10080` bound (data-model §034)
-- [ ] T008 Write `supabase/migrations/035_event_reminders.sql` — the three reminder columns on `family.events` (not null, default `inherit`) and on `family.event_exceptions` (nullable, null = inherit from the series), each with its `events_reminder_payload` check (data-model §035)
-- [ ] T009 Write `supabase/migrations/036_push_devices_and_deliveries.sql` — both tables, RLS (`is_member()` SELECT, service-role ALL), the two partial unique indexes, and the `touch_updated_at` trigger (data-model §036)
-- [ ] T010 Write `supabase/migrations/037_realtime_push_devices.sql` — the `022`/`033` guard block verbatim over `push_devices` only, with the DEFAULT replica identity note (data-model §037, R817)
-- [ ] T011 Run `supabase db reset` locally and confirm all four apply clean on top of `001`–`033`
+- [x] T007 Write `supabase/migrations/034_notification_settings.sql` — five columns on `family.household_settings` with FR-807's defaults and the `1…10080` bound (data-model §034)
+- [x] T008 Write `supabase/migrations/035_event_reminders.sql` — the three reminder columns on `family.events` (not null, default `inherit`) and on `family.event_exceptions` (nullable, null = inherit from the series), each with its `events_reminder_payload` check (data-model §035)
+- [x] T009 Write `supabase/migrations/036_push_devices_and_deliveries.sql` — both tables, RLS (`is_member()` SELECT, service-role ALL), the two partial unique indexes, and the `touch_updated_at` trigger (data-model §036)
+- [x] T010 Write `supabase/migrations/037_realtime_push_devices.sql` — the `022`/`033` guard block verbatim over `push_devices` only, with the DEFAULT replica identity note (data-model §037, R817)
+- [x] T011 Run `supabase db reset` locally and confirm all four apply clean on top of `001`–`033`
 
 ### The types and the row mappers
 
-- [ ] T012 [P] Extend `lib/family/types.ts` — `HouseholdSettings` and its patch gain the five fields; add `EventReminder`, `PushDevice`, `ReminderSubjectKind`
-- [ ] T013 [P] Extend `lib/family/rows.ts` — `SETTINGS_COLUMNS` and `toSettings` gain the five; add `PUSH_DEVICE_COLUMNS`/`toPushDevice`, which **never** maps `endpoint`, `p256dh` or `auth` outward
-- [ ] T014 [P] Extend `lib/family/validation.ts` — five fields on `settingsPatchSchema`, the `reminder` union on the event schemas, and the two push-device input schemas (contracts)
+- [x] T012 [P] Extend `lib/family/types.ts` — `HouseholdSettings` and its patch gain the five fields; add `EventReminder`, `PushDevice`, `ReminderSubjectKind`
+- [x] T013 [P] Extend `lib/family/rows.ts` — `SETTINGS_COLUMNS` and `toSettings` gain the five; add `PUSH_DEVICE_COLUMNS`/`toPushDevice`, which **never** maps `endpoint`, `p256dh` or `auth` outward
+- [x] T014 [P] Extend `lib/family/validation.ts` — five fields on `settingsPatchSchema`, the `reminder` union on the event schemas, and the two push-device input schemas (contracts)
 
 ### The pure due-computation — test first, every one
 
-- [ ] T015 [P] Test `lib/family/__tests__/notifications/resolve.test.ts` — the household default alone; `inherit`, `none` and `custom` on an event; an exception overriding its series; a default change moving inheriting events and not overridden ones (FR-808, FR-809)
-- [ ] T016 Implement `lib/family/notifications/resolve.ts` — settings + event + exception → the reminder in force
-- [ ] T017 [P] Test `lib/family/__tests__/notifications/identity.test.ts` — the key for each subject kind; a moved event yields a different key; the same occurrence at the same instant yields the same key (R808)
-- [ ] T018 Implement `lib/family/notifications/identity.ts`
-- [ ] T019 [P] Test `lib/family/__tests__/notifications/window.test.ts` — a normal minute; a one-hour gap clamped to fifteen minutes; a first-ever run; a clock that went backwards (FR-817, FR-829, R803)
-- [ ] T020 Implement `lib/family/notifications/window.ts`
-- [ ] T021 [P] Test `lib/family/__tests__/notifications/due.test.ts` — the big one. At-time and before, both together, an all-day event reminding from the start of its day, a repeating event's several occurrences, a skipped occurrence sending nothing, **a DST boundary**, midnight in the household's zone, and a reminder whose moment was already past when the event was created (FR-812, FR-813, FR-821, SC-814)
-- [ ] T022 Implement `lib/family/notifications/due.ts` — the single function both readers call (R802)
-- [ ] T023 [P] Test `lib/family/__tests__/notifications/message.test.ts` — the words for each kind, including the completion's "Cleo finished Practice piano" shape (FR-819)
-- [ ] T024 Implement `lib/family/notifications/message.ts`
-- [ ] T025 [P] Test `lib/family/__tests__/notifications/settings.test.ts` — the defaults, and the seven-day ceiling refusing `10081`
-- [ ] T026 Implement `lib/family/notifications/settings.ts`
+- [x] T015 [P] Test `lib/family/__tests__/notifications/resolve.test.ts` — the household default alone; `inherit`, `none` and `custom` on an event; an exception overriding its series; a default change moving inheriting events and not overridden ones (FR-808, FR-809)
+- [x] T016 Implement `lib/family/notifications/resolve.ts` — settings + event + exception → the reminder in force
+- [x] T017 [P] Test `lib/family/__tests__/notifications/identity.test.ts` — the key for each subject kind; a moved event yields a different key; the same occurrence at the same instant yields the same key (R808)
+- [x] T018 Implement `lib/family/notifications/identity.ts`
+- [x] T019 [P] Test `lib/family/__tests__/notifications/window.test.ts` — a normal minute; a one-hour gap clamped to fifteen minutes; a first-ever run; a clock that went backwards (FR-817, FR-829, R803)
+- [x] T020 Implement `lib/family/notifications/window.ts`
+- [x] T021 [P] Test `lib/family/__tests__/notifications/due.test.ts` — the big one. At-time and before, both together, an all-day event reminding from the start of its day, a repeating event's several occurrences, a skipped occurrence sending nothing, **a DST boundary**, midnight in the household's zone, and a reminder whose moment was already past when the event was created (FR-812, FR-813, FR-821, SC-814)
+- [x] T022 Implement `lib/family/notifications/due.ts` — the single function both readers call (R802)
+- [x] T023 [P] Test `lib/family/__tests__/notifications/message.test.ts` — the words for each kind, including the completion's "Cleo finished Practice piano" shape (FR-819)
+- [x] T024 Implement `lib/family/notifications/message.ts`
+- [x] T025 [P] Test `lib/family/__tests__/notifications/settings.test.ts` — the defaults, and the seven-day ceiling refusing `10081`
+- [x] T026 Implement `lib/family/notifications/settings.ts`
 
 **Checkpoint**: `npm test`, `npm run typecheck`, `npm run lint`, `npm run fallow:audit` all green. The
 engine is correct before anything renders it.
@@ -65,7 +72,7 @@ engine is correct before anything renders it.
 **Independent test**: change each setting, reload, see it kept; punch in as Cleo and find it read-only.
 
 - [ ] T027 [US1] Extend `SETTINGS_FIELDS` in `lib/family/actions/settings.ts` with the five field→column entries (contracts §updateHouseholdSettings)
-- [ ] T028 [P] [US1] Test `lib/family/__tests__/policies/notification-settings.test.ts` — a member cannot write the five columns; anonymous is refused, not empty (SC-815)
+- [x] T028 [P] [US1] Test `lib/family/__tests__/policies/notification-settings.test.ts` — a member cannot write the five columns; anonymous is refused, not empty (SC-815)
 - [ ] T029 [P] [US1] Test `app/family/(app)/components/settings/__tests__/NotificationsSection.test.tsx` — the four labelled controls, the defaults, a member seeing them disabled with a reason
 - [ ] T030 [US1] Build `app/family/(app)/components/settings/NotificationsSection.tsx` — two groups, four controls, the shipped switch component, `requireParent` reflected in the UI (FR-802–FR-805)
 - [ ] T031 [P] [US1] Test `app/family/(app)/components/settings/__tests__/LeadTimeField.test.tsx` — the three presets, custom with each unit, and `8 days` refused with a field error (FR-806)
@@ -102,7 +109,7 @@ and confirm an old reminder never appears.
 default; both keep what they were given.
 
 - [ ] T042 [P] [US3] Test `lib/family/__tests__/actions/event-reminders.test.ts` — an empty `custom` refused; each of the three scopes writing where data-model §035 says (FR-808, FR-810)
-- [ ] T043 [US3] Extend `lib/family/actions/events.ts` — the `reminder` field through `createEvent` and `updateEvent`, riding the existing scope machinery
+- [ ] T043 [US3] Extend `lib/family/actions/events.ts` — the `reminder` field through `createEvent` and `updateEvent`, riding the existing scope machinery. Bring back `eventReminderSchema` in `lib/family/validation.ts` with it: it was written during Phase 2 and held back for the same green-commit reason as `web-push`.
 - [ ] T044 [P] [US3] Test `app/family/(app)/calendar/components/__tests__/EventForm.reminder.test.tsx` — the three states, and the scope dialog appearing for a repeating event
 - [ ] T045 [US3] Extend `app/family/(app)/calendar/components/EventForm.tsx` with the reminder control
 - [ ] T046 [US3] Show the reminder in the event's details view (FR-811)
@@ -139,7 +146,7 @@ right day.
 
 - [ ] T055 [P] [US5] Test `lib/family/__tests__/actions/push-devices.test.ts` — register requires a punch-in; remove requires a parent; re-registering an endpoint updates rather than duplicates; no credential is returned (contracts)
 - [ ] T056 [US5] Build `lib/family/actions/push-devices.ts`
-- [ ] T057 [P] [US5] Test `lib/family/__tests__/policies/push-devices.test.ts` — anonymous refused; another household sees zero rows (SC-815)
+- [x] T057 [P] [US5] Test `lib/family/__tests__/policies/push-devices.test.ts` — anonymous refused; another household sees zero rows (SC-815)
 - [ ] T058 [P] [US5] Test `app/family/(app)/components/settings/__tests__/DeviceList.test.tsx` — the list, the empty state, removing one, and a member unable to remove (FR-827)
 - [ ] T059 [US5] Build `app/family/(app)/components/settings/DeviceList.tsx`
 - [ ] T060 [US5] Build the subscribe control — asks the browser's permission, reflects what was actually answered, and says plainly when `/family` must be installed to the Home Screen first (FR-823, R820)
