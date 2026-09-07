@@ -6,6 +6,7 @@ import type { Category, EventInput } from "@/lib/family/types";
 import { useFamily } from "../../components/FamilyProvider";
 import { RepeatFieldset } from "../../components/RepeatFieldset";
 import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFields";
+import { ReminderFieldset } from "./ReminderFieldset";
 import { useModalDialog } from "../../components/useModalDialog";
 import {
   useEventForm,
@@ -216,6 +217,10 @@ export function EventForm({ mode, seed, onSubmit, onClose }: EventFormProps) {
         <TimesFieldset form={form} />
         <RepeatFieldset form={form} />
         <CategoryPicker form={form} categories={categories} />
+        <ReminderFieldset
+          value={form.draft.reminder}
+          onChange={(reminder) => form.set("reminder", reminder)}
+        />
 
         <label className={LABEL}>
           Location (optional)

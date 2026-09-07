@@ -111,11 +111,13 @@ describe("EventForm", () => {
     }
   });
 
-  it("offers none of the excluded inputs: emails, reminders, timezone, photo/voice", () => {
+  it("offers none of the excluded inputs: emails, timezone, photo/voice", () => {
+    // A reminder control joined this form in Phase 7 (008 FR-808). The rest stay
+    // out: this app sends no mail, the zone is provenance rather than a choice,
+    // and there is no media capture anywhere in it.
     renderForm();
 
     expect(screen.queryByLabelText(/email/i)).toBeNull();
-    expect(screen.queryByLabelText(/reminder/i)).toBeNull();
     expect(screen.queryByLabelText(/timezone/i)).toBeNull();
     expect(screen.queryByLabelText(/photo|voice/i)).toBeNull();
   });
@@ -183,6 +185,9 @@ describe("EventForm", () => {
         startsAt: new Date(2026, 9, 9, 22, 0).toISOString(),
         endsAt: new Date(2026, 9, 10, 1, 0).toISOString(),
         summary: "Night drive",
+      // 008 FR-808: every submission carries a reminder, and an event nobody
+      // thinks about inherits the household's.
+      reminder: { mode: "inherit" },
         description: null,
         location: null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,

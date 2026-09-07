@@ -1,6 +1,8 @@
 "use client";
 
 import { repeatChoiceOf } from "@/lib/family/calendar/expand";
+import { occurrenceReminder, reminderInForce } from "@/lib/family/notifications/resolve";
+import { notificationSettingsOf } from "@/lib/family/notifications/settings";
 
 import { useFamily } from "../../components/FamilyProvider";
 import { DeleteConfirm } from "./DeleteConfirm";
@@ -53,6 +55,10 @@ function DetailsSlot({ editor, zone }: { editor: CalendarEditor; zone: string })
       categories={categories}
       zone={zone}
       timeFormat={settings.timeFormat}
+      reminder={reminderInForce(
+        notificationSettingsOf(settings),
+        occurrenceReminder(event, occurrence.occurrenceDate),
+      )}
       onEdit={editor.edit}
       onDelete={editor.requestDelete}
       onClose={editor.close}

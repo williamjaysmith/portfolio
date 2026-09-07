@@ -320,6 +320,8 @@ export type EventInput = EventTimes & {
   timezone: string;
   repeat: RepeatChoice;
   categoryIds: string[];
+  /** 008 FR-808; absent means `inherit`, which is the column's default. */
+  reminder?: EventReminder;
 };
 
 /**
@@ -333,6 +335,8 @@ export type EventPatch = Partial<EventTimes> & {
   location?: string | null;
   repeat?: RepeatChoice;
   categoryIds?: string[];
+  /** 008 FR-808/FR-810 — changed under the three scopes like any other field. */
+  reminder?: EventReminder;
 };
 
 /** Input to `updateEvent` (contracts/server-actions.md). */

@@ -1,6 +1,8 @@
 import { addDays, diffDays, localDateOf, zoneMidnightMs } from "@/lib/family/calendar/dates";
 import { repeatChoiceOf } from "@/lib/family/calendar/expand";
+import { occurrenceReminder } from "@/lib/family/notifications/resolve";
 import type {
+  EventReminder,
   Event,
   EventInput,
   EventPatch,
@@ -122,6 +124,10 @@ export function seedOf({ occurrence, event }: EditTarget, zone: string): EventFo
     categoryIds: [...occurrence.categoryIds],
     location: occurrence.location ?? "",
     notes: occurrence.description ?? "",
+    // The occurrence's EFFECTIVE reminder: its own exception's if it has one,
+    // otherwise the series'. The form must show what this occurrence will
+    // actually do, which is what the diff below is then judged against.
+    reminder: occurrenceReminder(event, occurrence.occurrenceDate),
   };
 }
 
@@ -182,7 +188,18 @@ export function patchOf(input: EventInput, { occurrence, event }: EditTarget, zo
   if (!sameIdSet(input.categoryIds, occurrence.categoryIds)) {
     patch.categoryIds = [...input.categoryIds];
   }
+  const reminder = input.reminder ?? { mode: "inherit" };
+  if (!sameReminder(reminder, occurrenceReminder(event, occurrence.occurrenceDate))) {
+    patch.reminder = reminder;
+  }
   return patch;
+}
+
+/** Two reminders are the same when their mode and their payload both match. */
+function sameReminder(a: EventReminder, b: EventReminder): boolean {
+  if (a.mode !== b.mode) return false;
+  if (a.mode !== "custom" || b.mode !== "custom") return true;
+  return a.atTime === b.atTime && a.beforeMinutes === b.beforeMinutes;
 }
 
 export function isEmptyPatch(patch: EventPatch): boolean {

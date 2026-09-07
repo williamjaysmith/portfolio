@@ -40,6 +40,7 @@ import {
   type Event,
   type EventException,
   type EventInput,
+  type EventReminder,
   type EventTimes,
   type ExceptionAction,
   type Occurrence,
@@ -66,21 +67,33 @@ type Patch = UpdateInput["patch"];
 type DeleteInput = z.output<typeof deleteEventInputSchema>;
 
 /** Snake-cased columns for an INSERT/UPDATE/UPSERT. */
-type EventWrite = Record<string, string | boolean | null>;
+type EventWrite = Record<string, string | number | boolean | null>;
 
-/** The exception row's payload — exactly FR-239's four; `null` = inherit from the series. */
+/**
+ * The exception row's payload — FR-239's four, plus 008's reminder. `null` =
+ * inherit from the series, which is this table's convention for every override
+ * column (012) and the reason 035 had to widen `exception_payload_shape`: an
+ * occurrence whose ONLY difference is when it reminds is a legal override.
+ */
 interface ExceptionPayload {
   summary: string | null;
   description: string | null;
   location: string | null;
   times: EventTimes | null;
+  reminder: EventReminder | null;
 }
 
 // The same embed the week read uses: ordered links and EVERY exception (R206).
 const EVENT_WITH_RELATIONS = eventsSelect();
 
 const NO_PAIRS: EventWrite = { starts_at: null, ends_at: null, start_date: null, end_date: null };
-const EMPTY_PAYLOAD: ExceptionPayload = { summary: null, description: null, location: null, times: null };
+const EMPTY_PAYLOAD: ExceptionPayload = {
+  summary: null,
+  description: null,
+  location: null,
+  times: null,
+  reminder: null,
+};
 const TEXT_FIELDS = ["summary", "description", "location"] as const;
 
 const UNTIL_BEFORE_START = "The repeat can't end before the event starts.";
@@ -298,6 +311,29 @@ function patchTimes(patch: Patch): EventTimes | null {
   return null;
 }
 
+/**
+ * A reminder as its three columns (008 R809, migration 035).
+ *
+ * `undefined` is silence — the caller said nothing, so nothing is written.
+ * `null` is "inherit", which on an EXCEPTION means inherit from the series and
+ * is expressed by leaving all three null; on an event the mode column is NOT
+ * NULL, so `inherit` is spelled out.
+ */
+function reminderColumns(reminder: EventReminder | null | undefined): EventWrite {
+  if (reminder === undefined) return {};
+  if (reminder === null) {
+    return { reminder_mode: null, reminder_at_time: null, reminder_before_minutes: null };
+  }
+  if (reminder.mode !== "custom") {
+    return { reminder_mode: reminder.mode, reminder_at_time: null, reminder_before_minutes: null };
+  }
+  return {
+    reminder_mode: "custom",
+    reminder_at_time: reminder.atTime,
+    reminder_before_minutes: reminder.beforeMinutes,
+  };
+}
+
 function textColumns(patch: Patch): EventWrite {
   const columns: EventWrite = {};
   for (const field of TEXT_FIELDS) {
@@ -386,6 +422,7 @@ async function writeException(
     description: payload.description,
     location: payload.location,
     ...pairColumns(payload.times),
+    ...reminderColumns(payload.reminder),
     // The creator is written once; every later write is the updater.
     ...(exceptionOn(event, date) ? {} : { created_by: actor.profileId }),
     updated_by: actor.profileId,
@@ -403,6 +440,7 @@ function mergedOverride(existing: EventException | undefined, patch: Patch): Exc
     description: pick(patch.description, existing?.description ?? null),
     location: pick(patch.location, existing?.location ?? null),
     times: patchTimes(patch) ?? existing?.times ?? null,
+    reminder: pick(patch.reminder, existing?.reminder ?? null),
   };
 }
 
@@ -454,6 +492,7 @@ async function updateSegment(
     .from("events")
     .update({
       ...textColumns(patch),
+      ...reminderColumns(patch.reminder),
       ...(newTimes === null ? {} : timeColumns(newTimes)),
       rrule,
       updated_by: actor.profileId,
@@ -508,6 +547,11 @@ async function splitSeries(
       timezone: event.timezone,
       rrule: tailRule,
       countdown_enabled: event.countdownEnabled,
+      // The tail carries the reminder the same way it carries the summary: the
+      // patch's if the edit changed it, otherwise the head's. Without this the
+      // split silently reset it to `inherit` — 015's column list predates 035,
+      // and 038 widens the function to match.
+      ...reminderColumns(pick(patch.reminder, event.reminder)),
     },
     p_tail_category_ids: patch.categoryIds ?? event.categoryIds,
   });
@@ -652,6 +696,7 @@ export async function createEvent(input: EventInput): Promise<ActionResult<Event
         // Provenance only (FR-224); nothing renders from it.
         timezone: parsed.timezone,
         rrule: ruleFromChoice(parsed.repeat, parsed, household),
+        ...reminderColumns(parsed.reminder ?? { mode: "inherit" }),
         // `countdown_enabled` stays at its default (FR-228).
         created_by: actor.profileId,
         updated_by: actor.profileId,

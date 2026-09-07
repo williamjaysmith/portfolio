@@ -227,16 +227,16 @@ one pure due-computation with one reader; only where that reader gets its data h
 **Independent test**: give one event its own reminder and another silence; change the household
 default; both keep what they were given.
 
-- [ ] T037 [P] [US3] Test `lib/family/__tests__/actions/event-reminders.test.ts` — an empty `custom`
+- [x] T037 [P] [US3] Test `lib/family/__tests__/actions/event-reminders.test.ts` — an empty `custom`
   refused; each of the three scopes writing where data-model §035 says (FR-808, FR-810)
-- [ ] T038 [US3] Extend `lib/family/actions/events.ts` — the `reminder` field through `createEvent` and
+- [x] T038 [US3] Extend `lib/family/actions/events.ts` — the `reminder` field through `createEvent` and
   `updateEvent`, riding the existing scope machinery, and bring `eventReminderSchema` into
   `lib/family/validation.ts` with it (held back from T007 for the green-commit reason)
-- [ ] T039 [P] [US3] Test
+- [x] T039 [P] [US3] Test
   `app/family/(app)/calendar/components/__tests__/EventForm.reminder.test.tsx` — the three states, and
   the scope dialog appearing for a repeating event
-- [ ] T040 [US3] Extend `app/family/(app)/calendar/components/EventForm.tsx` with the reminder control
-- [ ] T041 [US3] Show the reminder in the event's details view (FR-811)
+- [x] T040 [US3] Extend `app/family/(app)/calendar/components/EventForm.tsx` with the reminder control
+- [x] T041 [US3] Show the reminder in the event's details view (FR-811)
 
 ---
 

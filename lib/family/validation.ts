@@ -350,6 +350,28 @@ interface FieldIssue {
   message: string;
 }
 
+/**
+ * A reminder as an event carries it (008 FR-808), in the three named states.
+ *
+ * A `custom` carrying neither half is refused here and by
+ * `events_reminder_payload` — it is just `none` written badly. The schema
+ * exists to give the form a good message; the constraint exists to make a bad
+ * row impossible.
+ */
+const eventReminderSchema = z
+  .discriminatedUnion("mode", [
+    z.object({ mode: z.literal("inherit") }),
+    z.object({ mode: z.literal("none") }),
+    z.object({
+      mode: z.literal("custom"),
+      atTime: z.boolean({ error: "Choose whether it reminds as it starts." }),
+      beforeMinutes: leadMinutes.nullable(),
+    }),
+  ])
+  .refine((value) => value.mode !== "custom" || value.atTime || value.beforeMinutes !== null, {
+    error: "Choose when it reminds, or choose no reminder.",
+  });
+
 const eventBaseFields = {
   summary: summarySchema,
   description: descriptionSchema.nullable().optional(),
@@ -357,6 +379,9 @@ const eventBaseFields = {
   timezone: timezoneSchema,
   repeat: repeatChoiceSchema,
   categoryIds: categoryIdsSchema,
+  // 008 FR-808. Optional on the way in: an event that says nothing about
+  // reminders inherits the household's, which is `inherit` and the column default.
+  reminder: eventReminderSchema.optional(),
 };
 
 /**
@@ -504,6 +529,7 @@ const eventPatchSchema = z
     location: locationSchema.nullable().optional(),
     repeat: repeatChoiceSchema.optional(),
     categoryIds: categoryIdsSchema.optional(),
+    reminder: eventReminderSchema.optional(),
     allDay: z.boolean({ error: "Choose timed or all-day." }).optional(),
     startsAt: instantSchema.optional(),
     endsAt: instantSchema.optional(),

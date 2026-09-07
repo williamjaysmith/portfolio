@@ -142,6 +142,9 @@ describe("seedOf", () => {
 
     expect(seed).toEqual({
       summary: "Piano recital",
+      // The occurrence's EFFECTIVE reminder — its exception's if it has one,
+      // otherwise the series' (008 FR-808).
+      reminder: { mode: "inherit" },
       allDay: false,
       startDate: start.date,
       startTime: start.time,
