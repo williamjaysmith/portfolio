@@ -1,4 +1,4 @@
-import { column, showColumn } from "../helpers/board";
+import { showColumn } from "../helpers/board";
 import { expect, test } from "../fixtures";
 
 /**

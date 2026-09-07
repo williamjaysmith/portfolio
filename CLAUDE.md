@@ -7,7 +7,7 @@ scopes, the tasks board and the stars it moves, the lists and their reorder, the
 recipes and its calendar tokens — plus the four claims no test has ever checked: a change reaching a
 second browser, the narrow layouts, installability, and no serious accessibility violations. It adds
 tests and the harness they need, and changes the app only where a journey proves a defect.
-**State: specified, planned and designed (2026-09-06); tasks next, then implementation — Setup first.**
+**State: built and green (2026-09-06) — 53 journeys at the wall, 12 of them also on the tablet and phone, run record in `checklists/quickstart-run.md`; merging next.**
 Phases 1–6 are shipped and live; Phase 7 (notifications, home, offline, search) follows this.
 
 Read in this order before touching `e2e/` code:

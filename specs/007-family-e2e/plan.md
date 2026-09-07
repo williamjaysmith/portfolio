@@ -148,4 +148,5 @@ exclusion), `.fallowrc.json` (`e2e/**` into the existing `tests` zone, the confi
 - [x] Phase 0 — research complete ([research.md](./research.md): R701–R715, no open unknowns, two devDependencies)
 - [x] Phase 1 — design complete: [harness.md](./harness.md) (the fixtures and helpers every journey may rely on), [quickstart.md](./quickstart.md)
 - [x] Phase 2 — `/speckit.tasks` ([tasks.md](./tasks.md): 67 tasks, ten phases, the harness first)
-- [ ] Phase 3 — implementation per the phasing table above
+- [x] Phase 3 — implementation complete (2026-09-06): 53 journeys at the wall and 12 on each device profile, seven defects found in shipped code and fixed, the fault-injection proof done — run record in [checklists/quickstart-run.md](./checklists/quickstart-run.md)
+- [ ] Merge to `main` (T067). No hosted step: this feature touches no migration and no deployed behaviour
