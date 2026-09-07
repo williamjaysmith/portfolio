@@ -306,7 +306,7 @@ the old trustworthiness story that still means something without a delivery ledg
 - [x] T056 [P] Update `CLAUDE.md`'s active-feature block to `008-family-notifications` with its reading
   order
 - [x] T057 Write `checklists/quickstart-run.md` — the run record: every criterion, and what was seen
-- [ ] T058 Hosted `supabase db push` (`034`, `035` and `038`) **before** the merge (R818). The ordering is weaker
+- [x] T058 Hosted `supabase db push` (`034`, `035` and `038`) **before** the merge (R818). The ordering is weaker
   than it was but still real: `SETTINGS_COLUMNS` and `EVENT_COLUMNS` name the new columns, so a
   deployment against a database without them fails the settings and calendar reads
 

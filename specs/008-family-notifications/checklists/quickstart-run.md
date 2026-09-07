@@ -106,8 +106,16 @@ Worth knowing before someone spends an hour reading a passing test suite looking
   pushed before this branch merges (R818): `SETTINGS_COLUMNS` and `EVENT_COLUMNS` name the new
   columns, so a deployment against a database without them fails its settings and calendar reads.
 
-## The operator's remaining steps
+## The hosted push — done
 
-1. `supabase db push` against the hosted project — `034`, `035`, `038`.
-2. Merge and deploy.
-3. The hardware pass above, on a real tablet and a real phone.
+`supabase db push` ran on 2026-09-07 with the operator's approval. `supabase migration list` now
+shows `034`, `035` and `038` present both locally and remotely, and local and production match
+through `038` with no other drift. The "constraint … does not exist, skipping" notices are the
+migrations' own `drop constraint if exists` guards on a first run.
+
+## What remains
+
+1. Merge and deploy.
+2. The hardware pass above, on a real tablet and a real phone.
+3. Separately, and NOT this phase's: `tasks.spec`'s skipped-filter journey fails on `main` as well.
+   `007`'s run record claims 53 journeys green, so it regressed between then and now.
