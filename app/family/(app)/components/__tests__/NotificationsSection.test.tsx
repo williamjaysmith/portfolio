@@ -27,6 +27,7 @@ vi.mock("@/lib/family/actions/settings", () => ({
 }));
 
 const { NotificationsSection } = await import("../settings/NotificationsSection");
+const { resetReminderSwitches } = await import("../notifications/reminderSwitches");
 
 const household = makeHousehold();
 
@@ -47,6 +48,9 @@ async function save(): Promise<void> {
 }
 
 beforeEach(() => {
+  // The device switch store is module-level, so one test flipping the chime
+  // would otherwise be visible to the next.
+  resetReminderSwitches();
   updateHouseholdSettings.mockReset();
   updateHouseholdSettings.mockResolvedValue(
     ok({ household, settings: makeSettings() }) as SettingsResult,
@@ -57,10 +61,17 @@ describe("the four choices, in two groups", () => {
   it("offers exactly the reference's four, and nothing else", () => {
     renderWith(makeSettings());
 
+    const calendar = screen.getByRole("group", { name: "Calendar" });
+    const tasks = screen.getByRole("group", { name: "Tasks" });
+
+    expect(within(calendar).getAllByRole("switch").map((s) => s.getAttribute("aria-label") ?? s.parentElement?.textContent?.trim())).toEqual([
+      "At time of event",
+      "Before event",
+    ]);
+    expect(within(tasks).getAllByRole("switch")).toHaveLength(2);
     for (const name of ["At time of event", "Before event", "When Due", "When Completed"]) {
       expect(screen.getByRole("switch", { name })).toBeTruthy();
     }
-    expect(screen.getAllByRole("switch")).toHaveLength(4);
   });
 
   it("groups them as Calendar and Tasks", () => {
@@ -153,14 +164,45 @@ describe("the lead time", () => {
 });
 
 describe("who may change them", () => {
-  it("lets a punched-in member read them and change nothing", () => {
+  it("lets a punched-in member read the household's choices and change none", () => {
     renderWith(makeSettings(), "member");
 
-    for (const control of screen.getAllByRole("switch")) {
-      expect(control).toHaveProperty("disabled", true);
+    for (const name of ["At time of event", "Before event", "When Due", "When Completed"]) {
+      expect(screen.getByRole("switch", { name })).toHaveProperty("disabled", true);
     }
     expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
     expect(screen.getByText("Parents only")).toBeTruthy();
+  });
+
+  it("still lets a member quieten their OWN device", () => {
+    // The two device switches are not household policy: they are this screen's
+    // own, saved to this browser, and a child at the wall tablet may turn the
+    // sound off without asking a parent (FR-815).
+    renderWith(makeSettings(), "member");
+    const device = screen.getByRole("group", { name: "This device" });
+
+    for (const control of within(device).getAllByRole("switch")) {
+      expect(control).toHaveProperty("disabled", false);
+    }
+  });
+});
+
+describe("this device's own two", () => {
+  it("shows a banner by default and stays silent by default", () => {
+    renderWith(makeSettings());
+    const device = screen.getByRole("group", { name: "This device" });
+
+    expect(within(device).getByRole("switch", { name: "Show reminders on this screen" })).toHaveProperty("checked", true);
+    expect(within(device).getByRole("switch", { name: "Play a sound with them" })).toHaveProperty("checked", false);
+  });
+
+  it("is saved without a Save button, because it never leaves this browser", () => {
+    renderWith(makeSettings());
+    const device = screen.getByRole("group", { name: "This device" });
+    fireEvent.click(within(device).getByRole("switch", { name: "Play a sound with them" }));
+
+    expect(within(device).getByRole("switch", { name: "Play a sound with them" })).toHaveProperty("checked", true);
+    expect(updateHouseholdSettings).not.toHaveBeenCalled();
   });
 });
 

@@ -171,49 +171,49 @@ one pure due-computation with one reader; only where that reader gets its data h
 
 ### The device's own choices
 
-- [ ] T025 [P] [US2] Test
+- [x] T025 [P] [US2] Test
   `app/family/(app)/components/notifications/__tests__/reminderSwitches.test.ts` — the defaults (banner
   on, chime off), persistence, and storage refusing without crashing (§VI). No browser permission is
   involved anywhere: both switches are `localStorage` on this device and nothing else (FR-815)
-- [ ] T026 [US2] Build `app/family/(app)/components/notifications/reminderSwitches.ts` on
+- [x] T026 [US2] Build `app/family/(app)/components/notifications/reminderSwitches.ts` on
   `createDeviceSwitches` (R813)
 
 ### The banner's own data
 
-- [ ] T027 [P] [US2] Test the horizon query — the window it asks for spans the longest lead time the
+- [x] T027 [P] [US2] Test the horizon query — the window it asks for spans the longest lead time the
   household can set; it is keyed independently of the calendar's displayed window, so a tab change
   neither refetches it nor drops it; and it adds no read to any other tab's path (FR-832)
-- [ ] T028 [US2] Add `familyKeys.reminderHorizon` and `useReminderHorizon` to `lib/family/queries.ts`,
+- [x] T028 [US2] Add `familyKeys.reminderHorizon` and `useReminderHorizon` to `lib/family/queries.ts`,
   naming its columns as every read there does. The board's task reads are already household-wide and
   keyed by household alone, so they are reused rather than duplicated
 
 ### The banner
 
-- [ ] T029 [P] [US2] Test
+- [x] T029 [P] [US2] Test
   `app/family/(app)/components/notifications/__tests__/useDueReminders.test.ts` — a fake clock crossing
   the moment; a key already shown not returning; a reminder fifteen minutes stale never shown; midnight
   rollover (FR-816, FR-817, FR-829)
-- [ ] T030 [US2] Build `app/family/(app)/components/notifications/useDueReminders.ts` — `useNow()` +
+- [x] T030 [US2] Build `app/family/(app)/components/notifications/useDueReminders.ts` — `useNow()` +
   `due.ts` + a shown-key `Set` on `createDeviceKeySet` (R808, R813). "Shown once" is a per-device
   convention, and the two places it gives way are to be stated where the guarantee is, not hidden:
   clearing site data, a private window or a second browser profile can re-show a reminder that is still
   inside its freshness window, and two tabs each show their own banner
-- [ ] T031 [P] [US2] Test
+- [x] T031 [P] [US2] Test
   `app/family/(app)/components/notifications/__tests__/ReminderBanner.test.tsx` — several items in one
   banner; dismissible by keyboard; a live region that does not steal focus; nothing rendered when the
   switch is off (FR-814–FR-816, §III)
-- [ ] T032 [US2] Build `app/family/(app)/components/notifications/ReminderBanner.tsx`
-- [ ] T033 [US2] Build `app/family/(app)/components/notifications/chime.ts` — one tone from
+- [x] T032 [US2] Build `app/family/(app)/components/notifications/ReminderBanner.tsx`
+- [x] T033 [US2] Build `app/family/(app)/components/notifications/chime.ts` — one tone from
   `public/family/`, primed by the switch's own gesture; a device that refuses is a silent banner, not
   an error (R813)
-- [ ] T034 [US2] Mount the banner once in `app/family/(app)/components/AppShell.tsx` so every tab has
+- [x] T034 [US2] Mount the banner once in `app/family/(app)/components/AppShell.tsx` so every tab has
   it, and add the two switches to the Notifications section (FR-815)
 
 ### Reaching the day it belongs to (R815)
 
-- [ ] T035 [P] [US2] Test that the calendar seeds its anchor from `?on=YYYY-MM-DD` once on mount,
+- [x] T035 [P] [US2] Test that the calendar seeds its anchor from `?on=YYYY-MM-DD` once on mount,
   ignores an unparseable value, and is never read again
-- [ ] T036 [US2] Implement the parameter in the calendar screen. Tapping a banner opens the day the
+- [x] T036 [US2] Implement the parameter in the calendar screen. Tapping a banner opens the day the
   reminder belongs to, and a banner shown on the Lists tab has to be able to cross into the calendar to
   do it — which needs a date in the URL, because `/family` has none anywhere else
 

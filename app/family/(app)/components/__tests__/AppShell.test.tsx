@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { TextSize } from "@/lib/family/types";
 
 import { AppShell } from "../AppShell";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { makeContext, makeSettings, withFamily } from "./family-test-utils";
 
 // The navs read the current route to mark the active tab; nothing here is
@@ -13,13 +15,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 function renderShell(textSize: TextSize) {
+  // The shell mounts the reminder banner, which reads (008 R802), so it needs
+  // a client here exactly as it has one in the app.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    withFamily(
+    <QueryClientProvider client={client}>
+      {withFamily(
       makeContext({ settings: makeSettings({ textSize }) }),
       <AppShell>
         <p>tab content</p>
       </AppShell>,
-    ),
+      )}
+    </QueryClientProvider>,
   );
 }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { addDays, localDateOf, weekAnchorOf } from "@/lib/family/calendar/dates";
@@ -17,6 +18,13 @@ import { useNow } from "../../components/Clock";
  * an absolute first day and derives NOTHING from the clock, which makes
  * FR-210's qualifier — never yank a person who has navigated away — a property
  * of the type rather than an `if`.
+ *
+ * A reminder's banner links to the day it belongs to, so the anchor can also
+ * be SEEDED from the URL — `?on=YYYY-MM-DD` (008 R815). It is read once, in the
+ * `useState` initialiser, and never looked at again: a parameter that kept
+ * asserting itself would fight the pager on every render, and the person who
+ * arrived from a banner is free to page away from the day it sent them to.
+ * An absent or unparseable value simply means today, exactly as before.
  *
  * The window is `columns` days wide starting AT the anchor, and paging moves
  * the anchor by exactly `columns` days. That is the whole navigation model:
@@ -59,7 +67,8 @@ const TODAY: WeekAnchor = { kind: "today" };
 export function useWeekAnchor(options: UseWeekAnchorOptions): WeekAnchorState {
   const { zone, startWeekOn, columns, initialAnchorDate } = options;
   const now = useNow();
-  const [anchor, setAnchor] = useState<WeekAnchor>(TODAY);
+  const openOn = useOpenOn();
+  const [anchor, setAnchor] = useState<WeekAnchor>(() => anchorFor(openOn));
 
   const todayDate = now === null ? null : localDateOf(zone, now.getTime());
   const anchorDate = deriveAnchorDate(anchor, todayDate, startWeekOn, initialAnchorDate);
@@ -76,6 +85,32 @@ export function useWeekAnchor(options: UseWeekAnchorOptions): WeekAnchorState {
   );
 
   return { anchor, anchorDate, todayDate, goToToday, page };
+}
+
+/**
+ * `?on=` accepts a plain household-local date and nothing else. It is checked
+ * for shape AND for being a real date, so `?on=2026-02-31` is today rather than
+ * a window onto the 3rd of March: this value comes off a URL, which anybody can
+ * type.
+ */
+const ON_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * `useSearchParams` is typed as always returning params, but returns null when
+ * there is no router above it — which is true of every unit test that renders
+ * the week without one, and would otherwise turn a missing provider into a
+ * crash on the calendar rather than a missing parameter.
+ */
+function useOpenOn(): string | null {
+  const params = useSearchParams();
+  return params ? params.get("on") : null;
+}
+
+function anchorFor(openOn: string | null): WeekAnchor {
+  if (openOn === null || !ON_DATE.test(openOn)) return TODAY;
+  const parsed = new Date(`${openOn}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== openOn) return TODAY;
+  return { kind: "pinned", date: openOn };
 }
 
 /** A pinned window is absolute; the live one begins on today, or on the server's date until it ticks. */

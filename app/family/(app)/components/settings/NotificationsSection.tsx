@@ -8,6 +8,7 @@ import type { HouseholdSettingsPatch } from "@/lib/family/types";
 import { useFamily } from "../FamilyProvider";
 import { FieldError } from "./CategoryFields";
 import { LeadTimeField } from "./LeadTimeField";
+import { useReminderSwitches } from "../notifications/reminderSwitches";
 import { SaveRow } from "./SaveRow";
 import { useSettingsSave } from "./useSettingsSave";
 
@@ -55,6 +56,7 @@ const TASK_SWITCHES: SwitchRow[] = [
 export function NotificationsSection() {
   const { settings, actor, withActor } = useFamily();
   const disabled = actor?.role === "member";
+  const device = useReminderSwitches();
 
   const [draft, setDraft] = useState<Draft>(() => ({
     notifyEventAtTime: settings.notifyEventAtTime,
@@ -137,6 +139,43 @@ export function NotificationsSection() {
 
         <SaveRow message={message} status={status} pending={pending} disabled={disabled} />
       </form>
+
+      {/*
+        Outside the form, and deliberately: these two belong to THIS device and
+        are saved the instant they are flipped. Nothing about them reaches the
+        household, so they need no parent, no Save button and no permission from
+        the browser — a banner is a DOM element on a page somebody has open
+        (FR-815).
+      */}
+      <fieldset className="flex max-w-lg flex-col gap-2 border-0 p-0">
+        <legend className="text-(length:--fam-fs-small) text-(--fam-text-muted)">This device</legend>
+        <label className="flex min-h-[44px] items-center gap-3 text-(length:--fam-fs-body)">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={device.switches.banner}
+            onChange={(event) => device.setSwitch("banner", event.target.checked)}
+            className="h-5 w-5"
+          />
+          Show reminders on this screen
+        </label>
+        <label className="flex min-h-[44px] items-center gap-3 text-(length:--fam-fs-body)">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={device.switches.chime}
+            onChange={(event) => device.setSwitch("chime", event.target.checked)}
+            className="h-5 w-5"
+          />
+          Play a sound with them
+        </label>
+        {device.persistent ? null : (
+          <p className="text-(length:--fam-fs-small) text-(--fam-text-secondary)">
+            This device can&apos;t remember these two, so they last until you close the app.
+          </p>
+        )}
+      </fieldset>
+
     </section>
   );
 }
