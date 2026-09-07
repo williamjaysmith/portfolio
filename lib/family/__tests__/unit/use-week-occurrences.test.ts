@@ -61,6 +61,7 @@ function makeEvent(overrides: Partial<Event> = {}): Event {
     timezone: ZONE,
     rrule: null,
     countdownEnabled: false,
+    reminder: { mode: "inherit" },
     categoryIds: [],
     exceptions: [],
     createdBy: null,

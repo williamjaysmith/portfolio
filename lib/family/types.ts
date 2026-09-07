@@ -71,6 +71,24 @@ export interface HouseholdSettings {
    * FR-219/FR-234). Seeded at setup; no interface changes it this phase.
    */
   timezone: string;
+
+  /* --- Reminders (Phase 7 — 008 FR-802..FR-807). Household-wide, never per person. --- */
+  /** A calendar reminder as the event begins (36836043247131). */
+  notifyEventAtTime: boolean;
+  /** A calendar reminder ahead of the event, by `notifyEventBeforeMinutes`. */
+  notifyEventBefore: boolean;
+  /**
+   * ALWAYS MINUTES, whatever unit the field shows (R810): "2 hours" is 120.
+   * Bounded 1…10080 — seven days (Assumption 5). Stays meaningful while
+   * `notifyEventBefore` is off; it is the value the field shows when it is
+   * turned back on.
+   */
+  notifyEventBeforeMinutes: number;
+  /** A reminder when a chore that carries a TIME falls due (FR-818). */
+  notifyTaskDue: boolean;
+  /** An announcement of who finished what (FR-819). */
+  notifyTaskCompleted: boolean;
+
   updatedAt: string;
 }
 
@@ -127,6 +145,11 @@ export interface HouseholdSettingsPatch {
   punchOutMinutes?: number;
   textSize?: TextSize;
   density?: Density;
+  notifyEventAtTime?: boolean;
+  notifyEventBefore?: boolean;
+  notifyEventBeforeMinutes?: number;
+  notifyTaskDue?: boolean;
+  notifyTaskCompleted?: boolean;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -166,6 +189,62 @@ export type EventTimes =
   | { allDay: false; startsAt: string; endsAt: string }
   | { allDay: true; startDate: string; endDate: string };
 
+/**
+ * One event's own reminder (008 FR-808), in three named states.
+ *
+ * Skylight verifies two levels — a calendar-wide default and a per-event
+ * reminder that overrides it [VERIFIED](32083277890075) — but says nothing
+ * about stacking several on one event ([UNKNOWN] in every fetched source), so
+ * an event carries exactly one setting.
+ *
+ * `none` exists because "deliberately silent" needs a NAME: absence already
+ * means inherit, so it cannot also mean silence (spec Assumption 4).
+ */
+export type EventReminder =
+  | { mode: "inherit" }
+  | { mode: "none" }
+  | { mode: "custom"; atTime: boolean; beforeMinutes: number | null };
+
+/**
+ * What a reminder actually DOES, once the household's default and any
+ * per-event or per-occurrence override have been resolved (008 R802).
+ * `atTime: false` with `beforeMinutes: null` is silence.
+ */
+export interface ReminderInForce {
+  atTime: boolean;
+  /** Minutes ahead of the start; null = no advance reminder. */
+  beforeMinutes: number | null;
+}
+
+/** The stored discriminator, as migration 035's CHECK spells it. */
+export type ReminderMode = EventReminder["mode"];
+
+/**
+ * What a delivered reminder was about (008 R808) — migration 036's
+ * `subject_kind`. Identity is kind-dependent: a scheduled reminder is keyed by
+ * its occurrence AND its instant, a completion by its occurrence alone, which
+ * is what makes an un-tick and a re-tick say nothing twice (FR-819).
+ */
+export type ReminderSubjectKind = "event" | "task_due" | "task_done";
+
+/**
+ * One browser that asked to be told (008 FR-822..FR-827). NOT a person: a
+ * reminder is addressed to the household, so what is stored is a browser with
+ * a name somebody recognises (spec Assumptions 2 and 3).
+ *
+ * The credentials that address it — the endpoint and its two keys — are read
+ * only by the server and are deliberately absent from this type.
+ */
+export interface PushDevice {
+  id: string;
+  /** The household's own words for it: "Kitchen tablet", "Ben's phone". */
+  label: string;
+  /** Who set it up. Attribution, never routing. */
+  createdBy: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+}
+
 export type ExceptionAction = "skip" | "override";
 
 /**
@@ -187,6 +266,12 @@ export interface EventException {
   description: string | null;
   location: string | null;
   times: EventTimes | null;
+  /**
+   * This occurrence's own reminder, or `null` to inherit from the series —
+   * this table's established convention for every override column (012).
+   * A skip never carries one: a skipped occurrence does not happen.
+   */
+  reminder: EventReminder | null;
   createdBy: string | null;
   updatedBy: string | null;
   createdAt: string;
@@ -214,6 +299,8 @@ export interface Event {
   countdownEnabled: boolean;
   /** Ordered — the stripe draw order (FR-227). May be empty (FR-213). */
   categoryIds: string[];
+  /** The series' own reminder (008 FR-808); `inherit` follows the household. */
+  reminder: EventReminder;
   exceptions: EventException[];
   createdBy: string | null;
   updatedBy: string | null;

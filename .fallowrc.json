@@ -274,7 +274,8 @@
           "family-actions",
           "family-rewards-core",
           "family-lists-core",
-          "family-meals-core"
+          "family-meals-core",
+          "family-notifications-core"
         ]
       },
       {

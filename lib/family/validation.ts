@@ -184,6 +184,17 @@ export function validateCategoryPatch(existing: Category, patch: unknown): Categ
   return parsed;
 }
 
+/**
+ * A lead time, ALWAYS IN MINUTES whatever unit the field offered (008 R810):
+ * "2 hours" arrives as 120. 10080 is seven days — the ceiling this project set
+ * where the reference documents none (spec Assumption 5).
+ */
+const leadMinutes = z
+  .number({ error: "A lead time must be a number." })
+  .int({ error: "A lead time must be whole minutes." })
+  .min(1, { error: "A lead time must be at least a minute." })
+  .max(10080, { error: "A lead time cannot be more than 7 days." });
+
 export const settingsPatchSchema = z
   .object({
     householdName: z
@@ -203,6 +214,15 @@ export const settingsPatchSchema = z
       .optional(),
     textSize: z.enum(["small", "medium", "large"], { error: "Text size must be small, medium or large." }).optional(),
     density: z.enum(["cozy", "snug", "roomy"], { error: "Density must be cozy, snug or roomy." }).optional(),
+
+    /* Reminders (008 FR-802..FR-807). The bounds mirror 034's CHECK: the schema
+       exists to give the field a good message, the constraint to make a bad row
+       impossible. */
+    notifyEventAtTime: z.boolean({ error: "Choose whether events remind as they start." }).optional(),
+    notifyEventBefore: z.boolean({ error: "Choose whether events remind beforehand." }).optional(),
+    notifyEventBeforeMinutes: leadMinutes.optional(),
+    notifyTaskDue: z.boolean({ error: "Choose whether a due chore reminds." }).optional(),
+    notifyTaskCompleted: z.boolean({ error: "Choose whether a finished chore is announced." }).optional(),
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     error: "Nothing to update.",

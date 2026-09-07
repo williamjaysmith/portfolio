@@ -9,6 +9,8 @@
 
 import type { PaletteColor } from "./colors";
 import type {
+  EventReminder,
+  ReminderMode,
   AvatarKind,
   Category,
   Density,
@@ -81,6 +83,11 @@ export interface HouseholdSettingsRow {
   text_size: TextSize;
   density: Density;
   timezone: string;
+  notify_event_at_time: boolean;
+  notify_event_before: boolean;
+  notify_event_before_minutes: number;
+  notify_task_due: boolean;
+  notify_task_completed: boolean;
   updated_at: string;
 }
 
@@ -98,6 +105,9 @@ export interface EventRow {
   timezone: string;
   rrule: string | null;
   countdown_enabled: boolean;
+  reminder_mode: ReminderMode;
+  reminder_at_time: boolean | null;
+  reminder_before_minutes: number | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -125,6 +135,9 @@ export interface EventExceptionRow {
   ends_at: string | null;
   start_date: string | null;
   end_date: string | null;
+  reminder_mode: ReminderMode | null;
+  reminder_at_time: boolean | null;
+  reminder_before_minutes: number | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -149,18 +162,22 @@ export const CATEGORY_COLUMNS =
 
 export const SETTINGS_COLUMNS =
   "household_id, show_name_not_date, time_format, start_week_on, punch_out_minutes, " +
-  "text_size, density, timezone, updated_at";
+  "text_size, density, timezone, notify_event_at_time, notify_event_before, " +
+  "notify_event_before_minutes, notify_task_due, notify_task_completed, updated_at";
 
 export const EVENT_COLUMNS =
   "id, household_id, summary, description, location, all_day, starts_at, ends_at, " +
-  "start_date, end_date, timezone, rrule, countdown_enabled, created_by, updated_by, " +
+  "start_date, end_date, timezone, rrule, countdown_enabled, " +
+  "reminder_mode, reminder_at_time, reminder_before_minutes, created_by, updated_by, " +
   "created_at, updated_at";
 
 export const EVENT_CATEGORY_COLUMNS = "event_id, category_id, household_id, position, created_at";
 
 export const EVENT_EXCEPTION_COLUMNS =
   "id, household_id, event_id, occurrence_date, action, summary, description, location, " +
-  "starts_at, ends_at, start_date, end_date, created_by, updated_by, created_at, updated_at";
+  "starts_at, ends_at, start_date, end_date, " +
+  "reminder_mode, reminder_at_time, reminder_before_minutes, " +
+  "created_by, updated_by, created_at, updated_at";
 
 /**
  * The events select with its two embeds, as one joined array rather than two
@@ -225,7 +242,38 @@ export function toSettings(row: HouseholdSettingsRow): HouseholdSettings {
     textSize: row.text_size,
     density: row.density,
     timezone: row.timezone,
+    notifyEventAtTime: row.notify_event_at_time,
+    notifyEventBefore: row.notify_event_before,
+    notifyEventBeforeMinutes: row.notify_event_before_minutes,
+    notifyTaskDue: row.notify_task_due,
+    notifyTaskCompleted: row.notify_task_completed,
     updatedAt: row.updated_at,
+  };
+}
+
+/**
+ * The three reminder columns read back as one value (008 R809, FR-808).
+ *
+ * `null` means inherit — from the household on an event (where 035 makes the
+ * mode NOT NULL, so this branch is unreachable) and from the series on an
+ * exception (where null is that table's own convention for every override
+ * column). The payload columns are guaranteed present on `custom` and absent
+ * otherwise by `events_reminder_payload` / `event_exceptions_reminder_payload`,
+ * so this reads rather than re-validates.
+ */
+interface ReminderColumns {
+  reminder_mode: ReminderMode | null;
+  reminder_at_time: boolean | null;
+  reminder_before_minutes: number | null;
+}
+
+function toReminder(row: ReminderColumns): EventReminder | null {
+  if (row.reminder_mode === null) return null;
+  if (row.reminder_mode !== "custom") return { mode: row.reminder_mode };
+  return {
+    mode: "custom",
+    atTime: row.reminder_at_time ?? false,
+    beforeMinutes: row.reminder_before_minutes,
   };
 }
 
@@ -261,6 +309,7 @@ export function toEventException(row: EventExceptionRow): EventException {
     description: row.description,
     location: row.location,
     times: toExceptionTimes(row),
+    reminder: toReminder(row),
     createdBy: row.created_by,
     updatedBy: row.updated_by,
     createdAt: row.created_at,
@@ -279,6 +328,8 @@ export function toEvent(row: EventWithRelationsRow): Event {
     timezone: row.timezone,
     rrule: row.rrule,
     countdownEnabled: row.countdown_enabled,
+    // A series' mode is NOT NULL (035), so this narrows to a reminder, never null.
+    reminder: toReminder(row) ?? { mode: "inherit" },
     // PostgREST embed order is unspecified; `position` is the draw order (FR-227).
     categoryIds: [...row.event_categories]
       .sort((a, b) => a.position - b.position)

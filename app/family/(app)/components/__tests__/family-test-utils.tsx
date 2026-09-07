@@ -47,6 +47,11 @@ export function makeSettings(overrides: Partial<HouseholdSettings> = {}): Househ
     textSize: "medium",
     density: "roomy",
     timezone: "America/Chicago",
+    notifyEventAtTime: false,
+    notifyEventBefore: true,
+    notifyEventBeforeMinutes: 10,
+    notifyTaskDue: true,
+    notifyTaskCompleted: false,
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
