@@ -104,3 +104,23 @@ operator's, as it has been each phase.
 - A failure leaves a trace, a screenshot and the console; `npm run test:e2e:report` opens them.
 - The accessibility sweep runs with reduced motion. Without it, it catches the celebration banner
   mid-entrance and measures half-faded ink rather than the app's colours.
+
+---
+
+## Known failure, diagnosed 2026-09-07 (during 008)
+
+`tasks.spec` — *"hides skipped tasks on this device when the filter says so"* fails on `main`, and
+has since some time after this record was written. **It is a gap in the journey, not in the app.**
+
+`Practice piano` is the fixture it asserts on, and the seed gives it `slots: ["evening"]`. The Tasks
+board draws the slot the clock is in — morning before noon, afternoon to 18:00, evening after
+(`timeOfDayAt`, FR-306). So the journey passes when it is run after six and fails every afternoon.
+This record's 53 green journeys were walked in the evening.
+
+The fix is to pin the hour rather than to change the app: same day, so harness.md §5's rule about
+never pinning by DAYS is untouched. A first attempt at that is not yet working — pinning the clock
+and reloading did not by itself bring the evening section back — so it needs a proper look at how the
+board decides its slot after a clock change, rather than a quick patch.
+
+Nothing about `008-family-notifications` touches this: it was measured failing on `main` before that
+branch was merged.
