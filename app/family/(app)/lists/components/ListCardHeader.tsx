@@ -1,5 +1,6 @@
 "use client";
 
+import { inkOn } from "@/lib/family/colors";
 import { MoreHorizontal } from "lucide-react";
 
 import type { List } from "@/lib/family/types";
@@ -44,7 +45,12 @@ export function ListCardHeader({ list, count, onEdit, onMenu }: ListCardHeaderPr
         data-count-badge
         role="img"
         aria-label={toDoWords(count)}
-        className="grid h-(--fam-list-badge) w-(--fam-list-badge) shrink-0 place-items-center rounded-full bg-(--fam-profile-100) text-(length:--fam-fs-body) font-medium text-white tabular-nums"
+        // The badge is filled with the list's own colour, and half the palette
+        // is light: white on Sprout reads at 1.7:1. The ink is chosen against
+        // the fill, as every other tinted surface in the app chooses it
+        // (`inkOn`, FR-039; found by 007's sweep).
+        style={{ color: inkOn(list.color) }}
+        className="grid h-(--fam-list-badge) w-(--fam-list-badge) shrink-0 place-items-center rounded-full bg-(--fam-profile-100) text-(length:--fam-fs-body) font-medium tabular-nums"
       >
         {count}
       </span>

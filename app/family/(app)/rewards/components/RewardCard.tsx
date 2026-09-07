@@ -182,7 +182,11 @@ function RewardBar({ filled, label, accent }: RewardBarProps) {
         className="fam-tint-100 absolute inset-y-0 left-0 rounded-(--fam-reward-bar-r) transition-all duration-(--fam-reward-bar-ms) ease-(--fam-reward-bar-ease)"
       />
       <BarLabel label={label} layer="track" filled={filled} />
-      <BarLabel label={label} layer="fill" filled={filled} />
+      {/* Nothing filled, nothing to ink: the fill's copy is clipped to zero
+          width, and a label nobody can read should not be drawn at all — it
+          reads as pale text on the track to anything that measures colour
+          (007 FR-723). */}
+      {filled > 0 ? <BarLabel label={label} layer="fill" filled={filled} /> : null}
     </span>
   );
 }

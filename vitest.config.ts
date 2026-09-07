@@ -104,7 +104,9 @@ const unitProject: TestProjectInlineConfiguration = {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
-    exclude: [...configDefaults.exclude, "**/.next/**", `${POLICIES_DIR}/**`],
+    // The browser pass is Playwright's; its files are `*.spec.ts` and would not
+    // match anyway, but naming it here keeps the two suites' boundary explicit (007 FR-712).
+    exclude: [...configDefaults.exclude, "**/.next/**", "e2e/**", `${POLICIES_DIR}/**`],
   },
 };
 

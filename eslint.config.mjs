@@ -15,8 +15,19 @@ const eslintConfig = [
       "build/**",
       "coverage/**",
       "graphify-out/**",
+      "playwright-report/**",
+      "test-results/**",
       "next-env.d.ts",
     ],
+  },
+  {
+    // The browser suite is not React. Playwright's fixture API hands each
+    // fixture a `use` callback, which the React plugin reads as the `use`
+    // hook and rejects. Scoping the rule away from a folder that renders no
+    // React is configuration, not a suppression: no rule is weakened where
+    // React actually runs, and no finding is silenced (007 FR-729).
+    files: ["e2e/**"],
+    rules: { "react-hooks/rules-of-hooks": "off" },
   },
 ];
 

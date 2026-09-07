@@ -289,6 +289,8 @@ interface DragRefs {
   viewport: Box<HTMLElement | null>;
   band: Box<HTMLElement | null>;
   pointerId: Box<number | null>;
+  /** The element holding the pointer, once a gesture has become a drag. */
+  captured: Box<HTMLElement | null>;
   point: Box<Point | null>;
   frame: Box<DragFrame | null>;
   /** Undo for the post-drag click suppression, while one is armed. */
@@ -333,6 +335,13 @@ export function useEventDrag(options: UseEventDragOptions): EventDragController 
   const [pressed, setPressed] = useState<Occurrence | null>(null);
   const refs = useDragRefs(options, state);
   const liveGesture = liveGestureOf(state);
+
+  // The moment a press becomes a drag, the container takes the pointer: from
+  // there the gesture must survive the pointer leaving the grid, and its
+  // release wants no click at all (`armCapture`).
+  useEffect(() => {
+    if (state.kind === "dragging") armCapture(refs);
+  }, [state.kind, refs]);
 
   const surface = usePointerSurface(refs, dispatch, setPressed);
   useDragLoop(refs, dispatch, liveGesture !== null);
@@ -407,6 +416,7 @@ function useDragRefs(options: UseEventDragOptions, state: DragState): DragRefs {
   const viewport = useRef<HTMLElement | null>(null);
   const band = useRef<HTMLElement | null>(null);
   const pointerId = useRef<number | null>(null);
+  const captured = useRef<HTMLElement | null>(null);
   const point = useRef<Point | null>(null);
   const frame = useRef<DragFrame | null>(null);
   const swallow = useRef<(() => void) | null>(null);
@@ -418,6 +428,7 @@ function useDragRefs(options: UseEventDragOptions, state: DragState): DragRefs {
       viewport,
       band,
       pointerId,
+      captured,
       point,
       frame,
       swallow,
@@ -589,7 +600,15 @@ function beginGesture(
   event.stopPropagation();
   clearSwallow(refs);
   const origin: Point = { x: event.clientX, y: event.clientY };
-  if (!captureOn(node, event.pointerId)) return;
+  // **The capture waits for the drag.** It has to be the scroll container that
+  // holds the pointer — that is what keeps a drag alive when the source block
+  // is refetched away underneath it — but a captured pointer also decides
+  // where the browser sends the click that follows the release. Capturing at
+  // the press sent every tap's click to the container, so a block's own
+  // `onClick` never ran and FR-256's "a press that never travels is a tap"
+  // held for the keyboard and not for a pointer. So: no capture until the
+  // gesture is a drag (`armCapture`), by which time no click is wanted anyway
+  // — the drop swallows it (007, FR-715).
   refs.pointerId.current = event.pointerId;
   refs.point.current = origin;
   refs.frame.current = frameOf(refs.options.current);
@@ -611,7 +630,8 @@ function finishGesture(
   const id = refs.pointerId.current;
   if (id === null || event.pointerId !== id) return;
   refs.pointerId.current = null;
-  releaseFrom(refs.viewport.current, id);
+  releaseFrom(refs.captured.current, id);
+  refs.captured.current = null;
   if (action.type === "RELEASE") dropAt(refs, dispatch, event);
   dispatch(action);
 }
@@ -624,6 +644,18 @@ function dropAt(refs: DragRefs, dispatch: DragDispatch, event: PointerEvent): vo
   // drop's own prompt (FR-256 against FR-248) — swallow exactly that one.
   if (refs.state.current.kind === "dragging") refs.swallow.current = swallowNextClick();
   dispatchMoveAt(refs, dispatch, at);
+}
+
+/**
+ * Take the pointer once the press has become a drag: from here the gesture
+ * must survive the pointer leaving the grid, and its release wants no click.
+ */
+function armCapture(refs: DragRefs): void {
+  const id = refs.pointerId.current;
+  const node = refs.viewport.current;
+  if (id === null || node === null) return;
+  if (refs.captured.current !== null || refs.state.current.kind !== "dragging") return;
+  if (captureOn(node, id)) refs.captured.current = node;
 }
 
 /** rAF throttling, the whole of it: a move only records where the pointer is. */

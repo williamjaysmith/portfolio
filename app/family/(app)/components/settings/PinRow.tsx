@@ -95,6 +95,9 @@ export function PinRow({ profile }: PinRowProps) {
     <div className="flex flex-wrap items-center gap-2">
       <button
         type="button"
+        // Six profiles carry six of these: without the name, a screen reader
+        // hears "Set PIN" six times and cannot tell whose (007 FR-709).
+        aria-label={`${profile.hasPin ? "Reset" : "Set"} ${profile.label}'s PIN`}
         disabled={blocked}
         onClick={() => {
           setEditing(true);
@@ -108,6 +111,7 @@ export function PinRow({ profile }: PinRowProps) {
       {profile.hasPin ? (
         <button
           type="button"
+          aria-label={`Remove ${profile.label}'s PIN`}
           disabled={blocked || pending}
           onClick={() => void remove()}
           className="min-h-[44px] rounded-full px-3 text-(length:--fam-fs-small) font-medium text-(--fam-text-secondary) disabled:opacity-50"

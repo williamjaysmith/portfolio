@@ -245,7 +245,7 @@ describe("CategorySection", () => {
 
   it("confirms before deleting, naming who goes", () => {
     renderSection("profile");
-    fireEvent.click(within(screen.getAllByRole("listitem")[1]).getByRole("button", { name: "Delete" }));
+    fireEvent.click(within(screen.getAllByRole("listitem")[1]).getByRole("button", { name: "Delete Sam" }));
 
     const dialog = screen.getByRole("alertdialog");
     expect(within(dialog).getByRole("heading", { name: "Delete Sam?" })).toBeInTheDocument();
@@ -253,7 +253,7 @@ describe("CategorySection", () => {
 
   it("edits the person whose row was tapped", () => {
     renderSection("profile");
-    fireEvent.click(within(screen.getAllByRole("listitem")[2]).getByRole("button", { name: "Edit" }));
+    fireEvent.click(within(screen.getAllByRole("listitem")[2]).getByRole("button", { name: "Edit Kit" }));
 
     expect(screen.getByRole("heading", { name: "Edit Kit" })).toBeInTheDocument();
   });

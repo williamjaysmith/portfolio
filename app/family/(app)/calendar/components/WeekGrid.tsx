@@ -66,7 +66,17 @@ export function WeekGrid({
   onSlotTap,
 }: WeekGridProps) {
   return (
-    <div ref={viewportRef} onScroll={onViewportScroll} className="min-h-0 flex-1 overflow-y-auto">
+    // A region that scrolls must be reachable without a pointer: with no
+    // events in view there is nothing inside it to tab to, so the region takes
+    // the focus itself and says what it is (constitution §III; 007 FR-723).
+    <div
+      ref={viewportRef}
+      onScroll={onViewportScroll}
+      tabIndex={0}
+      role="group"
+      aria-label="Hours"
+      className="min-h-0 flex-1 overflow-y-auto"
+    >
       <div className="grid" style={headerGridTemplate(columnDates.length)}>
         {/* The hour gutter: labels sit ON their hour lines (translated up),
             decorative for assistive tech — blocks carry their own times. */}

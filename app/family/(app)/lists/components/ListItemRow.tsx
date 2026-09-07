@@ -61,9 +61,11 @@ export function ListItemRow({ item, busy = false, lifted = false, onToggle, onOp
       <button
         type="button"
         onClick={() => onOpen(item)}
-        className={`min-h-(--fam-touch) min-w-0 flex-1 truncate text-left ${
-          checked ? "line-through text-(--fam-text-secondary)" : ""
-        }`}
+        // Done is said by the line through it and by the tick beside it. The
+        // secondary ink on a tinted card fell just under the contrast floor
+        // (4.35:1 against a list's own colour), so the text keeps its own ink
+        // (007 FR-723).
+        className={`min-h-(--fam-touch) min-w-0 flex-1 truncate text-left ${checked ? "line-through" : ""}`}
       >
         {item.text}
       </button>

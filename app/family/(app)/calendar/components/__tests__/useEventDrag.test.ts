@@ -194,16 +194,23 @@ describe("useEventDrag", () => {
     expect(harness.hook.result.current.preview).not.toBeNull();
   });
 
-  it("captures the pointer on the grid's scroll container, not on the block", () => {
+  /**
+   * Two rules at once. The container must hold the pointer, so a drag survives
+   * the source block being refetched away underneath it — but a captured
+   * pointer also decides where the browser sends the click that follows the
+   * release, and a click sent to the container is a tap the block never hears
+   * (FR-256). So the capture waits for the gesture to become a drag, by which
+   * point the drop swallows the click anyway.
+   */
+  it("takes the pointer only once the press becomes a drag, and takes it on the container", () => {
     const harness = mount();
 
     press(harness, MOVE_HANDLE, BLOCK_X, BLOCK_TOP_Y);
+    expect(harness.setPointerCapture).not.toHaveBeenCalled();
 
-    expect(harness.setPointerCapture).toHaveBeenCalledWith(POINTER_ID);
-    // The container is where the moves arrive, so the gesture survives the
-    // source block being refetched away underneath it.
     movePointer(harness, 320, 770);
     expect(harness.hook.result.current.isDragging).toBe(true);
+    expect(harness.setPointerCapture).toHaveBeenCalledWith(POINTER_ID);
   });
 
   it("keeps the surface partition: a block press never reaches the slice pager", () => {
