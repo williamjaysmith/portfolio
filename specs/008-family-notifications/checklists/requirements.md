@@ -39,6 +39,35 @@ promoting an inference to a fact.
 - [x] Every `[UNKNOWN]` is recorded as unknown and answered by a numbered Assumption
 - [x] Every departure from the reference appears in the divergence table
 
+## Re-validation, 2026-09-07 — Web Push dropped
+
+The operator decided that reminders reaching a phone with no page open is not wanted: the family will
+open the app as needed, and the wall display is the shared surface. Web Push, the service worker, the
+scheduled scan, both route handlers, the push subscriptions table and the delivery ledger all left the
+phase, and every document was rewritten rather than annotated.
+
+The checklist above was re-run against the rewritten documents and still passes. Four things were
+checked specifically, because a de-scoping is where a specification most easily goes stale:
+
+- **Nothing dangling.** No document mentions Web Push, VAPID, a service worker, `pg_cron`, `pg_net`,
+  `push_devices`, `reminder_deliveries` or a route handler except the three places that deliberately
+  record the divergence. Every `FR-8xx`, `SC-8xx` and `R8xx` cited anywhere resolves to a definition
+  that still exists; surviving numbers were **not** renumbered, precisely so those citations hold.
+- **One decision genuinely changed rather than shrank.** R802's justification was "the browser already
+  holds every event and task in the TanStack Query cache". That was wrong once push left: the banner
+  mounts in the shell, so on the Lists or Meals tab the calendar's data is not loaded, and a seven-day
+  lead can be owed for an event outside any visible window. The banner now owns a small query of its
+  own over the reminder horizon. This was found by the audit, not by the rewrite.
+- **A guarantee genuinely weakened, and said so.** "Shown once" was a database unique index; it is now
+  a `Set` of keys in the device's own storage. Clearing site data, a private window or a second
+  browser profile can re-show a reminder still inside its freshness window, and two tabs each draw
+  their own banner. Both degradations are written into the spec and the research rather than left for
+  someone to discover.
+- **The withdrawn work is recorded, not erased.** `tasks.md` keeps a "withdrawn after the push
+  decision" list naming the tasks that were completed and then undone — the two migrations, the local
+  trigger, the environment readers and the run-window module. Work that was done and then reversed is
+  part of the record.
+
 ## Notes
 
 **Validation, first pass (2026-09-06).** All fourteen article identifiers cited in the spec were

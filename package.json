@@ -21,7 +21,6 @@
     "test:unit": "vitest run --project unit",
     "test:policies": "FAMILY_POLICY_TESTS=1 vitest run --project policies",
     "family:seed": "node --env-file-if-exists=.env.local scripts/family-seed.mjs",
-    "family:reminders": "node --env-file-if-exists=.env.local scripts/family-reminders.mjs",
     "dev:local": "node scripts/dev-local.mjs",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",

@@ -220,30 +220,12 @@ export interface ReminderInForce {
 export type ReminderMode = EventReminder["mode"];
 
 /**
- * What a delivered reminder was about (008 R808) — migration 036's
- * `subject_kind`. Identity is kind-dependent: a scheduled reminder is keyed by
- * its occurrence AND its instant, a completion by its occurrence alone, which
- * is what makes an un-tick and a re-tick say nothing twice (FR-819).
+ * What a reminder is about (008 R808). Identity is kind-dependent: a scheduled
+ * reminder is keyed by its occurrence AND its instant, a completion by its
+ * occurrence alone, which is what stops an un-tick and a re-tick saying it
+ * twice (FR-819).
  */
 export type ReminderSubjectKind = "event" | "task_due" | "task_done";
-
-/**
- * One browser that asked to be told (008 FR-822..FR-827). NOT a person: a
- * reminder is addressed to the household, so what is stored is a browser with
- * a name somebody recognises (spec Assumptions 2 and 3).
- *
- * The credentials that address it — the endpoint and its two keys — are read
- * only by the server and are deliberately absent from this type.
- */
-export interface PushDevice {
-  id: string;
-  /** The household's own words for it: "Kitchen tablet", "Ben's phone". */
-  label: string;
-  /** Who set it up. Attribution, never routing. */
-  createdBy: string | null;
-  createdAt: string;
-  lastSeenAt: string;
-}
 
 export type ExceptionAction = "skip" | "override";
 

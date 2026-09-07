@@ -1,12 +1,15 @@
 # Data Model — 008 Family Notifications
 
-Four migrations, `034`–`037`. Two of them only add columns to tables that already exist; the third
-adds the two tables this phase actually needs; the fourth puts one of them on the realtime channel.
+Two migrations, `034` and `035`. Both only add columns to tables that already exist. This phase adds
+**no new table**: a reminder is drawn by a page that is open and remembered by the browser that drew
+it, so there is nothing for the database to hold.
 
-**Hard ordering (R818)**: all four are pushed to the hosted project **before** this branch is merged
-or deployed. `push_devices` joins the publication that every `/family` page subscribes to, and a
-client binding for a table the database does not have fails the whole shared channel — the calendar
-and the boards with it.
+**Ordering (R818)**: both are pushed to the hosted project **before** this branch is merged or
+deployed. `SETTINGS_COLUMNS` and `EVENT_COLUMNS` in `lib/family/rows.ts` name every column the app
+selects explicitly, so a deployment that asks a database without them for `notify_task_due` or
+`reminder_mode` gets an error, not a null. The failure is narrower than the ones earlier phases had to
+order around — the settings read and the calendar read fail, not the shared realtime channel — but
+those are the two reads every `/family` page depends on, so the ordering stands.
 
 ---
 
@@ -89,69 +92,36 @@ columns to the tables they already move.
 
 ---
 
-## 036 — the two new tables
+## Who reads these columns
 
-### `family.push_devices` — a browser that asked to be told
+The settings row and the event columns are already carried by the reads every tab makes, but the
+banner does not depend on whichever tab is showing. It mounts in the app shell and owns **a small
+dedicated query of its own** — the household's events and timed chore occurrences over the reminder
+horizon (R802). It has to: on the Lists or Meals tab the calendar's data is not loaded at all, and a
+lead time of up to seven days can be owed for an event outside any window the screen has ever shown.
+That query reads the same columns through the same `lib/family` modules; it is one more reader of the
+existing shape, not a new one.
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid primary key` | |
-| `household_id` | `uuid not null` | → `households(id) on delete cascade` |
-| `endpoint` | `text not null` | the push service's URL for this browser; **unique** |
-| `p256dh` | `text not null` | the subscription's public key |
-| `auth` | `text not null` | the subscription's auth secret |
-| `label` | `text not null` | what a person calls it — "Kitchen tablet", "Ben's phone" |
-| `created_by` | `uuid` | → `categories(id) on delete set null`, the usual attribution |
-| `created_at` / `last_seen_at` | `timestamptz not null` | |
+---
 
-`endpoint` is globally unique, not unique per household: a push endpoint identifies one browser, and
-the same browser cannot belong to two households. Re-registering an endpoint updates the row rather
-than adding a second (a browser that renews its subscription keeps its identity).
+## What is not stored, and where "shown once" lives instead
 
-**A device is not tied to a Profile.** Assumption 3: a reminder is addressed to the household, so what
-is stored is a browser with a name a person recognises. `created_by` records who set it up, which is
-attribution, not routing.
+Nothing records a reminder server-side. The browser keeps a **Set of reminder keys in
+`localStorage`**, and a key already in the Set is a banner already shown (FR-816). A key is the
+occurrence and the instant it fires (R808), so a moved event reminds again at its new time and a
+re-drawn banner for the same moment does not. A completion is keyed on the `task_resolutions` row's
+own identity rather than on (task, date), because a routine can be completed in two slots on one day
+and an Anytime chore has no date at all.
 
-**`label` is the only free text here**, and it is the household's own words. `endpoint`, `p256dh` and
-`auth` are credentials for reaching a browser; they are never rendered, never logged, and never leave
-the server.
+**This is a per-device convention, and it degrades in two ways that must be said plainly**: clearing
+site data, a private window or a second browser profile starts with an empty Set, so a reminder still
+inside its fifteen-minute freshness window (FR-817) can appear again; and two tabs of the app each
+draw their own banner, because each is its own reader with its own dismissals. Both are the price of
+having no server-side record, and the spec's own edge case already wants dismissal to be per-device.
 
-### `family.reminder_deliveries` — what has already been sent
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `uuid primary key` | |
-| `household_id` | `uuid not null` | → `households(id) on delete cascade` |
-| `subject_kind` | `text not null` | `event` \| `task_due` \| `task_done` |
-| `subject_id` | `uuid not null` | the event or task; no FK, so the row survives a delete |
-| `occurrence_date` | `date not null` | Phase 2's occurrence grammar (R808) |
-| `fire_at` | `timestamptz not null` | the instant it was for, derived, never `now()` |
-| `title` / `body` | `text not null` | the words, so the worker's fetch needs no recomputation |
-| `path` | `text not null` | where acting on it opens (R815) |
-| `dispatched_at` | `timestamptz` | null = written but not yet sent |
-| `created_at` | `timestamptz not null` | |
-
-**Two partial unique indexes, because identity is kind-dependent (R808):**
-
-```sql
--- scheduled: the occurrence AND the instant, so a moved event reminds again at its new time
-create unique index reminder_deliveries_scheduled_key
-  on family.reminder_deliveries (household_id, subject_kind, subject_id, occurrence_date, fire_at)
-  where subject_kind <> 'task_done';
-
--- a completion: one announcement per occurrence, however often it is un-ticked and re-ticked
-create unique index reminder_deliveries_completion_key
-  on family.reminder_deliveries (household_id, subject_id, occurrence_date)
-  where subject_kind = 'task_done';
-```
-
-The second index is the whole of FR-819's "not for an un-ticking": a re-tick of the same occurrence
-finds the row already there and says nothing. No code decides this.
-
-**`subject_id` carries no foreign key, deliberately.** A reminder that has been sent is a fact about
-the past, and deleting the event must not rewrite it. FR-821 handles the other direction — a deletion
-*before* the send means the due-computation never produces the reminder, because it reads the events
-that exist.
+The per-device switches of FR-815 — banners on, sound off — live in the same place, for the same
+reason: they are a choice about one screen, not about the household, and they need no browser
+permission to honour.
 
 ---
 
@@ -159,32 +129,12 @@ that exist.
 
 | Invariant | Enforced by |
 |---|---|
-| A reminder is delivered at most once | `reminder_deliveries_scheduled_key`, a unique index — not code (R807) |
-| A completion is announced at most once per occurrence | `reminder_deliveries_completion_key` |
-| A sending run in progress is never re-sent by the next run | `dispatched_at` is stamped **before** the fan-out, not after (R807) |
-| A custom event reminder is never empty | `events_reminder_payload` check |
-| A lead time never exceeds seven days | `between 1 and 10080`, on both tables and the settings |
+| A custom event reminder is never empty | `events_reminder_payload` check, on `events` and on `event_exceptions` |
+| An occurrence with no opinion follows its series | `reminder_mode` nullable on `event_exceptions` — the table's own null-means-inherit convention |
+| A lead time never exceeds seven days | `between 1 and 10080`, on both tables and on the settings |
 | A due reminder exists only for a timed chore | the query's predicate: `routine = false and due_time is not null` (R812) |
-| A push credential never reaches a client | `push_devices` is read only by the server; the device list renders `label` and dates |
-| A deleted device's endpoint never travels | DEFAULT replica identity on the publication — see 037 |
-
----
-
-## 037 — live updates for the device list
-
-`family.push_devices` joins the guarded `supabase_realtime` publication, using the `022`/`027`/`029`/
-`033` guard block verbatim. `family.reminder_deliveries` **does not** (R817): it is bookkeeping nobody
-renders, and it would be the noisiest table in the household.
-
-**DEFAULT replica identity, and `replica identity full` is prohibited** — the same §VII rule Phase 6
-recorded. A DELETE payload is not RLS-filtered by Realtime, so a full replica identity would put a
-removed device's `endpoint`, `p256dh` and `auth` into a broadcast payload. Those are credentials for
-reaching a family's browser. The default identity sends the primary key and nothing else.
-
-The consequence, already decided by `022` and unchanged here: with the default replica identity a
-DELETE payload carries no `household_id`, so the subscription carries no server-side filter. This
-phase deletes on the hot path — removing a device (FR-827) and pruning a dead subscription (FR-826) —
-so that matters and is why the binding matches the shipped pattern rather than inventing one.
+| A reminder is shown once **per device** | **the browser's own key Set, not the database** — with the two degradations above |
+| A completion is announced once, and never for an un-ticking | the resolution row's identity in that same Set, plus the resolution's own `status` |
 
 ---
 
@@ -197,23 +147,17 @@ What this phase changes about who may do what. Everything not listed is unchange
 | Read the notification settings | any member | They are household settings, already readable |
 | Change the notification settings | **a punched-in parent** | FR-805, via the existing `requireParent` guard on `updateHouseholdSettings` |
 | Set an event's own reminder | whoever may edit the event | It is a field on the event, under the event's existing rules |
-| Register **this** device for push | **anyone punched in** | It is a person at a device asking for their own household's reminders |
-| Remove **any** device | **a punched-in parent** | It takes reminders away from somebody else's phone |
-| Read the pending reminders | **any signed-in household device, no punch-in** | R819: a punch-in lasts three minutes and would expire in a pocket. This is a read of the household's own data by a device that is already signed in — Phase 1's rule for reads, unchanged |
-| Trigger a scan | **the shared secret only** | R804. No session, no actor, no household context: the run works across the whole household set by service role |
 
-**Anonymous gets nothing, on every new path.** Both new tables carry the `is_member()` SELECT policy
-and service-role ALL, matching every table since Phase 1; the two route handlers refuse before they
-read. SC-815 checks all of it.
+**There is no new policy to write, because there is no new table.** The five settings columns and the
+six reminder columns inherit the RLS their tables have carried since Phase 1 and Phase 2 — `is_member()`
+for SELECT, service-role ALL, and the parent guard in the action — so anonymous gets a refusal rather
+than an empty result on every one of them. SC-815 checks it.
 
 ---
 
 ## What the seed does, and does not
 
-`scripts/family-seed.mjs` gains nothing that is a credential. It leaves the notification settings at
-their schema defaults, so a fresh local stack behaves exactly as a fresh household does.
-
-**It never seeds a push device.** A subscription is minted by a real browser against a real push
-service; a fabricated row would be a row that can never receive anything, and the first thing it would
-teach is that sends fail. The device list's empty state is therefore what the local stack shows, and
-it is what the browser journeys assert.
+`scripts/family-seed.mjs` gains nothing. It leaves the notification settings at their schema defaults,
+so a fresh local stack behaves exactly as a fresh household does, and its events take the column
+default `inherit`, so nothing in the seeded week carries a reminder of its own until a journey sets
+one. That is what the browser journeys assert against.

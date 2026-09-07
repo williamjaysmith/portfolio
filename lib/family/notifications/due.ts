@@ -2,18 +2,15 @@
  * THE due-computation (008 R802): given the household's settings, its events
  * and an instant, which reminders are due?
  *
- * This module is the phase's centre of gravity, and it has exactly TWO
- * independent readers:
+ * This module is the phase's centre of gravity. It has one reader — the
+ * browser, drawing a banner on a page somebody has open — and that is the whole
+ * of the delivery surface: nothing reaches a device with no page open, by
+ * design (spec Assumption 15).
  *
- *   * the BROWSER, which draws the banner from occurrences it already holds —
- *     so the wall display needs no server, no realtime message and no delivery
- *     record to say that the swim lesson is in ten minutes;
- *   * the SERVER SCAN, which claims and sends what is due to devices that are
- *     not looking.
- *
- * Neither knows about the other, and because there is one implementation of
- * "due" they cannot disagree. Everything here is pure: no clock is read, no
- * storage is touched, and `now` always arrives as an argument.
+ * It was written for two readers, the browser and a server scan that pushed to
+ * phones. The scan is gone, but the shape it forced is worth keeping:
+ * everything here is pure, no clock is read, no storage is touched, and `now`
+ * always arrives as an argument. That is what makes the whole engine testable.
  *
  * Occurrences arrive already expanded by `expandWindow` (Phase 2's one
  * expansion entry point, R206), so this module never touches the recurrence
@@ -27,7 +24,27 @@ import { reminderKeyOf, type ReminderIdentity } from "./identity";
 import { eventReminderMessage } from "./message";
 import { isSilent, occurrenceReminder, reminderInForce } from "./resolve";
 import type { NotificationSettings } from "./settings";
-import { inWindow, isCurrent, type RunWindow } from "./window";
+
+/**
+ * How stale a reminder may be and still be worth putting on a screen.
+ *
+ * The reference says nothing about a device that was asleep [UNKNOWN]. A wall
+ * tablet that wakes at nine and shows a pile of banners for seven o'clock is a
+ * failure, not a feature, so anything more than fifteen minutes past is dropped
+ * (spec Assumption 10).
+ */
+export const MAX_STALENESS_MS = 15 * 60 * 1000;
+
+/**
+ * Whether a reminder's moment has arrived and has not gone stale.
+ *
+ * This lived in a `window.ts` alongside the server scan's run-window
+ * arithmetic. With no scan there is no window — a browser has a clock and no
+ * memory of a last run — so the one surviving rule sits with its only caller.
+ */
+export function isCurrent(fireAtMs: number, nowMs: number): boolean {
+  return fireAtMs <= nowMs && nowMs - fireAtMs <= MAX_STALENESS_MS;
+}
 
 /** One reminder that will fire, with everything needed to show or send it. */
 export interface DueReminder {
@@ -130,19 +147,7 @@ function byFiringThenKey(left: DueReminder, right: DueReminder): number {
   return reminderKeyOf(left.identity).localeCompare(reminderKeyOf(right.identity));
 }
 
-/**
- * What a screen should be showing right now (FR-817): arrived, and not more
- * than fifteen minutes old. The browser's filter — it has a clock and no
- * memory of a last run.
- */
+/** What a screen should be showing right now (FR-817). */
 export function remindersDueNow(reminders: readonly DueReminder[], nowMs: number): DueReminder[] {
   return reminders.filter((reminder) => isCurrent(reminder.identity.fireAtMs, nowMs));
-}
-
-/** What one scan should claim and send (FR-829). The server's filter. */
-export function remindersInWindow(
-  reminders: readonly DueReminder[],
-  window: RunWindow,
-): DueReminder[] {
-  return reminders.filter((reminder) => inWindow(reminder.identity.fireAtMs, window));
 }

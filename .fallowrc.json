@@ -210,8 +210,7 @@
           "lib",
           "family-rewards-core",
           "family-lists-core",
-          "family-meals-core",
-          "family-notifications-core"
+          "family-meals-core"
         ]
       },
       {
@@ -255,8 +254,7 @@
         "from": "api-routes",
         "allow": [
           "api-routes",
-          "lib",
-          "family-notifications-core"
+          "lib"
         ]
       },
       {

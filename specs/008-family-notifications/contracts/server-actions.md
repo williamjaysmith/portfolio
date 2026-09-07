@@ -1,12 +1,14 @@
 # Contracts — 008 Family Notifications
 
-Two new server actions, three extended, and two route handlers — the first route handlers in this
-repository. Every action returns Phase 1's `ActionResult<T>` and fails through `runAction`, so the
-error vocabulary (`NOT_AUTHENTICATED`, `NO_ACTOR`, `FORBIDDEN`, `VALIDATION`, `NOT_FOUND`, `CONFLICT`,
-`UNAVAILABLE`) is unchanged and nothing new is invented.
+No new server actions, three extended, and no route handlers. Every action returns Phase 1's
+`ActionResult<T>` and fails through `runAction`, so the error vocabulary (`NOT_AUTHENTICATED`,
+`NO_ACTOR`, `FORBIDDEN`, `VALIDATION`, `NOT_FOUND`, `CONFLICT`, `UNAVAILABLE`) is unchanged and nothing
+new is invented.
 
 **Nothing here queues.** Phase 2's FR-283 and FR-288 stand: a write that cannot complete is refused
-where the tap happened, and refused writes never retry themselves.
+where the tap happened, and refused writes never retry themselves. And nothing here makes an existing
+write cost more (FR-832): a reminder is something a browser works out from data it has read, never a
+second thing a write has to do.
 
 ---
 
@@ -21,6 +23,10 @@ notifyEventBeforeMinutes → notify_event_before_minutes
 notifyTaskDue            → notify_task_due
 notifyTaskCompleted      → notify_task_completed
 ```
+
+Those five are the whole of the household's notification state. What a given screen does with a
+reminder — whether it draws the banner, whether it plays the tone — is that device's own business and
+is kept in its browser (FR-815); it never reaches this action and there is no field here for it.
 
 **Who**: `requireParent()`, already the guard on this action (FR-805). A punched-in member reading
 Settings sees the values and cannot change them; the interface says why, and the server refuses with
@@ -70,155 +76,56 @@ message.
 
 ---
 
-## Extended: the task completion path
+## Unchanged: the task completion path
 
-`lib/family/actions/tasks.ts` — completing a task writes its notification row **in the same
-transaction as the completion** (R811), when `notify_task_completed` is on.
+`lib/family/actions/tasks.ts` — completing a task writes **nothing extra at all**. The action is
+exactly Phase 3's: it inserts the `family.task_resolutions` row, does its streak step, and returns.
+There is no notification row, no send, and nothing for this phase to add to the transaction. This is
+the simplest contract in the phase, and it is the one that would have been the most complicated.
 
-```
-insert into family.reminder_deliveries
-  (household_id, subject_kind, subject_id, occurrence_date, fire_at, title, body, path)
-values (…, 'task_done', task_id, occurrence_date, now(), …, …, '/family/tasks')
-on conflict do nothing
-```
+**Why nothing is needed**: `family.task_resolutions` is already on the guarded realtime publication and
+already carries `status`, `resolved_at`, `occurrence_date` and the credited profile, so a page that is
+open already hears that a completion happened and already refetches the row. FR-819's announcement is
+composed on the receiving device out of data it now holds. It is a read-side concern from end to end
+(R811) — which is also why it is silent on a device with no page open, in common with everything else
+this phase does.
 
-`dispatched_at` is left null: the row is owed, not sent. The action then returns as it always has, and
-Next's `after()` sends it once the response has gone — so a child ticking a chore off waits for
-nothing. If that send never happens, the next scan finds the undispatched row and sends it (R811).
+**What the page actually receives**: the realtime payload is an invalidation trigger and is never
+rendered `[P3]` FR-392, so the announcement is drawn from the resolution row the invalidation's refetch
+brings back, not from the payload. That is the same rule the tasks board has followed since Phase 3;
+this phase reads one more field off the same refetched row.
 
-**Why in the transaction**: if the tick rolls back there is nothing to announce, and if the tick lands
-the announcement is owed. Any other arrangement can announce a completion that did not happen.
+**Deduped on the resolution row's own identity**, not on `(task, occurrence_date)`: a routine can be
+completed in two of its slots on the same day, and an anytime chore has no date at all, so that pair is
+not unique and would swallow a real second completion. The row's id is unique by construction.
 
-**`on conflict do nothing`** is FR-819's "not for an un-ticking": the partial unique index on
-`(household_id, subject_id, occurrence_date)` for `task_done` means a re-tick of the same occurrence
-finds the row already there and says nothing.
+**Suppressed on the device that did the ticking.** That person is looking at the card that just
+flipped; telling them what they just did is noise.
 
-**Skipping and un-ticking write nothing at all.**
-
----
-
-## New: `registerPushDevice(input)`
-
-`lib/family/actions/push-devices.ts`
-
-```ts
-input: { endpoint: string; p256dh: string; auth: string; label: string }
-returns: ActionResult<{ id: string; label: string; createdAt: string }>
-```
-
-**Who**: `requireActor()` — anybody punched in. It is a person standing at a device asking for their
-own household's reminders, not a change to what the household does (FR-822). The three-minute punch-in
-is plenty for a setup step somebody is actively performing.
-
-**Validation**: `endpoint` is an absolute `https:` URL under 2000 characters; `p256dh` and `auth` are
-base64url; `label` is 1–40 characters after trimming.
-
-**Idempotent on `endpoint`**: a browser that renews its subscription keeps its row. `on conflict
-(endpoint) do update` refreshes the keys, the label and `last_seen_at` rather than adding a second
-row, so FR-824's "each device once" holds even after a renewal.
-
-**Returns no credential.** The row's `endpoint`, `p256dh` and `auth` never travel back to a client;
-what comes back is what the device list renders.
+**Skipping and un-ticking announce nothing.** Both are excluded by FR-819, and both fall out of the
+row rather than being special-cased: a skip carries `status = 'skipped'` and is filtered, and an
+un-ticking deletes the resolution row, so there is nothing to announce. A subsequent re-tick is a new
+row with a new identity and does announce again — it is a completion that happened, which is what
+FR-819 asks to be named, and it is not an un-ticking.
 
 ---
 
-## New: `removePushDevice(input)`
+## Not an action: what the banner reads
 
-```ts
-input: { id: string }
-returns: ActionResult<null>
-```
+The banner writes nothing, so it has no contract here. It is listed because the shape of its read is
+the reason this phase adds no action at all, and because the earlier assumption about it was wrong.
 
-**Who**: `requireParent()`. Removing a device takes reminders away from somebody else's phone (FR-827),
-which is the kind of thing this project has consistently made a parent's decision.
+The banner mounts in the app shell, so it cannot borrow whichever tab's data happens to be loaded: on
+Lists or Meals the calendar's query is not mounted, and a lead time of up to seven days can be owed for
+an event that no visible window covers. So the banner owns a small dedicated query of its own — the
+household's events and its timed chore occurrences over the reminder horizon — independent of whichever
+tab is showing (R802). It goes through Phase 1's client and the existing row-level policies, adding a
+read and nothing else. It is still one pure due-computation with one reader; what changed is where that
+reader gets its data.
 
-**Not found** in this household → `NOT_FOUND`. There is no confirmation dialog contract here: the
-interface confirms, because §VI requires a destructive action to say what will be lost, and what is
-lost is one device's reminders.
-
----
-
-## New route handler: `POST /api/family/reminders/run`
-
-The scan (R803). The first route handler in this repository, and the reason the `api-routes` fallow
-zone finally has a member.
-
-**Authentication**: `Authorization: Bearer <secret>`, compared in constant time against an environment
-variable (R804). There is **no session and no actor** — the run works across households by service
-role. A missing, wrong or malformed header returns `401` with an empty body and does no work. The
-secret is never written to a file in this repository.
-
-**Request**: no body. The window is the server's own business.
-
-**What it does, in order:**
-
-1. Compute the window: `(the last successful run, now]`, clamped to the last fifteen minutes
-   (FR-817, FR-829). The clamp is in `lib/family/notifications/window.ts` and is unit-tested; the route
-   only calls it.
-2. Read each household's settings, its events and exceptions, and its timed chores over the window.
-3. Ask the pure due-computation what is due (R802) — **the same function the browser calls**.
-4. For each, `insert … on conflict do nothing returning id` with `dispatched_at = now()`. A row that
-   comes back is this run's to send; a row that does not was already claimed and is skipped.
-5. Sweep any `task_done` rows still undispatched inside the window, claiming them the same way.
-6. Send each claimed row to every device in its household.
-7. Delete `push_devices` rows whose send returned `404` or `410 Gone` (FR-826). Any other failure is
-   counted and the row is left alone.
-8. Delete `reminder_deliveries` older than thirty days (R808).
-
-**Response**: `200` with counts — considered, claimed, sent, pruned. Nothing household-identifying, so
-the response is safe in a scheduler's log.
-
-**Failure**: a household that throws does not stop the others (FR-831). The route returns `200` with
-the counts it managed and logs the rest; a `500` would make the scheduler retry, and a retry is how a
-phone buzzes twice.
-
----
-
-## New route handler: `GET /api/family/reminders/pending`
-
-What the service worker asks for when a contentless push arrives (R814, R819).
-
-**Authentication**: the household's own session cookie, the same one every `/family` page uses. **No
-punch-in** — a punch-in expires in three minutes and this is a phone in a pocket. The handler resolves
-the household from the session and filters by it explicitly, as §VII requires of every query.
-
-**Returns**:
-
-```json
-{ "reminders": [ { "title": "…", "body": "…", "path": "/family/calendar?on=2026-09-08" } ] }
-```
-
-Those dispatched for this household within the last fifteen minutes — the same window the scan uses, so
-the worker and the scan cannot disagree about what is current.
-
-**Refusals**: no session → `401`; a signed-in account that is not on the allowlist → `403`. Both
-return an empty body. The worker treats every non-`200` identically: show the contentless fallback.
-
-**Why the words are stored rather than recomputed**: the row already holds the title and body the scan
-composed. Recomputing them here would be a second implementation of `message.ts` reachable by a
-different path, and the two could drift.
-
----
-
-## What the service worker may do
-
-`public/family/sw.js` is not a contract with a server, but it is a contract with the browser, and
-getting it wrong is how a permission gets revoked.
-
-| Event | Obligation |
-|---|---|
-| `push` | **Always** call `showNotification`, on every path including failure. A worker that receives a push and shows nothing gets the browser's own "this site was updated in the background", and repeat offences cost the permission (R814). |
-| `push`, happy path | Fetch `/api/family/reminders/pending`, show one notification per reminder. |
-| `push`, any failure | One notification saying the household has a reminder, with no detail. Honest, not wrong. |
-| `notificationclick` | Focus an existing `/family` window if one is open, otherwise open the notification's `path` (FR-825). |
-| `fetch` | **No handler.** The offline cache is Phase 9; adding one here would silently change how every `/family` request is served (R806). |
-
----
-
-## The local trigger
-
-`scripts/family-reminders.mjs`, run as `npm run family:reminders -- --local`. It posts to the same
-route with the same header, because there is no `pg_cron` in this repository's local stack.
-
-It is a trigger and nothing else: no logic lives in it that is not in the route. A developer running it
-twice in a row is exercising the claim constraint, which is the point.
+**"Shown once" is a per-device convention** (FR-816). The device keeps a Set of reminder keys in its
+browser's `localStorage`; nothing is recorded server-side, because nothing server-side is looking. Two
+consequences follow and are accepted rather than worked around: clearing site data, a private window or
+a second browser profile can show a reminder again while it is still inside its fifteen-minute
+freshness window (FR-817); and two tabs on one device each keep their own Set, so each shows its own
+banner.

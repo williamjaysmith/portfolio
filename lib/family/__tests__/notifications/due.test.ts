@@ -15,13 +15,13 @@ import { describe, expect, it } from "vitest";
 
 import { expandWindow } from "../../calendar/expand";
 import {
+  MAX_STALENESS_MS,
   eventReminders,
+  isCurrent,
   remindersDueNow,
-  remindersInWindow,
   type DueReminder,
 } from "../../notifications/due";
 import { NOTIFICATION_DEFAULTS, type NotificationSettings } from "../../notifications/settings";
-import { runWindowOf } from "../../notifications/window";
 import { viewWindowOf, type DateWindow } from "../../calendar/dates";
 import type { Event, EventException, EventTimes } from "../../types";
 
@@ -296,15 +296,22 @@ describe("filtering by the clock", () => {
     expect(remindersDueNow(reminders, fireAt + 16 * 60_000)).toEqual([]);
   });
 
-  it("sends nothing at the old moment for an event created after it passed", () => {
-    // An event added at 16:25 for 16:30 with a ten-minute lead: 16:20 is gone.
-    const created = fireAt + 5 * 60_000;
-    expect(remindersInWindow(reminders, runWindowOf(created, created + 60_000))).toEqual([]);
+  it("shows nothing at all to a tablet that was asleep all morning", () => {
+    const morning = [1, 2, 3].map((hours) => fireAt + hours * 60 * 60_000);
+    expect(morning.flatMap((now) => remindersDueNow(reminders, now))).toEqual([]);
+  });
+});
+
+describe("isCurrent", () => {
+  const fireAt = Date.parse("2026-09-09T16:20:00.000Z");
+
+  it("does not show a moment that has not arrived", () => {
+    expect(isCurrent(fireAt, fireAt - 1)).toBe(false);
   });
 
-  it("drops an hour of backlog to the fifteen minutes that are still current", () => {
-    const anHourLate = fireAt + 60 * 60_000;
-    expect(remindersInWindow(reminders, runWindowOf(fireAt - 60_000, anHourLate))).toEqual([]);
+  it("stops exactly at fifteen minutes", () => {
+    expect(isCurrent(fireAt, fireAt + MAX_STALENESS_MS)).toBe(true);
+    expect(isCurrent(fireAt, fireAt + MAX_STALENESS_MS + 1)).toBe(false);
   });
 });
 

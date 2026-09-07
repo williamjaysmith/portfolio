@@ -4,48 +4,72 @@ Decisions taken before any code, each with what it rests on and what was rejecte
 and cited from the plan, the data model and the tasks. Read `spec.md` first: this answers *how*, the
 spec answers *what*.
 
-Two things were checked against the repository rather than assumed, and both changed the design:
-the app already has a shared minute-resolution clock (`useNow`), and `/family` has **no URL
-parameters at all** — every screen is client-state-driven, which is why R815 exists.
+Two things were checked against the repository rather than assumed, and both changed the design: the
+app already has a shared minute-resolution clock (`useNow`), which is what drives the banner rather
+than a timer of its own (R813); and `/family` has **no URL parameters at all** — every screen is
+client-state-driven, which is why a banner cannot yet open the day it names, and why R815 exists.
 
 ---
 
 ## R801 — This phase is notifications; home, search and offline are the next one
 
-**Decision**: `008-family-notifications` ships reminders, task notifications, the on-screen banner and
-push to a device. The Home screen, cross-tab search and the offline cache become `009`.
+**Decision**: `008-family-notifications` ships reminders, task notifications and the on-screen banner.
+The Home screen, cross-tab search and the offline cache become `009`.
 
-**Why**: the locked plan bundles six things under "Phase 7". Reminders, task notifications and reaching
-a sleeping phone are one mechanism — one due-computation, one settings section, one delivery record.
-A home screen is a new landing surface, a search is a query layer, and an offline cache is a fetch
-strategy; none of the three shares anything with the other two or with this one. Phases 5 and 6 set
-the precedent that a phase must be reviewable and deployable alone.
+**Why**: the locked plan bundles six things under "Phase 7". Reminders and task notifications are one
+mechanism — one due-computation, one settings section, one banner. A home screen is a new landing
+surface, a search is a query layer, and an offline cache is a fetch strategy; none of the three shares
+anything with the other two or with this one. Phases 5 and 6 set the precedent that a phase must be
+reviewable and deployable alone.
 
-**Rejected**: shipping all six. The branch would carry four unrelated migrations and the hosted push
-would be blocked behind an offline cache nobody has specified. The dossiers document **nothing at all**
-about offline behaviour — the reference is in fact criticised for requiring constant connectivity — so
-that phase is ours to invent and should not delay this one.
+**Rejected**: shipping all six. The branch would carry unrelated migrations and a Settings section
+nobody could review against one spec. The dossiers document **nothing at all** about offline
+behaviour — the reference is in fact criticised for requiring constant connectivity — so that phase is
+ours to invent and should not delay this one.
 
 ---
 
-## R802 — One pure function, two independent readers
+## R802 — One pure due-computation, and the banner brings its own data
 
 **Decision**: a single pure module answers *"given the household's settings, its events and tasks, and
-an instant, which reminders are due?"* Two callers read it: the **browser**, to draw the banner, and
-the **server scan**, to send pushes. Neither knows about the other.
+an instant, which reminders are due?"* It has exactly one reader: the banner in the app shell. The
+banner does **not** read whichever screen happens to be mounted; it owns a **small dedicated query of
+its own** — the household's events and its timed chore occurrences over the reminder horizon —
+independent of the tab that is showing.
 
-**Why**: the browser already holds every event and task for the visible period in the TanStack Query
-cache, kept current by the realtime channel. It needs no server round-trip to know that the swim
-lesson is in ten minutes — it needs a clock and a function. That makes the wall display's banner free
-of new infrastructure, correct the instant the underlying data changes, and entirely unit-testable.
+**Why the banner needs its own query, and cannot borrow a tab's**: the banner mounts in the shell,
+because a reminder must appear on any `/family` page. On the Lists or Meals tab the calendar's data is
+**not loaded at all**, so a reader that borrowed the visible screen's cache would be correct on the
+calendar and silent on the shopping list — which is most of the time the wall display is being used.
+And the lead time reaches seven days (FR-806): even on the calendar tab, a reminder can be owed for an
+event outside any window the screen has fetched. There is still one due-computation with one reader;
+what its reader gets its data from is a query of its own.
+
+**The horizon**: `[now − 15 minutes, now + the longest lead time that can be owed]` in the household's
+own zone (FR-812). The upper bound is the household's lead time, widened to FR-806's seven-day ceiling
+when an event may carry a longer one of its own (FR-808) — the query cannot know an event's custom
+lead time without first having fetched the event, so the bound is the cap, not a guess. A week is the
+same order of read the calendar tab already makes. The look-back is FR-817's fifteen minutes, which is
+also FR-829's answer to a page that was closed or asleep: what is still current is shown, what is long
+past is dropped, so a wall display that wakes up does not replay the morning. The bounds move only
+when a setting changes or the day rolls, so the query re-fetches at that granularity while `useNow`
+re-judges every minute — the clock drives the decision, not the network.
+
+**What this costs and buys**: one bounded read per device, whose key sits under `familyKeys.all` like
+every other, so the shell's existing realtime sweep keeps it current for free (R817). It may hold a
+few rows the calendar tab also holds; that duplication is a handful of cached rows, and the
+alternative is a banner that is right on one tab and wrong on four.
 
 **Consequences that fall out of it**, and that shape everything below:
 
-- The banner needs **no** realtime message, **no** route, and **no** delivery record. Its "don't show
-  this twice" (FR-816) is per-device local state, which is exactly what the spec's edge case demands
+- The banner needs **no** route, **no** server record and **no** new table. Its "don't show this
+  twice" (FR-816) is per-device local state (R807), which is exactly what the spec's edge case demands
   ("dismissing on one does not dismiss on the other").
-- The **delivery record (R807) binds only the push side**, where "exactly once" is a real risk.
-- The two readers cannot disagree, because there is one implementation of "due".
+- A reminder exists only where a page is open. Nothing is queued for a device with every tab closed,
+  and nothing is owed to it when it comes back beyond what is still inside the look-back. That is a
+  deliberate property of this design, recorded as Assumption 15, not an omission.
+- The computation is pure, so every lead time, the household zone, a DST boundary and midnight are
+  unit-testable at a pinned instant (SC-814).
 
 **Rejected**: the server telling the browser what to show, over realtime or a poll. It adds a channel,
 a table and a latency budget to reproduce something the browser can already compute, and it would put
@@ -53,143 +77,63 @@ the wall display's most visible feature behind the network.
 
 ---
 
-## R803 — The scan runs in the database's scheduler and calls a route in this app
+## R807 — "Shown once" is a set of keys in the device's own storage, and its limits are stated
 
-**Decision**: `pg_cron` on the hosted project fires every minute and uses `pg_net` to `POST` to
-`/api/family/reminders/run` in this deployment. The route does the work: read the window, compute what
-is due, claim it, send it.
+**Decision**: each device keeps a Set of reminder keys (R808) in its own storage, through Phase 1's
+`readDeviceJson`/`writeDeviceJson` (R813). A key in the set is not drawn again. Keys that have fallen
+out of the look-back are pruned on write, so the set stays small and cannot grow without bound.
 
-**Why**: minute granularity is the whole feature, and it must not depend on a browser being open
-(FR-830). Supabase ships both extensions on every hosted project. The route handler lives in this
-repository, in TypeScript, sharing `lib/family/**` with the rest of the app, covered by the same
-gates.
+**Why per device**: FR-816 says a banner must not return for the same reminder **on that device**, and
+the spec's edge case says dismissing on one screen does not dismiss on the other. Per-device local
+state is the literal shape of that requirement. There is no household-level fact here to record: two
+screens are *meant* to show the same reminder, each on its own terms.
 
-**Rejected**:
+**What this does not promise, said plainly.** Two degradations follow from the store being the
+device's rather than the household's, and both are accepted:
 
-| Option | Why not |
-|---|---|
-| **Vercel Cron** | The Hobby plan schedules at most **once a day**. A daily reminder engine is not one. |
-| **A Supabase Edge Function** | Deno, a second runtime, a second deployment, and no way to import `lib/family/**`. The due-computation would be written twice or moved to SQL. |
-| **An external scheduler** | A third party holding a key that can trigger sends, for a household of three. |
-| **A long-running Node process** | Nowhere to run it. Vercel is serverless. |
+- **Clearing site data, a private window, or a second browser profile starts with an empty set**, so a
+  reminder still inside its fifteen-minute window can be shown again there. The set is a convenience
+  belonging to one browser profile, not a record of what the household has seen.
+- **Two tabs of the app on one device each show their own banner.** Both mount the banner, both judge
+  the same minute, and both draw it; the set stops a *re-show*, not a simultaneous second show, and
+  dismissing in one tab does not dismiss in the other.
 
-**Locally**, `pg_cron` is not installed in this repository's stack, so there is no scheduler. A script
-(`npm run family:reminders -- --local`) posts to the same route with the same secret. The route is the
-only implementation; the trigger differs, which is the right seam.
+Neither is worth a table to fix. A duplicate banner on a second profile is a mild annoyance; the
+machinery that would remove it is a write on a read path, a policy and a retention rule.
 
-**Cadence and window**: every minute. Each run considers `(last successful run, now]`, clamped to the
-last **fifteen minutes** (FR-817, FR-829). A gap of an hour therefore sends what is current and drops
-the rest, rather than flooding.
-
----
-
-## R804 — The cron caller proves itself with a shared secret, compared in constant time
-
-**Decision**: the route requires an `Authorization: Bearer <secret>` header and compares it with a
-length-checked constant-time comparison. No secret, no work, and the response says nothing useful.
-
-**Why**: this is the **first route handler in the repository**, and `proxy.ts` is explicitly not an
-authorization boundary in Next 16. A public URL that makes the household's phones buzz is exactly the
-kind of thing that must not be triggerable by anyone who guesses it. Constant-time comparison because
-a naive `===` on a secret leaks its prefix to a patient caller.
-
-**The secret never enters the repository.** It is set in Vercel's environment and, for `pg_net`, as a
-database setting written by the operator by hand — the same discipline as the seed's PINs and the
-service-role key. The quickstart gives the two commands; neither is committed.
-
-**Rejected**: signing each call with a timestamped HMAC (more moving parts than a single trusted
-caller warrants), and IP-allowlisting Supabase's egress (undocumented and unstable).
+**Rejected**: `sessionStorage` (per tab, so every reload would replay every current reminder), and a
+`sent` boolean on the event or task (wrong cardinality — a repeating event has many occurrences and
+one row).
 
 ---
 
-## R805 — `web-push` for encryption and signing, not hand-rolled crypto
+## R808 — A reminder's identity is the occurrence plus the instant it fires; a completion's is its own row
 
-**Decision**: add `web-push` as a production dependency. It performs the RFC 8291 payload encryption
-and the VAPID request signing.
-
-**Why**: this repository has written its own recurrence engine, its own geometry and its own storage
-adapters, and that has been right every time — those are domain logic with obvious failure modes.
-Message encryption is not. The failure mode of a subtle mistake in the key derivation or the record
-size is **silent undeliverability**: the push service accepts the request, the device never shows
-anything, and no test that mocks the transport can tell. `web-push` is the reference implementation,
-and it also encodes the `404`/`410` semantics that R806's pruning depends on.
-
-**Considered and rejected**: writing it against Node's `crypto` (`createECDH`, `hkdfSync`,
-`aes-128-gcm`) and RFC 8291's published test vectors. It is perhaps eighty lines and genuinely
-testable against the vectors, and it would avoid a dependency. It was rejected because passing the
-vectors proves the algorithm, not the integration — the header set, the TTL, the urgency, the
-`Content-Encoding` and the endpoint quirks are where this actually goes wrong, and those are not in
-any vector. The dependency is small, has no native build step, and runs on the Node runtime Vercel
-gives a route handler.
-
-**Not needed**: an edge-compatible push library. The route runs on Node, deliberately, because it also
-uses the service-role client.
-
----
-
-## R806 — A service worker scoped to `/family`, registered only when asked
-
-**Decision**: `public/family/sw.js`, served at `/family/sw.js`, therefore scoped to `/family/` and
-unable to touch the rest of willsmith.dev. It is registered **only** when a device turns the switch
-on — never on page load.
-
-**Why**: a service worker is the only way a browser shows something when the page is closed. Scoping
-it by its own path is free and means the portfolio, `/skyhammer` and `/colectivo` are untouched by a
-family-app feature. Registering it lazily means a household that never asks for reminders never gets a
-worker, which keeps the failure surface at zero for the default configuration.
-
-**This phase's worker handles two events only**: `push` (show the notification) and `notificationclick`
-(focus or open the right page). It has **no `fetch` handler** — that is Phase 9's offline cache, and
-adding one now would silently change how every `/family` request is served.
-
-**Pruning dead devices** (FR-826): a send that returns `404` or `410 Gone` means the subscription is
-dead; the row is deleted. Any other failure is recorded and left alone.
-
-**Rejected**: serving the worker from a route handler to widen its scope with
-`Service-Worker-Allowed`. Nothing wants a wider scope, and a static file is one fewer thing to get
-wrong.
-
----
-
-## R807 — Exactly once is a row, claimed before the send, and it is per reminder not per device
-
-**Decision**: `family.reminder_deliveries` holds one row per reminder that has been sent, with a unique
-constraint on its identity (R808). The scan **inserts first**; a conflict means another run already
-claimed it, and this run does nothing. Only after the claim does it send, to every subscribed device.
-
-**Why insert-first**: two runs can overlap — a slow run and the next minute's. The unique index is the
-only arbiter that survives that, and claiming before sending means the worst case is a reminder that
-is missed, not one that is sent twice. For a wall display, a duplicate is worse than a miss: a miss is
-invisible, a duplicate is a device that cries wolf.
-
-**Why per reminder, not per device**: FR-824 wants each device to receive it once and never twice.
-One claim followed by one fan-out gives exactly that. A per-device record would let a partial failure
-be retried, and a retry is precisely how a device ends up buzzing twice (FR-831 forbids it). A device
-that was unreachable for that one minute misses that one reminder, which is the same outcome as a
-phone in a tunnel.
-
-**Rejected**: an advisory lock around the whole scan (serialises everything and leaks on a crashed
-connection), and a "sent" boolean on the event (wrong cardinality — a repeating event has many
-occurrences and one row).
-
----
-
-## R808 — A reminder's identity is the occurrence plus the instant it fires
-
-**Decision**: the unique key is `(household_id, subject_kind, subject_id, occurrence_date, fire_at)`.
+**Decision**: an event or due-chore reminder is keyed by
+`subject_kind:subject_id:occurrence_date:fire_at`. A completion is keyed by the resolution row's own
+identity.
 
 **Why `occurrence_date`**: it is Phase 2's occurrence grammar, already the key for exceptions and
-already proof against a series-level time change and DST drift. Reusing it means a reminder for the
-third Tuesday is identified the same way the third Tuesday's skip is.
+already proof against a series-level time change and DST drift. Keying a reminder for the third
+Tuesday the same way the third Tuesday's skip is keyed means one grammar, not two.
 
-**Why `fire_at` as well**: it makes "the event moved, so the new time is what reminds" (FR-821, and
-the spec's moved-event criterion) fall out for free. The old instant was claimed and is gone; the new
-instant is a different key and is considered on its merits — and if the new instant is already past,
-R803's fifteen-minute clamp drops it. `fire_at` is derived deterministically from stored data, never
-from the current time, so a jittery clock cannot manufacture a second key.
+**Why `fire_at` as well**: it makes "the event moved, so the new time is what reminds" (FR-821, and the
+spec's moved-event criterion) fall out for free. The old instant's key stays in the set and is gone
+with it; the new instant is a different key, judged on its merits — and if the new instant is more than
+fifteen minutes past, R802's look-back drops it. `fire_at` is derived deterministically from stored
+data, never from the current time, so a jittery clock cannot manufacture a second key.
 
-**Retention**: rows older than thirty days are deleted by the same scan. Nothing reads them, they only
-prevent a resend, and a reminder from last month cannot resend anyway.
+**Why a completion is keyed differently — it has no instant to include.** A completion is not
+scheduled; it happens when somebody ticks, so there is nothing for `fire_at` to be derived from, and
+the moment it arrives is the moment it is shown. `(task, occurrence_date)` is the wrong key twice
+over: a routine can be completed in **two slots on one day** (Phase 3's `occurrence_slot`), and an
+**Anytime chore has no date at all** — `family.task_resolutions.occurrence_date` is null on it.
+The resolution row already carries its own identity, one row per resolved occurrence, which is exactly
+what "this completion" means: an un-tick deletes the row, and a re-tick writes a new one, which is
+correctly a new thing to announce (R811).
+
+**Retention**: none, beyond the pruning above. Nothing reads these keys but the device that wrote
+them, and a key outside the look-back can never suppress anything again.
 
 ---
 
@@ -230,25 +174,41 @@ single integer bound (`between 1 and 10080`).
 
 ---
 
-## R811 — Completion notifications are written by the write and sent immediately, with the scan as the net
+## R811 — A completion is derived on the open page from the row the tick already writes
 
-**Decision**: completing a task writes its notification row in the same transaction as the completion,
-then Next's `after()` sends it once the response has gone. If that send never happens — a crash, a
-cold start killed — the next scan finds the unsent row and sends it.
+**Decision**: nothing is written to announce a completion. Ticking a task inserts a
+`family.task_resolutions` row, exactly as Phase 3 already does; that table is already on the guarded
+realtime publication (`022_realtime_tasks.sql`), so every open page is already told. The banner's own
+query (R802) reads the household's recent resolutions, keeps those whose status is `complete` and
+whose `resolved_at` is inside the look-back, and names who finished what from the credited Profile —
+the reference's own shape, "Olivia dried the dinner dishes" (FR-819).
 
-**Why**: a completion is an event, not a schedule; there is nothing for a clock to discover. Waiting
-up to a minute for the scan would miss SC-809's "within a minute" and would make the household's most
-immediate notification its slowest. Sending inside the action instead would put a network round-trip
-to a push service in front of a child ticking a chore off — which Phase 3 spent real effort making
-instant.
+**Why nothing new is written**: the completion **is** the record. A second row saying "this happened"
+would need a table, a policy, a trigger, a sender and a retention rule to hold a fact the first row
+already holds — and the two could disagree, which is the failure nobody would think to look for.
 
-Writing the row **in the same transaction as the completion** is what makes it honest: if the tick is
-rolled back there is nothing to send, and if the tick lands the notification is owed. One sender
-function, two triggers.
+**The realtime payload is a signal, not the message.** `useFamilyRealtime` deliberately never renders
+a payload, because Realtime does not apply the same column privileges as a normal read. So the channel
+invalidates and the banner reads the row back under RLS, like every other screen in this app. That is
+also why SC-809's "within a minute" is comfortable: the round trip is an invalidate and a windowed
+read, not a schedule.
 
-**Rejected**: a realtime broadcast to open pages only (a phone in a pocket is the whole point), and a
-trigger in Postgres calling `pg_net` directly (the message text and the settings check would move into
-SQL, away from the tests).
+**Suppressed on the device that did the ticking.** The person who just tapped the card is watching it
+flip; a banner telling them what they have just done is noise. The acting device records that
+resolution's key in the same dismissed set (R807) as it writes, so the row arrives already seen. Every
+other open page shows it, which is the whole point of the feature.
+
+**Skips and un-ticks are excluded, and it costs nothing.** FR-819 excludes both. A skip writes
+`status = 'skipped'` and the filter drops it; an un-tick **deletes** the row, so there is nothing left
+to announce and a page that opens afterwards learns nothing about it. A banner already on screen when
+the un-tick lands is left to expire: it is a report of a moment, not a record, and yanking it away
+would be a stranger thing to watch than letting it go.
+
+**Rejected**: writing a notification row in the same transaction as the tick and sending it from
+`after()`. That design exists to reach somewhere the channel cannot; with the banner as the surface,
+the row, the sender and its retention are machinery for a fact the channel already delivers. Also
+rejected: deriving the wording in SQL, which would move the message and the settings check away from
+the tests.
 
 ---
 
@@ -263,9 +223,9 @@ appear for those chores that are due at a specific time". The column and the sen
 predicate is one line and needs no new data.
 
 **Late chores** (FR-818): the reminder belongs to the occurrence's own due date. A carried-forward
-chore is still that occurrence, whose `fire_at` is in the past, so R803's clamp drops it and R807's
-row already exists. The "remind once, not once a day" behaviour is not special-cased anywhere — it is
-what the identity in R808 already means.
+chore is still that occurrence, whose `fire_at` is in the past, so R802's look-back drops it and its
+key is in the device's set anyway. The "remind once, not once a day" behaviour is not special-cased
+anywhere — it is what the identity in R808 already means.
 
 ---
 
@@ -280,133 +240,90 @@ edge cases answered by a component that shipped in Phase 1. `createDeviceSwitche
 the shape for per-device booleans and is already used by two tabs. Writing a second clock or a second
 storage discipline would add duplication the gate would rightly reject.
 
+**Neither switch asks the browser for anything.** A banner the app draws inside its own page needs no
+permission, so FR-815's two switches are per-device preferences and nothing else — no prompt to
+explain, no refused state to reflect, and no control that can appear on while the browser has said no.
+
 **The chime**: one short tone, played from a `public/family/` asset on a user-initiated switch's
 device. Autoplay policy is not a problem here because the switch is itself a user gesture and the
 audio element is primed by it — but a device that refuses is not an error, it is a silent banner.
 
 ---
 
-## R814 — The push carries nothing; the worker fetches the words from us
-
-**This is the one decision in the phase that Principle VII forced.** It is worth reading in full.
-
-**The tension**: §VII says no child's name, photo or schedule leaves the project's own
-infrastructure. A Web Push request is delivered by Apple, Google or Mozilla. The obvious design puts
-"Cleo — Practice piano is due at 5:00" in the payload, and that sentence would transit a third party.
-
-RFC 8291 encrypts the payload end-to-end to the subscription's own keys, so the push service relays
-ciphertext it cannot read, and a reasonable person could call that compliant. **We are not going to
-lean on that**, because there is a design that does not need the argument.
-
-**Decision**: the push payload is a version marker and nothing else. On receiving it the service
-worker fetches `/api/family/reminders/pending` — a same-origin request, which carries the household's
-session cookie automatically — and shows what comes back. The push service learns that a push
-happened to an endpoint, its size and its time. It never carries a name, a chore or a schedule.
-
-**The fallback is mandatory, not optional.** A browser that receives a push and shows no notification
-substitutes its own ("this site has been updated in the background") or, on repeated offences,
-revokes the permission. So a failed fetch — expired session, no connectivity, a 500 — still shows a
-notification, reading only that the household has a reminder, with no detail. That is a correct
-degradation under §VI: less information, never a lie and never a crash.
-
-**What this costs**: one more route handler, an authenticated read, and roughly forty lines in the
-worker. **What it buys**: the household's schedule never leaves our infrastructure at all, and the
-Constitution Check below passes on the principle rather than around it.
-
-**Rejected**: an encrypted payload carrying the text (§VII, above); and waking the app in a hidden
-window to compute it (no such thing exists for a closed browser).
-
----
-
-## R819 — The pending-reminders route is an ordinary authenticated read
-
-**Decision**: `GET /api/family/reminders/pending` returns the reminders claimed for this household in
-the last fifteen minutes — title, body, and the path to open. It is authenticated by the same session
-the rest of `/family` uses, filters by the caller's household explicitly, and needs no punch-in
-because it writes nothing and reveals nothing a signed-in device cannot already see.
-
-**Why fifteen minutes**: it is R803's window. A worker asking for "what is pending" and a scan
-deciding "what is current" must agree, or a device shows a reminder the wall has already dropped.
-
-**Why not the actor cookie**: a punch-in lasts three minutes and expires while a phone is in a pocket.
-Requiring one would make the feature fail exactly when it is needed. This is a read of the
-household's own data by a signed-in household device — Phase 1's rule for reads, unchanged.
-
----
-
-## R820 — On an iPhone, this works only once `/family` is on the Home Screen
-
-**Finding, not a decision**: Safari on iOS delivers Web Push only to a site the user has added to the
-Home Screen as a web app. In a Safari tab, the permission prompt does not appear at all.
-
-**Consequence**: the household's iPhones must install `/family` before the switch can be turned on.
-The manifest already exists (`app/family/manifest.webmanifest`) and Phase 7's browser pass already
-checks it, so nothing needs building — but the switch must **say so** rather than silently doing
-nothing, and the quickstart must carry the two-step instruction. A control that appears to fail for
-no reason is worse than one that explains itself.
-
-**Desktop and Android** have no such requirement; a signed-in browser can subscribe directly.
-
----
-
 ## R815 — Opening the right day needs a date in the URL, which `/family` does not have yet
 
 **Finding**: there is not one `useSearchParams` or `searchParams` in the whole of `app/family/**`. Every
-screen is client-state-driven and today-anchored. So today, a notification can open the app but cannot
-open **the day the event belongs to** — which FR-825 requires.
+screen is client-state-driven and today-anchored.
 
 **Decision**: add one optional parameter, `?on=YYYY-MM-DD`, read once on mount to seed the calendar's
 anchor and then left alone. An absent or unparseable value means today, exactly as now.
 
+**Why it is needed**: the banner mounts in the shell, so it appears while the Lists or Meals tab is
+showing, and acting on it must land on **the day the event or chore belongs to** — not on today's
+calendar. The anchor is state inside the calendar screen (`useWeekAnchor`), which does not exist while
+Lists is mounted, so crossing from a banner into the calendar is a route change, and the only thing a
+route change carries is the URL. A banner that names Thursday's swim lesson and can only open today is
+a dead end.
+
 **Why read once**: the calendar's anchor is client state that the user moves by paging. A parameter
 that kept overriding it would fight the pager. Seeding is the whole requirement.
 
-**Scope discipline**: this is a genuine addition beyond "notifications", and it is here because FR-825
-cannot be met without it. It is one parameter on one screen, it changes nothing when absent, and it is
-listed in the plan as such rather than smuggled in.
+**Scope discipline**: this is a genuine addition beyond "notifications", and it is here because a
+banner's tap target cannot be met without it. It is one parameter on one screen, it changes nothing
+when absent, and it is listed in the plan as such rather than smuggled in.
 
 ---
 
 ## R816 — What can be tested, and what honestly cannot
 
 **Fully unit-testable, and where the coverage the gate needs comes from**: the due-computation (every
-lead time, all-day events, the household zone, a DST boundary, midnight), the window and clamp
+lead time, all-day events, the household zone, a DST boundary, midnight), the horizon and look-back
 arithmetic, the settings-to-reminder resolution including the three-state override, the task
-predicate, the message wording, and the route's authorization.
-
-**Testable against a contract, not a network**: the sender. `web-push` is injected, so the tests assert
-which endpoints were addressed, with what payload, and that a `410` prunes the row.
+predicate, the completion filter and the name it credits, the message wording, and the dismissed set
+— its identity rules, its pruning, and what an empty one does.
 
 **Testable in a browser** (`007-family-e2e` gains journeys): the Settings section and its defaults, a
 member finding it read-only, the per-event override and its three scopes, the banner appearing at a
-pinned clock, dismissal, the chime switch, and the push switch reflecting a **refused** permission —
-Playwright can deny the notification permission, which is the branch most likely to be got wrong.
+pinned clock **on the calendar tab and on the Lists tab** — the second is the one that would catch a
+banner wired to the visible screen's data (R802) — dismissal, the chime switch, and tapping a banner
+landing on the right day. The completion path is the suite's existing two-browser journey: one browser
+ticks a chore, the other raises a banner naming who did it, and the browser that ticked does not.
 
-**Not testable here, and said so plainly**: an actual push delivered by Apple or Google to a real
-device with every tab closed. No local harness can produce one. It stays in the operator's hardware
-pass, alongside the two-device realtime check that has been pending since Phase 5, and the quickstart
-gives the steps.
+**Not testable here, and said so plainly**: nothing in this phase claims anything about a device with
+no page open, so there is nothing about one to test — that property is Assumption 15, not a gap in the
+suite. The one manual item is the two-device realtime check that has been pending since Phase 5, on
+hardware rather than two contexts of one browser; the quickstart gives the steps.
 
 ---
 
-## R817 — The realtime channel gains the two new tables that the app reads
+## R817 — The realtime channel gains nothing, because this phase adds no tables
 
-**Decision**: `family.push_devices` joins the guarded publication; `family.reminder_deliveries` does
-not.
+**Decision**: no `alter publication`. The guarded publication keeps exactly the tables Phases 1–6 put
+on it.
 
-**Why**: FR-827 puts the list of receiving devices on screen, and a device removed on one screen
-should vanish on the other — that is what every other table in this app does. Deliveries are the
-engine's own bookkeeping, never rendered, and would be the noisiest table in the household. The
-publication guard and DEFAULT replica identity follow Phase 2's migration exactly.
+**Why it still needs saying**: all three of this phase's moving parts ride a subscription that already
+exists, and the design depends on it. `household_settings` is published and filtered by household, so
+a parent changing the lead time on the phone re-judges the wall's banner without a reload. `events`
+and `event_exceptions` are published unfiltered — a DELETE payload carries a primary key and never a
+`household_id` — so a per-event reminder, a moved occurrence and a deleted event all reach every open
+page, which is what makes FR-821 a consequence of the existing sweep rather than new code.
+`task_resolutions` is published, which is the whole of R811.
+
+**Why nothing joins it**: there is no new table to add. The phase's storage is eleven columns on three
+tables that are already published (R809, R810), and what a device has already shown is kept in that
+device's own storage (R807), where no channel can or should reach it.
 
 ---
 
 ## R818 — The hosted migration must land before the branch merges, again
 
-**Decision**: `034`–`037` are pushed to the hosted project before this branch is merged or deployed.
+**Decision**: `034` and `035` are pushed to the hosted project before this branch is merged or
+deployed.
 
-**Why**: the same hard ordering as every phase since Phase 2. `push_devices` joins the realtime
-channel that **every `/family` page mounts**; a deployment whose client subscribes to a table the
-database does not have fails at the channel, not at the feature. The scheduler is a separate operator
-step and is safe to do afterwards — until it runs, nothing is sent, which is a quiet failure rather
-than a broken app.
+**Why**: the same hard ordering as every phase since Phase 2, though this phase's failure is narrower
+than most. `SETTINGS_COLUMNS` and `EVENT_COLUMNS` in `lib/family/rows.ts` name every column
+explicitly rather than selecting `*`, so a deployment whose client asks for `notify_event_before`
+against a database that has not got the column gets an error, not a null. That is the settings read
+and the calendar's event reads — Settings and the calendar, in every window — failing, while the
+shell, the channel and the other tabs stay up. It is a smaller blast radius than a phase that put a
+new table on the channel every page mounts, and it is still half the app, so the ordering stands.
