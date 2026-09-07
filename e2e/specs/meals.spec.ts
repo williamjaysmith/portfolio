@@ -1,3 +1,4 @@
+import { strip } from "../helpers/board";
 import { optionLabel } from "../helpers/controls";
 import { expect, test } from "../fixtures";
 
@@ -160,9 +161,16 @@ test.describe("the Meals tab", () => {
     await page.goto("/family/calendar");
     const tokens = page.getByRole("list", { name: "Meals" });
     await expect(tokens).toBeVisible();
-    // A token is named by its mealtime and its meal, and opens the same popover.
-    await tokens.getByRole("button", { name: "Dinner: 🍝 Spaghetti" }).click();
-    await expect(page.getByRole("dialog", { name: "🍝 Spaghetti" })).toBeVisible();
+
+    // A token is named by its mealtime and its meal, and opens the same popover
+    // the grid does. Which meals are on screen depends on how many day columns
+    // fit, so the journey takes the first token the week is showing rather than
+    // naming one that a narrow screen may have paged away.
+    const token = tokens.getByRole("button").first();
+    const name = (await token.getAttribute("aria-label")) ?? "";
+    expect(name, "a token says its mealtime and its meal").toMatch(/^[^:]+: .+/);
+    await token.click();
+    await expect(page.getByRole("dialog", { name: name.split(": ")[1] })).toBeVisible();
     await page.getByRole("button", { name: "Close" }).click();
 
     await page.getByRole("button", { name: "Filter" }).click();
@@ -174,8 +182,14 @@ test.describe("the Meals tab", () => {
     await expect(page.getByRole("list", { name: "Meals" })).toHaveCount(0);
 
     // The Meals tab itself is untouched by a switch that belongs to this device.
+    // How many days are on screen depends on the width, so the journey pages
+    // the week the way a person does until a planned meal shows.
     await page.goto("/family/meals");
-    await expect(page.getByRole("button", { name: "🍝 Spaghetti" }).first()).toBeVisible();
+    const planned = page.getByRole("group", { name: /, \d+ meals?$/ });
+    for (let day = 0; day < 7 && (await planned.count()) === 0; day += 1) {
+      await strip(page, "Meals").press("ArrowRight");
+    }
+    await expect(planned.first()).toBeVisible();
 
     await page.goto("/family/calendar");
     await page.getByRole("button", { name: "Filter" }).click();

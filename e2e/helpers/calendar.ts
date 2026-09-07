@@ -25,11 +25,26 @@ export interface NewEvent {
   profile?: string;
 }
 
-/** Stop the grid following the clock, so a scrolled-to block stays where it was put. */
+/**
+ * Stop the grid following the clock, so a scrolled-to block stays where it was
+ * put. The app disengages on the grid's own scroll event, whatever moved it —
+ * which matters here, because a phone has no wheel to turn.
+ */
 export async function stopFollowingTheClock(page: Page): Promise<void> {
-  await page.mouse.move(640, 500);
-  await page.mouse.wheel(0, 120);
-  await page.mouse.wheel(0, -120);
+  try {
+    await page.mouse.move(640, 500);
+    await page.mouse.wheel(0, 120);
+    await page.mouse.wheel(0, -120);
+    return;
+  } catch {
+    // Mobile WebKit: no wheel. Scroll the region itself, which raises the very
+    // same event the app listens for.
+  }
+  const hours = page.getByRole("group", { name: "Hours" });
+  await hours.evaluate((node: HTMLElement) => {
+    node.scrollBy(0, 120);
+    node.scrollBy(0, -120);
+  });
 }
 
 /** Every block drawn for an event — a repeat draws one per occurrence. */
