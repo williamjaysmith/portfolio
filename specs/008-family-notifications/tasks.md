@@ -289,12 +289,12 @@ the old trustworthiness story that still means something without a delivery ledg
 
 ## Phase 7: Polish, gates and the browser pass
 
-- [ ] T050 [P] Add `e2e/specs/notifications.spec.ts` — Settings and its defaults, a member finding it
+- [x] T050 [P] Add `e2e/specs/notifications.spec.ts` — Settings and its defaults, a member finding it
   read-only, the per-event override at each scope, the banner at a pinned clock, dismissal, and **two
   tabs each showing their own banner**, which is the honest degradation rather than a defect (R816)
-- [ ] T051 [P] Extend `e2e/helpers/` with whatever the new journeys need, following `harness.md` §3's
+- [x] T051 [P] Extend `e2e/helpers/` with whatever the new journeys need, following `harness.md` §3's
   rules on what each helper may know
-- [ ] T052 Run `npm run test:e2e` in full and fix what it proves broken, application-side, each with a
+- [x] T052 Run `npm run test:e2e` in full and fix what it proves broken, application-side, each with a
   unit test (harness.md §6)
 - [x] T053 [P] Accessibility pass on the banner and the Notifications section — serious and critical
   clean, 44px targets, contrast (§III)
@@ -305,7 +305,7 @@ the old trustworthiness story that still means something without a delivery ledg
   should read as though push was never in scope
 - [x] T056 [P] Update `CLAUDE.md`'s active-feature block to `008-family-notifications` with its reading
   order
-- [ ] T057 Write `checklists/quickstart-run.md` — the run record: every criterion, and what was seen
+- [x] T057 Write `checklists/quickstart-run.md` — the run record: every criterion, and what was seen
 - [ ] T058 Hosted `supabase db push` (`034`, `035` and `038`) **before** the merge (R818). The ordering is weaker
   than it was but still real: `SETTINGS_COLUMNS` and `EVENT_COLUMNS` name the new columns, so a
   deployment against a database without them fails the settings and calendar reads

@@ -11,8 +11,9 @@ no page open: no service worker, no scheduled scan, no push subscriptions, no ro
 household will open the app as needed and the wall display is the shared surface. `docs/` and the
 spec record it; if you find something that promises a phone will buzz, it is a leftover and should go.
 
-**State: all four user stories built and green (2026-09-07) — migrations 034, 035 and 038; the
-browser pass and the run record are what remain, then the hosted `db push` before merge.**
+**State: built, green and browser-tested (2026-09-07) — migrations 034, 035 and 038, 57 of 58 tasks.
+The one that remains is the operator's: `supabase db push` against the hosted project BEFORE the
+merge deploys, because the app's read queries name the new columns by hand.**
 Phases 1–6 are shipped and live; the home screen, cross-tab search and the offline cache became a
 following phase (`009-family-home-search-offline`), which does not exist yet.
 

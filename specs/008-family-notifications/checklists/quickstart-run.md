@@ -19,9 +19,34 @@ and says who has to check it.
 
 ## The browser pass
 
-`npm run test:e2e -- e2e/specs/notifications.spec.ts --project=wall` — **13 passed in 1.9 minutes**
-(5 setup steps, 8 journeys). The journeys live in `e2e/specs/notifications.spec.ts` and follow
-`specs/007-family-e2e/harness.md` §4's seven rules.
+`npm run test:e2e -- e2e/specs/notifications.spec.ts` — **13 passed**, three times over. The journeys
+live in `e2e/specs/notifications.spec.ts` and follow `specs/007-family-e2e/harness.md` §4's rules.
+
+The full pass — `npm run test:e2e`, all four viewports — is **90 passed, 2 skipped, 2 failed**. The
+two skips are the live-update journeys, which this local stack has never been able to deliver and
+which print their reason (unchanged since Phase 5). **Neither failure is caused by this phase**, and
+both were measured rather than assumed:
+
+| Failing journey | On `main` | On this branch | Verdict |
+|---|---|---|---|
+| `tasks.spec` — hides skipped tasks on this device | **fails** | fails | Pre-existing. Not this phase's, and worth its own look: `007`'s run record claims 53 journeys green, so something regressed between then and now |
+| `punch-in.spec` @responsive, tablet-landscape | 2 of 3 runs pass | 2 of 3 runs pass | Pre-existing flake, at the same rate on both sides |
+
+An earlier full run showed **8** failures rather than 2. Six of those were the stack falling over, not
+the code — see the section below. Every one of the six passes in isolation and passed on the rerun
+against a healthy stack.
+
+### What the flake did teach us
+
+The punch-in journey types into a field the moment the page appears. Before this phase it failed about
+one run in three; on this branch it started failing more often, and the screenshot showed the field
+focused, empty, and complaining that an item is 1 to 200 characters — the typing had landed before
+React took over, and hydration replaced it with the server's empty value.
+
+The cause was ours: the reminder banner mounts in the app shell, so it was reading the whole reminder
+horizon **during hydration, on every route**. It waits for `load` now (`useAfterLoad`). That took this
+branch from 1-of-3 back to `main`'s 2-of-3 — it did not create the flake, but it was making it worse,
+and a banner about something ten minutes away should never have been competing with first paint.
 
 ## Criterion by criterion
 
