@@ -13,7 +13,7 @@ import type { CategoryFormState } from "./useCategoryForm";
 // An empty input is identified by its outline alone, so the outline is a
 // control boundary and needs 3:1 — the hairline (1.17:1) is decoration.
 export const FIELD =
-  "min-h-[44px] w-full rounded-xl border border-(--fam-control-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-body) text-(--fam-text-primary) disabled:opacity-60";
+  "min-h-[44px] w-full rounded-xl border border-(--fam-control-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-control) text-(--fam-text-primary) disabled:opacity-60";
 export const LABEL = "flex flex-col gap-1 text-(length:--fam-fs-small) text-(--fam-text-muted)";
 
 export function FieldError({ messages }: { messages?: string[] }) {

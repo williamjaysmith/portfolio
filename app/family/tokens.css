@@ -479,6 +479,21 @@
   --fam-fs-nav: max(12px, calc(19 * var(--fam-t)));     /* sans 500 — rail / bottom-nav label */
   --fam-fs-small: max(12px, calc(16 * var(--fam-t)));   /* sans 500 — "⭐ 10" star chip, captions */
 
+  /* Form controls have a HARDER floor than text: 16px, not 12px.
+   *
+   * iOS Safari zooms the page whenever a field smaller than 16px takes focus,
+   * and on a small phone every one of these tokens sits at its 12px floor — so
+   * tapping any field on an iPhone SE zoomed the layout by a third, pushed the
+   * page past the window and hid the bottom navigation underneath. The zoom is
+   * not disabled to fix it (`user-scalable=no` is an accessibility failure and
+   * the viewport meta deliberately does not carry it); the controls are simply
+   * never small enough to trigger it.
+   *
+   * On the wall display and any tablet this changes nothing — 24 units is well
+   * past 16px there, so the max() picks the token exactly as before. It only
+   * bites at the floor, which is only reached on a phone. [OURS] */
+  --fam-fs-control: max(16px, calc(24 * var(--fam-t)));
+
   /* Week-grid type (Phase 2, 07 §4.5–4.7) — photo-estimated like the rest of this block. */
   --fam-fs-day-header: max(12px, calc(40 * var(--fam-t)));  /* serif 400 — "Wed 18" day-header line. Same number
                                                                as --fam-fs-clock but a different face (sans 500);
@@ -647,4 +662,37 @@
     --fam-sprite-stagger-max: 0.01ms;
     --fam-sprite-fade-ms: 0.01ms;
   }
+}
+
+/* The safety net behind `--fam-fs-control`.
+ *
+ * Most fields take their size from the shared FIELD class, but not all do, and a
+ * field that forgets it would silently re-introduce the iOS zoom described where
+ * that token is defined. `.family input` is one class and one element, which
+ * outranks the single utility class a component sets, so this holds even where a
+ * component names its own size — and text is the only thing at stake, since
+ * checkboxes and radios take no text entry and never trigger the zoom. */
+.family input:not([type="checkbox"]):not([type="radio"]),
+.family select,
+.family textarea {
+  font-size: var(--fam-fs-control);
+}
+
+/* Every dialog is bounded by the VISIBLE viewport, and scrolls inside it.
+ *
+ * The shipped dialogs set a width (`min(92vw, 34rem)`) and no height at all, so
+ * they took the user-agent default — which resolves its percentage against the
+ * viewport as though the browser chrome were not there. On an iPhone SE that is
+ * ~100px of URL bar the dialog does not know about, and because nothing scrolled
+ * inside it the overflow was simply unreachable: the household reported add-event
+ * and add-task popups too big for the window with the navigation hidden beneath.
+ *
+ * `dvh` is the unit that tracks the visible area as the URL bar shows and hides,
+ * which `vh` and the UA's percentage both fail to do. `overscroll-behavior`
+ * keeps a scroll inside the dialog from chaining to the page behind it. */
+.family dialog {
+  max-height: calc(100dvh - 2rem);
+  max-width: calc(100dvw - 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
