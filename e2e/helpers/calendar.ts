@@ -31,6 +31,11 @@ export interface NewEvent {
    * overwrites when a different value is given).
    */
   reminder?: "none" | { beforeMinutes: number };
+  /**
+   * 009 FR-901 — mark it a countdown. Omit to leave the switch off, which is
+   * the form's own default and means the event is not one.
+   */
+  countdown?: boolean;
 }
 
 /**
@@ -156,6 +161,7 @@ export async function createEvent(
         await form.getByRole("spinbutton", { name: "Minutes before" }).fill(String(event.reminder.beforeMinutes));
       }
     }
+    if (event.countdown === true) await form.getByRole("switch", { name: "Countdown" }).check();
     await form.getByRole("button", { name: "Save" }).click();
   });
   await expect(eventBlock(page, event.title)).toBeVisible();

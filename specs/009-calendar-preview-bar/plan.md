@@ -165,4 +165,22 @@ Ordered so each user story is independently testable at the point it lands, per 
 
 - [X] Phase 0 — research complete (R901–R915)
 - [X] Phase 1 — data model, contracts and quickstart written; constitution re-checked
-- [ ] Phase 2 — `/speckit.tasks`
+- [X] Phase 2 — `/speckit.tasks`: 59 tasks across 8 phases
+- [X] Implementation — all five user stories, T001–T051
+
+**Four things this plan got wrong, corrected in the documents rather than only in the code:**
+
+1. **The bar needed its own read.** This plan said it did not, because "the events are already in the
+   view's cache". The calendar's window is three to seven days and a countdown's day is further off
+   by definition, so `useCountdownEvents` is household-keyed and unwindowed (R901).
+2. **A countdown withholds the "This event" scope.** The contracts first said a scoped edit would
+   write the flag to the split's tail. It is a series property with no per-occurrence storage, so
+   `touchesSeriesFields` returns true for it, exactly as for Profiles and the repeat (contracts §2).
+3. **Two modules this plan did not name** were needed and are in the tree: `countdowns/wording.ts`,
+   so three surfaces cannot word the same number differently, and `occurrence-on-day.ts`, shared by
+   the countdown list and the search because both point at a day the window may not contain.
+4. **Spec US1-5 was wrong** and is fixed: it claimed a punched-in member may read the countdown
+   switch and not change it. The punch-in is the gate for every event field; the parent role governs
+   only the household's Show Countdowns setting.
+
+- [ ] Phase 8 — the browser pass, the hosted migration, the merge

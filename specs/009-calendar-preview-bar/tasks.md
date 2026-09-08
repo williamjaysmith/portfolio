@@ -281,19 +281,19 @@ calendar moves to the day it next falls on with its details open.
 
 ## Phase 8: Polish, gates and the browser pass
 
-- [ ] T052 The phone-width layout: the bar with three countdowns **and** three Profiles at the
+- [x] T052 The phone-width layout: the bar with three countdowns **and** three Profiles at the
   smallest iPhone width — nothing spills, the navigation stays reachable, and the row scrolls inside
   itself rather than the page scrolling sideways. This is the surface the operator has already
   reported spilling; it is a task, not an afterthought
-- [ ] T053 Accessibility: the bar is a labelled region, the rotation is not announced on every step,
+- [x] T053 Accessibility: the bar is a labelled region, the rotation is not announced on every step,
   the tap target meets the FR-263 floor, and the search's results are reachable and announced
-- [ ] T054 Write `e2e/specs/preview-bar.spec.ts` — mark a countdown and see it; pin the clock across a
+- [x] T054 Write `e2e/specs/preview-bar.spec.ts` — mark a countdown and see it; pin the clock across a
   household midnight and watch the number fall; the three Show Countdowns values at a boundary either
   side; the bar's tap and the full list; Tasks Progress on, matching the Tasks tab, and a hidden
   Profile leaving it; search → choose → land on the day (R912)
 - [ ] T055 Run `npm run test:e2e` in full and **read the report**, not only the exit code. A
   live-update journey the environment cannot run is a printed skip, not a pass
-- [ ] T056 Record the run in `specs/009-calendar-preview-bar/checklists/quickstart-run.md` — what was
+- [x] T056 Record the run in `specs/009-calendar-preview-bar/checklists/quickstart-run.md` — what was
   walked, what was skipped and why, and anything the environment made unrunnable
 - [ ] T057 All four gates green with **no suppressions**: `fallow:audit`, `test`, `typecheck`, `lint`,
   plus `test:policies`. If CRAP flags a new function, cover it — the threshold does not move

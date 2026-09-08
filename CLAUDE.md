@@ -8,10 +8,14 @@ midnight. **Tasks Progress** — the Filter toggle Phase 2 withheld, wired to th
 rule `lib/family/tasks/counters.ts` already owns. **Event search** — finds a series by title and
 takes the calendar to the day it next falls on.
 
-**State: specified and planned (2026-09-07); no code yet.** `/speckit.tasks` next.
+**State: built (2026-09-07) — all five user stories, 55 of 59 tasks.** The four gates are green, the
+browser pass has 22 new journeys, and the run record is
+`specs/009-calendar-preview-bar/checklists/quickstart-run.md`. **Not yet merged**: migration
+`039_show_countdowns.sql` still has to be pushed to the hosted project first (R913), and the phone
+and overnight checks are the operator's.
 Phases 1–7 are shipped and live. The **home screen** becomes `010` and the **offline cache** `011`;
-this one goes first because the home screen's calendar pane consumes a calendar whose chrome is still
-missing two documented pieces.
+this one went first because the home screen's calendar pane consumes a calendar whose chrome was
+still missing two documented pieces.
 
 Read in this order before touching preview-bar code:
 1. `specs/009-calendar-preview-bar/spec.md` — FR-901…FR-921, SC-901…SC-912, 7 assumptions, 6 divergences
@@ -32,9 +36,16 @@ Read in this order before touching preview-bar code:
 - **Tasks Progress mounts the board's reads** (R905): the switch is off by default and *mounting is
   the `enabled`* (`useTaskBox`'s shipped idiom), so the calendar makes no task request at all while
   it is off. Three of the four reads are household-keyed, so the Tasks tab's cache is shared.
-- **Seven `[UNKNOWN]`s are decisions, not facts** — the chip's wording, the progress format, what a
+- **Nine `[UNKNOWN]`s are decisions, not facts** — the chip's wording, the progress format, what a
   countdown does on its own day, whether the rotation can be paused, what a countdown on a repeat
-  counts towards, and that progress reports today rather than the paged-to day.
+  counts towards, that progress reports today rather than the paged-to day, that the one surface
+  carries a search the reference documents only on the phone, and what a result looks like.
+- **A countdown is a SERIES property.** There is no per-occurrence countdown and `event_exceptions`
+  gains no column for one, so changing it withholds the "This event" scope exactly as changing
+  Profiles or the repeat does (002 FR-287).
+- **SC-902's midnight roll is not proved in a browser** and cannot be: the e2e clock helper refuses
+  jumps over three hours because the session token is minted on the real clock. The arithmetic is
+  unit-tested across both DST changes; the overnight watch is the operator's.
 
 The browser pass (`specs/007-family-e2e/`) is the **phase gate**: run `npm run test:e2e` before a
 phase is merged, and read the report rather than only the exit code. It is deliberately not in the

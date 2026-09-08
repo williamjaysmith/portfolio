@@ -38,6 +38,20 @@
       `002-family-week-calendar`; FR-015/FR-033 in `001-family-foundation`; FR-386 in `003-family-tasks`)
 - [X] Divergences from the reference are tabled with reasons, not silently omitted
 
+## Post-implementation (2026-09-07)
+
+Re-checked after all five user stories shipped. Four claims in these documents did not survive
+contact with the code and were corrected where they were written, not only where they were wrong:
+
+- [X] **The bar needs its own read.** The plan said it did not. `useCountdownEvents` is
+      household-keyed and unwindowed (research R901).
+- [X] **A countdown withholds the "This event" scope.** The contracts said the opposite
+      (contracts §2).
+- [X] **US1-5 claimed a member may not change the countdown switch.** Untrue — the punch-in is the
+      gate for every event field.
+- [X] **R912 said three hours of clock-pinning was "enough to cross a midnight".** It is not, except
+      by luck of the run time. SC-902 now states what is actually proved and by what.
+
 ## Notes
 
 Five decisions are ours, not the reference's: the chip's wording, the progress format, what a

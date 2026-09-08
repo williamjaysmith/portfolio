@@ -288,8 +288,12 @@ last shipped tab without one.
 
 - **SC-901**: An event marked as a countdown shows its days on the calendar, and the mark survives a
   reload.
-- **SC-902**: The number falls by exactly one at the household's midnight, with no reload — proved by
-  pinning the clock across it.
+- **SC-902**: The number falls by exactly one at the household's midnight, with no reload. **Proved
+  as arithmetic and as wiring, not in a browser at a real midnight**: crossing one needs the page
+  clock moved by up to a day, and the e2e harness refuses more than three hours because the
+  signed-in session is a token minted on the real clock (007 harness.md §5). The unit tests cover
+  every case including both daylight-saving changes; the number is a function of the shell's shipped
+  minute store. The overnight watch on the wall tablet is the operator's.
 - **SC-903**: With more countdowns than fit, every active one reaches the first position, and the
   movement can be stopped.
 - **SC-904**: Each of the three Show Countdowns values admits exactly the countdowns it should,

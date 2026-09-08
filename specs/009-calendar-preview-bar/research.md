@@ -281,11 +281,17 @@ full list and choosing one; the Filter's Tasks Progress switch and a hidden Prof
 searching, choosing a result, and landing on its day; and the phone-width layout of a bar with three
 countdowns and three Profiles in it.
 
-**Not testable here, said plainly**: the midnight roll in a real browser at a real midnight. The e2e
-suite pins the clock (`e2e/helpers/clock.ts`, capped at three hours), which is enough to cross a
-midnight but not to prove a day-long session does. The unit test proves the arithmetic; the browser
-proves the wiring; nothing here claims the wall tablet has been watched overnight, and the
-quickstart lists that as the operator's own check.
+**Not testable here, said plainly**: the midnight roll in a real browser. `installClock` installs at
+the real `Date.now()` and `pinForward` refuses a jump over **three hours**, because the signed-in
+session is a token minted on the real clock and a browser pinned days away decides it has expired
+(007 harness.md §5). Reaching a household midnight from an arbitrary run time needs up to
+twenty-four. So the arithmetic is proved as arithmetic — `countdown-days.test.ts`, across both
+daylight-saving changes — and the wiring by the number being a function of `useNow`'s `todayDate`,
+the same shipped minute store the Phase 7 banner journeys already pin and exercise. Nothing here
+claims the wall tablet has been watched overnight; the quickstart lists that as the operator's own.
+
+*(A first draft of this section said three hours was "enough to cross a midnight". It is not, except
+by luck of the run time — corrected here rather than left to mislead the next phase.)*
 
 ---
 
