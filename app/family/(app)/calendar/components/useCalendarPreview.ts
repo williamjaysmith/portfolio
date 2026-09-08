@@ -2,14 +2,13 @@
 
 import { useCallback, useMemo, useState } from "react";
 
-import { viewWindowOf } from "@/lib/family/calendar/dates";
-import { expandWindow } from "@/lib/family/calendar/expand";
 import { countdownsInForce } from "@/lib/family/countdowns/inforce";
 import type { CountdownStatus } from "@/lib/family/countdowns/target";
 import { useCountdownEvents } from "@/lib/family/queries";
 import type { Event, ShowCountdowns } from "@/lib/family/types";
 
 import type { EditTarget } from "./event-drafts";
+import { occurrenceOnDay } from "./occurrence-on-day";
 
 /**
  * The preview bar's one data path (009 R901): the household's countdown events
@@ -82,15 +81,8 @@ export function useCalendarPreview({
   );
 
   const targetFor = useCallback(
-    (countdown: CountdownStatus): EditTarget | null => {
-      const event = rows.find((one) => one.id === countdown.eventId);
-      if (event === undefined) return null;
-      const day = viewWindowOf(countdown.targetDate, 1, zone);
-      const occurrence = expandWindow([event], day, zone).find(
-        (one) => one.occurrenceDate === countdown.targetDate,
-      );
-      return occurrence === undefined ? null : { occurrence, event };
-    },
+    (countdown: CountdownStatus): EditTarget | null =>
+      occurrenceOnDay(rows, countdown.eventId, countdown.targetDate, zone),
     [rows, zone],
   );
 

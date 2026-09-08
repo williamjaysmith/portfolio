@@ -10,7 +10,7 @@ and no finding is suppressed.
 
 `[P]` = parallelisable (different files, no dependency on an incomplete task).
 
-**State (2026-09-07): Phases 1–6 complete — US1 to US4 work end to end.** Migration `039` is applied locally, the settings
+**State (2026-09-07): Phases 1–7 complete — all five user stories work end to end.** Migration `039` is applied locally, the settings
 column is typed, mapped and validated end to end, and the two pure modules — the one bounded
 next-occurrence walk and days-remaining — are 27 tests green. US1 is live: an event can be marked a
 countdown, the calendar draws it above the week, the number falls at the household's midnight, and
@@ -41,8 +41,14 @@ concatenate-then-expand step was duplicated between the board and the progress r
 `useTaskDay` and both now share it; and `useWeekViewModel` went over the cognitive budget, so the
 preview's three lines became `useWeekPreview`.
 
+US5 is the search: `useEventSearch` over an escaped `ilike` with a row cap, `search.ts` shaping one
+row per event, and a results panel that navigates rather than filtering (divergence 6). The
+countdown list and the search share `occurrence-on-day.ts`, since both point at a day the displayed
+window may not contain.
+
 The four gates pass; the 11 lint errors in `app/colectivo/**` and `app/components/**` are the
-pre-existing legacy ones this branch did not touch. Phases 7 and 8 are not started.
+pre-existing legacy ones this branch did not touch. **Phase 8 — the browser pass, the phone-width
+check, the accessibility sweep and the hosted migration — is not started.**
 
 **What makes this phase small**: `events.countdown_enabled` has been in the schema since
 `010_events.sql` and is already carried across a series split; `lib/family/tasks/counters.ts` already
@@ -246,29 +252,29 @@ follow.
 **Independent test**: search a weekly event's name — one result, not fifty — choose it, and the
 calendar moves to the day it next falls on with its details open.
 
-- [ ] T043 Extend `lib/family/queries.ts` — `fetchEventSearch(supabase, householdId, term)`: the
+- [x] T043 Extend `lib/family/queries.ts` — `fetchEventSearch(supabase, householdId, term)`: the
   signed-in client, `ilike` on `summary` with `%`, `_` and `\` escaped, a hard row cap, ordered by
   start; and `useEventSearch` keyed by household and the normalised term, `enabled` above a minimum
   length (contracts §3, R908)
-- [ ] T044 [P] Test `lib/family/__tests__/unit/event-search.test.ts` — result shaping: one row per
+- [x] T044 [P] Test `lib/family/__tests__/unit/event-search.test.ts` — result shaping: one row per
   series and never one per occurrence; the date shown is the next occurrence on or after today; a
   repeat entirely in the past shows its last; ordering is soonest-first; an empty term yields nothing
   (FR-918, SC-909)
-- [ ] T045 Implement `lib/family/calendar/search.ts` — the shaping above, over `nextOccurrenceOn`
+- [x] T045 Implement `lib/family/calendar/search.ts` — the shaping above, over `nextOccurrenceOn`
 - [x] T046 Add `openAt(date)` to `app/family/(app)/calendar/components/useWeekAnchor.ts` — one
   `setAnchor({kind: "pinned", date})`. `?on=` and its read-once rule are **not** touched (R909).
   **Done early, in Phase 4**: the countdown list needs the same jump, so it arrived with T030
-- [ ] T047 [P] Test `useWeekAnchor.openAt` — it pins, `goToToday` still returns, and paging from a
+- [x] T047 [P] Test `useWeekAnchor.openAt` — it pins, `goToToday` still returns, and paging from a
   pinned day still steps by the column count
-- [ ] T048 Create `app/family/(app)/calendar/components/EventSearch.tsx` — `TaskSearch`'s pill in
+- [x] T048 Create `app/family/(app)/calendar/components/EventSearch.tsx` — `TaskSearch`'s pill in
   `WeekNav`'s row, with a results list rather than an in-place filter (divergence 6, Assumption 9).
   A search matching nothing says so in words (FR-917)
-- [ ] T049 Wire it in `WeekView`: choosing a result calls `openAt` and opens the details; closing the
+- [x] T049 Wire it in `WeekView`: choosing a result calls `openAt` and opens the details; closing the
   search leaves the calendar exactly where it was (FR-916, US5-5)
-- [ ] T050 [P] Test `app/family/(app)/calendar/components/__tests__/EventSearch.test.tsx` — typing
+- [x] T050 [P] Test `app/family/(app)/calendar/components/__tests__/EventSearch.test.tsx` — typing
   reports the term; no matches says so; choosing a result reports the date and the event; clearing
   restores nothing but the empty box
-- [ ] T051 [P] Extend `lib/family/__tests__/policies/events-schema.test.ts` — the search read under an
+- [x] T051 [P] Extend `lib/family/__tests__/policies/events-schema.test.ts` — the search read under an
   anonymous client is refused `42501` (SC-911)
 
 ---

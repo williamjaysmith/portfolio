@@ -20,6 +20,8 @@ import { useFamily } from "../../components/FamilyProvider";
 import { AllDayBand } from "./AllDayBand";
 import { CountdownChips } from "./CountdownChips";
 import { CountdownList } from "./CountdownList";
+import { EventSearch } from "./EventSearch";
+import { useCalendarSearch, type CalendarSearch } from "./useEventSearch";
 import { TasksProgressRow } from "./TasksProgressRow";
 import { useCountdownSwitches } from "./useCountdownSwitches";
 import { MealRow } from "./MealRow";
@@ -106,6 +108,16 @@ import { WeekPager } from "./WeekPager";
  * is the width the grid already measured. A three-day phone shows one chip and
  * rotates; a seven-day tablet shows three and usually does not.
  */
+/** A result's day, short — the row has a title beside it and little room. */
+function searchDateInWords(date: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${date}T00:00:00Z`));
+}
+
 function countdownSlotsFor(columnCount: number): number {
   return columnCount >= 7 ? 3 : columnCount >= 5 ? 2 : 1;
 }
@@ -217,21 +229,32 @@ function useWeekDrag(options: UseWeekDragOptions): WeekDrag {
 }
 
 /**
- * The preview bar's whole model as one value (009 R901, R905): the countdowns
- * in force, the full list's open state, and the device's own switches.
+ * Everything the week draws AROUND its grid (009 R901, R905, R908): the preview
+ * bar's countdowns and switches, and the toolbar's search.
  *
- * A hook of its own rather than three lines in `useWeekViewModel`, for the
- * reason that file's own header gives: the view is a rendering of a value, not
- * a wiring of hooks. Bundling the switch here also keeps the mount rule
- * readable at the call site — `tasksProgress` is not a flag passed down, it is
- * the condition under which the row exists at all.
+ * One hook rather than three separate ones in `useWeekViewModel`, for the
+ * reason that function's own header gives — the view is a rendering of a value,
+ * not a wiring of hooks — and because these take the same inputs and change for
+ * the same reason: they are the chrome the household reads before it reads the
+ * week itself.
+ *
+ * Bundling `tasksProgress` here keeps the mount rule readable at the call site:
+ * it is not a flag passed down, it is the condition under which the progress
+ * row exists at all (R905).
  */
-function useWeekPreview(
-  options: CalendarPreviewOptions,
-): CalendarPreview & { tasksProgress: boolean } {
+interface WeekChrome {
+  preview: CalendarPreview & { tasksProgress: boolean };
+  search: CalendarSearch;
+}
+
+function useWeekChrome(options: CalendarPreviewOptions): WeekChrome {
   const preview = useCalendarPreview(options);
   const { switches } = useCountdownSwitches();
-  return { ...preview, tasksProgress: switches.tasksProgress };
+  const search = useCalendarSearch(options);
+  return {
+    preview: { ...preview, tasksProgress: switches.tasksProgress },
+    search,
+  };
 }
 
 /**
@@ -244,13 +267,17 @@ function WeekNav({
   columns,
   onPage,
   onToday,
+  children,
 }: {
   columns: number;
   onPage: (direction: -1 | 1) => void;
   onToday: () => void;
+  /** 009 FR-915: the Search control, where the reference puts it on its toolbar. */
+  children?: ReactNode;
 }) {
   return (
     <div className="flex shrink-0 items-center justify-end gap-3 px-(--fam-edge-inset) pt-2">
+      {children}
       <button
         type="button"
         aria-label={`Previous ${columns} days`}
@@ -377,7 +404,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     initialData: seedFor(anchor.anchorDate, columnCount, initialAnchorDate, initialEvents),
   });
 
-  const preview = useWeekPreview({
+  const chrome = useWeekChrome({
     householdId,
     todayDate: anchor.todayDate,
     zone,
@@ -439,7 +466,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     week,
     editor,
     meals,
-    preview,
+    chrome,
     createFromSlot: useCreateDoors(editor.openCreate, zone),
     columnCount,
     page,
@@ -479,7 +506,26 @@ export function WeekView(props: WeekViewProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WeekNav columns={m.columnCount} onPage={m.page} onToday={m.goToToday} />
+      <WeekNav columns={m.columnCount} onPage={m.page} onToday={m.goToToday}>
+        {/* 009 FR-916: a chosen result takes the calendar to the day the event
+            next falls on AND opens it — a finder, not a filter (divergence 6). */}
+        <EventSearch
+          value={m.chrome.search.term}
+          onChange={m.chrome.search.setTerm}
+          results={m.chrome.search.results}
+          answered={m.chrome.search.answered}
+          formatDate={searchDateInWords}
+          onChoose={(result) => {
+            const target = m.chrome.search.targetFor(result);
+            // Clearing the term is what closes the results: the control keeps
+            // no open-state of its own (009 T050).
+            m.chrome.search.setTerm("");
+            if (target === null) return;
+            m.openAt(result.onDate);
+            m.editor.openTarget(target);
+          }}
+        />
+      </WeekNav>
 
       <DragSurfaceContext.Provider value={m.dragSurface}>
         {/* FR-279: the whole strip pages together — the day headers, the
@@ -507,16 +553,16 @@ export function WeekView(props: WeekViewProps) {
                 // 009 FR-911 + R905: the switch is the MOUNT. Rendering the row
                 // is what enables the board's four reads, so an `undefined`
                 // here means the calendar issues no task request at all.
-                m.preview.tasksProgress && m.todayDate !== null ? (
+                m.chrome.preview.tasksProgress && m.todayDate !== null ? (
                   <TasksProgressRow todayDate={m.todayDate} zone={m.zone} />
                 ) : undefined
               }
               countdowns={
-                m.preview.countdowns.length === 0 ? undefined : (
+                m.chrome.preview.countdowns.length === 0 ? undefined : (
                   <CountdownChips
-                    countdowns={m.preview.countdowns}
+                    countdowns={m.chrome.preview.countdowns}
                     slots={countdownSlotsFor(m.columnCount)}
-                    onOpenList={m.preview.openList}
+                    onOpenList={m.chrome.preview.openList}
                   />
                 )
               }
@@ -552,13 +598,13 @@ export function WeekView(props: WeekViewProps) {
           takes the calendar to that countdown's day AND opens its event —
           the target is built from the bar's own rows, because that day is by
           definition outside the window the editor could look one up in. */}
-      {m.preview.listOpen ? (
+      {m.chrome.preview.listOpen ? (
         <CountdownList
-          countdowns={m.preview.countdowns}
-          onClose={m.preview.closeList}
+          countdowns={m.chrome.preview.countdowns}
+          onClose={m.chrome.preview.closeList}
           onOpen={(countdown) => {
-            const target = m.preview.targetFor(countdown);
-            m.preview.closeList();
+            const target = m.chrome.preview.targetFor(countdown);
+            m.chrome.preview.closeList();
             if (target === null) return;
             m.openAt(countdown.targetDate);
             m.editor.openTarget(target);

@@ -229,5 +229,25 @@ describe("009 countdowns schema", () => {
       expect(result.error?.code).toBe("42501");
       expect(result.data).toBeNull();
     });
+
+    /**
+     * 009 T051 / SC-911. The search is a READ of `events`, so it is policed by
+     * the same policy as every other read — but the search is the one path a
+     * stranger could reach with a guessed term, so it is proved on its own
+     * rather than assumed from the row above.
+     */
+    it("refuses an anonymous searcher, whatever they type", async () => {
+      for (const term of ["holiday", "%", "_", "", "a"]) {
+        const result = await anonClient()
+          .schema("family")
+          .from("events")
+          .select("id, summary")
+          .ilike("summary", `%${term}%`)
+          .limit(50);
+
+        expect(result.error?.code, term).toBe("42501");
+        expect(result.data, term).toBeNull();
+      }
+    });
   });
 });

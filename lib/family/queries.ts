@@ -160,6 +160,13 @@ export const familyKeys = {
    * still under the `family` prefix, so the Realtime sweep reaches it.
    */
   countdowns: (householdId: string) => ["family", "countdowns", householdId] as const,
+  /**
+   * The calendar's event search (009 R908). Keyed by the NORMALISED term, so
+   * "Swim", "swim" and "  swim " share one entry, and under the `family` prefix
+   * so the Realtime sweep reaches it.
+   */
+  eventSearch: (householdId: string, term: string) =>
+    ["family", "event-search", householdId, term] as const,
   /** FR-274's affected-event count for one category's delete confirmation. */
   categoryEventCount: (householdId: string, categoryId: string) =>
     ["family", "category-event-count", householdId, categoryId] as const,
@@ -492,6 +499,75 @@ export function useWeekEvents(householdId: string, weekWindow: WeekFetchBounds, 
     queryFn: () => fetchWeekEvents(createClient(), householdId, weekWindow),
     staleTime: STALE_TIME,
     initialData,
+  });
+}
+
+/**
+ * The shortest term worth a round trip. One character matches most of a
+ * household's calendar, which is not an answer to anything.
+ */
+export const MIN_SEARCH_LENGTH = 2;
+
+/** At most this many events come back — a cap, not a page (009 R908). */
+const SEARCH_LIMIT = 50;
+
+/** One term, in the one form the cache key and the query both use. */
+export function normaliseSearchTerm(term: string): string {
+  return term.trim().toLowerCase();
+}
+
+/**
+ * `ilike`'s special characters, escaped so a household searching for `50%`
+ * searches for `50%`. PostgREST also reads `*` as a wildcard in a `like`
+ * filter, so that goes too.
+ */
+function escapeForIlike(term: string): string {
+  return term.replace(/[\\%_*]/g, (match) => `\\${match}`);
+}
+
+/**
+ * Events whose title contains `term` (009 FR-915, FR-918, R908).
+ *
+ * Under the SIGNED-IN session's client, never the admin one: RLS is the access
+ * control here as it is for every read on this tab, and an anonymous caller is
+ * refused rather than handed an empty list (SC-911).
+ *
+ * It returns EVENTS, never occurrences. A weekly swim lesson is one row, which
+ * is what stops fifty identical results (FR-918); which day the calendar then
+ * goes to is `lib/family/calendar/search.ts`'s question, answered through the
+ * same bounded walk a countdown uses.
+ */
+async function fetchEventSearch(
+  supabase: SupabaseClient,
+  householdId: string,
+  term: string,
+): Promise<Event[]> {
+  const normalised = normaliseSearchTerm(term);
+  if (normalised.length < MIN_SEARCH_LENGTH) return [];
+
+  const { data, error } = await supabase
+    .schema("family")
+    .from("events")
+    .select(WEEK_EVENT_COLUMNS)
+    .eq("household_id", householdId)
+    .ilike("summary", `%${escapeForIlike(normalised)}%`)
+    .limit(SEARCH_LIMIT);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as EventWithRelationsRow[]).map(toEvent);
+}
+
+/**
+ * The search's own read. `enabled` is the term's LENGTH rather than a mount,
+ * unlike the bar's: the control is always on screen, so it is the typing that
+ * should or should not cost a request.
+ */
+export function useEventSearch(householdId: string, term: string) {
+  const normalised = normaliseSearchTerm(term);
+  return useQuery({
+    queryKey: familyKeys.eventSearch(householdId, normalised),
+    queryFn: () => fetchEventSearch(createClient(), householdId, normalised),
+    staleTime: STALE_TIME,
+    enabled: normalised.length >= MIN_SEARCH_LENGTH,
   });
 }
 

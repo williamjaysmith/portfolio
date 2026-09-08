@@ -40,6 +40,9 @@ function Probe() {
       <button type="button" onClick={anchor.goToToday}>
         Today
       </button>
+      <button type="button" onClick={() => anchor.openAt("2026-11-19")}>
+        Open at
+      </button>
     </div>
   );
 }
@@ -51,6 +54,47 @@ function anchorDate(): string {
 beforeEach(() => {
   params = new URLSearchParams();
   vi.useRealTimers();
+});
+
+/**
+ * 009 T047 — `openAt(date)` (FR-909, FR-916, R909).
+ *
+ * The countdown list and the search both know which day they want and are
+ * already on this tab, so they move the anchor in place. Distinct from `?on=`
+ * above, which is 008's cross-ROUTE seed read once on mount: this one is called
+ * repeatedly, and paging away from it must still work.
+ */
+describe("openAt", () => {
+  it("pins the window to the day it names", () => {
+    render(<Probe />);
+    act(() => screen.getByRole("button", { name: "Open at" }).click());
+    expect(anchorDate()).toBe("2026-11-19");
+  });
+
+  it("does not trap the pager — the window steps on from there", () => {
+    render(<Probe />);
+    act(() => screen.getByRole("button", { name: "Open at" }).click());
+    act(() => screen.getByRole("button", { name: "Next" }).click());
+    expect(anchorDate()).toBe("2026-11-26");
+  });
+
+  it("gives Today back after it", () => {
+    render(<Probe />);
+    act(() => screen.getByRole("button", { name: "Open at" }).click());
+    expect(anchorDate()).toBe("2026-11-19");
+
+    act(() => screen.getByRole("button", { name: "Today" }).click());
+    expect(anchorDate()).not.toBe("2026-11-19");
+  });
+
+  it("wins over a ?on= the household has already paged away from", () => {
+    params = new URLSearchParams("on=2026-10-01");
+    render(<Probe />);
+    expect(anchorDate()).toBe("2026-10-01");
+
+    act(() => screen.getByRole("button", { name: "Open at" }).click());
+    expect(anchorDate()).toBe("2026-11-19");
+  });
 });
 
 describe("?on=", () => {
