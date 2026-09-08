@@ -4,6 +4,10 @@ import { EyeOff } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { useListFilters } from "@/app/family/(app)/lists/components/useListFilters";
+import {
+  useCountdownSwitches,
+  type CalendarPreviewSwitches,
+} from "@/app/family/(app)/calendar/components/useCountdownSwitches";
 import { useCalendarMealSwitch } from "@/app/family/(app)/meals/components/useCalendarMealSwitch";
 import { useTaskFilters } from "@/app/family/(app)/tasks/components/useTaskFilters";
 import type { PaletteColor } from "@/lib/family/colors";
@@ -178,6 +182,42 @@ function MealFilterSection({ showMeals, setShowMeals }: { showMeals: boolean; se
 }
 
 /**
+ * 009's two, per device (FR-908, FR-911, FR-913).
+ *
+ * **Tasks Progress** is the reference's own toggle, in its own words
+ * (36625171368987 — it "displays the task progress of visible profiles above
+ * the events"). Off by default: it is the mount that enables the board's four
+ * reads, so on by default would put them on every calendar paint for a
+ * household that never asked (R905).
+ *
+ * **Pause countdowns** is ours. The reference documents that the bar rotates
+ * and nothing about stopping it (Assumption 6), and a bar that changes while
+ * somebody is reading it is a poor wall display.
+ */
+function CalendarFilterSection({
+  switches,
+  set,
+}: {
+  switches: CalendarPreviewSwitches;
+  set: (key: keyof CalendarPreviewSwitches, on: boolean) => void;
+}) {
+  return (
+    <SheetSection title="Calendar" headingId="filter-calendar">
+      <ToggleRow
+        label="Tasks Progress"
+        checked={switches.tasksProgress}
+        onChange={(on) => set("tasksProgress", on)}
+      />
+      <ToggleRow
+        label="Pause countdowns"
+        checked={switches.pauseRotation}
+        onChange={(on) => set("pauseRotation", on)}
+      />
+    </SheetSection>
+  );
+}
+
+/**
  * A Label wears its colour where a Profile wears its face — the same 32 px
  * circle, so the two lists read as one column. Decorative: the name is
  * rendered beside it, so colour is never the only carrier (FR-039).
@@ -198,6 +238,7 @@ export function FilterSheet() {
   const taskFilters = useTaskFilters();
   const listFilters = useListFilters();
   const mealSwitch = useCalendarMealSwitch();
+  const previewSwitches = useCountdownSwitches();
   const [open, setOpen] = useState(false);
   const dialogRef = useModalDialog(open);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -213,6 +254,7 @@ export function FilterSheet() {
     taskFilters.showAll();
     listFilters.showAll();
     mealSwitch.showAll();
+    previewSwitches.showAll();
   }
 
   return (
@@ -265,6 +307,8 @@ export function FilterSheet() {
         <ListFilterSection filters={listFilters.filters} setFilter={listFilters.setFilter} />
 
         <MealFilterSection showMeals={mealSwitch.showMeals} setShowMeals={mealSwitch.setShowMeals} />
+
+        <CalendarFilterSection switches={previewSwitches.switches} set={previewSwitches.set} />
 
         {visibilityPersists && taskFilters.persistent && listFilters.persistent && mealSwitch.persistent ? null : (
           <p className="mt-3 text-(length:--fam-fs-small) text-(--fam-text-secondary)">

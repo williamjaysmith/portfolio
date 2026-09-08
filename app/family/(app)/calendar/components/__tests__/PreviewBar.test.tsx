@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import type { CountdownStatus } from "@/lib/family/countdowns/target";
 
@@ -43,7 +43,7 @@ describe("PreviewBar", () => {
     render(
       <PreviewBar
         progress={<span>Ana 2/5</span>}
-        countdowns={<CountdownChips shown={[statusAt(13, "Vacation")]} total={1} />}
+        countdowns={<CountdownChips countdowns={[statusAt(13, "Vacation")]} slots={3} />}
       />,
     );
 
@@ -55,15 +55,15 @@ describe("PreviewBar", () => {
 
 describe("CountdownChips", () => {
   it("renders nothing for an empty list", () => {
-    const { container } = render(<CountdownChips shown={[]} total={0} />);
+    const { container } = render(<CountdownChips countdowns={[]} slots={3} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   it("names each countdown and how far away it is", () => {
     render(
       <CountdownChips
-        shown={[statusAt(13, "Vacation"), statusAt(1, "Dentist"), statusAt(0, "Birthday")]}
-        total={3}
+        countdowns={[statusAt(13, "Vacation"), statusAt(1, "Dentist"), statusAt(0, "Birthday")]}
+        slots={3}
       />,
     );
 
@@ -73,13 +73,39 @@ describe("CountdownChips", () => {
   });
 
   it("is a plain group, not a button, while there is no list to open", () => {
-    render(<CountdownChips shown={[statusAt(13, "Vacation")]} total={1} />);
+    render(<CountdownChips countdowns={[statusAt(13, "Vacation")]} slots={3} />);
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.getByRole("group", { name: "Countdowns — 1 countdown" })).toBeInTheDocument();
   });
 
+  it("becomes one tap target opening the whole list (FR-909)", () => {
+    const onOpenList = vi.fn();
+    render(
+      <CountdownChips
+        countdowns={[statusAt(13, "Vacation"), statusAt(1, "Dentist")]}
+        slots={3}
+        onOpenList={onOpenList}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Countdowns — 2 countdowns" }));
+    expect(onOpenList).toHaveBeenCalledTimes(1);
+  });
+
+  it("announces how many there are, not how many fit — the label must not rotate", () => {
+    render(
+      <CountdownChips
+        countdowns={[statusAt(1, "A"), statusAt(2, "B"), statusAt(3, "C"), statusAt(4, "D")]}
+        slots={1}
+      />,
+    );
+    expect(screen.getByRole("group", { name: "Countdowns — 4 countdowns" })).toBeInTheDocument();
+    // Only one holds a position, but the label counts them all.
+    expect(screen.getAllByText(/·/)).toHaveLength(1);
+  });
+
   it("carries no automatic emoji (009 R914, divergence 4)", () => {
-    const { container } = render(<CountdownChips shown={[statusAt(13, "Vacation")]} total={1} />);
+    const { container } = render(<CountdownChips countdowns={[statusAt(13, "Vacation")]} slots={3} />);
     expect(container.textContent ?? "").not.toMatch(/\p{Extended_Pictographic}/u);
   });
 });

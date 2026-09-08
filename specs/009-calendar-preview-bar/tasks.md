@@ -10,7 +10,7 @@ and no finding is suppressed.
 
 `[P]` = parallelisable (different files, no dependency on an incomplete task).
 
-**State (2026-09-07): Phases 1–3 complete — US1 works end to end.** Migration `039` is applied locally, the settings
+**State (2026-09-07): Phases 1–4 complete — US1 and US2 work end to end.** Migration `039` is applied locally, the settings
 column is typed, mapped and validated end to end, and the two pure modules — the one bounded
 next-occurrence walk and days-remaining — are 27 tests green. US1 is live: an event can be marked a
 countdown, the calendar draws it above the week, the number falls at the household's midnight, and
@@ -28,8 +28,15 @@ Two modules the plan did not name were added and are in the tree now: `countdown
 the chip, the list and the details cannot word the same number differently, and `countdowns/target.ts`
 composing the walk with the arithmetic.
 
+US2 landed with two additions the plan did not name, both because the surfaces reaching outside the
+displayed window needed them: `useCalendarEditor.openTarget(target)`, which opens details for an
+event the caller already holds rather than looking one up in a window that cannot contain it, and
+`useWeekAnchor.openAt(date)` (planned as T046, pulled forward because the countdown list needs it
+too). The rotation's slot count is derived from the measured column count, since "when space is
+limited" is a statement about the width the grid already measured.
+
 The four gates pass; the 11 lint errors in `app/colectivo/**` and `app/components/**` are the
-pre-existing legacy ones this branch did not touch. Phases 4–8 are not started.
+pre-existing legacy ones this branch did not touch. Phases 5–8 are not started.
 
 **What makes this phase small**: `events.countdown_enabled` has been in the schema since
 `010_events.sql` and is already carried across a series split; `lib/family/tasks/counters.ts` already
@@ -159,23 +166,23 @@ a pinned clock, and see it leave the bar once its day is past.
 **Independent test**: three countdowns on a phone-width window; watch the first position change;
 tap for the list; choose one and land on its event.
 
-- [ ] T025 [P] Test `lib/family/__tests__/unit/countdown-rotation.test.ts` — with more countdowns than
+- [x] T025 [P] Test `lib/family/__tests__/unit/countdown-rotation.test.ts` — with more countdowns than
   slots, every one reaches the first position and the order is stable; with fewer than slots, the
   order never changes; a list that shrinks mid-rotation does not index past its end (FR-908, SC-903)
-- [ ] T026 Implement `lib/family/countdowns/rotation.ts` — `rotationAt(countdowns, slots, step)`, pure:
+- [x] T026 Implement `lib/family/countdowns/rotation.ts` — `rotationAt(countdowns, slots, step)`, pure:
   a step number in, the visible slice out. No timer, no React
-- [ ] T027 Create `app/family/(app)/calendar/components/useCountdownSwitches.ts` — the two per-device
+- [x] T027 Create `app/family/(app)/calendar/components/useCountdownSwitches.ts` — the two per-device
   switches on `createDeviceSwitches`, key `family:calendar-preview:v1`, defaults
   `{tasksProgress: false, pauseRotation: false}`, plus `showAll` (data-model §3, R907)
-- [ ] T028 Wire the rotation into `CountdownChips` — one interval advancing `step`, stopped by
+- [x] T028 Wire the rotation into `CountdownChips` — one interval advancing `step`, stopped by
   `pauseRotation` **and** by `prefers-reduced-motion`, and never started when everything already fits
-- [ ] T029 Create `app/family/(app)/calendar/components/CountdownList.tsx` — the full list, in the
+- [x] T029 Create `app/family/(app)/calendar/components/CountdownList.tsx` — the full list, in the
   shipped `useModalDialog` idiom, every active countdown with its days (FR-909)
-- [ ] T030 Make the bar's countdown region a tap target that opens the list, and a list row open its
+- [x] T030 Make the bar's countdown region a tap target that opens the list, and a list row open its
   event's details through the editor `WeekView` already holds
-- [ ] T031 Add **Pause countdowns** to `app/family/(app)/components/FilterSheet.tsx` under a new
+- [x] T031 Add **Pause countdowns** to `app/family/(app)/components/FilterSheet.tsx` under a new
   **Calendar** section, and join it to the sheet's one **Show all**
-- [ ] T032 [P] Test `app/family/(app)/calendar/components/__tests__/CountdownList.test.tsx` — every
+- [x] T032 [P] Test `app/family/(app)/calendar/components/__tests__/CountdownList.test.tsx` — every
   active countdown is listed once, and choosing one reports the right event
 
 ---
@@ -242,8 +249,9 @@ calendar moves to the day it next falls on with its details open.
   repeat entirely in the past shows its last; ordering is soonest-first; an empty term yields nothing
   (FR-918, SC-909)
 - [ ] T045 Implement `lib/family/calendar/search.ts` — the shaping above, over `nextOccurrenceOn`
-- [ ] T046 Add `openAt(date)` to `app/family/(app)/calendar/components/useWeekAnchor.ts` — one
-  `setAnchor({kind: "pinned", date})`. `?on=` and its read-once rule are **not** touched (R909)
+- [x] T046 Add `openAt(date)` to `app/family/(app)/calendar/components/useWeekAnchor.ts` — one
+  `setAnchor({kind: "pinned", date})`. `?on=` and its read-once rule are **not** touched (R909).
+  **Done early, in Phase 4**: the countdown list needs the same jump, so it arrived with T030
 - [ ] T047 [P] Test `useWeekAnchor.openAt` — it pins, `goToToday` still returns, and paging from a
   pinned day still steps by the column count
 - [ ] T048 Create `app/family/(app)/calendar/components/EventSearch.tsx` — `TaskSearch`'s pill in

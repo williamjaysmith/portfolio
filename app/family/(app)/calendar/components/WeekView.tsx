@@ -19,6 +19,7 @@ import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily } from "../../components/FamilyProvider";
 import { AllDayBand } from "./AllDayBand";
 import { CountdownChips } from "./CountdownChips";
+import { CountdownList } from "./CountdownList";
 import { MealRow } from "./MealRow";
 import { PreviewBar } from "./PreviewBar";
 import { useCalendarPreview } from "./useCalendarPreview";
@@ -94,6 +95,18 @@ import { WeekPager } from "./WeekPager";
  * mounted would hand a navigated-to or rotated window the wrong rows for a
  * whole staleTime.
  */
+
+/**
+ * How many countdown chips hold a position at once (009 FR-908).
+ *
+ * Derived from the measured column count rather than fixed, because the whole
+ * reason the reference rotates is "when space is limited" — and what is limited
+ * is the width the grid already measured. A three-day phone shows one chip and
+ * rotates; a seven-day tablet shows three and usually does not.
+ */
+function countdownSlotsFor(columnCount: number): number {
+  return columnCount >= 7 ? 3 : columnCount >= 5 ? 2 : 1;
+}
 
 const EMPTY_LAYOUT: WeekLayout = {
   timed: [],
@@ -394,7 +407,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     [measureViewport, followViewport, dragViewportRef],
   );
 
-  const { goToToday: anchorToToday, page, todayDate } = anchor;
+  const { goToToday: anchorToToday, page, todayDate, openAt } = anchor;
   const goToToday = useCallback(() => {
     anchorToToday();
     resume();
@@ -410,6 +423,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     createFromSlot: useCreateDoors(editor.openCreate, zone),
     columnCount,
     page,
+    openAt,
     colorsById: useMemo(() => colorMapOf(categories), [categories]),
     layout: week.layout ?? EMPTY_LAYOUT,
     todayDate,
@@ -472,8 +486,9 @@ export function WeekView(props: WeekViewProps) {
               countdowns={
                 m.preview.countdowns.length === 0 ? undefined : (
                   <CountdownChips
-                    shown={m.preview.countdowns}
-                    total={m.preview.countdowns.length}
+                    countdowns={m.preview.countdowns}
+                    slots={countdownSlotsFor(m.columnCount)}
+                    onOpenList={m.preview.openList}
                   />
                 )
               }
@@ -504,6 +519,24 @@ export function WeekView(props: WeekViewProps) {
       <p role="status" aria-live="polite" className="sr-only">
         {m.announcement}
       </p>
+
+      {/* 009 FR-909: the full list a tap on the bar opens. Choosing a row
+          takes the calendar to that countdown's day AND opens its event —
+          the target is built from the bar's own rows, because that day is by
+          definition outside the window the editor could look one up in. */}
+      {m.preview.listOpen ? (
+        <CountdownList
+          countdowns={m.preview.countdowns}
+          onClose={m.preview.closeList}
+          onOpen={(countdown) => {
+            const target = m.preview.targetFor(countdown);
+            m.preview.closeList();
+            if (target === null) return;
+            m.openAt(countdown.targetDate);
+            m.editor.openTarget(target);
+          }}
+        />
+      ) : null}
 
       <EventEditor editor={m.editor} />
       <MealSurfaces m={m.meals.surfaces} />

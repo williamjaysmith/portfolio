@@ -60,6 +60,16 @@ export interface WeekAnchorState {
   goToToday: () => void;
   /** FR-279/281: one page later (`1`) or earlier (`-1`) — exactly `columns` days. */
   page: (direction: -1 | 1) => void;
+  /**
+   * 009 FR-909/FR-916: pin the window to a NAMED day, for a surface that
+   * already knows which one — a countdown's target, or a search result's date.
+   *
+   * Distinct from `?on=`, which is 008's cross-ROUTE seed read once on mount:
+   * both of this phase's callers are on the calendar tab already, so they move
+   * the anchor in place rather than navigating, and the back button keeps
+   * meaning what it means.
+   */
+  openAt: (date: string) => void;
 }
 
 const TODAY: WeekAnchor = { kind: "today" };
@@ -84,7 +94,9 @@ export function useWeekAnchor(options: UseWeekAnchorOptions): WeekAnchorState {
     [anchorDate, columns],
   );
 
-  return { anchor, anchorDate, todayDate, goToToday, page };
+  const openAt = useCallback((date: string) => setAnchor({ kind: "pinned", date }), []);
+
+  return { anchor, anchorDate, todayDate, goToToday, page, openAt };
 }
 
 /**

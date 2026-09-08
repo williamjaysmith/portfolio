@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resetListFilters } from "@/app/family/(app)/lists/components/useListFilters";
+import { resetCountdownSwitches } from "@/app/family/(app)/calendar/components/useCountdownSwitches";
 import { resetCalendarMealSwitch } from "@/app/family/(app)/meals/components/useCalendarMealSwitch";
 import { resetTaskFilters } from "@/app/family/(app)/tasks/components/useTaskFilters";
 import { PALETTE } from "@/lib/family/colors";
@@ -297,5 +298,69 @@ describe("FilterSheet — the Show Meals switch", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
     expect(screen.getByRole("checkbox", { name: "Show Meals on the calendar" })).toBeChecked();
+  });
+});
+
+/**
+ * 009 T031 — the Calendar section (FR-908, FR-911, FR-913): Tasks Progress, the
+ * reference's own Filter toggle, and Pause countdowns, which is ours
+ * (Assumption 6). Both per device, on their own store, and both reached by the
+ * same one **Show all**.
+ *
+ * Tasks Progress being OFF by default is the load-bearing default, not a taste:
+ * the row's mount is what enables the board's four reads, so on by default
+ * would put them on every calendar paint for a household that never asked
+ * (R905).
+ */
+describe("FilterSheet — the Calendar section", () => {
+  beforeEach(() => {
+    stubDialog();
+    localStorage.clear();
+    resetTaskFilters();
+    resetListFilters();
+    resetCalendarMealSwitch();
+    resetCountdownSwitches();
+  });
+
+  function renderSheet(): void {
+    render(withFamily(makeContext({ categories: [makeCategory({ id: "a", label: "Alex" })] }), <FilterSheet />));
+    fireEvent.click(screen.getByRole("button", { name: "Filter" }));
+  }
+
+  it("offers both switches under a Calendar heading", () => {
+    renderSheet();
+    expect(screen.getByRole("heading", { name: "Calendar" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Tasks Progress" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).toBeInTheDocument();
+  });
+
+  it("starts with Tasks Progress OFF, so the calendar asks for no task data", () => {
+    renderSheet();
+    expect(screen.getByRole("checkbox", { name: "Tasks Progress" })).not.toBeChecked();
+  });
+
+  it("starts with the rotation running", () => {
+    renderSheet();
+    expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).not.toBeChecked();
+  });
+
+  it("writes both to the preview store", () => {
+    renderSheet();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Tasks Progress" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pause countdowns" }));
+
+    expect(JSON.parse(localStorage.getItem("family:calendar-preview:v1") ?? "{}")).toEqual({
+      tasksProgress: true,
+      pauseRotation: true,
+    });
+  });
+
+  it("means both by Show all: progress on, rotation running", () => {
+    renderSheet();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Pause countdowns" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+
+    expect(screen.getByRole("checkbox", { name: "Tasks Progress" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).not.toBeChecked();
   });
 });

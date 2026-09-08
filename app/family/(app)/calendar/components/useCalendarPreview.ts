@@ -1,11 +1,15 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 
+import { viewWindowOf } from "@/lib/family/calendar/dates";
+import { expandWindow } from "@/lib/family/calendar/expand";
 import { countdownsInForce } from "@/lib/family/countdowns/inforce";
 import type { CountdownStatus } from "@/lib/family/countdowns/target";
 import { useCountdownEvents } from "@/lib/family/queries";
 import type { Event, ShowCountdowns } from "@/lib/family/types";
+
+import type { EditTarget } from "./event-drafts";
 
 /**
  * The preview bar's one data path (009 R901): the household's countdown events
@@ -39,6 +43,20 @@ export interface CalendarPreviewOptions {
 export interface CalendarPreview {
   /** The countdowns the bar should draw, soonest first. Empty draws no bar. */
   countdowns: CountdownStatus[];
+  /** FR-909: whether the full list is open. */
+  listOpen: boolean;
+  openList: () => void;
+  closeList: () => void;
+  /**
+   * FR-909: one countdown resolved to a details target on its own day.
+   *
+   * `null` when the event has gone between the paint and the tap, or when its
+   * occurrence cannot be built — the caller then says so rather than opening
+   * an empty dialog. The occurrence is expanded HERE, from the row this hook
+   * already holds, because the countdown's day is by definition outside the
+   * window whose rows the editor could look up.
+   */
+  targetFor: (countdown: CountdownStatus) => EditTarget | null;
 }
 
 const NO_EVENTS: Event[] = [];
@@ -52,6 +70,7 @@ export function useCalendarPreview({
 }: CalendarPreviewOptions): CalendarPreview {
   const events = useCountdownEvents(householdId);
   const rows = events.data ?? NO_EVENTS;
+  const [listOpen, setListOpen] = useState(false);
 
   const countdowns = useMemo(
     () =>
@@ -62,5 +81,24 @@ export function useCalendarPreview({
     [rows, todayDate, zone, showCountdowns],
   );
 
-  return { countdowns };
+  const targetFor = useCallback(
+    (countdown: CountdownStatus): EditTarget | null => {
+      const event = rows.find((one) => one.id === countdown.eventId);
+      if (event === undefined) return null;
+      const day = viewWindowOf(countdown.targetDate, 1, zone);
+      const occurrence = expandWindow([event], day, zone).find(
+        (one) => one.occurrenceDate === countdown.targetDate,
+      );
+      return occurrence === undefined ? null : { occurrence, event };
+    },
+    [rows, zone],
+  );
+
+  return {
+    countdowns,
+    listOpen,
+    openList: useCallback(() => setListOpen(true), []),
+    closeList: useCallback(() => setListOpen(false), []),
+    targetFor,
+  };
 }
