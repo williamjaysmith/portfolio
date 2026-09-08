@@ -10,8 +10,11 @@ and no finding is suppressed.
 
 `[P]` = parallelisable (different files, no dependency on an incomplete task).
 
-**State (2026-09-07): not started.** Phases 1–7 are shipped and live; this branch has the five
-planning documents and no code.
+**State (2026-09-07): Phases 1 and 2 complete.** Migration `039` is applied locally, the settings
+column is typed, mapped and validated end to end, and the two pure modules — the one bounded
+next-occurrence walk and days-remaining — are 27 tests green. The four gates pass; the 11 lint errors
+in `app/colectivo/**` and `app/components/**` are the pre-existing legacy ones this branch did not
+touch. Phases 3–8 are not started.
 
 **What makes this phase small**: `events.countdown_enabled` has been in the schema since
 `010_events.sql` and is already carried across a series split; `lib/family/tasks/counters.ts` already
@@ -22,7 +25,7 @@ shape and `useCalendarMealSwitch` is the switches'. One migration, no new table,
 
 ## Phase 1: Setup
 
-- [ ] T001 Add the `family-countdowns-core` zone to `.fallowrc.json` — patterns
+- [x] T001 Add the `family-countdowns-core` zone to `.fallowrc.json` — patterns
   `lib/family/countdowns/**/*`, allowed `family-countdowns-core`, `family-calendar-core`,
   `family-recurrence`, `lib`; and add `lib/family/calendar/next-occurrence.ts` and
   `lib/family/calendar/search.ts` to `family-calendar-core`'s patterns (plan §Zones). **No threshold
@@ -37,37 +40,37 @@ below starts until this phase is green.
 
 ### The migration
 
-- [ ] T002 Write `supabase/migrations/039_show_countdowns.sql` — `show_countdowns text not null
+- [x] T002 Write `supabase/migrations/039_show_countdowns.sql` — `show_countdowns text not null
   default 'always'` on `family.household_settings` with a check constraint of exactly
   `always | three_months | one_month` (data-model §1)
-- [ ] T003 Run `supabase db reset` locally and confirm it applies clean on top of `001`–`038`
+- [x] T003 Run `supabase db reset` locally and confirm it applies clean on top of `001`–`038`
 
 ### The types, the row mapper and the validation
 
-- [ ] T004 [P] Extend `lib/family/types.ts` — `ShowCountdowns` union; `showCountdowns` on
+- [x] T004 [P] Extend `lib/family/types.ts` — `ShowCountdowns` union; `showCountdowns` on
   `HouseholdSettings` and its patch; `countdownEnabled?: boolean` on `EventInput` and the event patch
-- [ ] T005 [P] Extend `lib/family/rows.ts` — `SETTINGS_COLUMNS` and `toSettings` gain
+- [x] T005 [P] Extend `lib/family/rows.ts` — `SETTINGS_COLUMNS` and `toSettings` gain
   `show_countdowns`. `EVENT_COLUMNS` already selects `countdown_enabled` and needs nothing
-- [ ] T006 [P] Extend `lib/family/validation.ts` — the enum on the settings patch schema, and
+- [x] T006 [P] Extend `lib/family/validation.ts` — the enum on the settings patch schema, and
   `countdownEnabled` as an optional boolean on the event input and patch schemas
 
 ### The one bounded walk — test first
 
-- [ ] T007 [P] Test `lib/family/__tests__/unit/next-occurrence.test.ts` — a one-off returns its own
+- [x] T007 [P] Test `lib/family/__tests__/unit/next-occurrence.test.ts` — a one-off returns its own
   date; a weekly repeat returns the next matching day; a repeat whose `UNTIL` has passed returns its
   last occurrence and not a future one; a rule with no match inside the window returns null; the
   window's own boundary at day 400; and a household zone that is not UTC (R903)
-- [ ] T008 Implement `lib/family/calendar/next-occurrence.ts` — `nextOccurrenceOn(event, fromDate,
+- [x] T008 Implement `lib/family/calendar/next-occurrence.ts` — `nextOccurrenceOn(event, fromDate,
   zone)` over `ruleDatesIn`, with `LOOKAHEAD_DAYS = 400` as a named exported constant so the test
   binds the number rather than guessing it
 
 ### Days remaining — test first
 
-- [ ] T009 [P] Test `lib/family/__tests__/unit/countdown-days.test.ts` — tomorrow is 1; today is 0 and
+- [x] T009 [P] Test `lib/family/__tests__/unit/countdown-days.test.ts` — tomorrow is 1; today is 0 and
   reads as **today**; yesterday is past; **both DST changes** in `America/Chicago` count whole days
   either side; a leap day; and a device in another timezone gets the household's number, not its own
   (FR-904, FR-905, SC-902, SC-910)
-- [ ] T010 Implement `lib/family/countdowns/days.ts` — `daysUntil(todayDate, targetDate)` over
+- [x] T010 Implement `lib/family/countdowns/days.ts` — `daysUntil(todayDate, targetDate)` over
   `diffDays`, and `countdownStateOf` returning `upcoming | today | past`
 
 **Checkpoint**: `npm test`, `typecheck`, `lint`, `fallow:audit` all green. Nothing is visible yet.

@@ -57,7 +57,9 @@
         "name": "family-calendar-core",
         "patterns": [
           "lib/family/calendar/expand.ts",
-          "lib/family/calendar/dates.ts"
+          "lib/family/calendar/dates.ts",
+          "lib/family/calendar/next-occurrence.ts",
+          "lib/family/calendar/search.ts"
         ]
       },
       {
@@ -88,6 +90,12 @@
         "name": "family-notifications-core",
         "patterns": [
           "lib/family/notifications/**/*"
+        ]
+      },
+      {
+        "name": "family-countdowns-core",
+        "patterns": [
+          "lib/family/countdowns/**/*"
         ]
       },
       {
@@ -201,6 +209,15 @@
         ]
       },
       {
+        "from": "family-countdowns-core",
+        "allow": [
+          "family-countdowns-core",
+          "family-calendar-core",
+          "family-recurrence",
+          "lib"
+        ]
+      },
+      {
         "from": "family-actions",
         "allow": [
           "family-actions",
@@ -232,7 +249,8 @@
           "family-rewards-core",
           "family-lists-core",
           "family-meals-core",
-          "family-notifications-core"
+          "family-notifications-core",
+          "family-countdowns-core"
         ]
       },
       {
@@ -273,7 +291,8 @@
           "family-rewards-core",
           "family-lists-core",
           "family-meals-core",
-          "family-notifications-core"
+          "family-notifications-core",
+          "family-countdowns-core"
         ]
       },
       {

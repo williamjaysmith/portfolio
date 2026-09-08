@@ -115,6 +115,7 @@ const settingsRow: HouseholdSettingsRow = {
   notify_event_before_minutes: 10,
   notify_task_due: true,
   notify_task_completed: false,
+  show_countdowns: "always",
   updated_at: "2026-02-02T11:30:00.000Z",
 };
 
@@ -227,6 +228,7 @@ describe("toSettings", () => {
       notifyEventBeforeMinutes: 10,
       notifyTaskDue: true,
       notifyTaskCompleted: false,
+      showCountdowns: "always",
       updatedAt: "2026-02-02T11:30:00.000Z",
     });
   });
