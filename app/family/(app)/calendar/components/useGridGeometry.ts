@@ -113,10 +113,19 @@ export function columnCountFor(input: ColumnFitInput): number {
 /**
  * One measurement → the metrics pair, or `null` when the DOM has not really
  * been laid out (zero rects — jsdom, `display: none`, mid-unmount).
+ *
+ * `fixedColumns` (011 R1103) overrides FR-277/278's measured fit for a view
+ * that knows its own width: the Day view draws exactly one column, and the
+ * measured fit can never return one because `columnCountFor` clamps to
+ * `MIN_COLUMN_COUNT` — which is FR-278's floor for the WEEK and keeps that
+ * meaning. Omitted, every number below is exactly what it was.
  */
-export function geometryOf(measurement: GridMeasurement): GridGeometry | null {
+export function geometryOf(
+  measurement: GridMeasurement,
+  fixedColumns?: number,
+): GridGeometry | null {
   if (!isMeasurable(measurement)) return null;
-  const columnCount = columnCountFor(measurement);
+  const columnCount = fixedColumns ?? columnCountFor(measurement);
   const columnWidthPx = (measurement.gridWidth - measurement.gutterWidth) / columnCount;
   const metrics: GridMetrics = {
     hourRowPx: measurement.hourRowHeight,
@@ -146,22 +155,26 @@ export interface UseGridGeometryResult {
   metrics: GridMetrics | null;
   /** `null` exactly when `metrics` is — `layoutWeek` waits on it. */
   layoutMetrics: LayoutMetrics | null;
-  /** FR-277/278 count; `DEFAULT_COLUMN_COUNT` while unmeasured. */
+  /**
+   * FR-277/278 count; `DEFAULT_COLUMN_COUNT` while unmeasured — or the fixed
+   * count a view asked for, in which case it is that from the first render
+   * rather than after the first measurement (011 R1103).
+   */
   columnCount: number;
   /** Force a re-read outside any resize (e.g. after a web font loads). */
   remeasure: () => void;
 }
 
-export function useGridGeometry(): UseGridGeometryResult {
+export function useGridGeometry(fixedColumns?: number): UseGridGeometryResult {
   const [geometry, setGeometry] = useState<GridGeometry | null>(null);
   const attachmentRef = useRef<Attachment | null>(null);
 
   const measure = useCallback(() => {
     const attachment = attachmentRef.current;
     if (attachment === null) return;
-    const next = geometryOf(measurementOf(attachment));
+    const next = geometryOf(measurementOf(attachment), fixedColumns);
     setGeometry((previous) => (sameGeometry(previous, next) ? previous : next));
-  }, []);
+  }, [fixedColumns]);
 
   const viewportRef = useCallback(
     (node: HTMLElement | null) => {
@@ -177,7 +190,9 @@ export function useGridGeometry(): UseGridGeometryResult {
     viewportRef,
     metrics: geometry?.metrics ?? null,
     layoutMetrics: geometry?.layoutMetrics ?? null,
-    columnCount: geometry?.columnCount ?? DEFAULT_COLUMN_COUNT,
+    // A fixed count is known before any measurement, so the first paint draws
+    // the right number of columns rather than seven and then one.
+    columnCount: geometry?.columnCount ?? fixedColumns ?? DEFAULT_COLUMN_COUNT,
     remeasure: measure,
   };
 }

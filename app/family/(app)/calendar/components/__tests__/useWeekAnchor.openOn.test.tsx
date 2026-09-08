@@ -21,15 +21,18 @@ vi.mock("next/navigation", () => ({
 }));
 
 const { useWeekAnchor } = await import("../useWeekAnchor");
+const { addDays } = await import("@/lib/family/calendar/dates");
+const { addMonths } = await import("@/lib/family/calendar/views");
 
 const ZONE = "America/Chicago";
 
-function Probe() {
+function Probe({ view }: { view?: "day" | "week" | "month" } = {}) {
   const anchor = useWeekAnchor({
     zone: ZONE,
     startWeekOn: 0,
     columns: 7,
     initialAnchorDate: "2026-09-06",
+    view,
   });
   return (
     <div>
@@ -64,6 +67,54 @@ beforeEach(() => {
  * above, which is 008's cross-ROUTE seed read once on mount: this one is called
  * repeatedly, and paging away from it must still work.
  */
+/**
+ * 011 R1106 — the anchor's TYPE, its `?on=` seed and `openAt` are identical
+ * across views; only the STEP differs. These cases pin that the week's own
+ * step is unchanged and that the other two move in their own units.
+ */
+describe("the paging step is the view's (011)", () => {
+  /**
+   * The live anchor begins on the household's TODAY, not on the seeded date —
+   * `initialAnchorDate` is only what shows before the clock publishes. So each
+   * case reads where it started and asserts the STEP, which is what R1106 is
+   * about and what stays true on every day this suite is ever run.
+   */
+  function step(view?: "day" | "week" | "month"): { from: string; to: string } {
+    const view_ = view === undefined ? <Probe /> : <Probe view={view} />;
+    const rendered = render(view_);
+    const from = anchorDate();
+    act(() => screen.getByRole("button", { name: "Next" }).click());
+    const to = anchorDate();
+    rendered.unmount();
+    return { from, to };
+  }
+
+  it("steps a week by its column count, exactly as it always did", () => {
+    const { from, to } = step("week");
+    expect(addDays(from, 7)).toBe(to);
+  });
+
+  it("steps a day by one day", () => {
+    const { from, to } = step("day");
+    expect(addDays(from, 1)).toBe(to);
+  });
+
+  it("steps a month by a calendar month, not by a day count", () => {
+    const { from, to } = step("month");
+    // `addMonths` itself is walked across all twelve months, both year
+    // boundaries and a leap February in calendar-month.test.ts. What THIS case
+    // proves is only that the month view's step goes through it — a day count
+    // would agree by luck in some months (September has exactly 30) and be
+    // wrong in others, so asserting a number here would be a flaky test.
+    expect(addMonths(from, 1)).toBe(to);
+  });
+
+  it("defaults to the week's step when no view is given, so shipped callers are unchanged", () => {
+    const { from, to } = step();
+    expect(addDays(from, 7)).toBe(to);
+  });
+});
+
 describe("openAt", () => {
   it("pins the window to the day it names", () => {
     render(<Probe />);

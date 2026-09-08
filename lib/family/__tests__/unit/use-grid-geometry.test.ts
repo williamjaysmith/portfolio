@@ -128,6 +128,52 @@ function measurement(overrides: Partial<GridMeasurement> = {}): GridMeasurement 
   };
 }
 
+/**
+ * 011 R1103 — the fixed-column path a view uses when it knows its own width.
+ *
+ * The Day view needs ONE column, and the measured fit can never return one:
+ * `columnCountFor` clamps to `MIN_COLUMN_COUNT`, which is FR-278's floor for
+ * the WEEK and keeps that meaning. Every case above this block is unchanged and
+ * must stay so — if one of them needed editing, the change reached further than
+ * it should have.
+ */
+describe("geometryOf — a fixed column count (011)", () => {
+  it("draws exactly the columns a view asked for, below the measured floor", () => {
+    const geometry = geometryOf(measurement(), 1);
+    expect(geometry).not.toBeNull();
+    if (geometry === null) throw new Error("unreachable");
+
+    expect(geometry.columnCount).toBe(1);
+    expect(geometry.metrics.columnCount).toBe(1);
+  });
+
+  it("gives the single column the whole grid width, gutter excluded", () => {
+    const geometry = geometryOf(measurement(), 1);
+    if (geometry === null) throw new Error("unreachable");
+
+    const measured = measurement();
+    expect(geometry.metrics.columnWidthPx).toBeCloseTo(measured.gridWidth - measured.gutterWidth);
+    // The vertical scale is untouched: a day is still a 1440-minute canvas.
+    expect(geometry.layoutMetrics.pxPerMinute).toBeCloseTo(measured.hourRowHeight / 60);
+  });
+
+  it("overrides the measured fit even where the fit would have been seven", () => {
+    // 1180x820 is the landscape seven-column case asserted below.
+    expect(geometryOf(measurement())?.columnCount).toBe(7);
+    expect(geometryOf(measurement(), 1)?.columnCount).toBe(1);
+  });
+
+  it("leaves the measured path exactly as it was when no count is given", () => {
+    expect(geometryOf(measurement(), undefined)?.columnCount).toBe(
+      geometryOf(measurement())?.columnCount,
+    );
+  });
+
+  it("still reports nothing when the DOM has not been laid out", () => {
+    expect(geometryOf(measurement({ gridWidth: 0 }), 1)).toBeNull();
+  });
+});
+
 describe("geometryOf", () => {
   it("assembles GridMetrics and LayoutMetrics from one measurement", () => {
     const geometry = geometryOf(measurement());

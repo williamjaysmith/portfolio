@@ -12,16 +12,20 @@ import {
 } from "@/lib/family/calendar/layout";
 import type { PaletteColor } from "@/lib/family/colors";
 import type { ConfirmStep } from "@/lib/family/drag-state";
-import type { Category, Event, Occurrence, TimeFormat, Meal, MealCategory, Recipe } from "@/lib/family/types";
+import type { Category, Event, Occurrence, TimeFormat, Meal, MealCategory, Recipe, WeekStart } from "@/lib/family/types";
 import { DEFAULT_COLUMN_COUNT, type GridMetrics } from "@/lib/family/week-geometry";
 
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily } from "../../components/FamilyProvider";
 import { AllDayBand } from "./AllDayBand";
+import type { CalendarView } from "@/lib/family/calendar/views";
+
 import { CountdownChips } from "./CountdownChips";
 import { CountdownList } from "./CountdownList";
 import { EventSearch } from "./EventSearch";
+import { useCalendarView } from "./useCalendarView";
 import { useCalendarSearch, type CalendarSearch } from "./useEventSearch";
+import { ViewSwitcher } from "./ViewSwitcher";
 import { TasksProgressRow } from "./TasksProgressRow";
 import { useCountdownSwitches } from "./useCountdownSwitches";
 import { MealRow } from "./MealRow";
@@ -229,6 +233,49 @@ function useWeekDrag(options: UseWeekDragOptions): WeekDrag {
 }
 
 /**
+ * WHICH DAYS ARE SHOWING, and how the household moves between them (011 R1103,
+ * R1106): the chosen view, the geometry it measures itself with, and the anchor
+ * that names its first day.
+ *
+ * One hook rather than three calls in `useWeekViewModel`, for the same reason
+ * `useWeekChrome` exists: that function is a wiring of hooks and the view is a
+ * rendering of a value, so each thing the view needs arrives as one value. It
+ * is also what keeps the three in step — the geometry's fixed column count and
+ * the anchor's paging step are both functions of the view, and separating them
+ * would let a Day view page by seven.
+ */
+function useCalendarFrame(options: {
+  zone: string;
+  startWeekOn: WeekStart;
+  initialAnchorDate: string;
+}) {
+  const { view, setView } = useCalendarView();
+
+  // 011 R1103: Day view is this same grid at ONE column. The measured fit can
+  // never return one — `columnCountFor` clamps to FR-278's floor for the week —
+  // so the view asks for its own count and the floor keeps its meaning.
+  const geometry = useGridGeometry(view === "day" ? 1 : undefined);
+
+  const anchor = useWeekAnchor({
+    zone: options.zone,
+    startWeekOn: options.startWeekOn,
+    columns: geometry.columnCount,
+    initialAnchorDate: options.initialAnchorDate,
+    view,
+  });
+
+  return {
+    view,
+    setView,
+    anchor,
+    viewportRef: geometry.viewportRef,
+    metrics: geometry.metrics,
+    layoutMetrics: geometry.layoutMetrics,
+    columnCount: geometry.columnCount,
+  };
+}
+
+/**
  * Everything the week draws AROUND its grid (009 R901, R905, R908): the preview
  * bar's countdowns and switches, and the toolbar's search.
  *
@@ -263,24 +310,38 @@ function useWeekChrome(options: CalendarPreviewOptions): WeekChrome {
  * only way a screen-reader user can tell a three-day phone from a seven-day
  * tablet.
  */
+/**
+ * What one page of this view is called, so the arrows say how far they go —
+ * the only way a screen-reader user can tell a three-day phone from a
+ * seven-day tablet, and now a Day view from either (011 FR-1104).
+ */
+function pageLabelOf(view: CalendarView, columns: number): string {
+  if (view === "day") return "day";
+  if (view === "month") return "month";
+  return `${columns} days`;
+}
+
 function WeekNav({
+  view,
   columns,
   onPage,
   onToday,
   children,
 }: {
+  view: CalendarView;
   columns: number;
   onPage: (direction: -1 | 1) => void;
   onToday: () => void;
   /** 009 FR-915: the Search control, where the reference puts it on its toolbar. */
   children?: ReactNode;
 }) {
+  const step = pageLabelOf(view, columns);
   return (
     <div className="flex shrink-0 items-center justify-end gap-3 px-(--fam-edge-inset) pt-2">
       {children}
       <button
         type="button"
-        aria-label={`Previous ${columns} days`}
+        aria-label={`Previous ${step}`}
         onClick={() => onPage(-1)}
         className={PILL_CLASS}
       >
@@ -291,7 +352,7 @@ function WeekNav({
       </button>
       <button
         type="button"
-        aria-label={`Next ${columns} days`}
+        aria-label={`Next ${step}`}
         onClick={() => onPage(1)}
         className={PILL_CLASS}
       >
@@ -375,19 +436,13 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
   const { householdId, settings, categories } = useFamily();
   const zone = settings.timezone;
 
-  const {
-    viewportRef: measureViewport,
-    metrics,
-    columnCount,
-    layoutMetrics,
-  } = useGridGeometry();
-
-  const anchor = useWeekAnchor({
+  const frame = useCalendarFrame({
     zone,
     startWeekOn: settings.startWeekOn,
-    columns: columnCount,
     initialAnchorDate,
   });
+  const { view, setView, metrics, columnCount, layoutMetrics, anchor } = frame;
+  const measureViewport = frame.viewportRef;
 
   const {
     viewportRef: followViewport,
@@ -469,6 +524,8 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     chrome,
     createFromSlot: useCreateDoors(editor.openCreate, zone),
     columnCount,
+    view,
+    setView,
     page,
     openAt,
     colorsById: useMemo(() => colorMapOf(categories), [categories]),
@@ -506,7 +563,9 @@ export function WeekView(props: WeekViewProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <WeekNav columns={m.columnCount} onPage={m.page} onToday={m.goToToday}>
+      <WeekNav view={m.view} columns={m.columnCount} onPage={m.page} onToday={m.goToToday}>
+        {/* 011 FR-1101: one control, labelled with the view showing. */}
+        <ViewSwitcher view={m.view} onChange={m.setView} />
         {/* 009 FR-916: a chosen result takes the calendar to the day the event
             next falls on AND opens it — a finder, not a filter (divergence 6). */}
         <EventSearch

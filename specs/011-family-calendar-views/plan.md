@@ -87,11 +87,16 @@ view-agnostic part; the week's grid, its drag and its geometry stay where they a
 
 ## Implementation phasing
 
-1. **Foundational** — `views.ts`, the per-device store, and `useGridGeometry`'s fixed count. Nothing
-   visible; the geometry test gains the new path and keeps every old one.
-2. **US1, the switcher** (P1) — extract `CalendarScreen`, add the control, and prove the Week view is
-   unchanged behind it. This is the riskiest step for regressions and so it comes before any new view.
-3. **US2, Day view** (P2) — one column, its own step. Testable alone.
+1. **Foundational** — `views.ts`, `month.ts`, the per-device store, and `useGridGeometry`'s fixed
+   count. Nothing visible; the geometry test gains the new path and keeps every old one.
+2. **US1 + US2 together, the switcher and Day view** (P1, P2) — **and this reorders what follows.**
+   The plan first put a `CalendarScreen` extraction here, before any new view, so that a red Week test
+   could only mean the extraction. Building it showed the extraction is not needed for Day at all:
+   R1103 is right that Day *is* the week at one column, so it arrives as a view parameter on the
+   geometry, the anchor and the nav — no code moves. The extraction waits until Month, which is the
+   only view that actually needs a different body. Less code moved, and moved only when something
+   needs it.
+3. ~~US2, Day view~~ — landed with US1, above.
 4. **US3, Month view** (P3) — `month.ts` first, test-first, then the grid, the cell, the overflow and
    the day list. The largest step by far.
 5. **US4, the chrome** (P4) — the preview bar across every view, and `countdownSlotsFor` generalised.
@@ -112,4 +117,15 @@ view-agnostic part; the week's grid, its drag and its geometry stay where they a
 
 - [X] Phase 0 — research (R1101–R1115)
 - [X] Phase 1 — plan; no data model and no contracts, because nothing is stored or exposed (R1112)
-- [ ] Phase 2 — `/speckit.tasks`
+- [X] Phase 2 — implementation under way
+
+**Progress (2026-09-08)**: foundational and US1 + US2 are done and committed. `month.ts`,
+`views.ts`, the per-device view store and the one-column geometry path are 44 tests green; the
+switcher and Day view are wired and the Week view's own tests pass **untouched**, which is R1115's
+bar. Month (US3), the chrome across views (US4) and the polish phase are not started.
+
+**Two things building changed**, recorded rather than left in the code:
+1. **The extraction was not needed yet** — see the phasing note above.
+2. **A four-row month is drawn as four rows.** A non-leap February beginning exactly on the
+   household's start-of-week is four whole weeks; the grid draws four rather than padding to five.
+   On a wall display the taller cells are the better outcome, and the reference sets no minimum.
