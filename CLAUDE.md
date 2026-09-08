@@ -12,10 +12,17 @@ takes the calendar to the day it next falls on.
 hosted project. 59 of 59 tasks; 3691 tests; the run record is
 `specs/009-calendar-preview-bar/checklists/quickstart-run.md`.
 
-**Next: `010` — the home screen**, then `011` — the offline cache. The home screen's calendar pane
-consumes the calendar whose chrome this phase finished, which is why this one went first.
+**`010` — the home screen — is SHELVED (2026-09-08), specified but not built.** The operator's call:
+the Calendar tab already is a fine home screen now that Phase 8's preview bar puts the countdowns and
+each Profile's chore progress above the week. `specs/010-family-home-screen/` is kept for its
+research — five resolving article ids, an audit that rejected 23 over-claims, and four "home screen"
+traps named so nobody re-adopts one. Do not resurrect it without re-reading why it was shelved.
 
-Phases 1–8 are shipped and live.
+**Next: `011` — the offline cache.** Note before specifying it: **no dossier supports a Skylight
+offline feature at all** — the product is criticised for lacking one — so `011` is this project's own
+invention and must be written as a divergence, not as a clone.
+
+Phases 1–8 are shipped and live; `010` is shelved unbuilt.
 
 Read in this order before touching preview-bar code:
 1. `specs/009-calendar-preview-bar/spec.md` — FR-901…FR-921, SC-901…SC-912, 7 assumptions, 6 divergences
