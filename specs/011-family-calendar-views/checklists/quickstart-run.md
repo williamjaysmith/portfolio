@@ -11,7 +11,7 @@
 | `npm run fallow:audit` | clean — no new findings, no threshold moved, nothing suppressed |
 | `npm run lint` | pre-existing only (the legacy React-19 batch in `app/colectivo/**` and `app/components/**`); this branch adds none |
 | `npm run test:policies` | **unchanged, and that is the point** — this phase adds no migration, no action, no query and no policy |
-| `npm run test:e2e` | see below |
+| `npm run test:e2e` | **NOT ESTABLISHED — see "the browser pass is unfinished" below.** Do not read this phase as gate-complete |
 
 **No `supabase db push`.** This phase stores nothing new.
 
@@ -76,6 +76,32 @@ is gone. If they stop failing, that record's conclusion was wrong and this is wh
 | SC-1110 | Phase 2's criteria still pass | `layout.test.ts`, `week-geometry.test.ts` and `use-week-anchor.test.ts` pass **untouched** — R1115's bar |
 | SC-1111 | Narrow widths work | e2e at 320px, after defect 3 above was fixed |
 
+## The browser pass is unfinished, and this is the state it is in
+
+**The phase gate has not been met.** `npm run test:e2e` has not produced a result I am willing to
+report, and this record does not invent one.
+
+What is established:
+- The 19 new journeys in `calendar-views.spec.ts` pass **19/19** on their own.
+- `calendar-views.spec.ts` followed by `calendar.spec.ts` passes **27/27** — the pair that had
+  reproduced the viewport leak most reliably.
+- The four other gates are green.
+
+What is not:
+- A full-suite run. **Three attempts were killed by the operating system for low memory**, one after
+  13.4 minutes against a normal seven — the machine was swapping (five million pageouts) and each
+  kill stranded a dozen Chrome processes, which made the next attempt worse. A partial run showed 13
+  failures on `wall`, concentrated in the clock-pinned reminder-banner journeys, whose failure mode
+  under a swapping machine is indistinguishable from a real one.
+- **Therefore whether the remaining failures are this branch's or the environment's is UNKNOWN.**
+  Both are plausible: the branch changed the calendar's top bar to wrap and added a control to it,
+  which every calendar journey passes through; and a machine that cannot hold the suite in memory
+  fails timing-sensitive journeys first.
+
+**What to do next**: run `npm run test:e2e` once on an unloaded machine and read the report. If it is
+green, this phase is ready to merge. If the same journeys fail, the cause is the branch and the top
+bar's new wrap is the first place to look.
+
 ## The honest gap
 
 **Nothing here claims our Month view LOOKS like the reference's.** No image of it exists anywhere in
@@ -85,7 +111,8 @@ settings and gestures *are* documented across five articles and are what these t
 
 ## Outstanding for the operator
 
-1. The three views on a real iPhone. The automated pass asserts the document does not scroll
+1. **A full `npm run test:e2e` on an unloaded machine** — the phase gate, unmet above.
+2. The three views on a real iPhone. The automated pass asserts the document does not scroll
    sideways at 320px, which is a floor rather than the whole check — and the top bar now wraps, which
    is worth seeing.
-2. Nothing else. No hosted migration, no deploy-order constraint.
+3. Nothing else. No hosted migration, no deploy-order constraint.
