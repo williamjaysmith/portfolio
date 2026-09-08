@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
-**Active feature**: `009-calendar-preview-bar` — Phase 8: the strip of information the reference draws
+**Last shipped**: `009-calendar-preview-bar` — Phase 8: the strip of information the reference draws
 *above* its events, and the search that finds one. **Countdowns** end to end — a switch on the event
 form finally writes `events.countdown_enabled`, which has been in the schema since `010_events.sql`
 with nothing reading it; a household setting (Always / 3 months prior / 1 month prior) decides how
@@ -8,14 +8,14 @@ midnight. **Tasks Progress** — the Filter toggle Phase 2 withheld, wired to th
 rule `lib/family/tasks/counters.ts` already owns. **Event search** — finds a series by title and
 takes the calendar to the day it next falls on.
 
-**State: built (2026-09-07) — all five user stories, 55 of 59 tasks.** The four gates are green, the
-browser pass has 22 new journeys, and the run record is
-`specs/009-calendar-preview-bar/checklists/quickstart-run.md`. **Not yet merged**: migration
-`039_show_countdowns.sql` still has to be pushed to the hosted project first (R913), and the phone
-and overnight checks are the operator's.
-Phases 1–7 are shipped and live. The **home screen** becomes `010` and the **offline cache** `011`;
-this one went first because the home screen's calendar pane consumes a calendar whose chrome was
-still missing two documented pieces.
+**State: SHIPPED 2026-09-08** — merged `de69f13`, deployed, and migration `039` applied to the
+hosted project. 59 of 59 tasks; 3691 tests; the run record is
+`specs/009-calendar-preview-bar/checklists/quickstart-run.md`.
+
+**Next: `010` — the home screen**, then `011` — the offline cache. The home screen's calendar pane
+consumes the calendar whose chrome this phase finished, which is why this one went first.
+
+Phases 1–8 are shipped and live.
 
 Read in this order before touching preview-bar code:
 1. `specs/009-calendar-preview-bar/spec.md` — FR-901…FR-921, SC-901…SC-912, 7 assumptions, 6 divergences
