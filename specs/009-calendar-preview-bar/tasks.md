@@ -10,7 +10,7 @@ and no finding is suppressed.
 
 `[P]` = parallelisable (different files, no dependency on an incomplete task).
 
-**State (2026-09-07): Phases 1–4 complete — US1 and US2 work end to end.** Migration `039` is applied locally, the settings
+**State (2026-09-07): Phases 1–6 complete — US1 to US4 work end to end.** Migration `039` is applied locally, the settings
 column is typed, mapped and validated end to end, and the two pure modules — the one bounded
 next-occurrence walk and days-remaining — are 27 tests green. US1 is live: an event can be marked a
 countdown, the calendar draws it above the week, the number falls at the household's midnight, and
@@ -35,8 +35,14 @@ event the caller already holds rather than looking one up in a window that canno
 too). The rotation's slot count is derived from the measured column count, since "when space is
 limited" is a statement about the width the grid already measured.
 
+US3 is the Show Countdowns field on the household preferences, and US4 the Tasks Progress row.
+Building US4 turned up two fallow findings and both were fixed rather than suppressed: the
+concatenate-then-expand step was duplicated between the board and the progress row, so it became
+`useTaskDay` and both now share it; and `useWeekViewModel` went over the cognitive budget, so the
+preview's three lines became `useWeekPreview`.
+
 The four gates pass; the 11 lint errors in `app/colectivo/**` and `app/components/**` are the
-pre-existing legacy ones this branch did not touch. Phases 5–8 are not started.
+pre-existing legacy ones this branch did not touch. Phases 7 and 8 are not started.
 
 **What makes this phase small**: `events.countdown_enabled` has been in the schema since
 `010_events.sql` and is already carried across a series split; `lib/family/tasks/counters.ts` already
@@ -193,14 +199,14 @@ tap for the list; choose one and land on its event.
 
 **Independent test**: set each of the three values and confirm which countdowns appear under each.
 
-- [ ] T033 Extend `app/family/(app)/components/settings/useSettingsForm.ts` — `showCountdowns` in the
+- [x] T033 Extend `app/family/(app)/components/settings/useSettingsForm.ts` — `showCountdowns` in the
   draft and the patch
-- [ ] T034 Add **Show Countdowns** to `HouseholdSection`'s `CHOICES` — three options, in the
+- [x] T034 Add **Show Countdowns** to `HouseholdSection`'s `CHOICES` — three options, in the
   reference's own words: *Always* / *3 months prior to the event* / *1 month prior to the event*.
   Disabled for a punched-in member, like every other field there (FR-903, US3-4; divergence 5)
-- [ ] T035 [P] Test `app/family/(app)/components/__tests__/settings.test.tsx` — the three options are
+- [x] T035 [P] Test `app/family/(app)/components/__tests__/settings.test.tsx` — the three options are
   present and no fourth; a member finds the control disabled; a save sends the patch
-- [ ] T036 [P] Extend `lib/family/__tests__/policies/settings.test.ts` — a parent may write the new
+- [x] T036 [P] Extend `lib/family/__tests__/policies/settings.test.ts` — a parent may write the new
   column, a member is refused, and an **anonymous reader is refused `42501` rather than handed an
   empty row** (SC-911, R911)
 
@@ -213,22 +219,22 @@ tap for the list; choose one and land on its event.
 **Independent test**: turn the filter on, see the numbers, tick a chore on the Tasks tab, watch them
 follow.
 
-- [ ] T037 Create `app/family/(app)/calendar/components/useTaskProgress.ts` — `useTasks`,
+- [x] T037 Create `app/family/(app)/calendar/components/useTaskProgress.ts` — `useTasks`,
   `useTaskResolutions`, `useTaskCarryForward` and `useTaskCursors` (the board's own four, sharing its
   cache entries), `expandTaskDay` for **today**, then `columnCountersOf`. It imports `counters.ts`
   and defines no counting rule of its own (FR-912, R905, R906)
-- [ ] T038 Create `app/family/(app)/calendar/components/TasksProgressRow.tsx` — one entry per
+- [x] T038 Create `app/family/(app)/calendar/components/TasksProgressRow.tsx` — one entry per
   **visible** Profile in Assumption 4's format, avatar and name beside the pair. This component is
   **the `enabled`**: it is rendered only while the switch is on, so the calendar makes no task request
   when it is off (R905)
-- [ ] T039 Render `TasksProgressRow` inside `PreviewBar` above the countdown chips, and keep the
+- [x] T039 Render `TasksProgressRow` inside `PreviewBar` above the countdown chips, and keep the
   bar's return-`null` rule true of the two together (FR-907, FR-910)
-- [ ] T040 Add **Tasks Progress** to `FilterSheet`'s Calendar section, off by default, joined to
+- [x] T040 Add **Tasks Progress** to `FilterSheet`'s Calendar section, off by default, joined to
   **Show all** (FR-911, FR-913)
-- [ ] T041 [P] Test `app/family/(app)/calendar/components/__tests__/TasksProgressRow.test.tsx` — the
+- [x] T041 [P] Test `app/family/(app)/calendar/components/__tests__/TasksProgressRow.test.tsx` — the
   numbers match `counters.ts` for the same fixtures; a hidden Profile is absent; every Profile hidden
   draws nothing; a Profile with no chores today reads as none rather than complete (SC-907, SC-908)
-- [ ] T042 [P] Test that the switch off issues **no task query** — assert on the query client's cache,
+- [x] T042 [P] Test that the switch off issues **no task query** — assert on the query client's cache,
   the shipped shape of `useTaskBox`'s laziness proof
 
 ---

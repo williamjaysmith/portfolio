@@ -20,9 +20,11 @@ import { useFamily } from "../../components/FamilyProvider";
 import { AllDayBand } from "./AllDayBand";
 import { CountdownChips } from "./CountdownChips";
 import { CountdownList } from "./CountdownList";
+import { TasksProgressRow } from "./TasksProgressRow";
+import { useCountdownSwitches } from "./useCountdownSwitches";
 import { MealRow } from "./MealRow";
 import { PreviewBar } from "./PreviewBar";
-import { useCalendarPreview } from "./useCalendarPreview";
+import { useCalendarPreview, type CalendarPreview, type CalendarPreviewOptions } from "./useCalendarPreview";
 import { useCalendarMeals } from "./useCalendarMeals";
 import { slotSeedOf } from "./event-drafts";
 import { EventEditor } from "./EventEditor";
@@ -215,6 +217,24 @@ function useWeekDrag(options: UseWeekDragOptions): WeekDrag {
 }
 
 /**
+ * The preview bar's whole model as one value (009 R901, R905): the countdowns
+ * in force, the full list's open state, and the device's own switches.
+ *
+ * A hook of its own rather than three lines in `useWeekViewModel`, for the
+ * reason that file's own header gives: the view is a rendering of a value, not
+ * a wiring of hooks. Bundling the switch here also keeps the mount rule
+ * readable at the call site — `tasksProgress` is not a flag passed down, it is
+ * the condition under which the row exists at all.
+ */
+function useWeekPreview(
+  options: CalendarPreviewOptions,
+): CalendarPreview & { tasksProgress: boolean } {
+  const preview = useCalendarPreview(options);
+  const { switches } = useCountdownSwitches();
+  return { ...preview, tasksProgress: switches.tasksProgress };
+}
+
+/**
  * FR-281's ‹ / Today / › cluster, in Phase 1's top-bar pill idiom. The arrows
  * step one page — `columns` days — so their labels say how far, which is the
  * only way a screen-reader user can tell a three-day phone from a seven-day
@@ -357,7 +377,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     initialData: seedFor(anchor.anchorDate, columnCount, initialAnchorDate, initialEvents),
   });
 
-  const preview = useCalendarPreview({
+  const preview = useWeekPreview({
     householdId,
     todayDate: anchor.todayDate,
     zone,
@@ -483,6 +503,14 @@ export function WeekView(props: WeekViewProps) {
             {/* 009 FR-907: the preview bar, under the band and outside the
                 drag layer — MealRow's own three properties (R901). */}
             <PreviewBar
+              progress={
+                // 009 FR-911 + R905: the switch is the MOUNT. Rendering the row
+                // is what enables the board's four reads, so an `undefined`
+                // here means the calendar issues no task request at all.
+                m.preview.tasksProgress && m.todayDate !== null ? (
+                  <TasksProgressRow todayDate={m.todayDate} zone={m.zone} />
+                ) : undefined
+              }
               countdowns={
                 m.preview.countdowns.length === 0 ? undefined : (
                   <CountdownChips

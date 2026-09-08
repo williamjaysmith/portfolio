@@ -58,6 +58,23 @@ const CHOICES: ChoiceField[] = [
       { value: "roomy", label: "Roomy" },
     ],
   },
+  {
+    // 009 FR-903. Exactly the reference's three values, in its own words
+    // [VERIFIED](40459070511515) — there is no fourth and no "never", which is
+    // achieved by not marking an event as a countdown at all.
+    //
+    // The reference puts this at Settings > Calendar [VERIFIED](45795554249371).
+    // This screen has no Calendar section — Clock and Start week on, both
+    // calendar settings, already live here — so it joins them rather than
+    // moving shipped fields (divergence 5, R904).
+    key: "showCountdowns",
+    label: "Show Countdowns",
+    options: [
+      { value: "always", label: "Always" },
+      { value: "three_months", label: "3 months prior to the event" },
+      { value: "one_month", label: "1 month prior to the event" },
+    ],
+  },
 ];
 
 export function HouseholdSection() {
