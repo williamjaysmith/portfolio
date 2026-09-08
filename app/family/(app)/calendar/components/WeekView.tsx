@@ -380,7 +380,12 @@ function WeekNav({
 }) {
   const step = pageLabelOf(view, columns);
   return (
-    <div className="flex shrink-0 items-center justify-end gap-3 px-(--fam-edge-inset) pt-2">
+    // 011: the row WRAPS. Phase 8 added a search box and this phase a view
+    // switcher, and five controls do not fit 320px in one line — they
+    // overflowed off the left edge, which is the same class of defect the
+    // household reported on a real iPhone during Phase 7. Wrapping costs a
+    // second line on a phone and nothing at any width that fits.
+    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-(--fam-edge-inset) pt-2 sm:gap-3">
       {children}
       <button
         type="button"

@@ -53,10 +53,14 @@ export function MonthCell({
 
   return (
     <div
-      role="gridcell"
+      data-month-cell
       aria-current={isToday ? "date" : undefined}
+      // A neighbouring month's day is set back by its BACKGROUND, not by
+      // dimming its contents. `opacity` on the whole cell pushed the event
+      // titles below the contrast floor — an event on the 31st of August is a
+      // real event a household must still be able to read on September's grid.
       className={`flex min-h-0 min-w-0 flex-col gap-0.5 border-b border-r border-(--fam-hairline) p-1 ${
-        cell.inMonth ? "" : "opacity-50"
+        cell.inMonth ? "" : "bg-(--fam-pill-btn-bg)/40"
       }`}
     >
       <button
@@ -66,7 +70,9 @@ export function MonthCell({
         className={`self-start rounded-full px-1.5 text-(length:--fam-fs-small) tabular-nums ${
           isToday
             ? "bg-(--fam-primary-blue) font-medium text-white"
-            : "text-(--fam-text-secondary)"
+            : cell.inMonth
+              ? "text-(--fam-text-primary)"
+              : "text-(--fam-text-secondary)"
         }`}
       >
         {numeral}

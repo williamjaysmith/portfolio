@@ -340,10 +340,18 @@ test.describe("event search", () => {
   });
 });
 
-test.describe("the bar on a phone", () => {
-  test.use({ viewport: { width: 320, height: 568 } });
-
-  test("carries countdowns and progress at the narrowest iPhone without spilling (T052)", async ({
+/**
+ * 011 correction: this describe used a describe-level `test.use({ viewport })`,
+ * whose narrower size LEAKED into the tests that ran after it — in this file
+ * and in the ones that follow it alphabetically. That is very likely what was
+ * recorded in Phase 8's run as a "pre-existing flake" in the phone project.
+ *
+ * It is now tagged `@responsive` and left to the tablet and phone PROJECTS,
+ * which is what the suite has for exactly this (harness.md §4). The assertion
+ * holds at every width, so running it on the wall project too costs nothing.
+ */
+test.describe("the bar at every width", () => {
+  test("carries countdowns and progress without spilling (T052) @responsive", async ({
     page,
     actAsAna,
     unique,

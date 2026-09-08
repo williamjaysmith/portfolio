@@ -73,15 +73,17 @@ export function MonthView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* The weekday headings are decoration for a screen reader: every cell's
+          own control already carries its full date, so reading "Sun" before
+          each one would be noise. */}
       <div
-        role="row"
+        aria-hidden="true"
         className="grid shrink-0 border-b border-(--fam-hairline)"
         style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}
       >
         {headings.map((label) => (
           <div
             key={label}
-            role="columnheader"
             className="py-1 text-center font-(family-name:--fam-font-serif) text-(length:--fam-fs-day-header) text-(--fam-text-secondary)"
           >
             {label}
@@ -89,9 +91,15 @@ export function MonthView({
         ))}
       </div>
 
-      <div role="grid" aria-label="Month" className="flex min-h-0 flex-1 flex-col">
+      {/* Deliberately NOT `role="grid"`. That role promises two-dimensional
+          arrow-key navigation, which this view does not implement; claiming it
+          would tell assistive technology something untrue, and an earlier
+          draft that did also produced an invalid structure (rows whose cells
+          were not their own children). A labelled group of dated controls is
+          both honest and navigable. */}
+      <div role="group" aria-label="Month" className="flex min-h-0 flex-1 flex-col">
         {rows.map((row, rowIndex) => (
-          <div key={row[0].date} role="row" className="relative flex min-h-0 flex-1 flex-col">
+          <div key={row[0].date} className="relative flex min-h-0 flex-1 flex-col">
             <div
               className="grid min-h-0 flex-1"
               style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}

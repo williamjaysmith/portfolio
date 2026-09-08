@@ -53,7 +53,7 @@ function renderMonth(occurrences: Occurrence[], startWeekOn: 0 | 1 = 0) {
   const onOpenDay = vi.fn();
   const onOpenList = vi.fn();
   const onOpen = vi.fn();
-  render(
+  const view = render(
     <MonthView
       rows={placed.rows}
       segments={placed.segments}
@@ -68,32 +68,43 @@ function renderMonth(occurrences: Occurrence[], startWeekOn: 0 | 1 = 0) {
       onOpen={onOpen}
     />,
   );
-  return { onOpenDay, onOpenList, onOpen };
+  return { onOpenDay, onOpenList, onOpen, container: view.container };
 }
 
 describe("MonthView", () => {
   it("draws the month as a grid of week rows", () => {
     renderMonth([]);
-    expect(screen.getByRole("grid", { name: "Month" })).toBeInTheDocument();
-    expect(screen.getAllByRole("gridcell")).toHaveLength(42);
+    expect(screen.getByRole("group", { name: "Month" })).toBeInTheDocument();
+    expect(document.querySelectorAll("[data-month-cell]")).toHaveLength(42);
   });
 
   it("heads the columns with the household's own first day", () => {
-    renderMonth([], 0);
-    expect(screen.getAllByRole("columnheader")[0]).toHaveTextContent("Sun");
+    const { container } = renderMonth([], 0);
+    const headings = [...container.querySelectorAll('[aria-hidden="true"] > div')];
+    expect(headings[0]).toHaveTextContent("Sun");
   });
 
   it("rotates the headings for a Monday-start household", () => {
-    renderMonth([], 1);
-    const headings = screen.getAllByRole("columnheader").map((one) => one.textContent);
+    const { container } = renderMonth([], 1);
+    const headings = [...container.querySelectorAll('[aria-hidden="true"] > div')].map(
+      (one) => one.textContent,
+    );
     expect(headings[0]).toBe("Mon");
     expect(headings[6]).toBe("Sun");
   });
 
   it("marks today", () => {
     renderMonth([]);
-    const today = screen.getAllByRole("gridcell").find((cell) => cell.getAttribute("aria-current"));
-    expect(today).toBeDefined();
+    expect(document.querySelectorAll('[data-month-cell][aria-current="date"]')).toHaveLength(1);
+  });
+
+  it("does NOT claim to be an ARIA grid — it implements no arrow-key navigation", () => {
+    renderMonth([]);
+    // Claiming role="grid" promises two-dimensional keyboard navigation this
+    // view does not have, and an earlier draft that did also produced an
+    // invalid structure. Every cell's own control carries its full date.
+    expect(screen.queryByRole("grid")).toBeNull();
+    expect(screen.getByRole("group", { name: "Month" })).toBeInTheDocument();
   });
 
   it("draws a multi-day event as ONE bar per week row, never a chip per day", () => {
@@ -174,8 +185,12 @@ describe("MonthCell", () => {
     expect(onOpen).toHaveBeenCalledTimes(1);
   });
 
-  it("dims a neighbouring month's day", () => {
+  it("sets a neighbouring month's day back by its BACKGROUND, not by dimming its text", () => {
+    // `opacity` on the whole cell pushed event titles below the contrast floor
+    // — a real accessibility failure the browser pass caught.
     cellFor([], "2026-08-31");
-    expect(screen.getByRole("gridcell").className).toContain("opacity-50");
+    const cell = document.querySelector("[data-month-cell]");
+    expect(cell?.className).not.toContain("opacity-50");
+    expect(cell?.className).toContain("bg-(--fam-pill-btn-bg)/40");
   });
 });
