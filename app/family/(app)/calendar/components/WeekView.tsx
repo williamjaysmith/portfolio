@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import type { DateWindow } from "@/lib/family/calendar/dates";
 import {
@@ -22,6 +22,9 @@ import type { CalendarView } from "@/lib/family/calendar/views";
 
 import { CountdownChips } from "./CountdownChips";
 import { CountdownList } from "./CountdownList";
+import { MonthDayList } from "./MonthDayList";
+import { MonthView } from "./MonthView";
+import { useMonthOccurrences } from "./useMonthOccurrences";
 import { EventSearch } from "./EventSearch";
 import { useCalendarView } from "./useCalendarView";
 import { useCalendarSearch, type CalendarSearch } from "./useEventSearch";
@@ -121,6 +124,15 @@ function searchDateInWords(date: string): string {
     year: "numeric",
   }).format(new Date(`${date}T00:00:00Z`));
 }
+
+/**
+ * How many countdown chips a month's bar holds. The month grid is always seven
+ * columns wide, so unlike the week there is no measured count to derive from —
+ * it gets the widest setting, which is what a seven-column week gets.
+ */
+const MONTH_COUNTDOWN_SLOTS = 3;
+
+const EMPTY_DAY: Occurrence[] = [];
 
 function countdownSlotsFor(columnCount: number): number {
   return columnCount >= 7 ? 3 : columnCount >= 5 ? 2 : 1;
@@ -276,6 +288,37 @@ function useCalendarFrame(options: {
 }
 
 /**
+ * The Month view's whole model (011): its placement layer, and the day list a
+ * cell's "+ n more" opens.
+ *
+ * A hook of its own for the same reason `useCalendarFrame` and `useWeekChrome`
+ * are: `useWeekViewModel` is a wiring of hooks and the view is a rendering of a
+ * value, so each thing the screen needs arrives as one. Keeping the open day
+ * beside the rows is also what lets the list resolve its own occurrences —
+ * nothing outside has to know that a day's full list lives on its cell.
+ */
+function useMonthBody(options: {
+  householdId: string;
+  anchorDate: string;
+  zone: string;
+  startWeekOn: WeekStart;
+}) {
+  const month = useMonthOccurrences(options);
+  const [dayList, setDayList] = useState<string | null>(null);
+
+  return {
+    ...month,
+    dayList,
+    openList: setDayList,
+    closeList: useCallback(() => setDayList(null), []),
+    dayListOccurrences:
+      dayList === null
+        ? EMPTY_DAY
+        : (month.rows.flat().find((cell) => cell.date === dayList)?.all ?? EMPTY_DAY),
+  };
+}
+
+/**
  * Everything the week draws AROUND its grid (009 R901, R905, R908): the preview
  * bar's countdowns and switches, and the toolbar's search.
  *
@@ -402,6 +445,47 @@ function DayHeaderBand({
   );
 }
 
+/**
+ * The preview bar, wherever the showing view puts it (009 FR-907, 011 FR-1116).
+ *
+ * One component because the bar belongs above the events in EVERY view
+ * [VERIFIED](36625171368987, 40459070511515) and the week and the month place
+ * it in different parents — the week inside its header band, the month above
+ * its grid. Two copies would be two places for the mount rule below to drift.
+ *
+ * `slots` is the one thing that differs: the week derives it from its measured
+ * column count, and the month is always seven columns wide.
+ */
+function CalendarPreviewBar({
+  m,
+  slots,
+}: {
+  m: ReturnType<typeof useWeekViewModel>;
+  slots: number;
+}) {
+  return (
+    <PreviewBar
+      progress={
+        // 009 FR-911 + R905: the switch is the MOUNT. Rendering the row is what
+        // enables the board's four reads, so an `undefined` here means the
+        // calendar issues no task request at all.
+        m.chrome.preview.tasksProgress && m.todayDate !== null ? (
+          <TasksProgressRow todayDate={m.todayDate} zone={m.zone} />
+        ) : undefined
+      }
+      countdowns={
+        m.chrome.preview.countdowns.length === 0 ? undefined : (
+          <CountdownChips
+            countdowns={m.chrome.preview.countdowns}
+            slots={slots}
+            onOpenList={m.chrome.preview.openList}
+          />
+        )
+      }
+    />
+  );
+}
+
 /** A one-line grid notice — the week's load failure, or the editor's FR-288 messages. */
 function Notice({ message }: { message: string | null }) {
   if (message === null) return null;
@@ -432,17 +516,30 @@ export interface WeekViewProps {
  * the two change for different reasons and the cognitive budget is spent on
  * one of them at a time.
  */
-function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, initialMealCategories, initialRecipes }: WeekViewProps) {
-  const { householdId, settings, categories } = useFamily();
-  const zone = settings.timezone;
-
-  const frame = useCalendarFrame({
-    zone,
-    startWeekOn: settings.startWeekOn,
-    initialAnchorDate,
-  });
-  const { view, setView, metrics, columnCount, layoutMetrics, anchor } = frame;
-  const measureViewport = frame.viewportRef;
+/**
+ * The Week and Day views' own model (011): the window's occurrences, the meal
+ * tokens, the drag layer, the follow-scroll, and the one node all three of the
+ * grid's consumers attach to.
+ *
+ * Split out of `useWeekViewModel` when the Month view arrived and pushed that
+ * function over its cognitive budget. The line is the honest one: everything
+ * here belongs to the HOUR GRID and is not asked for while a month is showing.
+ * What stays above is what every view needs — the frame, the chrome, the
+ * editor.
+ */
+function useWeekBodyModel(options: {
+  householdId: string;
+  zone: string;
+  frame: ReturnType<typeof useCalendarFrame>;
+  timeFormat: TimeFormat;
+  initialAnchorDate: string;
+  initialEvents: Event[];
+  initialMeals: Meal[];
+  initialMealCategories: MealCategory[];
+  initialRecipes: Recipe[];
+}) {
+  const { householdId, zone, frame, timeFormat, initialAnchorDate } = options;
+  const { anchor, metrics, layoutMetrics, columnCount } = frame;
 
   const {
     viewportRef: followViewport,
@@ -456,28 +553,24 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     zone,
     columns: columnCount,
     metrics: layoutMetrics,
-    initialData: seedFor(anchor.anchorDate, columnCount, initialAnchorDate, initialEvents),
+    initialData: seedFor(anchor.anchorDate, columnCount, initialAnchorDate, options.initialEvents),
   });
 
-  const chrome = useWeekChrome({
-    householdId,
-    todayDate: anchor.todayDate,
-    zone,
-    showCountdowns: settings.showCountdowns,
-  });
-
-  const editor = useCalendarEditor({ householdId, window: week.window, zone });
   const meals = useCalendarMeals({
     householdId,
     window: week.window,
     zone,
     todayDate: anchor.todayDate,
-    initial: { categories: initialMealCategories, recipes: initialRecipes, meals: initialMeals },
+    initial: {
+      categories: options.initialMealCategories,
+      recipes: options.initialRecipes,
+      meals: options.initialMeals,
+    },
   });
 
-  // Destructured at the call site: what the view reads while rendering must
-  // be plain values, and `viewportRef` must keep its identity or the grid's
-  // callback ref would detach and re-attach on every render.
+  // Destructured here: what the view reads while rendering must be plain
+  // values, and `viewportRef` must keep its identity or the grid's callback ref
+  // would detach and re-attach on every render.
   const {
     surface: dragSurface,
     prompt: dragPrompt,
@@ -492,14 +585,15 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     occurrences: week.occurrences,
     metrics,
     layoutMetrics,
-    timeFormat: settings.timeFormat,
+    timeFormat,
     onPage: anchor.page,
   });
 
-  // One node, three consumers: the geometry measurement, the follow-scroll,
-  // and the drag's pointer capture (R205 — the gesture lives on the stable
-  // scroll container, never on the block). The three refs are all stable, so
-  // the node is never re-attached mid-gesture.
+  // One node, three consumers: the geometry measurement, the follow-scroll and
+  // the drag's pointer capture (R205 — the gesture lives on the stable scroll
+  // container, never on the block). All three refs are stable, so the node is
+  // never re-attached mid-gesture.
+  const measureViewport = frame.viewportRef;
   const attachViewport = useCallback(
     (node: HTMLDivElement | null) => {
       measureViewport(node);
@@ -509,7 +603,65 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     [measureViewport, followViewport, dragViewportRef],
   );
 
+  return {
+    week,
+    meals,
+    onScroll,
+    resume,
+    attachViewport,
+    dragSurface,
+    dragPrompt,
+    dragDispatch,
+    dragNotice,
+    dragBandRef,
+    announcement,
+  };
+}
+
+function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, initialMealCategories, initialRecipes }: WeekViewProps) {
+  const { householdId, settings, categories } = useFamily();
+  const zone = settings.timezone;
+
+  const frame = useCalendarFrame({
+    zone,
+    startWeekOn: settings.startWeekOn,
+    initialAnchorDate,
+  });
+  const { view, setView, columnCount, anchor } = frame;
+
+  const body = useWeekBodyModel({
+    householdId,
+    zone,
+    frame,
+    timeFormat: settings.timeFormat,
+    initialAnchorDate,
+    initialEvents,
+    initialMeals,
+    initialMealCategories,
+    initialRecipes,
+  });
+
+  const chrome = useWeekChrome({
+    householdId,
+    todayDate: anchor.todayDate,
+    zone,
+    showCountdowns: settings.showCountdowns,
+  });
+
+  const month = useMonthBody({
+    householdId,
+    anchorDate: anchor.anchorDate,
+    zone,
+    startWeekOn: settings.startWeekOn,
+  });
+
+  const editor = useCalendarEditor({
+    householdId,
+    window: view === "month" ? month.window : body.week.window,
+    zone,
+  });
   const { goToToday: anchorToToday, page, todayDate, openAt } = anchor;
+  const { resume } = body;
   const goToToday = useCallback(() => {
     anchorToToday();
     resume();
@@ -518,9 +670,9 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
   return {
     zone,
     settings,
-    week,
+    ...body,
+    month,
     editor,
-    meals,
     chrome,
     createFromSlot: useCreateDoors(editor.openCreate, zone),
     columnCount,
@@ -529,17 +681,9 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     page,
     openAt,
     colorsById: useMemo(() => colorMapOf(categories), [categories]),
-    layout: week.layout ?? EMPTY_LAYOUT,
+    layout: body.week.layout ?? EMPTY_LAYOUT,
     todayDate,
     goToToday,
-    attachViewport,
-    onScroll,
-    dragSurface,
-    dragPrompt,
-    dragDispatch,
-    dragNotice,
-    dragBandRef,
-    announcement,
   };
 }
 
@@ -556,6 +700,67 @@ function seedFor(
 ): Event[] | undefined {
   const isInitialWindow = anchorDate === initialAnchorDate && columns === DEFAULT_COLUMN_COUNT;
   return isInitialWindow ? initialEvents : undefined;
+}
+
+/**
+ * The Week and Day views' body: the drag layer, the pager, the header band and
+ * the hour grid (011).
+ *
+ * Extracted when — and only when — a second body existed to justify it. Day
+ * view needed no extraction at all, because it IS this body at one column
+ * (R1103); the Month view is the one that needs a different one, so the screen
+ * above now chooses between two bodies rather than holding one inline.
+ *
+ * It takes the whole model rather than fifteen props: it is not a reusable
+ * component with an interface, it is one half of one screen, and enumerating
+ * the model's fields here would be a second place to keep them in step.
+ */
+function WeekBody({ m }: { m: ReturnType<typeof useWeekViewModel> }) {
+  return (
+    <DragSurfaceContext.Provider value={m.dragSurface}>
+      {/* FR-279: the whole strip pages together — the day headers, the
+          all-day band and the hour grid are one window of days. */}
+      <WeekPager onPage={m.page}>
+        <DayHeaderBand
+          columnDates={m.week.columnDates}
+          layout={m.layout.allDay}
+          colorsById={m.colorsById}
+          todayDate={m.todayDate}
+          onOpen={m.editor.openDetails}
+          bandRef={m.dragBandRef}
+        >
+          <MealRow
+            columnDates={m.week.columnDates}
+            tokens={m.meals.tokens}
+            categoriesById={m.meals.categoriesById}
+            recipeNames={m.meals.surfaces.recipeNames}
+            onOpen={m.meals.surfaces.editor.openPopover}
+          />
+          {/* 009 FR-907: the preview bar, under the band and outside the
+              drag layer — MealRow's own three properties (R901). */}
+          <CalendarPreviewBar m={m} slots={countdownSlotsFor(m.columnCount)} />
+        </DayHeaderBand>
+
+        <Notice message={weekErrorOf(m.week.error)} />
+        <Notice message={m.editor.notice} />
+        <Notice message={m.dragNotice} />
+        <Notice message={m.meals.surfaces.notice} />
+
+        <WeekGrid
+          columnDates={m.week.columnDates}
+          todayDate={m.todayDate}
+          layout={m.layout}
+          colorsById={m.colorsById}
+          zone={m.zone}
+          timeFormat={m.settings.timeFormat}
+          viewportRef={m.attachViewport}
+          onViewportScroll={m.onScroll}
+          onOpen={m.editor.openDetails}
+          onSlotTap={m.createFromSlot}
+        />
+      </WeekPager>
+    </DragSurfaceContext.Provider>
+  );
 }
 
 export function WeekView(props: WeekViewProps) {
@@ -586,67 +791,50 @@ export function WeekView(props: WeekViewProps) {
         />
       </WeekNav>
 
-      <DragSurfaceContext.Provider value={m.dragSurface}>
-        {/* FR-279: the whole strip pages together — the day headers, the
-            all-day band and the hour grid are one window of days. */}
-        <WeekPager onPage={m.page}>
-          <DayHeaderBand
-            columnDates={m.week.columnDates}
-            layout={m.layout.allDay}
-            colorsById={m.colorsById}
-            todayDate={m.todayDate}
-            onOpen={m.editor.openDetails}
-            bandRef={m.dragBandRef}
-          >
-            <MealRow
-              columnDates={m.week.columnDates}
-              tokens={m.meals.tokens}
-              categoriesById={m.meals.categoriesById}
-              recipeNames={m.meals.surfaces.recipeNames}
-              onOpen={m.meals.surfaces.editor.openPopover}
-            />
-            {/* 009 FR-907: the preview bar, under the band and outside the
-                drag layer — MealRow's own three properties (R901). */}
-            <PreviewBar
-              progress={
-                // 009 FR-911 + R905: the switch is the MOUNT. Rendering the row
-                // is what enables the board's four reads, so an `undefined`
-                // here means the calendar issues no task request at all.
-                m.chrome.preview.tasksProgress && m.todayDate !== null ? (
-                  <TasksProgressRow todayDate={m.todayDate} zone={m.zone} />
-                ) : undefined
-              }
-              countdowns={
-                m.chrome.preview.countdowns.length === 0 ? undefined : (
-                  <CountdownChips
-                    countdowns={m.chrome.preview.countdowns}
-                    slots={countdownSlotsFor(m.columnCount)}
-                    onOpenList={m.chrome.preview.openList}
-                  />
-                )
-              }
-            />
-          </DayHeaderBand>
-
-          <Notice message={weekErrorOf(m.week.error)} />
+      {/* 011 FR-1116: the preview bar belongs above the events in EVERY view
+          [VERIFIED](36625171368987, 40459070511515), so on the month it sits
+          here rather than inside the week's header band. */}
+      {m.view === "month" ? (
+        <>
+          <CalendarPreviewBar m={m} slots={MONTH_COUNTDOWN_SLOTS} />
+          <Notice message={weekErrorOf(m.month.error)} />
           <Notice message={m.editor.notice} />
-          <Notice message={m.dragNotice} />
-          <Notice message={m.meals.surfaces.notice} />
-
-          <WeekGrid
-            columnDates={m.week.columnDates}
+          <MonthView
+            rows={m.month.rows}
+            segments={m.month.segments}
+            startDate={m.month.window.startDate}
             todayDate={m.todayDate}
-            layout={m.layout}
-            colorsById={m.colorsById}
+            startWeekOn={m.settings.startWeekOn}
             zone={m.zone}
             timeFormat={m.settings.timeFormat}
-            viewportRef={m.attachViewport}
-            onViewportScroll={m.onScroll}
+            colorsById={m.colorsById}
+            onOpenDay={(date) => {
+              // FR-1113 / Assumption 5: a cell is a door to its DAY.
+              m.openAt(date);
+              m.setView("day");
+            }}
+            onOpenList={m.month.openList}
             onOpen={m.editor.openDetails}
-            onSlotTap={m.createFromSlot}
           />
-        </WeekPager>
-      </DragSurfaceContext.Provider>
+        </>
+      ) : (
+      <WeekBody m={m} />
+      )}
+
+      {/* 011 FR-1111: the day's full list, from a cell's "+n more". */}
+      {m.month.dayList === null ? null : (
+        <MonthDayList
+          date={m.month.dayList}
+          occurrences={m.month.dayListOccurrences}
+          zone={m.zone}
+          timeFormat={m.settings.timeFormat}
+          onOpen={(occurrence) => {
+            m.month.closeList();
+            m.editor.openDetails(occurrence);
+          }}
+          onClose={m.month.closeList}
+        />
+      )}
 
       {/* FR-263: the keyboard drag's running commentary, in slot language. */}
       <p role="status" aria-live="polite" className="sr-only">
