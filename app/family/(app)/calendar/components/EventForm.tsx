@@ -222,6 +222,23 @@ export function EventForm({ mode, seed, onSubmit, onClose }: EventFormProps) {
           onChange={(reminder) => form.set("reminder", reminder)}
         />
 
+        {/* 009 FR-901: the switch that finally writes `countdown_enabled`,
+            which has been in the schema since 010 with nothing reading it.
+            Off by default — an event nobody thinks about is not something the
+            household is counting down to. It belongs to the SERIES (009 R910),
+            which is why `touchesSeriesFields` withholds "This event" from the
+            scope question when it changes. */}
+        <label className={SWITCH_ROW}>
+          <input
+            type="checkbox"
+            role="switch"
+            checked={form.draft.countdownEnabled}
+            onChange={(event) => form.set("countdownEnabled", event.target.checked)}
+            className="h-5 w-5"
+          />
+          Countdown
+        </label>
+
         <label className={LABEL}>
           Location (optional)
           <input

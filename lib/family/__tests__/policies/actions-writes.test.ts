@@ -209,6 +209,17 @@ describe("server actions: updates, reordering, settings and avatars", () => {
     return row;
   }
 
+  /** 009 FR-903 — the one column this phase adds, read straight from the row. */
+  async function readShowCountdowns(): Promise<string> {
+    const { rows } = await pool.query<{ show_countdowns: string }>(
+      "select show_countdowns from family.household_settings where household_id = $1",
+      [householdId],
+    );
+    const [row] = rows;
+    if (!row) throw new Error("settings row disappeared");
+    return row.show_countdowns;
+  }
+
   /** Setup only: the action-level path through `set_pin` is `actions.test.ts`'s job. */
   async function givePin(profileId: string, pin: string): Promise<void> {
     const { error } = await admin
@@ -466,12 +477,35 @@ describe("server actions: updates, reordering, settings and avatars", () => {
       expect((await readSettings()).punch_out_minutes).toBe(7);
     });
 
+    it("a parent sets Show Countdowns, and it lands in the column (009 FR-903)", async () => {
+      const result = expectOk(await updateHouseholdSettings({ showCountdowns: "one_month" }));
+      expect(result.settings.showCountdowns).toBe("one_month");
+      expect(await readShowCountdowns()).toBe("one_month");
+    });
+
+    it("refuses a fourth Show Countdowns value before it reaches the row", async () => {
+      // The CHECK on 039 is the backstop; this proves the schema refuses first,
+      // so the household gets a worded message rather than a database error.
+      expectFailure(
+        await updateHouseholdSettings({
+          showCountdowns: "six_months" as never,
+        }),
+        "VALIDATION",
+      );
+      expect(await readShowCountdowns()).toBe("one_month");
+    });
+
     it("a member actor is refused → FORBIDDEN", async () => {
       expectOk(await punchOut());
       await punchInAs(memberId, MEMBER_PIN);
 
       expectFailure(await updateHouseholdSettings({ punchOutMinutes: 12 }), "FORBIDDEN");
       expect((await readSettings()).punch_out_minutes).toBe(7);
+    });
+
+    it("a member actor is refused Show Countdowns too (009 US3-4)", async () => {
+      expectFailure(await updateHouseholdSettings({ showCountdowns: "always" }), "FORBIDDEN");
+      expect(await readShowCountdowns()).toBe("one_month");
     });
   });
 

@@ -145,6 +145,9 @@ describe("seedOf", () => {
       // The occurrence's EFFECTIVE reminder — its exception's if it has one,
       // otherwise the series' (008 FR-808).
       reminder: { mode: "inherit" },
+      // The SERIES' countdown flag: a countdown has no per-occurrence form
+      // (009 R910), so there is nothing effective to resolve here.
+      countdownEnabled: false,
       allDay: false,
       startDate: start.date,
       startTime: start.time,
@@ -208,6 +211,33 @@ describe("patchOf", () => {
 
     expect(patch).toEqual({ summary: "Piano recital", location: "Hall" });
     expect(touchesSeriesFields(patch)).toBe(false);
+  });
+
+  describe("the countdown flag (009 FR-901, R910)", () => {
+    it("is not in the patch when the switch was not touched", () => {
+      expect(patchOf(unchangedInput(), target(), ZONE)).toEqual({});
+    });
+
+    it("is in the patch when it was turned on", () => {
+      const patch = patchOf(unchangedInput({ countdownEnabled: true }), target(), ZONE);
+      expect(patch).toEqual({ countdownEnabled: true });
+    });
+
+    it("is in the patch when it was turned off", () => {
+      const patch = patchOf(
+        unchangedInput({ countdownEnabled: false }),
+        target({ event: { countdownEnabled: true } }),
+        ZONE,
+      );
+      expect(patch).toEqual({ countdownEnabled: false });
+    });
+
+    it("withholds the This-event scope, like Profiles and the repeat (FR-287)", () => {
+      // A countdown belongs to the series and has no per-occurrence form, so
+      // offering "This event" would promise a scope the storage cannot express.
+      const patch = patchOf(unchangedInput({ countdownEnabled: true }), target(), ZONE);
+      expect(touchesSeriesFields(patch)).toBe(true);
+    });
   });
 
   it("carries a time change as the whole pair with its shape", () => {

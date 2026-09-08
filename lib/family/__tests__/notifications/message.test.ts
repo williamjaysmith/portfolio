@@ -111,6 +111,7 @@ describe("the household's five choices", () => {
       notifyEventBeforeMinutes: 45,
       notifyTaskDue: false,
       notifyTaskCompleted: true,
+      showCountdowns: "always",
       updatedAt: "2026-01-01T00:00:00.000Z",
     } satisfies HouseholdSettings;
 

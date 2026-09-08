@@ -1,35 +1,51 @@
 <!-- SPECKIT START -->
-**Active feature**: `008-family-notifications` — Phase 7: the household decides what it wants to be
-reminded of, and a banner says so on whichever `/family` page is open. Settings gains a Notifications
-section with the reference's own four choices (At time of event, Before event with a lead time, When
-Due, When Completed); an event can carry its own reminder — the household's setting, none, or its own
-— changeable under the three shipped repeat scopes; a timed chore reminds when it falls due, and a
-finished one can announce who finished it.
+**Active feature**: `009-calendar-preview-bar` — Phase 8: the strip of information the reference draws
+*above* its events, and the search that finds one. **Countdowns** end to end — a switch on the event
+form finally writes `events.countdown_enabled`, which has been in the schema since `010_events.sql`
+with nothing reading it; a household setting (Always / 3 months prior / 1 month prior) decides how
+early they appear; the calendar draws them above the week and the number falls at the household's
+midnight. **Tasks Progress** — the Filter toggle Phase 2 withheld, wired to the completed-of-total
+rule `lib/family/tasks/counters.ts` already owns. **Event search** — finds a series by title and
+takes the calendar to the day it next falls on.
 
-**Web Push was dropped by the operator partway through, deliberately.** Nothing reaches a device with
-no page open: no service worker, no scheduled scan, no push subscriptions, no route handlers. The
-household will open the app as needed and the wall display is the shared surface. `docs/` and the
-spec record it; if you find something that promises a phone will buzz, it is a leftover and should go.
+**State: built (2026-09-07) — all five user stories, 55 of 59 tasks.** The four gates are green, the
+browser pass has 22 new journeys, and the run record is
+`specs/009-calendar-preview-bar/checklists/quickstart-run.md`. **Not yet merged**: migration
+`039_show_countdowns.sql` still has to be pushed to the hosted project first (R913), and the phone
+and overnight checks are the operator's.
+Phases 1–7 are shipped and live. The **home screen** becomes `010` and the **offline cache** `011`;
+this one went first because the home screen's calendar pane consumes a calendar whose chrome was
+still missing two documented pieces.
 
-**State: complete (2026-09-07) — 58 of 58 tasks, four gates green, browser journeys walked, and
-migrations 034, 035 and 038 pushed to the hosted project. Ready to merge and deploy.**
-Phases 1–6 are shipped and live; the home screen, cross-tab search and the offline cache became a
-following phase (`009-family-home-search-offline`), which does not exist yet.
+Read in this order before touching preview-bar code:
+1. `specs/009-calendar-preview-bar/spec.md` — FR-901…FR-921, SC-901…SC-912, 7 assumptions, 6 divergences
+2. `specs/009-calendar-preview-bar/research.md` — R901–R915 and why
+3. `specs/009-calendar-preview-bar/plan.md` — the structure and the phasing
+4. `specs/009-calendar-preview-bar/data-model.md` — the one migration, and what is derived rather than stored
+5. `specs/009-calendar-preview-bar/quickstart.md` — how to run it, verify each guarantee, what to do when it fails
 
-Read in this order before touching notification code:
-1. `specs/008-family-notifications/spec.md` — 23 requirements, 14 criteria, the numbered assumptions
-2. `specs/008-family-notifications/research.md` — R801–R818 and why; **R802 is the one that matters**
-3. `specs/008-family-notifications/plan.md` — the structure and the phasing
-4. `specs/008-family-notifications/data-model.md` — migrations 034, 035 and 038, and what enforces what
-5. `specs/008-family-notifications/quickstart.md` — how to run it and verify each guarantee
-
-**R802, because it is easy to get wrong**: there is ONE pure due-computation
-(`lib/family/notifications/due.ts`) and the banner is its only reader. The banner mounts in the app
-shell, so it must NOT read a tab's cache — on Lists or Meals the calendar's events were never
-fetched, and a seven-day lead can owe a reminder for an event outside any window a tab would ask
-for. It brings its own query (`useReminderHorizon`). "Shown once" is a `Set` in the device's own
-storage, not a database constraint, and the two places that gives way are written down rather than
-hidden.
+**The findings that are easy to get wrong**:
+- **The reference describes no search ACROSS tabs** (Assumption 1). It has three, each inside one
+  tab — tasks by name and description, recipes by keyword, and the calendar's own; Phases 3 and 6
+  shipped two of them. The master map's §1 inventory reads as though one search spans the app. No
+  source describes one, so this phase adds the calendar's and drops the cross-tab idea rather than
+  inventing a surface. Note this is an absence of evidence, stated as such in the spec.
+- **The bar is `MealRow`'s shape** (R901): one row under the all-day band, drawn by `WeekView`,
+  outside the drag layer, returning `null` when it has nothing — not a new chassis, and not the
+  shell's `ProfileChipRow`, which is on screen on Lists and Meals too.
+- **Tasks Progress mounts the board's reads** (R905): the switch is off by default and *mounting is
+  the `enabled`* (`useTaskBox`'s shipped idiom), so the calendar makes no task request at all while
+  it is off. Three of the four reads are household-keyed, so the Tasks tab's cache is shared.
+- **Nine `[UNKNOWN]`s are decisions, not facts** — the chip's wording, the progress format, what a
+  countdown does on its own day, whether the rotation can be paused, what a countdown on a repeat
+  counts towards, that progress reports today rather than the paged-to day, that the one surface
+  carries a search the reference documents only on the phone, and what a result looks like.
+- **A countdown is a SERIES property.** There is no per-occurrence countdown and `event_exceptions`
+  gains no column for one, so changing it withholds the "This event" scope exactly as changing
+  Profiles or the repeat does (002 FR-287).
+- **SC-902's midnight roll is not proved in a browser** and cannot be: the e2e clock helper refuses
+  jumps over three hours because the session token is minted on the real clock. The arithmetic is
+  unit-tested across both DST changes; the overnight watch is the operator's.
 
 The browser pass (`specs/007-family-e2e/`) is the **phase gate**: run `npm run test:e2e` before a
 phase is merged, and read the report rather than only the exit code. It is deliberately not in the

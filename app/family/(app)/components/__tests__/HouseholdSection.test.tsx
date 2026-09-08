@@ -32,6 +32,7 @@ const settings = makeSettings({
   punchOutMinutes: 15,
   textSize: "large",
   density: "snug",
+  showCountdowns: "three_months",
 });
 
 const PUNCH_OUT_MESSAGE = "Punch-out time must be between 1 and 60 minutes.";
@@ -81,6 +82,7 @@ describe("HouseholdSection", () => {
     expect(screen.getByLabelText("Start week on")).toHaveValue("1");
     expect(screen.getByLabelText("Text size")).toHaveValue("large");
     expect(screen.getByLabelText("Display density")).toHaveValue("snug");
+    expect(screen.getByLabelText("Show Countdowns")).toHaveValue("three_months");
     expect(screen.getByLabelText("Punch out after (minutes)")).toHaveValue(15);
   });
 
@@ -108,6 +110,7 @@ describe("HouseholdSection", () => {
       punchOutMinutes: 7,
       textSize: "large",
       density: "snug",
+      showCountdowns: "three_months",
     });
     // The select and the number input both hand back strings; sending them
     // through as strings is refused by the action before it reaches the row.
@@ -167,6 +170,36 @@ describe("HouseholdSection", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Only a parent can change this.");
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
+  });
+
+  describe("Show Countdowns (009 FR-903)", () => {
+    it("offers exactly the reference's three values, and no fourth", () => {
+      renderSection();
+      const field = screen.getByLabelText("Show Countdowns");
+      const options = [...field.querySelectorAll("option")].map((option) => [
+        option.value,
+        option.textContent,
+      ]);
+
+      expect(options).toEqual([
+        ["always", "Always"],
+        ["three_months", "3 months prior to the event"],
+        ["one_month", "1 month prior to the event"],
+      ]);
+    });
+
+    it("sends the chosen value in the shape the action's schema demands", async () => {
+      renderSection();
+
+      fireEvent.change(screen.getByLabelText("Show Countdowns"), {
+        target: { value: "one_month" },
+      });
+      save();
+
+      await waitFor(() => expect(updateHouseholdSettings).toHaveBeenCalledTimes(1));
+      expect(lastPatch().showCountdowns).toBe("one_month");
+      expect(settingsPatchSchema.safeParse(lastPatch()).success).toBe(true);
+    });
   });
 
   it("lets a punched-in child read the settings but not change them (FR-015)", () => {

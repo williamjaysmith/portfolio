@@ -152,6 +152,21 @@ export const familyKeys = {
    */
   reminderHorizon: (householdId: string, endDate: string) =>
     ["family", "reminder-horizon", householdId, endDate] as const,
+  /**
+   * The preview bar's countdowns (009 R901). Keyed by the HOUSEHOLD alone and
+   * deliberately not by `week(...)`: a countdown to a holiday six weeks out is
+   * not in any window the calendar displays, so the bar cannot read the week's
+   * cache entry and must not be refetched every time the week is paged. It is
+   * still under the `family` prefix, so the Realtime sweep reaches it.
+   */
+  countdowns: (householdId: string) => ["family", "countdowns", householdId] as const,
+  /**
+   * The calendar's event search (009 R908). Keyed by the NORMALISED term, so
+   * "Swim", "swim" and "  swim " share one entry, and under the `family` prefix
+   * so the Realtime sweep reaches it.
+   */
+  eventSearch: (householdId: string, term: string) =>
+    ["family", "event-search", householdId, term] as const,
   /** FR-274's affected-event count for one category's delete confirmation. */
   categoryEventCount: (householdId: string, categoryId: string) =>
     ["family", "category-event-count", householdId, categoryId] as const,
@@ -291,6 +306,37 @@ export async function fetchWeekEvents(
     .select(WEEK_EVENT_COLUMNS)
     .eq("household_id", householdId)
     .or(threeBranchOr);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as EventWithRelationsRow[]).map(toEvent);
+}
+
+/**
+ * Every event the household has marked as a countdown (009 FR-901, R901).
+ *
+ * A read of its own, and small by construction: `countdown_enabled` is false
+ * on all but a handful of rows, so this is the whole set rather than a window.
+ * The bar CANNOT use the week's read — the point of a countdown is that its
+ * day is far off, which is exactly the day no displayed window contains.
+ *
+ * Series rows arrive whole, as everywhere else in this app: expansion is
+ * client-side, and `next-occurrence.ts` walks the rule to find the day.
+ *
+ * Module-private, unlike the week's and the meals' fetchers, because there is
+ * no server seed to write: `todayDate` is null during the server render (the
+ * shell's clock has not published yet), so the bar draws nothing on the first
+ * paint however the rows arrived. Seeding it would buy no flicker that is
+ * there to remove.
+ */
+async function fetchCountdownEvents(
+  supabase: SupabaseClient,
+  householdId: string,
+): Promise<Event[]> {
+  const { data, error } = await supabase
+    .schema("family")
+    .from("events")
+    .select(WEEK_EVENT_COLUMNS)
+    .eq("household_id", householdId)
+    .eq("countdown_enabled", true);
   if (error) throw new Error(error.message);
   return ((data ?? []) as unknown as EventWithRelationsRow[]).map(toEvent);
 }
@@ -453,6 +499,88 @@ export function useWeekEvents(householdId: string, weekWindow: WeekFetchBounds, 
     queryFn: () => fetchWeekEvents(createClient(), householdId, weekWindow),
     staleTime: STALE_TIME,
     initialData,
+  });
+}
+
+/**
+ * The shortest term worth a round trip. One character matches most of a
+ * household's calendar, which is not an answer to anything.
+ */
+export const MIN_SEARCH_LENGTH = 2;
+
+/** At most this many events come back — a cap, not a page (009 R908). */
+const SEARCH_LIMIT = 50;
+
+/** One term, in the one form the cache key and the query both use. */
+export function normaliseSearchTerm(term: string): string {
+  return term.trim().toLowerCase();
+}
+
+/**
+ * `ilike`'s special characters, escaped so a household searching for `50%`
+ * searches for `50%`. PostgREST also reads `*` as a wildcard in a `like`
+ * filter, so that goes too.
+ */
+function escapeForIlike(term: string): string {
+  return term.replace(/[\\%_*]/g, (match) => `\\${match}`);
+}
+
+/**
+ * Events whose title contains `term` (009 FR-915, FR-918, R908).
+ *
+ * Under the SIGNED-IN session's client, never the admin one: RLS is the access
+ * control here as it is for every read on this tab, and an anonymous caller is
+ * refused rather than handed an empty list (SC-911).
+ *
+ * It returns EVENTS, never occurrences. A weekly swim lesson is one row, which
+ * is what stops fifty identical results (FR-918); which day the calendar then
+ * goes to is `lib/family/calendar/search.ts`'s question, answered through the
+ * same bounded walk a countdown uses.
+ */
+async function fetchEventSearch(
+  supabase: SupabaseClient,
+  householdId: string,
+  term: string,
+): Promise<Event[]> {
+  const normalised = normaliseSearchTerm(term);
+  if (normalised.length < MIN_SEARCH_LENGTH) return [];
+
+  const { data, error } = await supabase
+    .schema("family")
+    .from("events")
+    .select(WEEK_EVENT_COLUMNS)
+    .eq("household_id", householdId)
+    .ilike("summary", `%${escapeForIlike(normalised)}%`)
+    .limit(SEARCH_LIMIT);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as EventWithRelationsRow[]).map(toEvent);
+}
+
+/**
+ * The search's own read. `enabled` is the term's LENGTH rather than a mount,
+ * unlike the bar's: the control is always on screen, so it is the typing that
+ * should or should not cost a request.
+ */
+export function useEventSearch(householdId: string, term: string) {
+  const normalised = normaliseSearchTerm(term);
+  return useQuery({
+    queryKey: familyKeys.eventSearch(householdId, normalised),
+    queryFn: () => fetchEventSearch(createClient(), householdId, normalised),
+    staleTime: STALE_TIME,
+    enabled: normalised.length >= MIN_SEARCH_LENGTH,
+  });
+}
+
+/**
+ * The preview bar's countdowns. **Mounting is the `enabled`** (the shipped
+ * `useTaskBox` idiom): nothing calls this hook unless the bar is on screen,
+ * and the bar is on screen only inside the calendar tab.
+ */
+export function useCountdownEvents(householdId: string) {
+  return useQuery({
+    queryKey: familyKeys.countdowns(householdId),
+    queryFn: () => fetchCountdownEvents(createClient(), householdId),
+    staleTime: STALE_TIME,
   });
 }
 

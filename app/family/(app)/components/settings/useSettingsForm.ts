@@ -7,6 +7,7 @@ import type {
   Household,
   HouseholdSettings,
   HouseholdSettingsPatch,
+  ShowCountdowns,
   TextSize,
   TimeFormat,
 } from "@/lib/family/types";
@@ -27,6 +28,8 @@ export interface SettingsDraft {
   punchOutMinutes: string;
   textSize: string;
   density: string;
+  /** 009 FR-903 — how early countdowns start appearing. */
+  showCountdowns: string;
 }
 
 export interface SettingsFormState {
@@ -47,6 +50,7 @@ export function useSettingsForm(
     punchOutMinutes: String(settings.punchOutMinutes),
     textSize: settings.textSize,
     density: settings.density,
+    showCountdowns: settings.showCountdowns,
   }));
 
   function set(key: keyof SettingsDraft, value: string | boolean): void {
@@ -62,6 +66,7 @@ export function useSettingsForm(
       punchOutMinutes: Number(draft.punchOutMinutes),
       textSize: draft.textSize as TextSize,
       density: draft.density as Density,
+      showCountdowns: draft.showCountdowns as ShowCountdowns,
     };
   }
 

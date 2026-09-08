@@ -80,6 +80,12 @@ export interface CalendarEditor {
   openCreate: (seed?: EventFormSeed) => void;
   /** A tapped block, bar or "+n more" row (FR-256). */
   openDetails: (occurrence: Occurrence) => void;
+  /**
+   * 009 FR-909/FR-916: details for an event the caller already holds, reached
+   * from the countdown list or a search result rather than from the grid — so
+   * it needs no lookup in a window that may not contain it.
+   */
+  openTarget: (target: EditTarget) => void;
   close: () => void;
   /** Details → the edit form (FR-257). */
   edit: () => void;
@@ -245,6 +251,22 @@ function useSurfaces(lookup: (occurrence: Occurrence) => Event | undefined) {
     [lookup],
   );
 
+  /**
+   * Open the details of an event this hook did NOT have to look up (009
+   * FR-909, FR-916).
+   *
+   * `openDetails` resolves a tapped occurrence against the DISPLAYED window's
+   * cached rows, which is right for a tap on the grid and wrong for every
+   * surface whose whole point is reaching outside that window: a countdown to
+   * a holiday six weeks out, and a search result on a day the calendar is not
+   * on. Those two hold the real event row already — they fetched it — so they
+   * hand over a complete target instead of a key to look up.
+   */
+  const openTarget = useCallback((target: EditTarget) => {
+    setNotice(null);
+    setSurface({ kind: "details", target });
+  }, []);
+
   const close = useCallback(() => setSurface(CLOSED), []);
   const edit = useCallback(() => setSurface(toEdit), []);
   const requestDelete = useCallback(() => setSurface(toDeleteRequest), []);
@@ -256,6 +278,7 @@ function useSurfaces(lookup: (occurrence: Occurrence) => Event | undefined) {
     setNotice,
     openCreate,
     openDetails,
+    openTarget,
     close,
     edit,
     requestDelete,
@@ -363,6 +386,7 @@ export function useCalendarEditor(options: UseCalendarEditorOptions): CalendarEd
     setNotice,
     openCreate,
     openDetails,
+    openTarget,
     close,
     edit,
     requestDelete,
@@ -382,6 +406,7 @@ export function useCalendarEditor(options: UseCalendarEditorOptions): CalendarEd
       notice,
       openCreate,
       openDetails,
+      openTarget,
       close,
       edit,
       requestDelete,
@@ -395,6 +420,7 @@ export function useCalendarEditor(options: UseCalendarEditorOptions): CalendarEd
       notice,
       openCreate,
       openDetails,
+      openTarget,
       close,
       edit,
       requestDelete,

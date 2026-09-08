@@ -223,6 +223,14 @@ export const settingsPatchSchema = z
     notifyEventBeforeMinutes: leadMinutes.optional(),
     notifyTaskDue: z.boolean({ error: "Choose whether a due chore reminds." }).optional(),
     notifyTaskCompleted: z.boolean({ error: "Choose whether a finished chore is announced." }).optional(),
+
+    /* Countdowns (009 FR-903). Exactly the reference's three values, mirroring
+       039's CHECK for the same reason the reminder bounds mirror 034's. */
+    showCountdowns: z
+      .enum(["always", "three_months", "one_month"], {
+        error: "Show countdowns always, 3 months prior or 1 month prior.",
+      })
+      .optional(),
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), {
     error: "Nothing to update.",
@@ -372,6 +380,11 @@ const eventReminderSchema = z
     error: "Choose when it reminds, or choose no reminder.",
   });
 
+/** 009 FR-901 — one boolean, worded for the switch that sends it. */
+const countdownEnabledSchema = z.boolean({
+  error: "Choose whether this event is a countdown.",
+});
+
 const eventBaseFields = {
   summary: summarySchema,
   description: descriptionSchema.nullable().optional(),
@@ -382,6 +395,9 @@ const eventBaseFields = {
   // 008 FR-808. Optional on the way in: an event that says nothing about
   // reminders inherits the household's, which is `inherit` and the column default.
   reminder: eventReminderSchema.optional(),
+  // 009 FR-901. Optional on the way in for the same reason: an event that says
+  // nothing about countdowns is not one, which is the column's default.
+  countdownEnabled: countdownEnabledSchema.optional(),
 };
 
 /**
@@ -530,6 +546,7 @@ const eventPatchSchema = z
     repeat: repeatChoiceSchema.optional(),
     categoryIds: categoryIdsSchema.optional(),
     reminder: eventReminderSchema.optional(),
+    countdownEnabled: countdownEnabledSchema.optional(),
     allDay: z.boolean({ error: "Choose timed or all-day." }).optional(),
     startsAt: instantSchema.optional(),
     endsAt: instantSchema.optional(),

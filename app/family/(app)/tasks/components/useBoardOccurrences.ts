@@ -19,7 +19,6 @@ import {
   upForGrabsCountOf,
   type TaskCounters,
 } from "@/lib/family/tasks/counters";
-import { expandTaskDay } from "@/lib/family/tasks/expand";
 import { visibleTaskOccurrences } from "@/lib/family/tasks/visibility";
 import type {
   BoardOccurrence,
@@ -31,6 +30,7 @@ import type {
 } from "@/lib/family/types";
 
 import { useDeviceVisibility } from "../../components/useDeviceVisibility";
+import { useTaskDay } from "./useTaskDay";
 import { useTaskFilters } from "./useTaskFilters";
 
 /**
@@ -96,9 +96,9 @@ const PREFETCH_SETTLE_MS = 250;
 /** One week either side — the step a Previous/Next run crosses a boundary by. */
 const WEEK_DAYS = 7;
 
-const NO_OCCURRENCES: BoardOccurrence[] = [];
-const NO_RESOLUTIONS: TaskResolution[] = [];
-const NO_CURSORS: TaskCursor[] = [];
+// The empty-list constants for the occurrence chain moved to `useTaskDay`
+// with the memo that used them (009 R906); only the star week's is still read
+// here, by the counters memo below.
 const NO_ENTRIES: StarEntry[] = [];
 
 export interface UseBoardOccurrencesOptions {
@@ -214,25 +214,18 @@ export function useBoardOccurrences(
   const { tasks, week, carry, cursors, stars } = useBoardReads(options, weekStartDate, isToday);
   const entries = stars.data ?? NO_ENTRIES;
 
-  // The two resolution reads are disjoint by construction (R314), so this is a
-  // concatenation and never a merge: the carry tail ends the day before the
-  // week the other one covers begins.
-  const resolutions = useMemo(
-    () => [...(week.data ?? NO_RESOLUTIONS), ...(carry.data ?? NO_RESOLUTIONS)],
-    [week.data, carry.data],
-  );
-
-  const occurrences = useMemo(
-    () =>
-      tasks.data === undefined
-        ? NO_OCCURRENCES
-        : expandTaskDay(tasks.data, resolutions, cursors.data ?? NO_CURSORS, {
-            displayedDate,
-            todayDate,
-            zone,
-          }),
-    [tasks.data, resolutions, cursors.data, displayedDate, todayDate, zone],
-  );
+  // The concatenate-then-expand step is `useTaskDay`'s, shared with the
+  // calendar's Tasks Progress row (009 R906): two copies of it would be two
+  // places for the day's occurrence list to drift.
+  const occurrences = useTaskDay({
+    tasks: tasks.data,
+    week: week.data,
+    carry: carry.data,
+    cursors: cursors.data,
+    displayedDate,
+    todayDate,
+    zone,
+  });
 
   // FR-407's pill lives HERE, in the counters memo, and not in a layer of its
   // own: it is bound to the displayed day the same way the others are bound to

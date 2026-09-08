@@ -17,6 +17,14 @@ export type Density = "cozy" | "snug" | "roomy";
 /** 0 = Sunday, 1 = Monday. */
 export type WeekStart = 0 | 1;
 
+/**
+ * How early a countdown starts appearing (009 FR-903). Exactly the three
+ * values the reference documents [VERIFIED](40459070511515) — there is no
+ * "never", which is achieved by not marking an event as a countdown at all.
+ * What each means in days lives in `lib/family/countdowns/inforce.ts`.
+ */
+export type ShowCountdowns = "always" | "three_months" | "one_month";
+
 export interface Household {
   id: string;
   name: string;
@@ -89,6 +97,10 @@ export interface HouseholdSettings {
   /** An announcement of who finished what (FR-819). */
   notifyTaskCompleted: boolean;
 
+  /* --- Countdowns (Phase 8 — 009 FR-903). Household-wide, parent-only. --- */
+  /** How early a countdown reaches the calendar's preview bar. */
+  showCountdowns: ShowCountdowns;
+
   updatedAt: string;
 }
 
@@ -150,6 +162,7 @@ export interface HouseholdSettingsPatch {
   notifyEventBeforeMinutes?: number;
   notifyTaskDue?: boolean;
   notifyTaskCompleted?: boolean;
+  showCountdowns?: ShowCountdowns;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -322,6 +335,12 @@ export type EventInput = EventTimes & {
   categoryIds: string[];
   /** 008 FR-808; absent means `inherit`, which is the column's default. */
   reminder?: EventReminder;
+  /**
+   * 009 FR-901. Absent means `false`, which is the column's default. A property
+   * of the SERIES, not of one occurrence (009 R910) — `event_exceptions` has no
+   * countdown override and gains none.
+   */
+  countdownEnabled?: boolean;
 };
 
 /**
@@ -337,6 +356,8 @@ export type EventPatch = Partial<EventTimes> & {
   categoryIds?: string[];
   /** 008 FR-808/FR-810 — changed under the three scopes like any other field. */
   reminder?: EventReminder;
+  /** 009 FR-901 — series-wide, changed under the three scopes like the reminder. */
+  countdownEnabled?: boolean;
 };
 
 /** Input to `updateEvent` (contracts/server-actions.md). */

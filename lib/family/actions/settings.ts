@@ -49,6 +49,8 @@ const SETTINGS_FIELDS = {
   notifyEventBeforeMinutes: "notify_event_before_minutes",
   notifyTaskDue: "notify_task_due",
   notifyTaskCompleted: "notify_task_completed",
+  // 009 FR-903: how early a countdown reaches the calendar's preview bar.
+  showCountdowns: "show_countdowns",
 } as const satisfies Partial<Record<keyof HouseholdSettingsPatch, string>>;
 
 function settingsColumns(patch: HouseholdSettingsPatch): SettingsWrite {

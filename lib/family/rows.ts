@@ -32,6 +32,7 @@ import type {
   ResolutionStatus,
   Reward,
   Role,
+  ShowCountdowns,
   StarBalance,
   StarEntry,
   StarEntryKind,
@@ -88,6 +89,7 @@ export interface HouseholdSettingsRow {
   notify_event_before_minutes: number;
   notify_task_due: boolean;
   notify_task_completed: boolean;
+  show_countdowns: ShowCountdowns;
   updated_at: string;
 }
 
@@ -163,7 +165,8 @@ export const CATEGORY_COLUMNS =
 export const SETTINGS_COLUMNS =
   "household_id, show_name_not_date, time_format, start_week_on, punch_out_minutes, " +
   "text_size, density, timezone, notify_event_at_time, notify_event_before, " +
-  "notify_event_before_minutes, notify_task_due, notify_task_completed, updated_at";
+  "notify_event_before_minutes, notify_task_due, notify_task_completed, " +
+  "show_countdowns, updated_at";
 
 export const EVENT_COLUMNS =
   "id, household_id, summary, description, location, all_day, starts_at, ends_at, " +
@@ -247,6 +250,7 @@ export function toSettings(row: HouseholdSettingsRow): HouseholdSettings {
     notifyEventBeforeMinutes: row.notify_event_before_minutes,
     notifyTaskDue: row.notify_task_due,
     notifyTaskCompleted: row.notify_task_completed,
+    showCountdowns: row.show_countdowns,
     updatedAt: row.updated_at,
   };
 }
