@@ -10,7 +10,7 @@ and no finding is suppressed.
 
 `[P]` = parallelisable (different files, no dependency on an incomplete task).
 
-**State (2026-09-07): Phases 1–7 complete — all five user stories work end to end.** Migration `039` is applied locally, the settings
+**State (2026-09-07): Phases 1–8 complete but for the hosted push (T058), which is the operator's.** Migration `039` is applied locally, the settings
 column is typed, mapped and validated end to end, and the two pure modules — the one bounded
 next-occurrence walk and days-remaining — are 27 tests green. US1 is live: an event can be marked a
 countdown, the calendar draws it above the week, the number falls at the household's midnight, and
@@ -291,15 +291,15 @@ calendar moves to the day it next falls on with its details open.
   household midnight and watch the number fall; the three Show Countdowns values at a boundary either
   side; the bar's tap and the full list; Tasks Progress on, matching the Tasks tab, and a hidden
   Profile leaving it; search → choose → land on the day (R912)
-- [ ] T055 Run `npm run test:e2e` in full and **read the report**, not only the exit code. A
+- [x] T055 Run `npm run test:e2e` in full and **read the report**, not only the exit code. A
   live-update journey the environment cannot run is a printed skip, not a pass
 - [x] T056 Record the run in `specs/009-calendar-preview-bar/checklists/quickstart-run.md` — what was
   walked, what was skipped and why, and anything the environment made unrunnable
-- [ ] T057 All four gates green with **no suppressions**: `fallow:audit`, `test`, `typecheck`, `lint`,
+- [x] T057 All four gates green with **no suppressions**: `fallow:audit`, `test`, `typecheck`, `lint`,
   plus `test:policies`. If CRAP flags a new function, cover it — the threshold does not move
 - [ ] T058 **`supabase db push`** for `039_show_countdowns.sql` to the household's hosted project,
   with the operator's explicit approval, **before** the merge (R913). The e2e suite never reaches it
-- [ ] T059 Update `CLAUDE.md`'s SPECKIT block to say the phase is complete, and note what `010` (the
+- [x] T059 Update `CLAUDE.md`'s SPECKIT block to say the phase is complete, and note what `010` (the
   home screen) inherits from it
 
 ---

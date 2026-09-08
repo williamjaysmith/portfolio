@@ -96,9 +96,9 @@ const PREFETCH_SETTLE_MS = 250;
 /** One week either side — the step a Previous/Next run crosses a boundary by. */
 const WEEK_DAYS = 7;
 
-const NO_OCCURRENCES: BoardOccurrence[] = [];
-const NO_RESOLUTIONS: TaskResolution[] = [];
-const NO_CURSORS: TaskCursor[] = [];
+// The empty-list constants for the occurrence chain moved to `useTaskDay`
+// with the memo that used them (009 R906); only the star week's is still read
+// here, by the counters memo below.
 const NO_ENTRIES: StarEntry[] = [];
 
 export interface UseBoardOccurrencesOptions {

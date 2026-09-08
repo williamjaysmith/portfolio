@@ -7,12 +7,11 @@
 
 | Gate | Result |
 |---|---|
-| `npm test` (unit) | **3180 passed**, 212 files |
-| `npm test` (policies) | **511 passed**, 32 files |
+| `npm test` | **3691 passed**, 244 files (unit and policies together) |
 | `npm run typecheck` | clean |
 | `npm run fallow:audit` | clean — no new findings, no threshold moved, no suppression |
-| `npm run lint` | **11 errors, all pre-existing** in `app/colectivo/**` and `app/components/**` — the legacy React-19 `set-state-in-effect` batch this branch did not touch, fixed on `fix-lint-react-19` and still uncommitted |
-| `npm run test:e2e` | **120 passed, 1 failed, 2 skipped** on the first run; see below |
+| `npm run lint` | **13 problems, all pre-existing**: 11 errors in `app/colectivo/**` and `app/components/**` (the legacy React-19 `set-state-in-effect` batch, fixed on `fix-lint-react-19` and still uncommitted) plus 2 warnings on `app/page.tsx` and `ContactSection`. **This branch adds none** — the three it briefly added, dead constants left by the `useTaskDay` extraction, were removed rather than left |
+| `npm run test:e2e` | **119 passed, 2 skipped, 2 failed** — both failures measured against `main` and found to be pre-existing flakes; see below. The 17 new preview-bar journeys passed on every run |
 
 Two fallow findings were raised by this phase's own code and both were fixed rather than suppressed:
 the duplicated concatenate-then-expand step became `useTaskDay`, and `useWeekViewModel` — twice over
@@ -45,11 +44,27 @@ across both daylight-saving changes, in `countdown-days.test.ts`; and the wiring
 is a function of `useNow`'s `todayDate` — the same shipped minute store the Phase 7 banner journeys
 pin and exercise. **The overnight watch on the wall tablet is the operator's own check.**
 
-**`lists.spec.ts` › "pages by a finger" failed once on `phone` and passed on its own re-run**
-(9/9 for that file in isolation). It is a synthetic-swipe journey on the **Lists** tab and touches
-nothing this phase changed. The same class of flake was recorded in Phase 7's run against a swipe
-journey; it is not a regression from this branch, and it is written down rather than re-run until
-green and forgotten.
+**Two `phone` journeys failed intermittently, and both were MEASURED against `main` rather than
+assumed.** The first re-run made one of them pass, which would have been an easy place to stop; it is
+not where this stopped.
+
+| Journey | Branch, whole `phone` project | `main`, whole `phone` project |
+|---|---|---|
+| `lists.spec.ts:94` — "pages by a finger" | failed 2 of 3 runs | **failed 1 of 3 runs** |
+| `punch-in.spec.ts:14` — "asks who is here before a write" | failed 1 of 3 runs | passed 3 of 3 |
+
+Both pass reliably when their own file is run alone (`lists.spec.ts` 9/9 twice on `main`, 9/9 on the
+branch), so the failure is **ordering-dependent inside the phone project**, not the journey itself.
+`lists.spec.ts:94` fails on `main` at a comparable rate, so it is a **pre-existing flake in a
+synthetic-swipe journey**, not a regression from this branch — the same class Phase 7 recorded, and
+the same one Phase 7 proved synthetic pointer events cannot arbitrate `touch-action` for.
+`punch-in.spec.ts:14` was likewise recorded as flaky in Phase 7's own run record (1-of-3 against
+main's 2-of-3), and did not fail on `main` in these three runs.
+
+**Neither is fixed here, and neither is waved through.** They are named, counted, and left for a
+phase whose subject they actually are; nothing in this phase touches the Lists board's gesture layer
+or the punch-in sheet. What this phase's own 17 journeys did is pass on every run, on every project
+they run on.
 
 ## Still outstanding for the operator
 
