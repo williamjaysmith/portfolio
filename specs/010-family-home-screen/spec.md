@@ -2,7 +2,7 @@
 
 **Feature Branch**: `010-family-home-screen`
 **Created**: 2026-09-08
-**Status**: Draft
+**Status**: **SHELVED 2026-09-08 — specified, not built, and deliberately so.**
 **Input**: Phase 9 of the `/family` Skylight Calendar clone — the screen the reference opens on, and
 the one this project has never had. An **overview** of the calendar, the day's tasks and the
 household's lists, in one place: enough to see the shape of the day without choosing a tab, and
@@ -26,6 +26,30 @@ The shipped specs bind: Phase 1 **FR-028** (one nav definition, two presentation
 (a write that cannot complete is refused where the tap happened, never queued); Phase 3's
 `lib/family/tasks/counters.ts`, whose own header already names this screen as an intended reader;
 and Phase 8's `useTaskDay`, extracted so that a second surface could share the board's expansion.
+
+## Why this is shelved
+
+The operator's call, on 2026-09-08, immediately after this specification was written, and it is the
+right one: **the Calendar tab already is a fine home screen.**
+
+Phase 8 is why. The preview bar it shipped put the countdowns and each Profile's completed-of-total
+above the week, so the calendar already answers most of what an overview is for — what is on today,
+what is coming, and how the chores are going. Measured against that, this phase's genuine additions
+narrow to three: chores that can be **ticked** rather than merely counted, the **lists** at a glance,
+and one Add button. That is a smaller gap than the phase costs — a new screen, three panes, a
+navigation change, and the reversal of a shipped landing-screen decision that would change what the
+wall tablet opens on.
+
+**Nothing here is wrong, and nothing here is wasted.** The research stands: the article ids resolve,
+the audit that rejected 23 over-claims is recorded in `checklists/requirements.md`, and the four
+"home screen" traps are written down so nobody re-adopts one. If the household later finds that the
+grocery list at a glance is the thing it actually misses, that is a small addition to the calendar —
+not this phase.
+
+The one finding worth carrying forward regardless of whether this is ever built: **the master map's
+claim that the app opens on the Calendar tab is unsourced** (it carries no article id in 611 lines)
+and is contradicted by article `49738702477723`. Phase 1's FR-030 happens to match what the operator
+wants, so nothing changes — but it matches by preference, not by evidence.
 
 ## Clarifications
 
