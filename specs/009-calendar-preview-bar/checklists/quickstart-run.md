@@ -68,8 +68,8 @@ they run on.
 
 ## Still outstanding for the operator
 
-1. **`supabase db push`** for `039_show_countdowns.sql` to the hosted project — before the merge,
-   with explicit approval (R913). The e2e suite must never reach it.
+1. ~~**`supabase db push`** for `039_show_countdowns.sql`~~ — **done 2026-09-07**, applied to
+   `zgmltllcyqylgtazunai` before the merge (R913). Local and remote migration histories match.
 2. The **phone by hand**: the bar with three countdowns and three Profiles on a real iPhone. The
    automated phone-width journey asserts the document does not scroll sideways at 320px, which is a
    floor, not the whole check.
