@@ -128,6 +128,9 @@ export function seedOf({ occurrence, event }: EditTarget, zone: string): EventFo
     // otherwise the series'. The form must show what this occurrence will
     // actually do, which is what the diff below is then judged against.
     reminder: occurrenceReminder(event, occurrence.occurrenceDate),
+    // 009 FR-901: the SERIES' flag, because a countdown has no per-occurrence
+    // form (009 R910) — there is no exception column for it and none is added.
+    countdownEnabled: event.countdownEnabled,
   };
 }
 
@@ -192,6 +195,8 @@ export function patchOf(input: EventInput, { occurrence, event }: EditTarget, zo
   if (!sameReminder(reminder, occurrenceReminder(event, occurrence.occurrenceDate))) {
     patch.reminder = reminder;
   }
+  const countdownEnabled = input.countdownEnabled ?? false;
+  if (countdownEnabled !== event.countdownEnabled) patch.countdownEnabled = countdownEnabled;
   return patch;
 }
 
@@ -212,7 +217,14 @@ export function isEmptyPatch(patch: EventPatch): boolean {
  * question must not offer "This event".
  */
 export function touchesSeriesFields(patch: EventPatch): boolean {
-  return patch.categoryIds !== undefined || patch.repeat !== undefined;
+  // 009 FR-901 joins them: a countdown is a property of the series and has no
+  // per-occurrence form (009 R910), so offering "This event" would promise a
+  // scope the storage cannot express.
+  return (
+    patch.categoryIds !== undefined ||
+    patch.repeat !== undefined ||
+    patch.countdownEnabled !== undefined
+  );
 }
 
 /** `patchTimesOf` always writes `allDay` beside its pair, so the flag alone says whether times changed. */

@@ -26,6 +26,17 @@ events" on the calendar, not in the shell. Moving it up would put task counters 
 **Rejected**: two rows, one per feature. The reference is explicit that countdowns appear "alongside
 Tasks Progress" in one preview bar, and two rows would each cost the band its height separately.
 
+**The bar brings its own read, and this corrects a first draft.** The plan first said the bar needs
+no fetch because "the events are already in the view's cache". They are not: the calendar's read is
+one window of three to seven days, and the whole point of a countdown is that its day is far off —
+exactly the day no displayed window contains. So the bar reads
+`fetchCountdownEvents(supabase, householdId)`: every event with `countdown_enabled` true, keyed by
+the household alone, unwindowed. That set is small by construction, it does not refetch when the week
+is paged, and it is the same shape 008 R802 gave the reminder banner for the same reason.
+
+**Rejected**: widening the week's read to the countdown horizon. It would pull three months of events
+onto every calendar paint to find the two the household marked.
+
 ---
 
 ## R902 — Days remaining is date subtraction, and the midnight roll is already solved

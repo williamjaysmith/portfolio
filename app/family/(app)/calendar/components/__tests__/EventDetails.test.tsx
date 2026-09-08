@@ -10,10 +10,14 @@ import { EventDetails, type EventDetailsProps } from "../EventDetails";
 /**
  * T047 — the details surface of FR-256/257: true times whatever the block's
  * drawn height (FR-218), the repeat in words, Profiles and Labels by name and
- * colour in draw order, location and notes only when present, and the
- * reference rows this build deliberately lacks (invitees FR-229, reminders
- * FR-230, countdown FR-228) nowhere at all. Every intent leaves through a
- * callback — the component imports no action.
+ * colour in draw order, location and notes only when present, and the one
+ * reference row this build deliberately lacks — invitees (FR-229), PERMANENTLY,
+ * because this app sends no mail. Every intent leaves through a callback: the
+ * component imports no action.
+ *
+ * The reminder row joined in Phase 7 (008 FR-811) and the countdown line in
+ * Phase 8 (009 FR-906, T017), so what was once one "none of these three exist"
+ * assertion is now the invitee half alone plus two positive tests.
  */
 
 const ZONE = "America/Chicago";
@@ -50,6 +54,7 @@ function renderDetails(overrides: Partial<EventDetailsProps> = {}) {
       zone={ZONE}
       timeFormat="12h"
       reminder={{ atTime: false, beforeMinutes: 10 }}
+      countdown={null}
       onEdit={onEdit}
       onDelete={onDelete}
       onClose={onClose}
@@ -224,18 +229,74 @@ describe("EventDetails", () => {
     expect(screen.queryByText("Notes")).not.toBeInTheDocument();
   });
 
-  it("has no invitee or countdown row anywhere (FR-229/230/228)", () => {
-    // The reminder row joined this dialog in Phase 7 (008 FR-811); invitees and
-    // countdowns remain excluded, invitees permanently — this app sends no mail.
+  it("has no invitee row anywhere, permanently (FR-229)", () => {
+    // 009 T017/R915: this assertion USED to cover countdowns too. That half is
+    // now its opposite, below — a countdown line is exactly what FR-906 adds.
+    // The invitee half is untouched and must stay: this app sends no mail, and
+    // that is not a deferral waiting to be discharged like FR-228 was.
     renderDetails({
       occurrence: makeOccurrence({ location: "Rec centre", description: "Notes text" }),
       repeat: { kind: "daily" },
       categories: [makeCategory()],
     });
 
-    const text = screen.getByRole("dialog").textContent ?? "";
-    expect(text).not.toMatch(/invit/i);
-    expect(text).not.toMatch(/countdown/i);
+    expect(screen.getByRole("dialog").textContent ?? "").not.toMatch(/invit/i);
+  });
+
+  describe("the countdown line (009 FR-906)", () => {
+    it("says nothing at all for an event that is not a countdown", () => {
+      renderDetails({ countdown: null });
+      expect(screen.getByRole("dialog").textContent ?? "").not.toMatch(/countdown/i);
+    });
+
+    it("names the days remaining directly under the title", () => {
+      renderDetails({
+        countdown: {
+          eventId: "event-1",
+          summary: "Grocery Run",
+          targetDate: "2026-09-20",
+          days: 13,
+          state: "upcoming",
+        },
+      });
+
+      const line = screen.getByText("Countdown · 13 days");
+      expect(line).toBeInTheDocument();
+      // "Directly under the title" is the reference's own placement
+      // [VERIFIED](40459070511515), so the order is asserted, not just presence.
+      const heading = screen.getByRole("heading", { name: "Grocery Run" });
+      expect(heading.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("says Today on the day itself rather than a zero (Assumption 5)", () => {
+      renderDetails({
+        countdown: {
+          eventId: "event-1",
+          summary: "Grocery Run",
+          targetDate: "2026-09-04",
+          days: 0,
+          state: "today",
+        },
+      });
+      expect(screen.getByText("Countdown · Today")).toBeInTheDocument();
+    });
+
+    it("carries no automatic emoji (009 R914, divergence 4)", () => {
+      renderDetails({
+        countdown: {
+          eventId: "event-1",
+          summary: "Grocery Run",
+          targetDate: "2026-09-20",
+          days: 13,
+          state: "upcoming",
+        },
+      });
+      // The reference "may add a relevant emoji automatically". This project
+      // declines: choosing one from a title needs either an invented mapping to
+      // maintain or a model call, and §VII forbids the second.
+      const text = screen.getByRole("dialog").textContent ?? "";
+      expect(text).not.toMatch(/\p{Extended_Pictographic}/u);
+    });
   });
 
   it("names the reminder this occurrence will actually give (008 FR-811)", () => {

@@ -18,7 +18,10 @@ import { DEFAULT_COLUMN_COUNT, type GridMetrics } from "@/lib/family/week-geomet
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily } from "../../components/FamilyProvider";
 import { AllDayBand } from "./AllDayBand";
+import { CountdownChips } from "./CountdownChips";
 import { MealRow } from "./MealRow";
+import { PreviewBar } from "./PreviewBar";
+import { useCalendarPreview } from "./useCalendarPreview";
 import { useCalendarMeals } from "./useCalendarMeals";
 import { slotSeedOf } from "./event-drafts";
 import { EventEditor } from "./EventEditor";
@@ -341,6 +344,13 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     initialData: seedFor(anchor.anchorDate, columnCount, initialAnchorDate, initialEvents),
   });
 
+  const preview = useCalendarPreview({
+    householdId,
+    todayDate: anchor.todayDate,
+    zone,
+    showCountdowns: settings.showCountdowns,
+  });
+
   const editor = useCalendarEditor({ householdId, window: week.window, zone });
   const meals = useCalendarMeals({
     householdId,
@@ -396,6 +406,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     week,
     editor,
     meals,
+    preview,
     createFromSlot: useCreateDoors(editor.openCreate, zone),
     columnCount,
     page,
@@ -454,6 +465,18 @@ export function WeekView(props: WeekViewProps) {
               categoriesById={m.meals.categoriesById}
               recipeNames={m.meals.surfaces.recipeNames}
               onOpen={m.meals.surfaces.editor.openPopover}
+            />
+            {/* 009 FR-907: the preview bar, under the band and outside the
+                drag layer — MealRow's own three properties (R901). */}
+            <PreviewBar
+              countdowns={
+                m.preview.countdowns.length === 0 ? undefined : (
+                  <CountdownChips
+                    shown={m.preview.countdowns}
+                    total={m.preview.countdowns.length}
+                  />
+                )
+              }
             />
           </DayHeaderBand>
 

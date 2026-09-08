@@ -91,8 +91,10 @@ by one at the household's midnight, and see it go when the day arrives.
    number has fallen by one, with no reload.
 4. **Given** a countdown whose day has arrived, **When** the calendar is looked at, **Then** it reads
    as today rather than as a negative number, and it leaves the bar once the day is past.
-5. **Given** a member is punched in, **When** they open the event form, **Then** they may read the
-   countdown setting and not change it.
+5. **Given** a member is punched in, **When** they open the event form, **Then** they may mark a
+   countdown like any other field — the punch-in is the gate, not the parent role, which is how
+   every other event field already behaves `[P2]`. What only a parent may change is the household's
+   **Show Countdowns** setting (US3-4), which is a different control on a different screen.
 
 ---
 
@@ -213,6 +215,9 @@ last shipped tab without one.
 
 - **FR-901**: An event MUST be markable as a countdown from its own form, and the mark MUST be kept
   `[V](40459070511515)`. The column exists already and nothing has ever written it `[P2]` FR-228.
+  The gate is the punch-in, as it is for every other event field — **not** the parent role, which
+  governs the household setting alone (FR-903). The mark belongs to the **series**: it has no
+  per-occurrence form, so a change to it MUST NOT offer the "This event" scope `[P2]` FR-287.
 - **FR-902**: The calendar MUST show, for each visible countdown, how many days away it is
   `[V](40459070511515)`. The literal wording is `[UNKNOWN]` in every fetched source and is
   `[OURS 2026-09-07 #3]`.

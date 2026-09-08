@@ -334,6 +334,16 @@ function reminderColumns(reminder: EventReminder | null | undefined): EventWrite
   };
 }
 
+/**
+ * 009 FR-901 — the countdown flag, absent-means-unchanged like every other
+ * patch field. A property of the SERIES (009 R910): `event_exceptions` carries
+ * no countdown override and gains none, so this never appears in an exception
+ * row's columns.
+ */
+function countdownColumns(countdownEnabled: boolean | undefined): EventWrite {
+  return countdownEnabled === undefined ? {} : { countdown_enabled: countdownEnabled };
+}
+
 function textColumns(patch: Patch): EventWrite {
   const columns: EventWrite = {};
   for (const field of TEXT_FIELDS) {
@@ -493,6 +503,7 @@ async function updateSegment(
     .update({
       ...textColumns(patch),
       ...reminderColumns(patch.reminder),
+      ...countdownColumns(patch.countdownEnabled),
       ...(newTimes === null ? {} : timeColumns(newTimes)),
       rrule,
       updated_by: actor.profileId,
@@ -546,7 +557,9 @@ async function splitSeries(
       ...timeColumns(tailTimes),
       timezone: event.timezone,
       rrule: tailRule,
-      countdown_enabled: event.countdownEnabled,
+      // The tail carries the countdown the way it carries the summary: the
+      // patch's if the edit changed it, otherwise the head's (009 R910).
+      countdown_enabled: pick(patch.countdownEnabled, event.countdownEnabled),
       // The tail carries the reminder the same way it carries the summary: the
       // patch's if the edit changed it, otherwise the head's. Without this the
       // split silently reset it to `inherit` — 015's column list predates 035,
@@ -697,7 +710,9 @@ export async function createEvent(input: EventInput): Promise<ActionResult<Event
         timezone: parsed.timezone,
         rrule: ruleFromChoice(parsed.repeat, parsed, household),
         ...reminderColumns(parsed.reminder ?? { mode: "inherit" }),
-        // `countdown_enabled` stays at its default (FR-228).
+        // 009 FR-901: written from the form's switch. An event that says
+        // nothing about countdowns is not one, which is the column's default.
+        countdown_enabled: parsed.countdownEnabled ?? false,
         created_by: actor.profileId,
         updated_by: actor.profileId,
       })

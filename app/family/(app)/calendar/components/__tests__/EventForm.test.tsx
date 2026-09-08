@@ -122,6 +122,31 @@ describe("EventForm", () => {
     expect(screen.queryByLabelText(/photo|voice/i)).toBeNull();
   });
 
+  describe("the Countdown switch (009 FR-901)", () => {
+    it("is present, and off for a new event", () => {
+      renderForm();
+      const countdown = screen.getByRole("switch", { name: "Countdown" });
+      expect(countdown).toBeInTheDocument();
+      expect(countdown).not.toBeChecked();
+    });
+
+    it("carries the flag through to the submission when it is turned on", async () => {
+      const { onSubmit } = renderForm();
+
+      fillTitle("Vacation");
+      fireEvent.click(screen.getByRole("switch", { name: "Countdown" }));
+      clickSave();
+
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+      expect(submitted(onSubmit)).toMatchObject({ countdownEnabled: true });
+    });
+
+    it("shows an edited event's existing flag, so the form says what is stored", () => {
+      renderForm({ mode: "edit", seed: { summary: "Vacation", countdownEnabled: true } });
+      expect(screen.getByRole("switch", { name: "Countdown" })).toBeChecked();
+    });
+  });
+
   describe("the all-day switch (US2-3)", () => {
     it("starts timed, with a time and a date for each edge", () => {
       renderForm();
@@ -188,6 +213,9 @@ describe("EventForm", () => {
       // 008 FR-808: every submission carries a reminder, and an event nobody
       // thinks about inherits the household's.
       reminder: { mode: "inherit" },
+      // 009 FR-901: and it carries a countdown flag, off — an event nobody
+      // thinks about is not something the household is counting down to.
+      countdownEnabled: false,
         description: null,
         location: null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,

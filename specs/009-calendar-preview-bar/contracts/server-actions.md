@@ -40,7 +40,7 @@ countdownEnabled?: boolean;   // absent === false on create, unchanged on update
 |---|---|
 | Actor | the shipped gate — a punched-in member or parent may write an event, unchanged by this phase |
 | Default on create | `false`. `createEvent`'s current comment *"`countdown_enabled` stays at its default (FR-228)"* is replaced by the column, not by another comment |
-| Scope on update | the shipped three-way prompt. **The flag is a property of the series** (R910), so a "this event only" edit of a repeat writes the flag to the tail the split produces, exactly as the per-event reminder does; `splitSeries` already passes `event.countdownEnabled` and needs no change |
+| Scope on update | the shipped prompt, with **"This event" withheld**. The flag is a property of the series and has no per-occurrence form (R910) — `event_exceptions` carries no countdown column and gains none — so `touchesSeriesFields` returns true for it, exactly as it does for Profiles and the repeat (`[P2]` FR-287). Offering "This event" would promise a scope the storage cannot express. `splitSeries` carries `pick(patch.countdownEnabled, event.countdownEnabled)` onto the tail, the shape 038 gave the reminder |
 | Result | `ActionResult<Event>`, unchanged |
 | Failure | unchanged, including FR-288's refusal |
 

@@ -73,6 +73,12 @@ export interface EventDraft {
    * a new event carries, so an event nobody thinks about follows the household.
    */
   reminder: EventReminder;
+  /**
+   * 009 FR-901. Off by default: an event nobody thinks about is not something
+   * the household is counting down to. A property of the SERIES, so an edit
+   * under any scope changes it for the whole thing (009 R910).
+   */
+  countdownEnabled: boolean;
 }
 
 /** Prefill — a tapped slot's times (T050), or the occurrence being edited (T047). */
@@ -100,6 +106,7 @@ function blankDraft(): EventDraft {
     repeatKind: "never",
     weekdays: [],
     reminder: { mode: "inherit" },
+    countdownEnabled: false,
     until: "",
     categoryIds: [],
     location: "",
@@ -187,6 +194,7 @@ function draftToEventInput(draft: EventDraft, orderedCategoryIds: string[]): Eve
     repeat: repeatOf(draft),
     categoryIds: orderedCategoryIds,
     reminder: draft.reminder,
+    countdownEnabled: draft.countdownEnabled,
   };
 }
 

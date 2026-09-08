@@ -10,11 +10,26 @@ and no finding is suppressed.
 
 `[P]` = parallelisable (different files, no dependency on an incomplete task).
 
-**State (2026-09-07): Phases 1 and 2 complete.** Migration `039` is applied locally, the settings
+**State (2026-09-07): Phases 1–3 complete — US1 works end to end.** Migration `039` is applied locally, the settings
 column is typed, mapped and validated end to end, and the two pure modules — the one bounded
-next-occurrence walk and days-remaining — are 27 tests green. The four gates pass; the 11 lint errors
-in `app/colectivo/**` and `app/components/**` are the pre-existing legacy ones this branch did not
-touch. Phases 3–8 are not started.
+next-occurrence walk and days-remaining — are 27 tests green. US1 is live: an event can be marked a
+countdown, the calendar draws it above the week, the number falls at the household's midnight, and
+the event's own details carry the status under its title.
+
+Two plan corrections were made while building and are recorded where they belong rather than fixed
+quietly. **The bar brings its own read** — the plan said it needed none because "the events are
+already in the view's cache", but the calendar's window is three to seven days and a countdown's
+whole point is that its day is further off; `useCountdownEvents` is household-keyed and unwindowed
+(research R901). And **a countdown withholds the "This event" scope** — it is a series property with
+no per-occurrence storage, so `touchesSeriesFields` returns true for it exactly as it does for
+Profiles and the repeat (contracts §2).
+
+Two modules the plan did not name were added and are in the tree now: `countdowns/wording.ts`, so
+the chip, the list and the details cannot word the same number differently, and `countdowns/target.ts`
+composing the walk with the arithmetic.
+
+The four gates pass; the 11 lint errors in `app/colectivo/**` and `app/components/**` are the
+pre-existing legacy ones this branch did not touch. Phases 4–8 are not started.
 
 **What makes this phase small**: `events.countdown_enabled` has been in the schema since
 `010_events.sql` and is already carried across a series split; `lib/family/tasks/counters.ts` already
@@ -87,50 +102,50 @@ a pinned clock, and see it leave the bar once its day is past.
 
 ### The write path
 
-- [ ] T011 Extend `lib/family/actions/events.ts` — `createEvent` writes `countdown_enabled` from the
+- [x] T011 Extend `lib/family/actions/events.ts` — `createEvent` writes `countdown_enabled` from the
   validated input, replacing the `// countdown_enabled stays at its default (FR-228)` comment;
   `updateEvent` includes it in its patch. `splitSeries` already passes `event.countdownEnabled` and
   is not touched (contracts §2, R910)
-- [ ] T012 [P] Test `lib/family/__tests__/policies/countdown-write.test.ts` — a punched-in member may
+- [x] T012 [P] Test `lib/family/__tests__/policies/countdown-write.test.ts` — a punched-in member may
   set the flag; the flag survives a "this and future" split onto the tail; an anonymous writer is
   refused `42501` (SC-911)
 
 ### The form and the details
 
-- [ ] T013 [P] Extend `app/family/(app)/calendar/components/useEventForm.ts` — `countdownEnabled` in
+- [x] T013 [P] Extend `app/family/(app)/calendar/components/useEventForm.ts` — `countdownEnabled` in
   the draft, seeded from the event on edit and `false` on create
-- [ ] T014 Extend `app/family/(app)/calendar/components/EventForm.tsx` — a **Countdown** switch row in
+- [x] T014 Extend `app/family/(app)/calendar/components/EventForm.tsx` — a **Countdown** switch row in
   the shipped `SWITCH_ROW` idiom, disabled for a punched-in member with the reason visible rather
   than the control hidden (FR-901, US1-5)
-- [ ] T015 [P] Test `app/family/(app)/calendar/components/__tests__/EventForm.test.tsx` — the switch
+- [x] T015 [P] Test `app/family/(app)/calendar/components/__tests__/EventForm.test.tsx` — the switch
   round-trips through the draft, and a member sees it disabled
-- [ ] T016 Extend `app/family/(app)/calendar/components/EventDetails.tsx` — the countdown status as a
+- [x] T016 Extend `app/family/(app)/calendar/components/EventDetails.tsx` — the countdown status as a
   line **directly under the `<h2>` title**, above the first `DetailRow` (FR-906). A non-countdown
   event shows nothing there
-- [ ] T017 Fix `app/family/(app)/calendar/components/__tests__/EventDetails.test.tsx` — R915: split
+- [x] T017 Fix `app/family/(app)/calendar/components/__tests__/EventDetails.test.tsx` — R915: split
   the shipped *"has no invitee or countdown row anywhere"* assertion in two. The **invitee half stays
   exactly as it is** (this app sends no mail, permanently); the countdown half is replaced by its
   opposite. Do not weaken the invitee assertion while you are in the file
 
 ### The bar's first form
 
-- [ ] T018 [P] Test `lib/family/__tests__/unit/countdown-inforce.test.ts` — with `always`, every
+- [x] T018 [P] Test `lib/family/__tests__/unit/countdown-inforce.test.ts` — with `always`, every
   upcoming countdown; with `three_months`, 92 days in and 93 out; with `one_month`, 31 in and 32 out;
   a past countdown out under all three; a non-countdown event never in (FR-903, SC-904)
-- [ ] T019 Implement `lib/family/countdowns/inforce.ts` — `countdownsInForce(events, todayDate, zone,
+- [x] T019 Implement `lib/family/countdowns/inforce.ts` — `countdownsInForce(events, todayDate, zone,
   showCountdowns)` composing `nextOccurrenceOn`, `daysUntil` and the three windows, returning the
   data-model's derived countdown sorted soonest-first
-- [ ] T020 Create `app/family/(app)/calendar/components/useCalendarPreview.ts` — the bar's one data
+- [x] T020 Create `app/family/(app)/calendar/components/useCalendarPreview.ts` — the bar's one data
   path: the week's events, the household's setting and `useNow`'s `todayDate` in, the in-force
   countdowns out. No fetch of its own — the events are already in the view's cache
-- [ ] T021 Create `app/family/(app)/calendar/components/CountdownChips.tsx` — the chips, in
+- [x] T021 Create `app/family/(app)/calendar/components/CountdownChips.tsx` — the chips, in
   Assumption 3's wording, at the FR-263 touch floor
-- [ ] T022 Create `app/family/(app)/calendar/components/PreviewBar.tsx` — `MealRow`'s three
+- [x] T022 Create `app/family/(app)/calendar/components/PreviewBar.tsx` — `MealRow`'s three
   properties: one row on the day headers' template, **outside the drag layer**, returning `null` when
   it has nothing (R901, FR-910)
-- [ ] T023 Mount `PreviewBar` in `app/family/(app)/calendar/components/WeekView.tsx`, inside
+- [x] T023 Mount `PreviewBar` in `app/family/(app)/calendar/components/WeekView.tsx`, inside
   `DayHeaderBand` beside `MealRow`
-- [ ] T024 [P] Test `app/family/(app)/calendar/components/__tests__/PreviewBar.test.tsx` — a
+- [x] T024 [P] Test `app/family/(app)/calendar/components/__tests__/PreviewBar.test.tsx` — a
   countdown draws; none draws no row at all and no wrapper element (SC-906)
 
 **Checkpoint**: US1 works end to end and is independently demonstrable. Gates green.

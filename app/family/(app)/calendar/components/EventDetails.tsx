@@ -16,6 +16,9 @@ import type {
 import { useModalDialog } from "../../components/useModalDialog";
 import { leadPhrase } from "@/lib/family/notifications/message";
 
+import { countdownPhrase, countdownDetailLabel } from "@/lib/family/countdowns/wording";
+import type { CountdownStatus } from "@/lib/family/countdowns/target";
+
 import { DetailRow } from "../../components/DetailRow";
 
 /**
@@ -178,6 +181,13 @@ export interface EventDetailsProps {
   timeFormat: TimeFormat;
   /** The reminder this occurrence will actually give (008 FR-811). */
   reminder: ReminderInForce;
+  /**
+   * 009 FR-906: this event's countdown, or `null` when it is not one. Computed
+   * by the caller, which is the only place that holds both the event and the
+   * household's today — this component renders a value, it does not read a
+   * clock.
+   */
+  countdown: CountdownStatus | null;
   /** FR-257: editing is reached from here only. */
   onEdit: () => void;
   /** Continues into the parent's delete flow — confirmation is FR-258's job there. */
@@ -192,6 +202,7 @@ export function EventDetails({
   zone,
   timeFormat,
   reminder,
+  countdown,
   onEdit,
   onDelete,
   onClose,
@@ -219,6 +230,15 @@ export function EventDetails({
       >
         {occurrence.summary}
       </h2>
+
+      {/* 009 FR-906: the countdown status sits DIRECTLY under the title, which
+          is where the reference puts it [VERIFIED](40459070511515). No emoji:
+          the reference's automatic one is declined (009 R914, divergence 4). */}
+      {countdown === null ? null : (
+        <p className="mt-1 text-(length:--fam-fs-body) text-(--fam-text-secondary)">
+          {countdownDetailLabel(countdownPhrase(countdown.state, countdown.days))}
+        </p>
+      )}
 
       <p className="mt-2 text-(length:--fam-fs-body) text-(--fam-text-secondary) tabular-nums">
         {whenInWords(occurrence.times, zone, timeFormat)}

@@ -4,6 +4,10 @@ import { repeatChoiceOf } from "@/lib/family/calendar/expand";
 import { occurrenceReminder, reminderInForce } from "@/lib/family/notifications/resolve";
 import { notificationSettingsOf } from "@/lib/family/notifications/settings";
 
+import { localDateOf } from "@/lib/family/calendar/dates";
+import { countdownStatusOf } from "@/lib/family/countdowns/target";
+
+import { useNow } from "../../components/Clock";
 import { useFamily } from "../../components/FamilyProvider";
 import { DeleteConfirm } from "./DeleteConfirm";
 import { seedOf } from "./event-drafts";
@@ -45,6 +49,11 @@ function FormSlot({ editor, zone }: { editor: CalendarEditor; zone: string }) {
 
 function DetailsSlot({ editor, zone }: { editor: CalendarEditor; zone: string }) {
   const { categories, settings } = useFamily();
+  // 009 FR-904: the household's today, from the shell's shipped minute store —
+  // null while hydrating, which simply means no countdown line on the first
+  // paint rather than a number computed against the epoch.
+  const now = useNow();
+  const todayDate = now === null ? null : localDateOf(zone, now.getTime());
   const { surface } = editor;
   if (surface.kind !== "details" && surface.kind !== "delete") return null;
   const { occurrence, event } = surface.target;
@@ -59,6 +68,7 @@ function DetailsSlot({ editor, zone }: { editor: CalendarEditor; zone: string })
         notificationSettingsOf(settings),
         occurrenceReminder(event, occurrence.occurrenceDate),
       )}
+      countdown={todayDate === null ? null : countdownStatusOf(event, todayDate, zone)}
       onEdit={editor.edit}
       onDelete={editor.requestDelete}
       onClose={editor.close}

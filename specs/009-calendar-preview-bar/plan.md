@@ -97,8 +97,9 @@ lib/family/
 ├── types.ts                                    +showCountdowns, +countdownEnabled on the inputs
 ├── rows.ts                                     +show_countdowns mapping
 ├── validation.ts                               +the enum, +the boolean
-├── queries.ts                                  +fetchEventSearch / useEventSearch (R908)
-└── actions/events.ts                           createEvent writes the flag; updateEvent patches it
+├── queries.ts                                  +useCountdownEvents (R901), +useEventSearch (R908)
+├── actions/events.ts                           createEvent writes the flag; updateEvent patches it
+└── countdowns/wording.ts                       NEW — what a countdown SAYS, in one place
 
 app/family/(app)/
 ├── calendar/components/
