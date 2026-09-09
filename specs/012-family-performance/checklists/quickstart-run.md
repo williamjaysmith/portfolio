@@ -133,13 +133,29 @@ Recorded because they cost time, and the next reader should spend it elsewhere.
 
 ## The browser pass
 
-**136 passed, 7 failed, 9.2 minutes** (2026-09-09).
+**140 passed, 3 failed, 9.4 minutes** — the run after the realtime fix, and the authoritative one.
 
-Read that against `011`'s record, which set the criterion in advance: *"run `npm run test:e2e` once on
-a quiet machine. Green means merge. If the same journeys fail **and** the run takes about seven
-minutes, the cause is the branch."* This run took **9.2 minutes against the previous 17.4**, and the
-failing set fell from 10 to 7. The machine is no longer the dominant variable, so the failures can
-finally be read as failures.
+The run before it, which found the defect: **136 passed, 7 failed, 9.2 minutes**. Four of those seven
+cleared without a line of code being written for them — `calendar.spec:91`, `tasks.spec:69` and both
+`lists.spec:94` — which is the instability this suite has shown since `011` and the reason a single
+run has never been enough to conclude anything. One, `live.spec:21`, was fixed outright.
+
+| Still failing | Verdict |
+|---|---|
+| `[wall] live.spec:72` | the meal-delete leg. Investigated at length below; **open and unexplained** |
+| `[phone] meals.spec:62` | known open: the shared `household` fixture cannot find today's column on a narrow grid |
+| `[phone] punch-in.spec:14` | **passes 6/6 when its file runs alone.** Interference class, not a regression — it did not fail in the previous run at all |
+
+So of 140 journeys, one is a known harness limitation, one is the documented interference class, and
+one is a real open question about a five-second promise.
+
+### The earlier run's seven, for the record
+
+`011`'s record set the criterion in advance: *"run `npm run test:e2e` once on a quiet machine. Green
+means merge. If the same journeys fail **and** the run takes about seven minutes, the cause is the
+branch."* Both runs here took about nine minutes against the previous **17.4**, so the machine is no
+longer the dominant variable and the failures could finally be read as failures — which is what found
+the realtime defect.
 
 Targeted runs on the same code:
 
@@ -148,7 +164,9 @@ Targeted runs on the same code:
 | `calendar-views` + `preview-bar`, `--project=phone` | **7/7 passed** |
 | `calendar-views` + `preview-bar` + `calendar`, `--project=wall` | **44/44 passed** |
 | `calendar.spec.ts` alone, `--project=wall` | **13/13 passed** |
-| `live.spec.ts` alone, `--project=wall` | **5 passed, 2 failed** |
+| `live.spec.ts` alone, `--project=wall`, before the fix | 5 passed, **2 failed** |
+| `live.spec.ts` alone, `--project=wall`, after the fix | 6 passed, **1 failed** (`:21` fixed) |
+| `punch-in.spec.ts` alone, `--project=phone` | **6/6 passed** |
 
 ### The seven, sorted by what they mean
 
@@ -170,11 +188,75 @@ the pattern `011` documented for every one of its failures.
 two-browser journeys — **fail even when run alone**. They are reproducible, and they are not caused by
 this branch: until now they **skipped**, so they have never once passed.
 
-## The live-update finding
+## The live-update finding — root cause found, and fixed
 
-This is the most significant thing the run produced, and it is unresolved. **It is not a performance
-finding and nothing in this phase caused it**; it is recorded here because this is the run that
-surfaced it.
+**The most significant thing this phase produced, and it is not a performance finding at all.**
+Nothing in 012 caused it; 012's gate run is simply the first thing that ever looked.
+
+**Live updates had never worked. Not since Phase 1.** Two devices watching each other is what every
+shipped phase has promised, and `useFamilyRealtime` filtered three of its twenty tables by household
+— `categories`, `household_settings`, `households`. **One filtered `postgres_changes` binding makes
+the server discard every binding on the channel**, and `subscribe()` still reports `SUBSCRIBED`, so
+nothing ever said a word.
+
+Bisected in a browser against the local stack, by counting rows in `realtime.subscription` and
+watching for a refetch:
+
+| Channel shape | Registers | Delivers |
+|---|---|---|
+| one unfiltered binding | 1 row | **yes** |
+| all twenty unfiltered | 20 rows | **yes** |
+| all twenty, **one** filter added back | **0 rows** | **no** — and still `SUBSCRIBED` |
+
+**Seven alternatives were eliminated first, each by experiment rather than argument**: the local
+realtime image (a bare client subscribes and receives), replication (`wal_level = logical`, both
+slots active, all twenty tables published), authentication (an **anon** client receives too, so RLS
+was never the gate), the colon in the channel topic `family:<id>`, a duplicated `supabase-js` in the
+tree (one version, 2.112.4), React StrictMode's double mount (**the production build failed
+identically**), and DELETE replica identity — every table is `default (PK only)`, which looked
+decisive until a probe showed deletes *are* delivered. That last one was a wrong hypothesis, held
+briefly and dropped on the measurement.
+
+**What the filters were worth.** Bandwidth, and nothing else. A payload is a refetch signal, is never
+rendered — Realtime does not apply a normal read's column privileges, which is why the hook has
+always ignored payload content — and the refetch it triggers goes through RLS like every other read.
+So there was nothing on the other side of the scale from the feature working.
+
+**Verified fixed**: a meal inserted from outside appears on an open calendar without a reload, and
+deleting it removes the token, both in well under a second; `list_items` likewise. `live.spec:21`
+passes for the first time in the project's history.
+
+### And why no test ever caught it
+
+Two independent faults in the same check, and either alone would have been enough.
+
+1. **It counted rows that outlive their socket.** `liveUpdateSupport()` reads
+   `realtime.subscription`, which proves a subscription was *registered*, never that a change is
+   *delivered*. Twenty rows survived the page that made them navigating to `about:blank`, and were
+   still there two hundred seconds later with nothing connected at all. So on any machine that had
+   ever run the app, the answer was "yes, live updates work here" — permanently.
+2. **It was measured before either browser had navigated.** It was a fixture *value*, and Playwright
+   resolves fixtures before the test body runs, so the count was taken while both pages were still
+   blank — despite the helper's own comment saying "called once both browsers have a `/family` page
+   mounted".
+
+Together, the two-browser journeys skipped on the strength of rows belonging to nobody, and so never
+reported the defect above. **A check that cannot fail is worse than no check, because it is read as a
+pass.** The helper now clears the table before either page navigates, and the fixture hands over a
+function the journey calls at the moment its comment always claimed.
+
+### What is still failing
+
+`live.spec:72`'s second leg: after a meal is deleted on one browser, its token does not leave the
+other browser's calendar inside the five seconds FR-722 promises. The row **is** deleted (checked in
+the database straight after the run), and the same deletion propagates in milliseconds when driven by
+hand — by three separate routes. So this looks like harness timing rather than app behaviour, and
+**that is a guess, not a result**: it is not yet explained and is recorded as open.
+
+---
+
+*The investigation as it stood before the root cause was found is kept below, because the order the
+evidence arrived in is the useful part.*
 
 What was established, each by experiment:
 

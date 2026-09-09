@@ -140,6 +140,28 @@ Real, measured, and deliberately not fixed here. Each says why.
   including **14.4 kB** of polyfills for features every target browser has. Out of scope because no
   measurement here showed download or parse to be the constraint — see "Measured and cleared" 3.
 
+## What else this branch carries, and why it is not a requirement above
+
+**Live updates had never worked, and this phase's gate run is what found it.** It is a defect fix, not
+a performance requirement, so it has no FR here — but it shipped on this branch and the run record
+carries the whole investigation.
+
+In one line: `useFamilyRealtime` filtered three of its twenty tables by household, **one filtered
+`postgres_changes` binding makes the server discard every binding on the channel**, and the channel
+still reports `SUBSCRIBED` — so two devices have never once seen each other, and nothing ever said so.
+Seven other explanations were eliminated by experiment first, including one of mine that was wrong.
+
+The reason it hid for eleven phases belongs here though, because it is a lesson about gates rather
+than about realtime: **`liveUpdateSupport()` could not fail.** It counted rows in
+`realtime.subscription` — registration, never delivery — and those rows outlive the socket that made
+them, so on any machine that had ever run the app the answer was "yes, live updates work here",
+forever. It was also read before either browser had navigated, because it was a fixture value and
+Playwright resolves fixtures before the test body. The two-browser journeys therefore **skipped**, and
+a skip reads as a pass.
+
+The bar that follows, and that this project should keep: **a capability check must observe the
+capability, not a trace that the capability was once attempted.**
+
 ## Out of scope
 
 - Any change to what the household sees, reads or can do.
