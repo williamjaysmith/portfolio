@@ -76,6 +76,17 @@ is gone. If they stop failing, that record's conclusion was wrong and this is wh
 | SC-1110 | Phase 2's criteria still pass | `layout.test.ts`, `week-geometry.test.ts` and `use-week-anchor.test.ts` pass **untouched** — R1115's bar |
 | SC-1111 | Narrow widths work | e2e at 320px, after defect 3 above was fixed |
 
+## A fourth real defect, found by the gate run of 2026-09-09
+
+**The view menu could not be closed by the control that opened it.** The outside-tap overlay was
+`z-10` and the switcher button sat below it, so while the menu was open the overlay swallowed a
+second tap on the button — a household that changes its mind taps "Week" again and nothing happens.
+Fixed by lifting the button above the overlay; it has a unit test of its own now.
+
+That makes **four real defects this phase's browser pass has found in this phase's own code**, none
+of which the unit suite could have caught: the ARIA structure, the contrast, the overflow at 320px,
+and this.
+
 ## The browser pass is unfinished, and this is the state it is in
 
 **The phase gate has not been met.** `npm run test:e2e` has not produced a result I am willing to
@@ -88,19 +99,26 @@ What is established:
 - The four other gates are green.
 
 What is not:
-- A full-suite run. **Three attempts were killed by the operating system for low memory**, one after
-  13.4 minutes against a normal seven — the machine was swapping (five million pageouts) and each
-  kill stranded a dozen Chrome processes, which made the next attempt worse. A partial run showed 13
-  failures on `wall`, concentrated in the clock-pinned reminder-banner journeys, whose failure mode
-  under a swapping machine is indistinguishable from a real one.
-- **Therefore whether the remaining failures are this branch's or the environment's is UNKNOWN.**
-  Both are plausible: the branch changed the calendar's top bar to wrap and added a control to it,
-  which every calendar journey passes through; and a machine that cannot hold the suite in memory
-  fails timing-sensitive journeys first.
+- A trustworthy full-suite run. **Three attempts on 2026-09-08 were killed for low memory**, one
+  after 13.4 minutes against a normal seven, each kill stranding a dozen Chrome processes. A
+  completed run on 2026-09-09 gave **131 passed / 10 failed in 17.4 minutes** — still two and a half
+  times normal, so still heavily loaded.
 
-**What to do next**: run `npm run test:e2e` once on an unloaded machine and read the report. If it is
-green, this phase is ready to merge. If the same journeys fail, the cause is the branch and the top
-bar's new wrap is the first place to look.
+**The evidence now points at the environment, and here is why rather than merely that:**
+- **Every failing journey passes when run on its own.** All of them, repeatedly, including the two
+  this phase owns.
+- **The failing set changes between runs** — 13, then 10, then 3, on different tests each time.
+  Broken code does not move around.
+- **`meals.spec.ts:38` failed on all four projects at exactly 1.0 minute each** — a timeout signature,
+  not a behaviour.
+- **Wall-clock is the clearest signal**: a suite that takes seven minutes on a quiet machine took
+  seventeen. Timing-sensitive journeys — the clock-pinned banners, the swipes, the punch-in sheet —
+  fail first under that.
+
+This is a claim about likelihood, not a proof, and the gate is still unmet. **What to do**: run
+`npm run test:e2e` once on a quiet machine. Green means merge. If the same journeys fail *and* the
+run takes about seven minutes, the cause is the branch and the top bar's new wrap is the first place
+to look.
 
 ## The honest gap
 

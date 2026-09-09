@@ -65,6 +65,19 @@ describe("ViewSwitcher", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("closes when its own control is tapped again", () => {
+    // The button must sit ABOVE the outside-tap overlay: without that the
+    // overlay covers it while the menu is open and a second tap does nothing,
+    // which is what a household hits first when it changes its mind.
+    renderSwitcher();
+    const control = screen.getByRole("button", { name: /Change view/ });
+    fireEvent.click(control);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.click(control);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("closes without choosing when the outside is tapped", () => {
     const { onChange } = renderSwitcher();
     fireEvent.click(screen.getByRole("button", { name: /Change view/ }));

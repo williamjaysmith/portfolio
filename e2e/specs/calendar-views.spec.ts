@@ -26,6 +26,9 @@ async function chooseView(
   page: import("@playwright/test").Page,
   view: "Day" | "Week" | "Month",
 ): Promise<void> {
+  // Already showing is not a no-op worth a round trip through the menu, and an
+  // `afterEach` that restores the default hits that case most of the time.
+  if ((await switcher(page).textContent()) === view) return;
   await switcher(page).click();
   await page.getByRole("menuitemradio", { name: view }).click();
   await expect(switcher(page)).toHaveText(view);

@@ -58,7 +58,11 @@ export function ViewSwitcher({ view, onChange }: ViewSwitcherProps) {
         // view is showing, which is the reference's own idiom.
         aria-label={`Change view — currently ${VIEW_LABELS[view]}`}
         onClick={() => setOpen((current) => !current)}
-        className={PILL}
+        // Above the outside-tap overlay below. Without this the overlay covers
+        // the button while the menu is open, so a second tap on the control
+        // that opened it does nothing — the household taps "Week" expecting the
+        // menu to close and the menu stays put.
+        className={`relative z-20 ${PILL}`}
       >
         {VIEW_LABELS[view]}
       </button>
@@ -76,7 +80,7 @@ export function ViewSwitcher({ view, onChange }: ViewSwitcherProps) {
           <ul
             role="menu"
             aria-label="Calendar view"
-            className="absolute right-0 top-full z-20 mt-1 w-40 rounded-(--fam-radius-modal) border border-(--fam-hairline) bg-(--fam-app-bg) p-1 shadow-lg"
+            className="absolute right-0 top-full z-30 mt-1 w-40 rounded-(--fam-radius-modal) border border-(--fam-hairline) bg-(--fam-app-bg) p-1 shadow-lg"
           >
             {CALENDAR_VIEWS.map((option) => (
               <li key={option} role="none">
