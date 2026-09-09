@@ -26,6 +26,30 @@ function emptyCell(page: import("@playwright/test").Page, day: string, mealtime:
   return page.getByRole("button", { name: new RegExp(`^${day}.*${mealtime}, empty`) });
 }
 
+/**
+ * A mealtime that is genuinely empty on `day`, read off the grid rather than
+ * assumed.
+ *
+ * This journey used to name **Lunch**, and Lunch is free on today only six days
+ * a week: the seed plants one on `sunday + 3`, so every Wednesday run failed at
+ * the first click. Nothing else is safe to hard-code either — Breakfast is
+ * taken on Sunday and Snack on Saturday — so the journey asks the grid which
+ * slot is open instead of guessing. Found by 011's browser pass, on a
+ * Wednesday.
+ */
+async function anEmptyMealtime(
+  page: import("@playwright/test").Page,
+  day: string,
+): Promise<string> {
+  const cell = page.getByRole("button", { name: new RegExp(`^${day}.*, empty$`) }).first();
+  await expect(cell, `${day} has at least one free mealtime`).toBeVisible();
+
+  const label = (await cell.getAttribute("aria-label")) ?? "";
+  const mealtime = /,\s*([^,]+),\s*empty$/.exec(label)?.[1];
+  if (mealtime === undefined) throw new Error(`could not read a mealtime from "${label}"`);
+  return mealtime;
+}
+
 function filledCell(page: import("@playwright/test").Page, day: string, mealtime: string) {
   return page.getByRole("group", { name: new RegExp(`^${day}.*${mealtime}`) });
 }
@@ -38,9 +62,10 @@ test.describe("the Meals tab", () => {
   test("plans a meal from a saved recipe, and it survives a reload @responsive", async ({ page, actAsAna, household }) => {
     const today = household.todayLabel;
     expect(today, "the grid marks one day as today").not.toBe("");
+    const mealtime = await anEmptyMealtime(page, today);
 
     await actAsAna(async () => {
-      await emptyCell(page, today, "Lunch").click();
+      await emptyCell(page, today, mealtime).click();
       const sheet = page.getByRole("dialog");
       await expect(sheet).toBeVisible();
       // The chips and rows are painted labels over screen-reader-only radios.
@@ -49,24 +74,24 @@ test.describe("the Meals tab", () => {
       await sheet.getByRole("button", { name: "Save" }).click();
     });
 
-    const slot = filledCell(page, today, "Lunch");
+    const slot = filledCell(page, today, mealtime);
     await expect(slot.getByRole("button", { name: "Banana bread" })).toBeVisible();
 
     await page.reload();
-    await expect(filledCell(page, today, "Lunch").getByRole("button", { name: "Banana bread" })).toBeVisible();
+    await expect(filledCell(page, today, mealtime).getByRole("button", { name: "Banana bread" })).toBeVisible();
 
     // Take it back off the plan, from the popover this journey also proves.
     await actAsAna(async () => {
-      await filledCell(page, today, "Lunch").getByRole("button", { name: "Banana bread" }).click();
+      await filledCell(page, today, mealtime).getByRole("button", { name: "Banana bread" }).click();
       await page.getByRole("button", { name: "Delete" }).click();
       await page.getByRole("button", { name: "Delete meal" }).click();
     });
     // The slot is a button again once the write lands; reloading first would
     // cancel it. The Saturday's seeded Banana bread is untouched throughout.
-    await expect(emptyCell(page, today, "Lunch")).toBeVisible();
+    await expect(emptyCell(page, today, mealtime)).toBeVisible();
 
     await page.reload();
-    await expect(emptyCell(page, today, "Lunch")).toBeVisible();
+    await expect(emptyCell(page, today, mealtime)).toBeVisible();
   });
 
   test("opens a meal's popover and reaches its recipe from there", async ({ page }) => {
