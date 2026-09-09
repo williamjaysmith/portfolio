@@ -116,6 +116,32 @@ function gather(input: Ingredients): DueReminder[] {
 
 const NOTHING: DueRemindersState = { reminders: [], key: "", dismiss: () => {} };
 
+
+/**
+ * The two task reads the banner needs, and the one condition under which it
+ * needs them (012).
+ *
+ * Only `notifyTaskDue` and `notifyTaskCompleted` can produce a task reminder
+ * (008 FR-818, FR-819). With both off there is nothing these reads could feed —
+ * and this hook runs in the SHELL, so without the gate they were two queries on
+ * every page of every tab for a feature the household had switched off.
+ *
+ * Extracted rather than inlined because adding the condition put
+ * `useDueReminders` over its cognitive budget, and the gate is its own idea.
+ */
+function useTaskReads(
+  householdId: string,
+  settings: HouseholdSettings,
+  today: string | null,
+) {
+  const wanted = settings.notifyTaskDue || settings.notifyTaskCompleted;
+  const weekStart = today === null ? "1970-01-01" : weekStartOf(today, settings.startWeekOn);
+  return {
+    tasks: useTasks(householdId, undefined, wanted),
+    resolutions: useTaskResolutions(householdId, weekStart, undefined, wanted),
+  };
+}
+
 export function useDueReminders(): DueRemindersState {
   const { household, settings, categories, actor } = useFamily();
   const now = useNow();
@@ -130,11 +156,7 @@ export function useDueReminders(): DueRemindersState {
   // The board's task reads, reused rather than duplicated: both are already
   // household-wide and keyed by household alone (Phase 3 R314), so the banner
   // shares the cache entry the Tasks tab fills and adds no read of its own.
-  const tasks = useTasks(household.id);
-  const resolutions = useTaskResolutions(
-    household.id,
-    today === null ? "1970-01-01" : weekStartOf(today, settings.startWeekOn),
-  );
+  const { tasks, resolutions } = useTaskReads(household.id, settings, today);
   const { keys } = shown.useKeys();
 
   // Nothing to draw until the browser has a clock and the horizon has answered.

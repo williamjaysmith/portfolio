@@ -45,18 +45,25 @@ export default async function CalendarPage() {
   if (member === null) return null;
 
   const supabase = await createClient();
-  const settings = await fetchSettings(supabase, member.householdId);
+
+  // 012: only the EVENTS read depends on the settings, because only it needs a
+  // window — and a window needs the household's timezone and start-of-week.
+  // The three meal reads are keyed by the household alone, so they have no
+  // reason to wait. This was two round trips of one-then-four; it is now two of
+  // four-then-one, which on a server a region away from the database is a whole
+  // trip saved on every calendar render.
+  const [settings, mealCategories, recipes, meals] = await Promise.all([
+    fetchSettings(supabase, member.householdId),
+    fetchMealCategories(supabase, member.householdId),
+    fetchRecipes(supabase, member.householdId),
+    fetchMeals(supabase, member.householdId),
+  ]);
   if (settings === null) return null;
 
   const anchorDate = currentAnchorDate(settings.timezone, settings.startWeekOn);
   const window = viewWindowOf(anchorDate, DEFAULT_COLUMN_COUNT, settings.timezone);
   // 006 FR-634: the meal reads ride the same request, so the tokens are on the first paint too.
-  const [events, mealCategories, recipes, meals] = await Promise.all([
-    fetchWeekEvents(supabase, member.householdId, fetchBoundsOf(window)),
-    fetchMealCategories(supabase, member.householdId),
-    fetchRecipes(supabase, member.householdId),
-    fetchMeals(supabase, member.householdId),
-  ]);
+  const events = await fetchWeekEvents(supabase, member.householdId, fetchBoundsOf(window));
 
   return (
     <WeekView

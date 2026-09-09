@@ -57,16 +57,38 @@ export interface MealSurfaceModel extends MealSurfaceInputs {
 
 const NO_LISTS: List[] = [];
 
+/**
+ * What the lists read is doing, from the surfaces' point of view (012).
+ *
+ * `idle` matters: with every surface closed the read has not been ASKED for,
+ * and a query nobody has asked for is not "loading" — reporting it that way
+ * would put a spinner on a menu that is not open.
+ */
+function listsStateOf(
+  lists: { isError: boolean; data: List[] | undefined },
+  idle: boolean,
+): ListsState {
+  if (lists.isError) return "failed";
+  if (lists.data !== undefined) return "ready";
+  return idle ? "ready" : "loading";
+}
+
 export function useMealSurfaceModel(inputs: MealSurfaceInputs): MealSurfaceModel {
   const { householdId, profiles, actor } = useFamily();
   const writes = useMealWrites();
   const editor = useMealEditor(writes);
   const occurrence = useLiveOccurrence(editor, inputs.occurrences, inputs.meals);
   const notes = useMemo(() => dietaryNotesOf(profiles), [profiles]);
-  const lists = useLists(householdId);
+  // 012: the lists are only ever read to offer "add the ingredients to a
+  // list", which needs an OPEN surface. This model also runs on the calendar,
+  // where the meal popover is mounted for its tokens — so an unconditional
+  // read put a lists query on every calendar load for a menu nobody opened.
+  // Mounting is not the condition here, because the model is always mounted;
+  // having a surface open is.
+  const lists = useLists(householdId, undefined, editor.surface.kind !== "closed");
   const listRows = lists.data ?? NO_LISTS;
   const visibleLists = useMemo(() => visibleListsOf(listRows, actor), [listRows, actor]);
-  const listsState: ListsState = lists.isError ? "failed" : lists.data === undefined ? "loading" : "ready";
+  const listsState = listsStateOf(lists, editor.surface.kind === "closed");
   const recipeNames = useMemo(() => new Map(inputs.recipes.map((recipe) => [recipe.id, recipe.name])), [inputs.recipes]);
   return { ...inputs, editor, writes, occurrence, recipeNames, notes, visibleLists, listsState, notice: editor.notice ?? writes.notice };
 }

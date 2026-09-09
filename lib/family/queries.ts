@@ -775,12 +775,19 @@ export async function fetchTaskBox(
   return ((data ?? []) as unknown as TaskBoxItemRow[]).map(toTaskBoxItem);
 }
 
-export function useTasks(householdId: string, initialData?: Task[]) {
+/**
+ * `enabled` exists for the reminder banner (012), which runs in the SHELL and
+ * so asked for tasks on every page of every tab — including for households
+ * that had both task reminders switched off. Every other caller passes nothing
+ * and behaves exactly as it did.
+ */
+export function useTasks(householdId: string, initialData?: Task[], enabled = true) {
   return useQuery({
     queryKey: familyKeys.tasks(householdId),
     queryFn: () => fetchTasks(createClient(), householdId),
     staleTime: STALE_TIME,
     initialData,
+    enabled,
   });
 }
 
@@ -788,12 +795,14 @@ export function useTaskResolutions(
   householdId: string,
   weekStartDate: string,
   initialData?: TaskResolution[],
+  enabled = true,
 ) {
   return useQuery({
     queryKey: familyKeys.taskWeek(householdId, weekStartDate),
     queryFn: () => fetchTaskResolutions(createClient(), householdId, weekStartDate),
     staleTime: STALE_TIME,
     initialData,
+    enabled,
   });
 }
 
@@ -1043,12 +1052,23 @@ export async function fetchListItems(supabase: SupabaseClient, householdId: stri
 }
 
 /** Seeded by `/family/lists`'s page (data-model "How the tab is read"). */
-export function useLists(householdId: string, initialData?: List[]) {
+/**
+ * The household's lists.
+ *
+ * `enabled` exists for one caller (012): the meal surfaces need lists only to
+ * offer "add the ingredients to a list", and they were reading them on every
+ * CALENDAR load — the meal popover is mounted there for its tokens, so its
+ * model ran whether or not anything was open. On localhost that read costs
+ * 20ms and is invisible; in production it is a round trip nobody asked for.
+ * Every other caller passes nothing and behaves exactly as it did.
+ */
+export function useLists(householdId: string, initialData?: List[], enabled = true) {
   return useQuery({
     queryKey: familyKeys.lists(householdId),
     queryFn: () => fetchLists(createClient(), householdId),
     staleTime: STALE_TIME,
     initialData,
+    enabled,
   });
 }
 

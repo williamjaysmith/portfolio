@@ -40,8 +40,16 @@ import { useDeviceVisibility } from "../../components/useDeviceVisibility";
  * React Query dedupes whatever remains.
  */
 
-/** How long a window must stay mounted before its neighbours are prefetched. */
-const PREFETCH_SETTLE_MS = 250;
+/**
+ * How long a window must stay mounted before its neighbours are prefetched.
+ *
+ * 012 raised this from 250ms. At 250 the two neighbour reads landed while the
+ * first paint was still assembling, so a calendar load made three `events`
+ * requests where it needed one — free on localhost, a real cost in production.
+ * The warming is still worth having (R207: a swipe should land on data), it
+ * just has no business competing with the page it is warming for.
+ */
+export const PREFETCH_SETTLE_MS = 1_200;
 
 const NO_OCCURRENCES: Occurrence[] = [];
 

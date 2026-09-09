@@ -12,10 +12,7 @@ import {
   resetDeviceVisibility,
   useDeviceVisibility,
 } from "@/app/family/(app)/components/useDeviceVisibility";
-import {
-  useWeekOccurrences,
-  type UseWeekOccurrencesOptions,
-} from "@/app/family/(app)/calendar/components/useWeekOccurrences";
+import { PREFETCH_SETTLE_MS, type UseWeekOccurrencesOptions, useWeekOccurrences } from "@/app/family/(app)/calendar/components/useWeekOccurrences";
 
 /**
  * T028 / R206: the memo chain is fetch → `expandWindow` (ONCE per mounted
@@ -275,7 +272,7 @@ describe("useWeekOccurrences", () => {
     expect(vi.mocked(prefetchWeek)).not.toHaveBeenCalled();
 
     act(() => {
-      vi.advanceTimersByTime(400);
+      vi.advanceTimersByTime(PREFETCH_SETTLE_MS + 150);
     });
 
     // Three columns → the neighbours are three days out, and each is itself
@@ -300,7 +297,7 @@ describe("useWeekOccurrences", () => {
     renderWeek(makeOptions({ columns: 7 }));
 
     act(() => {
-      vi.advanceTimersByTime(400);
+      vi.advanceTimersByTime(PREFETCH_SETTLE_MS + 150);
     });
 
     const starts = vi
@@ -316,11 +313,11 @@ describe("useWeekOccurrences", () => {
     const { rerender } = renderWeek(makeOptions());
 
     act(() => {
-      vi.advanceTimersByTime(100); // paged away before the settle delay
+      vi.advanceTimersByTime(PREFETCH_SETTLE_MS - 100); // paged away before the settle delay
     });
     rerender(makeOptions({ anchorDate: "2026-09-09" }));
     act(() => {
-      vi.advanceTimersByTime(400);
+      vi.advanceTimersByTime(PREFETCH_SETTLE_MS + 150);
     });
 
     const starts = vi
