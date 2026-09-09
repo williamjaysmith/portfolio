@@ -104,6 +104,42 @@ What is not:
   completed run on 2026-09-09 gave **131 passed / 10 failed in 17.4 minutes** — still two and a half
   times normal, so still heavily loaded.
 
+### Final state, 2026-09-09
+
+Seven full-suite runs. **Failure counts on identical code moved between 10, 12, 15 and 23** — the
+strongest single fact here, because deterministic breakage does not do that.
+
+Everything ruled out, each by an experiment rather than an argument:
+- **Not time or server degradation** — `preview-bar.spec.ts` at `--repeat-each=3`, 56 tests in one
+  server session: 56/56.
+- **Not a cascade from the failing meals journey** — meals + notifications + preview-bar together:
+  only meals failed, 34/36.
+- **Not the two-browser `live` spec** — live + preview-bar: 22 passed, 2 skipped.
+- **Not accumulated database rows** — the events table holds exactly the seed's 13 after a run.
+- **Not the viewport leak, the banner, or the month read** — all three were real, all three are fixed,
+  and all three changed the failing set without emptying it.
+
+What remains: every failing journey passes alone, in pairs, in triples and repeated; they fail only
+inside the full 140-test invocation, at 11–12 second timeouts on event creation. That is
+resource-shaped, and this machine killed three earlier runs outright for memory.
+
+**This is not proof, and one earlier version of this record made the same claim and was wrong** — a
+quieter machine then failed WORSE, which killed that hypothesis and led to the month-read bug. The
+difference now is that the alternatives above have each been tested and eliminated, rather than
+merely argued against.
+
+**What this phase's own journeys do**: `calendar-views.spec.ts` passes 19/19 alone, and every
+configuration it has been run in.
+
+**Five real defects were found by this suite and fixed** — the ARIA structure, the contrast on
+adjacent-month days, the 320px overflow, the view menu's overlay, the Week view fetching a month of
+events — plus two in other phases' code: the reminder banner covering every tab's controls, and a
+meals journey that had failed every Wednesday since Phase 6.
+
+---
+
+**The earlier reasoning, kept because it was wrong in an instructive way:**
+
 **The evidence now points at the environment, and here is why rather than merely that:**
 - **Every failing journey passes when run on its own.** All of them, repeatedly, including the two
   this phase owns.
