@@ -48,6 +48,7 @@ import { useDeviceVisibility } from "../../components/useDeviceVisibility";
  */
 
 const NO_OCCURRENCES: Occurrence[] = [];
+const NO_EVENTS: Event[] = [];
 
 export interface UseMonthOccurrencesOptions {
   householdId: string;
@@ -75,6 +76,8 @@ export interface MonthCellModel {
 
 export interface MonthOccurrencesState {
   window: DateWindow;
+  /** The rows the grid drew from — what a caller needs to build a details target. */
+  events: Event[];
   /** The grid's week rows, each a run of seven cells. */
   rows: MonthCellModel[][];
   /** Multi-day bars, already cut per week row (FR-1112). */
@@ -116,6 +119,7 @@ export function useMonthOccurrences(
 
   return {
     window: monthWindow,
+    events: events.data ?? NO_EVENTS,
     rows: placed.rows,
     segments: placed.segments,
     isPending: events.isPending,

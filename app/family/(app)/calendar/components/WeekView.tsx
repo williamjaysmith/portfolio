@@ -22,9 +22,7 @@ import type { CalendarView } from "@/lib/family/calendar/views";
 
 import { CountdownChips } from "./CountdownChips";
 import { CountdownList } from "./CountdownList";
-import { MonthDayList } from "./MonthDayList";
-import { MonthView } from "./MonthView";
-import { useMonthOccurrences } from "./useMonthOccurrences";
+import { MonthBody } from "./MonthBody";
 import { EventSearch } from "./EventSearch";
 import { useCalendarView } from "./useCalendarView";
 import { useCalendarSearch, type CalendarSearch } from "./useEventSearch";
@@ -131,8 +129,6 @@ function searchDateInWords(date: string): string {
  * it gets the widest setting, which is what a seven-column week gets.
  */
 const MONTH_COUNTDOWN_SLOTS = 3;
-
-const EMPTY_DAY: Occurrence[] = [];
 
 function countdownSlotsFor(columnCount: number): number {
   return columnCount >= 7 ? 3 : columnCount >= 5 ? 2 : 1;
@@ -284,37 +280,6 @@ function useCalendarFrame(options: {
     metrics: geometry.metrics,
     layoutMetrics: geometry.layoutMetrics,
     columnCount: geometry.columnCount,
-  };
-}
-
-/**
- * The Month view's whole model (011): its placement layer, and the day list a
- * cell's "+ n more" opens.
- *
- * A hook of its own for the same reason `useCalendarFrame` and `useWeekChrome`
- * are: `useWeekViewModel` is a wiring of hooks and the view is a rendering of a
- * value, so each thing the screen needs arrives as one. Keeping the open day
- * beside the rows is also what lets the list resolve its own occurrences —
- * nothing outside has to know that a day's full list lives on its cell.
- */
-function useMonthBody(options: {
-  householdId: string;
-  anchorDate: string;
-  zone: string;
-  startWeekOn: WeekStart;
-}) {
-  const month = useMonthOccurrences(options);
-  const [dayList, setDayList] = useState<string | null>(null);
-
-  return {
-    ...month,
-    dayList,
-    openList: setDayList,
-    closeList: useCallback(() => setDayList(null), []),
-    dayListOccurrences:
-      dayList === null
-        ? EMPTY_DAY
-        : (month.rows.flat().find((cell) => cell.date === dayList)?.all ?? EMPTY_DAY),
   };
 }
 
@@ -653,18 +618,9 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     showCountdowns: settings.showCountdowns,
   });
 
-  const month = useMonthBody({
-    householdId,
-    anchorDate: anchor.anchorDate,
-    zone,
-    startWeekOn: settings.startWeekOn,
-  });
-
-  const editor = useCalendarEditor({
-    householdId,
-    window: view === "month" ? month.window : body.week.window,
-    zone,
-  });
+  // Always the WEEK's window: the month opens events through `openTarget`,
+  // which needs no lookup, so the editor never has to know a month exists.
+  const editor = useCalendarEditor({ householdId, window: body.week.window, zone });
   const { goToToday: anchorToToday, page, todayDate, openAt } = anchor;
   const { resume } = body;
   const goToToday = useCallback(() => {
@@ -676,11 +632,12 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     zone,
     settings,
     ...body,
-    month,
+    householdId,
     editor,
     chrome,
     createFromSlot: useCreateDoors(editor.openCreate, zone),
     columnCount,
+    anchorDate: anchor.anchorDate,
     view,
     setView,
     page,
@@ -800,45 +757,25 @@ export function WeekView(props: WeekViewProps) {
           [VERIFIED](36625171368987, 40459070511515), so on the month it sits
           here rather than inside the week's header band. */}
       {m.view === "month" ? (
-        <>
-          <CalendarPreviewBar m={m} slots={MONTH_COUNTDOWN_SLOTS} />
-          <Notice message={weekErrorOf(m.month.error)} />
-          <Notice message={m.editor.notice} />
-          <MonthView
-            rows={m.month.rows}
-            segments={m.month.segments}
-            startDate={m.month.window.startDate}
-            todayDate={m.todayDate}
-            startWeekOn={m.settings.startWeekOn}
-            zone={m.zone}
-            timeFormat={m.settings.timeFormat}
-            colorsById={m.colorsById}
-            onOpenDay={(date) => {
-              // FR-1113 / Assumption 5: a cell is a door to its DAY.
-              m.openAt(date);
-              m.setView("day");
-            }}
-            onOpenList={m.month.openList}
-            onOpen={m.editor.openDetails}
-          />
-        </>
-      ) : (
-      <WeekBody m={m} />
-      )}
-
-      {/* 011 FR-1111: the day's full list, from a cell's "+n more". */}
-      {m.month.dayList === null ? null : (
-        <MonthDayList
-          date={m.month.dayList}
-          occurrences={m.month.dayListOccurrences}
+        <MonthBody
+          householdId={m.householdId}
+          anchorDate={m.anchorDate}
           zone={m.zone}
+          startWeekOn={m.settings.startWeekOn}
+          todayDate={m.todayDate}
           timeFormat={m.settings.timeFormat}
-          onOpen={(occurrence) => {
-            m.month.closeList();
-            m.editor.openDetails(occurrence);
+          colorsById={m.colorsById}
+          previewBar={<CalendarPreviewBar m={m} slots={MONTH_COUNTDOWN_SLOTS} />}
+          notices={<Notice message={m.editor.notice} />}
+          onOpenDay={(date) => {
+            // FR-1113 / Assumption 5: a cell is a door to its DAY.
+            m.openAt(date);
+            m.setView("day");
           }}
-          onClose={m.month.closeList}
+          onOpenTarget={m.editor.openTarget}
         />
+      ) : (
+        <WeekBody m={m} />
       )}
 
       {/* FR-263: the keyboard drag's running commentary, in slot language. */}
