@@ -52,7 +52,18 @@ export function ReminderBanner() {
       role="status"
       aria-live="polite"
       aria-label="Reminders"
-      className="pointer-events-auto absolute inset-x-3 top-3 z-30 flex items-start gap-3 rounded-2xl border border-(--fam-hairline) bg-(--fam-surface) p-4 shadow-lg"
+      // 011: at the BOTTOM, and clear of the FAB. It used to sit at `top-3`,
+      // directly over the first thing every tab draws — which on the calendar
+      // is the ‹ / Today / › cluster, the view switcher and the search box. A
+      // household with a reminder showing could not use any of them: the card
+      // is opaque and takes the clicks. Nobody hit it because a banner is rare
+      // and short-lived, and the 011 browser pass caught it only because a
+      // seeded reminder happened to be due mid-run.
+      //
+      // Nothing at the bottom of any tab is interactive chrome except the FAB,
+      // which `right-24` clears. Bottom is also where a notification belongs on
+      // a wall display: it does not hide what somebody walked over to read.
+      className="pointer-events-auto absolute bottom-3 left-3 right-24 z-30 flex items-start gap-3 rounded-2xl border border-(--fam-hairline) bg-(--fam-surface) p-4 shadow-lg"
     >
       <ul className="flex min-w-0 flex-1 flex-col gap-1">
         {reminders.map((reminder) => (
