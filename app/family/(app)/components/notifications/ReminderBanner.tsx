@@ -52,18 +52,21 @@ export function ReminderBanner() {
       role="status"
       aria-live="polite"
       aria-label="Reminders"
-      // 011: at the BOTTOM, and clear of the FAB. It used to sit at `top-3`,
-      // directly over the first thing every tab draws — which on the calendar
-      // is the ‹ / Today / › cluster, the view switcher and the search box. A
-      // household with a reminder showing could not use any of them: the card
-      // is opaque and takes the clicks. Nobody hit it because a banner is rare
-      // and short-lived, and the 011 browser pass caught it only because a
-      // seeded reminder happened to be due mid-run.
+      // 011: at the BOTTOM, clear of the FAB, and — the part that actually
+      // matters — INERT except for its own two controls.
       //
-      // Nothing at the bottom of any tab is interactive chrome except the FAB,
-      // which `right-24` clears. Bottom is also where a notification belongs on
-      // a wall display: it does not hide what somebody walked over to read.
-      className="pointer-events-auto absolute bottom-3 left-3 right-24 z-30 flex items-start gap-3 rounded-2xl border border-(--fam-hairline) bg-(--fam-surface) p-4 shadow-lg"
+      // It used to sit at `top-3`, directly over the first thing every tab
+      // draws: on the calendar the ‹ / Today / › cluster, the view switcher and
+      // the search box. The card is opaque, so it took their clicks as well as
+      // their space, and a household with a reminder showing could not use any
+      // of them. Moving it to the bottom fixed that and immediately broke the
+      // FAB instead, which is the lesson: **position alone cannot promise a
+      // floating card never covers something interactive.**
+      //
+      // So the card does not take pointer events at all. Its link and its
+      // Dismiss button opt back in, and everything else under it stays
+      // reachable wherever it happens to land.
+      className="pointer-events-none absolute bottom-3 left-3 right-24 z-30 flex items-start gap-3 rounded-2xl border border-(--fam-hairline) bg-(--fam-surface) p-4 shadow-lg"
     >
       <ul className="flex min-w-0 flex-1 flex-col gap-1">
         {reminders.map((reminder) => (
@@ -74,7 +77,7 @@ export function ReminderBanner() {
             <Link
               href={reminder.path}
               onClick={dismiss}
-              className="block truncate text-(length:--fam-fs-body)"
+              className="pointer-events-auto block truncate text-(length:--fam-fs-body)"
             >
               <span className="font-medium">{reminder.title}</span>
               {reminder.body ? (
@@ -89,7 +92,7 @@ export function ReminderBanner() {
         type="button"
         onClick={dismiss}
         aria-label="Dismiss reminders"
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-(--fam-text-secondary)"
+        className="pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-(--fam-text-secondary)"
       >
         <X className="h-5 w-5" strokeWidth={2.5} />
       </button>
