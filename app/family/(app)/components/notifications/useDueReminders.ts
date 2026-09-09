@@ -118,15 +118,25 @@ const NOTHING: DueRemindersState = { reminders: [], key: "", dismiss: () => {} }
 
 
 /**
- * The two task reads the banner needs, and the one condition under which it
+ * The two task reads the banner needs, and the two conditions under which it
  * needs them (012).
  *
- * Only `notifyTaskDue` and `notifyTaskCompleted` can produce a task reminder
- * (008 FR-818, FR-819). With both off there is nothing these reads could feed —
- * and this hook runs in the SHELL, so without the gate they were two queries on
- * every page of every tab for a feature the household had switched off.
+ * **The setting.** Only `notifyTaskDue` and `notifyTaskCompleted` can produce a
+ * task reminder (008 FR-818, FR-819). With both off there is nothing these
+ * reads could feed — and this hook runs in the SHELL, so without the gate they
+ * were two queries on every page of every tab for a feature the household had
+ * switched off.
  *
- * Extracted rather than inlined because adding the condition put
+ * **The clock.** The resolutions read is keyed by the week containing today, so
+ * before the browser publishes a clock there is no week to ask for. The
+ * placeholder that stood here was not inert: it FETCHED, every load of every
+ * tab, the resolutions of the week of 1 January 1970 — a round trip that can
+ * only ever return the undated rows, thrown away a tick later when the real
+ * week arrived. Waiting is also what the horizon read beside it already does,
+ * and for the same stated reason: nothing here can be computed before the
+ * clock, so nothing here should compete with hydration.
+ *
+ * Extracted rather than inlined because adding the conditions put
  * `useDueReminders` over its cognitive budget, and the gate is its own idea.
  */
 function useTaskReads(
@@ -134,13 +144,20 @@ function useTaskReads(
   settings: HouseholdSettings,
   today: string | null,
 ) {
-  const wanted = settings.notifyTaskDue || settings.notifyTaskCompleted;
-  const weekStart = today === null ? "1970-01-01" : weekStartOf(today, settings.startWeekOn);
+  const wanted = (settings.notifyTaskDue || settings.notifyTaskCompleted) && today !== null;
+  const weekStart = today === null ? UNASKED_WEEK : weekStartOf(today, settings.startWeekOn);
   return {
     tasks: useTasks(householdId, undefined, wanted),
     resolutions: useTaskResolutions(householdId, weekStart, undefined, wanted),
   };
 }
+
+/**
+ * The cache key the resolutions read carries while it is disabled. It is never
+ * fetched — `wanted` is false for exactly as long as it is in use — and exists
+ * only because a query key is not optional.
+ */
+const UNASKED_WEEK = "1970-01-01";
 
 export function useDueReminders(): DueRemindersState {
   const { household, settings, categories, actor } = useFamily();

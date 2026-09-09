@@ -156,16 +156,27 @@ export interface UseGridGeometryResult {
   /** `null` exactly when `metrics` is — `layoutWeek` waits on it. */
   layoutMetrics: LayoutMetrics | null;
   /**
-   * FR-277/278 count; `DEFAULT_COLUMN_COUNT` while unmeasured — or the fixed
-   * count a view asked for, in which case it is that from the first render
-   * rather than after the first measurement (011 R1103).
+   * FR-277/278 count. Before the first measurement it is the fixed count a
+   * view asked for (011 R1103), else the count this device last measured
+   * (012), else `DEFAULT_COLUMN_COUNT`.
    */
   columnCount: number;
   /** Force a re-read outside any resize (e.g. after a web font loads). */
   remeasure: () => void;
 }
 
-export function useGridGeometry(fixedColumns?: number): UseGridGeometryResult {
+/**
+ * `unmeasuredColumns` (012) is what the SERVER rendered, and the only reason
+ * the hook takes it is hydration: this device's remembered width reaches the
+ * browser as markup, not as state, so the first client render has to agree
+ * with it exactly. It is overridden by the first real measurement like any
+ * other guess, and by `fixedColumns` always — a view that knows its own width
+ * is not guessing.
+ */
+export function useGridGeometry(
+  fixedColumns?: number,
+  unmeasuredColumns?: number,
+): UseGridGeometryResult {
   const [geometry, setGeometry] = useState<GridGeometry | null>(null);
   const attachmentRef = useRef<Attachment | null>(null);
 
@@ -192,7 +203,7 @@ export function useGridGeometry(fixedColumns?: number): UseGridGeometryResult {
     layoutMetrics: geometry?.layoutMetrics ?? null,
     // A fixed count is known before any measurement, so the first paint draws
     // the right number of columns rather than seven and then one.
-    columnCount: geometry?.columnCount ?? fixedColumns ?? DEFAULT_COLUMN_COUNT,
+    columnCount: geometry?.columnCount ?? fixedColumns ?? unmeasuredColumns ?? DEFAULT_COLUMN_COUNT,
     remeasure: measure,
   };
 }

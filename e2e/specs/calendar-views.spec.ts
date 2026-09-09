@@ -1,4 +1,4 @@
-import { createEvent, deleteEvent, eventBlock } from "../helpers/calendar";
+import { createEvent, deleteEvent } from "../helpers/calendar";
 import { hideDevOverlay } from "../helpers/overlay";
 import { expect, test } from "../fixtures";
 

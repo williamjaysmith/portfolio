@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 
 import type { DateWindow } from "@/lib/family/calendar/dates";
 import {
@@ -13,7 +13,7 @@ import {
 import type { PaletteColor } from "@/lib/family/colors";
 import type { ConfirmStep } from "@/lib/family/drag-state";
 import type { Category, Event, Occurrence, TimeFormat, Meal, MealCategory, Recipe, WeekStart } from "@/lib/family/types";
-import { DEFAULT_COLUMN_COUNT, type GridMetrics } from "@/lib/family/week-geometry";
+import type { GridMetrics } from "@/lib/family/week-geometry";
 
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily } from "../../components/FamilyProvider";
@@ -48,6 +48,7 @@ import {
 } from "./useEventDrag";
 import { useFollowScroll } from "./useFollowScroll";
 import { useGridGeometry } from "./useGridGeometry";
+import { useRememberedColumns } from "./useRememberedColumns";
 import { useWeekAnchor } from "./useWeekAnchor";
 import { useWeekOccurrences } from "./useWeekOccurrences";
 import { WeekGrid } from "./WeekGrid";
@@ -256,13 +257,19 @@ function useCalendarFrame(options: {
   zone: string;
   startWeekOn: WeekStart;
   initialAnchorDate: string;
+  initialColumnCount: number;
 }) {
   const { view, setView } = useCalendarView();
 
   // 011 R1103: Day view is this same grid at ONE column. The measured fit can
   // never return one — `columnCountFor` clamps to FR-278's floor for the week —
   // so the view asks for its own count and the floor keeps its meaning.
-  const geometry = useGridGeometry(view === "day" ? 1 : undefined);
+  //
+  // 012: the second argument is what the SERVER drew, from this device's
+  // remembered width, so the first client render agrees with the markup and the
+  // grid stops re-laying-out on every load of a narrow screen.
+  const geometry = useGridGeometry(view === "day" ? 1 : undefined, options.initialColumnCount);
+  useRememberedColumns(geometry.columnCount, view === "week");
 
   const anchor = useWeekAnchor({
     zone: options.zone,
@@ -472,6 +479,12 @@ function Notice({ message }: { message: string | null }) {
 export interface WeekViewProps {
   /** The server-rendered window's first day, `YYYY-MM-DD` household-local (R207). */
   initialAnchorDate: string;
+  /**
+   * How many columns the server drew, which is how many days `initialEvents`
+   * covers (012). It is this device's remembered width, or
+   * `DEFAULT_COLUMN_COUNT` for a device that has never measured one.
+   */
+  initialColumnCount: number;
   /** The server-fetched rows for that window — the no-flicker first paint (R207). */
   initialEvents: Event[];
   /** 006 FR-634: the household's meal reads, seeded the same way. */
@@ -503,6 +516,7 @@ function useWeekBodyModel(options: {
   frame: ReturnType<typeof useCalendarFrame>;
   timeFormat: TimeFormat;
   initialAnchorDate: string;
+  initialColumnCount: number;
   initialEvents: Event[];
   initialMeals: Meal[];
   initialMealCategories: MealCategory[];
@@ -523,7 +537,13 @@ function useWeekBodyModel(options: {
     zone,
     columns: columnCount,
     metrics: layoutMetrics,
-    initialData: seedFor(anchor.anchorDate, columnCount, initialAnchorDate, options.initialEvents),
+    initialData: seedFor(
+      anchor.anchorDate,
+      columnCount,
+      initialAnchorDate,
+      options.initialColumnCount,
+      options.initialEvents,
+    ),
   });
 
   const meals = useCalendarMeals({
@@ -588,7 +608,14 @@ function useWeekBodyModel(options: {
   };
 }
 
-function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, initialMealCategories, initialRecipes }: WeekViewProps) {
+function useWeekViewModel({
+  initialAnchorDate,
+  initialColumnCount,
+  initialEvents,
+  initialMeals,
+  initialMealCategories,
+  initialRecipes,
+}: WeekViewProps) {
   const { householdId, settings, categories } = useFamily();
   const zone = settings.timezone;
 
@@ -596,6 +623,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     zone,
     startWeekOn: settings.startWeekOn,
     initialAnchorDate,
+    initialColumnCount,
   });
   const { view, setView, columnCount, anchor } = frame;
 
@@ -605,6 +633,7 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
     frame,
     timeFormat: settings.timeFormat,
     initialAnchorDate,
+    initialColumnCount,
     initialEvents,
     initialMeals,
     initialMealCategories,
@@ -651,16 +680,22 @@ function useWeekViewModel({ initialAnchorDate, initialEvents, initialMeals, init
 
 /**
  * The server-fetched rows seed only the window they were fetched for (R207):
- * the same first day AND the same width, since the server renders
- * `DEFAULT_COLUMN_COUNT` days and a measured phone shows fewer.
+ * the same first day AND the same width.
+ *
+ * The width it compares against is what the SERVER drew (012), not
+ * `DEFAULT_COLUMN_COUNT`. Those were the same number until the server learned
+ * this device's remembered width, and holding the constant here would have
+ * quietly undone the point of learning it: a phone would render three columns
+ * over a three-day fetch and then decline to use it.
  */
 function seedFor(
   anchorDate: string,
   columns: number,
   initialAnchorDate: string,
+  initialColumnCount: number,
   initialEvents: Event[],
 ): Event[] | undefined {
-  const isInitialWindow = anchorDate === initialAnchorDate && columns === DEFAULT_COLUMN_COUNT;
+  const isInitialWindow = anchorDate === initialAnchorDate && columns === initialColumnCount;
   return isInitialWindow ? initialEvents : undefined;
 }
 

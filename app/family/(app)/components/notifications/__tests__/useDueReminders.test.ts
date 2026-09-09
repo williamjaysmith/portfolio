@@ -47,12 +47,29 @@ vi.mock("../../Clock", async (importOriginal) => {
   return { ...actual, useNow: () => clock };
 });
 
+/** What the two task reads were asked for, and whether they were enabled. */
+const taskRead = vi.fn<(enabled: boolean) => void>();
+const resolutionsRead = vi.fn<(weekStartDate: string, enabled: boolean) => void>();
+
 vi.mock("@/lib/family/queries", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/family/queries")>();
   return {
     ...actual,
     useReminderHorizon: (householdId: string, zone: string, nowMs: number | null) =>
       horizonRead(householdId, zone, nowMs),
+    useTasks: (householdId: string, initialData: unknown, enabled = true) => {
+      taskRead(enabled);
+      return actual.useTasks(householdId, undefined, false);
+    },
+    useTaskResolutions: (
+      householdId: string,
+      weekStartDate: string,
+      initialData: unknown,
+      enabled = true,
+    ) => {
+      resolutionsRead(weekStartDate, enabled);
+      return actual.useTaskResolutions(householdId, weekStartDate, undefined, false);
+    },
   };
 });
 
@@ -145,6 +162,8 @@ beforeEach(() => {
   resetShownReminders();
   localStorage.clear();
   horizonRead.mockReset();
+  taskRead.mockReset();
+  resolutionsRead.mockReset();
   clock = null;
 });
 
@@ -162,6 +181,25 @@ describe("before the browser has a clock", () => {
     // A null instant is what leaves the query disabled, rather than fetching a
     // horizon around the epoch and refetching the real one a moment later.
     expect(horizonRead).toHaveBeenCalledWith("household-1", ZONE, null);
+  });
+
+  it("asks for no task rows either, rather than for the week of the epoch (012)", () => {
+    renderReminders([SWIM], null);
+
+    // The resolutions read is keyed by the week containing today, and before
+    // the clock there is no such week. Left enabled it fetched the week of 1
+    // January 1970 on every load of every tab — a round trip whose answer was
+    // thrown away the moment the real week arrived.
+    expect(taskRead).toHaveBeenCalledWith(false);
+    expect(resolutionsRead).toHaveBeenCalledWith("1970-01-01", false);
+  });
+
+  it("asks for both the moment the clock publishes, for the week around today", () => {
+    renderReminders([SWIM], SWIM_FIRES_AT);
+
+    expect(taskRead).toHaveBeenLastCalledWith(true);
+    // 9 September 2026 is a Wednesday; the household's week starts on Sunday.
+    expect(resolutionsRead).toHaveBeenLastCalledWith("2026-09-06", true);
   });
 
   it("shows nothing while the horizon read is still in flight", () => {

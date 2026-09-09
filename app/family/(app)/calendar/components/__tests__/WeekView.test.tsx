@@ -80,7 +80,10 @@ const PAGE_LABEL = { next: `Next ${DEFAULT_COLUMN_COUNT} days`, previous: `Previ
 
 const NO_MEALS: CalendarMealSeeds = { categories: [], recipes: [], meals: [] };
 
-function renderWeek(meals: CalendarMealSeeds = NO_MEALS) {
+function renderWeek(
+  meals: CalendarMealSeeds = NO_MEALS,
+  initialColumnCount: number = DEFAULT_COLUMN_COUNT,
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
@@ -88,6 +91,7 @@ function renderWeek(meals: CalendarMealSeeds = NO_MEALS) {
         makeContext(),
         <WeekView
           initialAnchorDate={INITIAL_ANCHOR}
+          initialColumnCount={initialColumnCount}
           initialEvents={[]}
           initialMeals={meals.meals}
           initialMealCategories={meals.categories}
@@ -213,5 +217,24 @@ describe("WeekView", () => {
 
     await press("Dinner: 🍝 Spaghetti");
     expect(screen.getByRole("button", { name: "Open Recipe" })).toBeInTheDocument();
+  });
+
+  /**
+   * 012 — the width the server drew, which on a phone is this device's
+   * remembered three and not the seven a tablet gets.
+   *
+   * jsdom measures nothing, so what the grid renders here is exactly what a
+   * real browser paints BEFORE its first measurement — which is the paint the
+   * cookie exists to get right. Holding `DEFAULT_COLUMN_COUNT` in either of
+   * these two places would put the seven columns back on a phone's first
+   * frame, so both are pinned.
+   */
+  it("draws the columns the server drew before it has measured anything", () => {
+    renderWeek(NO_MEALS, 3);
+
+    expect(headerDays()).toHaveLength(3);
+    // And it pages by that, not by seven: the arrows are labelled from the
+    // same count, so a phone whose first paint said three cannot step seven.
+    expect(screen.getByRole("button", { name: "Next 3 days" })).toBeInTheDocument();
   });
 });

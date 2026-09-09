@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
 import { fetchBoundsOf, localDateOf, viewWindowOf, weekAnchorOf } from "@/lib/family/calendar/dates";
+import { COLUMNS_COOKIE, parseColumnCount } from "@/lib/family/calendar/device-columns";
 import { getMember } from "@/lib/family/guards";
 import { fetchMealCategories, fetchMeals, fetchRecipes, fetchSettings, fetchWeekEvents } from "@/lib/family/queries";
 import { createClient } from "@/lib/family/supabase/server";
@@ -18,6 +20,18 @@ export const metadata: Metadata = { title: "Calendar" };
  * component body as a render and (rightly, for browsers) refuses impure calls
  * there. `HouseholdSettings["timezone"]` etc. keep the call sites honest.
  */
+/**
+ * How many day columns to draw before the browser has measured anything —
+ * this device's remembered width (012), or the default for one that has never
+ * told us. Its own function so the page below states what it fetches rather
+ * than how it learned the number, and so the two ways a cookie says nothing
+ * (absent, or not a count a grid could produce) are answered in one place.
+ */
+async function seededColumnCount(): Promise<number> {
+  const stored = (await cookies()).get(COLUMNS_COOKIE)?.value;
+  return parseColumnCount(stored) ?? DEFAULT_COLUMN_COUNT;
+}
+
 function currentAnchorDate(
   zone: HouseholdSettings["timezone"],
   startWeekOn: HouseholdSettings["startWeekOn"],
@@ -32,9 +46,14 @@ function currentAnchorDate(
  * paint already shows the week with no loading state — the same seeding
  * pattern the `(app)` layout uses for `FamilyProvider`.
  *
- * It fetches `DEFAULT_COLUMN_COUNT` days because that is what the client
- * renders before it has measured itself; a narrower measured window simply
- * fetches its own, and `WeekView` only seeds the entry these rows belong to.
+ * How many days it fetches is how many columns THIS DEVICE drew last time
+ * (012, `device-columns.ts`), falling back to `DEFAULT_COLUMN_COUNT` for a
+ * device that has never said. A server cannot measure a viewport, and the
+ * default is a tablet's width, so before the cookie every phone painted seven
+ * columns, re-laid-out to three, and threw away the seven days of events the
+ * seed had just shipped it. The cookie is a hint and the mounted grid is still
+ * the truth: a rotated device is wrong for one paint, which is what every load
+ * used to be.
  *
  * The layout above is the gate: when there is no member or no settings row
  * it is already redirecting this whole render to sign-in or not-authorized,
@@ -45,6 +64,7 @@ export default async function CalendarPage() {
   if (member === null) return null;
 
   const supabase = await createClient();
+  const columnCount = await seededColumnCount();
 
   // 012: only the EVENTS read depends on the settings, because only it needs a
   // window — and a window needs the household's timezone and start-of-week.
@@ -61,13 +81,14 @@ export default async function CalendarPage() {
   if (settings === null) return null;
 
   const anchorDate = currentAnchorDate(settings.timezone, settings.startWeekOn);
-  const window = viewWindowOf(anchorDate, DEFAULT_COLUMN_COUNT, settings.timezone);
+  const window = viewWindowOf(anchorDate, columnCount, settings.timezone);
   // 006 FR-634: the meal reads ride the same request, so the tokens are on the first paint too.
   const events = await fetchWeekEvents(supabase, member.householdId, fetchBoundsOf(window));
 
   return (
     <WeekView
       initialAnchorDate={anchorDate}
+      initialColumnCount={columnCount}
       initialEvents={events}
       initialMeals={meals}
       initialMealCategories={mealCategories}
