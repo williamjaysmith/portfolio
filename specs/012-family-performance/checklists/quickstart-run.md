@@ -142,7 +142,7 @@ run has never been enough to conclude anything. One, `live.spec:21`, was fixed o
 
 | Still failing | Verdict |
 |---|---|
-| `[wall] live.spec:72` | the meal-delete leg. Investigated at length below; **open and unexplained** |
+| ~~`[wall] live.spec:72`~~ | **explained and fixed** — see "The third defect" below. Passes 2/2 on repeat |
 | `[phone] meals.spec:62` | known open: the shared `household` fixture cannot find today's column on a narrow grid |
 | `[phone] punch-in.spec:14` | **passes 6/6 when its file runs alone.** Interference class, not a regression — it did not fail in the previous run at all |
 
@@ -245,13 +245,28 @@ reported the defect above. **A check that cannot fail is worse than no check, be
 pass.** The helper now clears the table before either page navigates, and the fixture hands over a
 function the journey calls at the moment its comment always claimed.
 
-### What is still failing
+### The third defect — the journey asserted on a token it did not own
 
-`live.spec:72`'s second leg: after a meal is deleted on one browser, its token does not leave the
-other browser's calendar inside the five seconds FR-722 promises. The row **is** deleted (checked in
-the database straight after the run), and the same deletion propagates in milliseconds when driven by
-hand — by three separate routes. So this looks like harness timing rather than app behaviour, and
-**that is a guess, not a result**: it is not yet explained and is recorded as open.
+`live.spec:72` failed **3/3 on repeat**, so it was never flake. And the app was never at fault: the
+meal row *is* deleted, and the deletion propagates in milliseconds when driven by hand, by three
+separate routes.
+
+**The seed plans Banana bread as SATURDAY's Snack.** A seven-column window runs Sunday to Saturday, so
+the `wall` tablet already shows a `Snack: Banana bread` token before this journey does anything —
+confirmed by opening the calendar at 1280×800 with nothing planted and counting exactly one.
+
+Both of its assertions were therefore wrong in the same way:
+
+- `toBeVisible` on that token **passed on the seed's meal**, proving nothing about the journey's own;
+- `toHaveCount(0)` after the delete **could never pass**, because the seed's Saturday token remains.
+
+It would have failed from the day it was written. It surfaced now only because these journeys had
+been skipping. The count is now the claim — one more token than before, then one fewer — which is also
+the truer reading of FR-722: a change arrives, and its removal arrives too.
+
+`meals.spec.ts` already carried this warning in a comment ("several days can hold the same recipe, and
+the seed plans Banana bread on the Saturday") and scopes its own locators by day. This journey did
+not. **A fixture that appears twice in one window cannot identify anything by name alone.**
 
 ---
 

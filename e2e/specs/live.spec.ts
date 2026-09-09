@@ -85,6 +85,29 @@ test.describe("two browsers, one household", () => {
     const support = await liveUpdates();
     test.skip(!support.available, `live updates cannot be proved here: ${support.reason}`);
 
+    /**
+     * **This token is not unique to what this journey plans, and assuming it
+     * was is what made this journey unpassable.**
+     *
+     * The seed plans Banana bread as SATURDAY's Snack, and a seven-column
+     * window runs Sunday to Saturday — so the wall tablet already shows a
+     * "Snack: Banana bread" token before this journey does anything. The old
+     * assertions were `toBeVisible` and then `toHaveCount(0)`: the first passed
+     * on the seed's token without proving a thing, and the second could never
+     * pass, because the seed's token is still there after this journey's own
+     * meal is deleted. It failed 3/3, deterministically, and would have from
+     * the day it was written — it only surfaced once these journeys stopped
+     * skipping (012).
+     *
+     * So the COUNT is the claim: one more token than before, then one fewer.
+     * That is also the truer statement of FR-722 — a change arrives, and its
+     * removal arrives too.
+     */
+    const bananaTokens = secondBrowser
+      .getByRole("list", { name: "Meals" })
+      .getByRole("button", { name: "Snack: Banana bread" });
+    const before = await bananaTokens.count();
+
     const today = household.todayLabel;
     await actAsAna(async () => {
       await page.getByRole("button", { name: new RegExp(`^${today}.*Snack, empty`) }).click();
@@ -94,9 +117,7 @@ test.describe("two browsers, one household", () => {
     });
 
     // The other browser is on the calendar: the meal arrives as a token there.
-    await expect(
-      secondBrowser.getByRole("list", { name: "Meals" }).getByRole("button", { name: "Snack: Banana bread" }),
-    ).toBeVisible({ timeout: ARRIVES_WITHIN });
+    await expect(bananaTokens).toHaveCount(before + 1, { timeout: ARRIVES_WITHIN });
 
     await actAsAna(async () => {
       await page
@@ -106,8 +127,7 @@ test.describe("two browsers, one household", () => {
       await page.getByRole("button", { name: "Delete" }).click();
       await page.getByRole("button", { name: "Delete meal" }).click();
     });
-    await expect(
-      secondBrowser.getByRole("list", { name: "Meals" }).getByRole("button", { name: "Snack: Banana bread" }),
-    ).toHaveCount(0, { timeout: ARRIVES_WITHIN });
+    // And its removal arrives too — back to the seed's own Saturday token.
+    await expect(bananaTokens).toHaveCount(before, { timeout: ARRIVES_WITHIN });
   });
 });
