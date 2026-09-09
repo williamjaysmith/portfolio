@@ -5,7 +5,7 @@ import { expectNoSeriousViolations } from "./helpers/a11y";
 import { unique as uniqueName } from "./helpers/names";
 import { hideDevOverlay } from "./helpers/overlay";
 import { actAs, punchOut, type PinnedProfile } from "./helpers/punch";
-import { liveUpdateSupport, type LiveUpdateSupport } from "./helpers/realtime";
+import { clearStaleSubscriptions, liveUpdateSupport, type LiveUpdateSupport } from "./helpers/realtime";
 
 /**
  * 007 T017 — the extended `test` every journey imports (harness.md §2).
@@ -38,8 +38,14 @@ interface Fixtures {
   household: HouseholdFacts;
   /** Fails the current page on any serious or critical accessibility violation. */
   axe: (label: string) => Promise<void>;
-  /** Whether this environment can deliver a live update at all (FR-725). */
-  liveUpdates: LiveUpdateSupport;
+  /**
+   * Whether this environment can deliver a live update at all (FR-725).
+   *
+   * A function, not a value, and that is the whole point (012): fixtures resolve
+   * before the test body, so a value was always measured before either browser
+   * had navigated. Call it once both pages are on `/family`.
+   */
+  liveUpdates: () => Promise<LiveUpdateSupport>;
 }
 
 function actor(page: Page, profile: PinnedProfile) {
@@ -119,7 +125,12 @@ export const test = base.extend<Fixtures>({
   },
 
   liveUpdates: async ({}, use) => {
-    await use(await liveUpdateSupport());
+    // Rows in `realtime.subscription` outlive the socket that made them, so a
+    // count taken without clearing first reports "live updates work here" on
+    // any machine that has ever run the app. Cleared before either browser has
+    // navigated, so whatever the journey counts was registered by the journey.
+    await clearStaleSubscriptions();
+    await use(liveUpdateSupport);
   },
 });
 

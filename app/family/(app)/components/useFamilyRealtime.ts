@@ -14,19 +14,41 @@ import { createClient } from "@/lib/family/supabase/client";
  * Realtime does not apply the same column privileges as a normal read.
  */
 
+/**
+ * **Every table subscribes UNFILTERED, and that is load-bearing (012).**
+ *
+ * Seventeen of these always were, for the reason R209/R324/Assumption 39 gives:
+ * a DELETE payload carries primary keys only, never `household_id`, so a
+ * filtered subscription silently never fires on a delete — and deletes are the
+ * hot path here (an un-complete, an unskip, Clear Completed, Delete list).
+ *
+ * Three — `categories`, `household_settings`, `households` — carried a filter
+ * until 012, and it **broke live updates entirely, for every table**. Bisected
+ * in a browser against the local stack:
+ *
+ *   - one unfiltered binding: registers in `realtime.subscription`, delivers;
+ *   - all twenty unfiltered: registers, delivers;
+ *   - all twenty with ONE filter added back: **nothing registers at all**, and
+ *     the channel still reports `SUBSCRIBED`.
+ *
+ * So a single filtered binding discards the whole channel's bindings, and it
+ * does it without an error anyone can see. That is why two devices never
+ * watched each other, and why nothing ever said so.
+ *
+ * **What a filter was buying, and what it was not.** It was bandwidth: fewer
+ * payloads reaching a client that would ignore them anyway. It was never
+ * privacy — payloads are a refetch signal and are never rendered (see below),
+ * and the refetch that follows goes through RLS like every other read. So its
+ * loss costs nothing this app relies on.
+ */
 type TableSubscription = {
   readonly table: string;
-  // Optional: the calendar and task tables subscribe UNFILTERED (R209, R324,
-  // Assumption 39) — DELETE payloads carry primary keys only, never
-  // household_id, so a filtered subscription would silently never fire on
-  // deletes.
-  readonly filter?: (householdId: string) => string;
 };
 
 const TABLES: readonly TableSubscription[] = [
-  { table: "categories", filter: (id) => `household_id=eq.${id}` },
-  { table: "household_settings", filter: (id) => `household_id=eq.${id}` },
-  { table: "households", filter: (id) => `id=eq.${id}` },
+  { table: "categories" },
+  { table: "household_settings" },
+  { table: "households" },
   { table: "events" },
   { table: "event_categories" },
   { table: "event_exceptions" },
@@ -90,13 +112,8 @@ export function useFamilyRealtime(householdId: string): void {
     const invalidate = () => void queryClient.invalidateQueries({ queryKey: familyKeys.all });
 
     let channel = supabase.channel(`family:${householdId}`);
-    for (const { table, filter } of TABLES) {
-      channel = channel.on(
-        "postgres_changes",
-        // The spread keeps the params free of a `filter` key when none applies.
-        { event: "*", schema: "family", table, ...(filter && { filter: filter(householdId) }) },
-        invalidate,
-      );
+    for (const { table } of TABLES) {
+      channel = channel.on("postgres_changes", { event: "*", schema: "family", table }, invalidate);
     }
     channel.subscribe(reportChannelStatus);
 

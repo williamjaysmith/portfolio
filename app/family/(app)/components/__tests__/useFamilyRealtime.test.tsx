@@ -23,6 +23,15 @@ import { useFamilyRealtime } from "../useFamilyRealtime";
  * 004 FR-410 / R411 adds the four rewards tables on the same terms: an un-tick
  * writes a ledger row and a reward's deletion is a DELETE, and both must reach
  * the other device's balance, pill, bar and button within seconds.
+ *
+ * **012 extends "no filter" from most tables to ALL of them, and it is no longer
+ * an optimisation — it is the difference between this hook working and doing
+ * nothing at all.** A single filtered binding makes the server discard every
+ * binding on the channel, silently, while the client still reports
+ * `SUBSCRIBED`. Three tables carried a filter from Phase 1, so live updates had
+ * never worked; the two-browser journeys that should have caught it were
+ * skipping, because their environment check counts subscription rows that
+ * outlive the socket that made them. Both are fixed in 012.
  */
 
 type CapturedSubscription = {
@@ -116,14 +125,39 @@ describe("useFamilyRealtime", () => {
     }
   });
 
-  it("keeps Phase 1's household-scoped filters on its three tables", () => {
+  /**
+   * 012 — the test that would have caught the defect that made this whole hook
+   * a no-op.
+   *
+   * Phase 1 filtered three tables by household, and the previous version of
+   * this test pinned those filters as a guarantee. They were not a guarantee;
+   * they were the bug. **One filtered binding discards every binding on the
+   * channel**, server-side, while `subscribe()` still reports `SUBSCRIBED` —
+   * so the household's two devices never saw each other and nothing ever
+   * said so. Bisected in a browser: one unfiltered binding delivers, twenty
+   * unfiltered deliver, twenty with a single filter register nothing at all.
+   *
+   * A filter was only ever saving bandwidth. It was never access control —
+   * a payload is a refetch signal, never rendered, and the refetch goes
+   * through RLS like every other read — so there is nothing to weigh against
+   * the feature working.
+   *
+   * This is asserted over EVERY table rather than the three, so the next
+   * person to reach for `filter` has to delete this test to do it.
+   */
+  it("carries no filter on any table, because one filter kills them all (012)", () => {
     renderRealtime();
 
-    const byTable = subscriptionsByTable();
-    expect(byTable.get("categories")?.filter).toBe(`household_id=eq.${HOUSEHOLD_ID}`);
-    expect(byTable.get("household_settings")?.filter).toBe(`household_id=eq.${HOUSEHOLD_ID}`);
-    expect(byTable.get("households")?.filter).toBe(`id=eq.${HOUSEHOLD_ID}`);
+    for (const { params } of captured.subscriptions) {
+      expect(params, `${String(params.table)} must not be filtered`).not.toHaveProperty("filter");
+    }
     expect(captured.subscriptions).toHaveLength(3 + UNFILTERED_TABLES.length);
+    // And the three that used to be filtered are still subscribed — dropping
+    // the filter must not have dropped the table.
+    const byTable = subscriptionsByTable();
+    for (const table of ["categories", "household_settings", "households"]) {
+      expect(byTable.get(table), `missing subscription for ${table}`).toBeDefined();
+    }
   });
 
   it("maps every notice to a bare invalidateQueries(familyKeys.all), payload unused", () => {

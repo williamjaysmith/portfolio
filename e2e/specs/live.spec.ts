@@ -13,6 +13,14 @@ import { expect, test } from "../fixtures";
  * live channel — a gap in the stack, not in the app — so the probe asks the
  * database whether any subscription exists once both pages are up, and says so
  * plainly when the answer is no.
+ *
+ * **012: the probe is now called where that sentence says it is.** It used to be
+ * a fixture VALUE, and Playwright resolves fixtures before the test body, so it
+ * was measured before either page had navigated — and it counted subscription
+ * rows that outlive the socket that made them. Between them, those two facts
+ * meant these journeys skipped on the strength of rows belonging to nobody, and
+ * so never reported that a filtered binding had been discarding the whole
+ * channel since Phase 1.
  */
 
 const ARRIVES_WITHIN = 5_000;
@@ -32,7 +40,8 @@ test.describe("two browsers, one household", () => {
     await secondBrowser.goto("/family/lists");
     await expect(secondBrowser.getByRole("navigation", { name: "Primary" })).toBeVisible();
 
-    test.skip(!liveUpdates.available, `live updates cannot be proved here: ${liveUpdates.reason}`);
+    const support = await liveUpdates();
+    test.skip(!support.available, `live updates cannot be proved here: ${support.reason}`);
 
     const item = unique("Live check");
     await showColumn(page, "Grocery List", "Lists");
@@ -73,7 +82,8 @@ test.describe("two browsers, one household", () => {
     await secondBrowser.goto("/family/calendar");
     await expect(secondBrowser.getByRole("navigation", { name: "Primary" })).toBeVisible();
 
-    test.skip(!liveUpdates.available, `live updates cannot be proved here: ${liveUpdates.reason}`);
+    const support = await liveUpdates();
+    test.skip(!support.available, `live updates cannot be proved here: ${support.reason}`);
 
     const today = household.todayLabel;
     await actAsAna(async () => {
