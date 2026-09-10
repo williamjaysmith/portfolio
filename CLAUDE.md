@@ -4,47 +4,55 @@ with migration `039` applied to the hosted project. Countdowns end to end, Tasks
 calendar's event search. Run record:
 `specs/009-calendar-preview-bar/checklists/quickstart-run.md`.
 
-**BUILT BUT NOT MERGED: `011` and `012`, 23 commits on `012-family-performance`.** The branch is
-stacked — `012` sits on `011` — so they merge together or not at all. `main` is still at Phase 9.
+**State: SHIPPED 2026-09-10** — `011` and `012` merged together (the branch was stacked) and
+deployed. **No migration**: `039` remains the latest and was already applied in Phase 9. Five gates
+green, including `npm run test:e2e` at **140 passed / 0 failed / 3 skipped in 7.3 minutes**. Run
+records: `specs/011-family-calendar-views/checklists/quickstart-run.md` and
+`specs/012-family-performance/checklists/quickstart-run.md`.
 
 - **`011-family-calendar-views`** — the view switcher, the Day view and the Month view. Note the name:
   `011` was once planned as the offline cache and is NOT. The offline cache is still unbuilt, still has
   **no Skylight source at all**, and must be written as this project's own invention rather than a
   clone whenever it is taken up.
-- **`012-family-performance`** — measured performance work, and three defects it found on the way.
+- **`012-family-performance`** — measured performance work, and the defects it found on the way.
 
-**What `012` actually turned out to be about.** It began as "production feels slower than dev" and
-the largest thing it found is not performance at all:
+**What `012` turned out to be about.** It began as "production feels slower than dev" and the largest
+thing it found is not performance at all:
 
 - **Live updates had NEVER worked, since Phase 1.** `useFamilyRealtime` filtered three of its twenty
   tables by household, and **one filtered `postgres_changes` binding makes the server discard every
-  binding on the channel** while `subscribe()` still reports `SUBSCRIBED`. Two devices have never once
-  watched each other. Fixed; verified by hand and by `live.spec:21` passing for the first time.
+  binding on the channel** while `subscribe()` still reports `SUBSCRIBED`. Two devices had never once
+  watched each other. **Verified against the LOCAL stack only** — the local stack does not enforce
+  realtime RLS and the hosted project does, so confirm it on a real second device.
 - **The check that should have caught it could not fail.** `liveUpdateSupport()` counted rows in
   `realtime.subscription` — registration, never delivery — and those rows outlive the socket that made
-  them, so on any machine that had ever run the app the answer was "yes, live updates work here",
-  permanently. It was also read before either browser had navigated, because it was a fixture value
-  and Playwright resolves fixtures before the test body. The journeys therefore **skipped**, and a skip
-  reads as a pass. **The bar that follows: a capability check must observe the capability, not a trace
-  that the capability was once attempted.**
-- **Two e2e journeys asserted on fixtures they did not own** — the seed's Saturday Banana bread, in a
-  seven-column window that shows Saturday. A fixture that appears twice in one window cannot be
-  identified by name alone.
-- **The phone's calendar stopped re-laying-out**: CLS 0.18 → 0.00, by letting the device tell the
-  server how wide it is through a cookie.
-- **The Meals grid now opens on today** (the operator's ruling: "the past is in the past"). The Week
-  calendar already did; Meals opened on the week's first day, so a two-column phone showed days that
-  had already gone.
+  them, so on any machine that had ever run the app the answer was "yes", permanently. It was also read
+  before either browser had navigated. The journeys **skipped**, and a skip reads as a pass.
+  **The bar that follows: a capability check must observe the capability, not a trace that the
+  capability was once attempted.**
+- **A failing journey is contagious.** It never reaches its own cleanup, so its rows poison later
+  journeys — which is why the failing SET moved between runs. Fixed by fixing the flaky journeys
+  (three one-shot `count()` races, two locators asserting on the seed's own fixtures). **Two attempts
+  at a general teardown were reverted and both are recorded**: one cost 11 minutes a run, the other
+  corrupted the seed by assuming seeded rows carry a deterministic id prefix — false for
+  `star_entries`. A correct one needs a baseline captured after the seed.
+- **The phone's calendar stopped re-laying-out**: CLS 0.18 → 0.00, via a cookie carrying the device's
+  measured width so the server seeds the window it will actually draw.
+- **Invalidation is by domain now.** Every realtime notice used to sweep `familyKeys.all`; that cost
+  nothing while the channel delivered nothing, and ~6 refetches per device per write once it did.
+- **The Meals grid opens on today** (the operator's ruling: "the past is in the past").
 
-**The one thing `012` owes: a browser pass on a quiet machine.** Four gates are green (3796 tests,
-typecheck, lint, fallow). Five full `test:e2e` runs gave 7, 3, 13, 1 and 8 failures on effectively
-identical code, and **load at start predicts the count while the code does not** — the 1-failure run
-was the only quiet one, and that failure is now fixed. `mediaanalysisd` and `mds_stores` were each
-taking ~90–99% of a core. Read `specs/012-family-performance/checklists/quickstart-run.md` before
-concluding anything about this suite.
+**Read before the next phase**: `specs/012-family-performance/checklists/quickstart-run.md`. It
+records nine full suite runs, the failure counts (7, 3, 13, 1, 8, 9, 2, 1, 0), four performance
+hypotheses that measurement killed, and **a load theory that was believed for several runs and was
+wrong**.
 
 **Do not edit `app/**` or `lib/**` while `npm run test:e2e` is running** — its web server is
 `next dev` with hot reload, and one run was invalidated that way.
+
+**The first candidate for the next phase**: `FamilyProvider`'s `refresh()` still sweeps
+`familyKeys.all` after every mutation, so the writing device pays ~6 refetches plus ~2 from its own
+realtime echo. Narrowing it means every write call site declaring its domain.
 
 **`010` — the home screen — is SHELVED (2026-09-08), specified but not built.** The operator's call:
 the Calendar tab already is a fine home screen now that Phase 8's preview bar puts the countdowns and
@@ -52,13 +60,13 @@ each Profile's chore progress above the week. `specs/010-family-home-screen/` is
 research — five resolving article ids, an audit that rejected 23 over-claims, and four "home screen"
 traps named so nobody re-adopts one. Do not resurrect it without re-reading why it was shelved.
 
-**Still outstanding, and the operator's own**: verify two-device sync on the **hosted** project (the
-realtime fix is local-verified only, and the local stack does not enforce realtime RLS); the Vercel
-cold start (**1.81 s TTFB on a cold request against 0.17 s warm** — a dashboard setting, not code);
-the overnight countdown roll; and the lint fix stashed on `fix-lint-react-19` (11 errors in the legacy
-sub-apps, none in `/family`).
+**Still outstanding, and the operator's own**: verify two-device sync on the **hosted** project (see
+above — local-verified only); the Vercel cold start (**1.81 s TTFB cold against 0.17 s warm** — a
+dashboard setting, not code, and the largest latency number `012` measured); the overnight countdown
+roll; and the lint fix stashed on `fix-lint-react-19` (11 errors in the legacy sub-apps, none in
+`/family`).
 
-Phases 1–9 are shipped and live; `010` is shelved unbuilt; `011` and `012` are built and unmerged.
+Phases 1–9, `011` and `012` are shipped and live; `010` is shelved unbuilt.
 
 Read in this order before touching preview-bar code:
 Read in this order before touching preview-bar code:
