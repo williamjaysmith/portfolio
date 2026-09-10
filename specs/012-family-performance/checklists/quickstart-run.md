@@ -125,11 +125,29 @@ time it is picked up. Recorded for the operator to rule on.
   after idle, 0.17 s on every one after**. This is the largest number anywhere in this phase and it is
   almost certainly what the operator is feeling, since a development server is never cold. It is a
   Vercel compute setting, not code. The request enters at `cle1` and executes at `iad1`.
-- **`familyKeys.all` on every mutation and every realtime event.** One ticked chore refetches ~6
-  queries per open device, and the writer pays twice — its own `refresh()` and then its realtime echo.
-  Left alone deliberately: the refetches are parallel, so the prize is tablet CPU and database load
-  rather than latency, and `useFamilyRealtime` records that the bare sweep is load-bearing for
-  Completed Date chores. A small gain against a correctness risk is the wrong trade for this app.
+- **`familyKeys.all` on every mutation — the REALTIME half is now fixed, this half is not.**
+  The original note here said both were left alone because the refetches are parallel, so the prize
+  was tablet CPU rather than latency. That reasoning died with the realtime fix: a channel that
+  delivers nothing costs nothing, and a channel that delivers makes every write a full-household
+  refetch on every open device. The realtime half is now narrowed by domain
+  (`lib/family/invalidation.ts`), measured at 5 refetches → 2 on the Lists tab.
+
+  **What remains is `FamilyProvider`'s `refresh()`**, which runs after every successful mutation and
+  still sweeps `familyKeys.all`. So the writing device now pays twice over: ~6 refetches from its own
+  `refresh()`, then ~2 more when its realtime echo arrives. **This is the largest remaining
+  invalidation cost in the app, and it falls on the device somebody is actually looking at.**
+
+  Not attempted here, and the reason is sequencing rather than difficulty: `refresh()` cannot know
+  which tables a write touched, so narrowing it means every call site declaring its domain — a
+  mechanical change across every write path in the app, landed on a branch whose browser gate cannot
+  currently be established. **It is the first candidate for the next phase.** Deleting `refresh()` and
+  trusting the echo is NOT the answer: a writer whose own screen waits on the network, and shows
+  nothing at all if realtime drops, is worse than a redundant refetch.
+
+- **14.4 kB of polyfills** for features every modern browser has, flagged by the trace's
+  `LegacyJavaScript` insight. Not changed, and deliberately: the lever is `browserslist`, and **nobody
+  here knows what browser the wall tablet runs.** If it is an older iPad, narrowing the target does not
+  trim 14 kB, it breaks the app. An operator question, not a code one.
 - **407 KB of client JavaScript** on the calendar route, including **14.4 kB** of unnecessary
   polyfills. No measurement showed download or parse to be the constraint.
 
