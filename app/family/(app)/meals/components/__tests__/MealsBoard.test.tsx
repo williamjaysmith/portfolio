@@ -12,12 +12,24 @@ import { resetHiddenMealtimes } from "../useHiddenMealtimes";
 import { BREAKFAST, CATEGORIES, DINNER, LUNCH, SNACK, mealOf, recipeOf } from "./meals-test-fixtures";
 
 /**
- * 006 T030 — the Meals tab's grid and its mealtimes (FR-601–FR-611): seven
- * day columns from the household's start day with today marked, the rail's
- * four rows in order, a cell per day × shown mealtime named by its day,
- * mealtime and count, the week arrows and Today, a hidden mealtime's row
- * gone with its meals untouched, the no-mealtimes note, the shell's control
- * named "Add Meal", and the read error as the one line.
+ * 006 T030 — the Meals tab's grid and its mealtimes (FR-601–FR-611): the day
+ * columns with today marked, the rail's four rows in order, a cell per day ×
+ * shown mealtime named by its day, mealtime and count, the arrows and Today, a
+ * hidden mealtime's row gone with its meals untouched, the no-mealtimes note,
+ * the shell's control named "Add Meal", and the read error as the one line.
+ *
+ * **013 changed where the columns start and how far the arrows go.** Four
+ * assertions here used to encode 006 Assumption 3 — "seven day columns from the
+ * household's start day", arrows moving "a whole week". That assumption was
+ * reversed on the record because the household's phone showed two of those seven
+ * columns while the arrows skipped five days per step. The window now begins on
+ * today and moves by however many columns are drawn.
+ *
+ * jsdom measures nothing, so the board here draws its unmeasured ceiling of
+ * seven — which makes this file the SEVEN-COLUMN case, and the arrows a week.
+ * That is the wall tablet's behaviour, and it is the general rule rather than a
+ * special case: `meals-window.test.ts` drives the narrow widths, where the count
+ * can be injected.
  */
 
 vi.mock("@/lib/family/queries", async (importOriginal) => {
@@ -49,7 +61,10 @@ const pizza = recipeOf("🍕 Pizza", DINNER);
 const RECIPES: Recipe[] = [pancakes, spaghetti, garlicBread, pizza];
 
 const MEALS: Meal[] = [
-  mealOf("2026-09-06", BREAKFAST, pancakes.id),
+  // A Sunday inside the window (Wed 9 – Tue 15), so the grid still has a
+  // not-today day carrying a meal. It sat on 09-06 until 013, when the window
+  // stopped beginning at the household's week start and 09-06 fell outside it.
+  mealOf("2026-09-13", BREAKFAST, pancakes.id),
   mealOf("2026-09-09", DINNER, spaghetti.id, { note: "Ben cooks" }),
   mealOf("2026-09-09", DINNER, garlicBread.id),
   mealOf("2026-09-04", DINNER, pizza.id, { rrule: "FREQ=WEEKLY;INTERVAL=1;WKST=SU;BYDAY=FR" }),
@@ -104,23 +119,24 @@ describe("MealsBoard", () => {
     reads();
   });
 
-  it("draws the seven days of the household's week from Sunday, today marked, with the rail's four rows in order", () => {
+  it("draws its day columns from TODAY, today marked, with the rail's four rows in order", () => {
     renderBoard();
+    // Today first, then the six days after it — no longer Sunday to Saturday.
     expect(dayNames()).toEqual([
-      "Sunday 6 September",
-      "Monday 7 September",
-      "Tuesday 8 September",
       "Wednesday 9 September",
       "Thursday 10 September",
       "Friday 11 September",
       "Saturday 12 September",
+      "Sunday 13 September",
+      "Monday 14 September",
+      "Tuesday 15 September",
     ]);
     const wednesday = screen.getByRole("region", { name: "Wednesday 9 September" });
     expect(within(wednesday).getByRole("banner")).toHaveAttribute("aria-current", "date");
-    expect(within(screen.getByRole("region", { name: "Monday 7 September" })).getByRole("banner")).not.toHaveAttribute("aria-current");
+    expect(within(screen.getByRole("region", { name: "Thursday 10 September" })).getByRole("banner")).not.toHaveAttribute("aria-current");
     const rail = screen.getByRole("list", { name: "Mealtimes" });
     expect(within(rail).getAllByText(/Breakfast|Lunch|Dinner|Snack/).map((one) => one.textContent)).toEqual(["Breakfast", "Lunch", "Dinner", "Snack"]);
-    expect(screen.getByText("6–12 September")).toBeInTheDocument();
+    expect(screen.getByText("9–15 September")).toBeInTheDocument();
   });
 
   it("names every cell by its day, mealtime and count, and draws the slot's meals in planning order", () => {
@@ -129,20 +145,22 @@ describe("MealsBoard", () => {
     expect(within(dinner).getAllByRole("button").map((chip) => chip.textContent)).toEqual(["🍝 Spaghetti", "Garlic bread"]);
     expect(screen.getByRole("button", { name: "Wednesday 9 September, Lunch, empty" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Friday 11 September, Dinner, 1 meal" })).toHaveTextContent("🍕 Pizza");
-    expect(screen.getByRole("group", { name: "Sunday 6 September, Breakfast, 1 meal" })).toHaveTextContent("Pancakes");
+    expect(screen.getByRole("group", { name: "Sunday 13 September, Breakfast, 1 meal" })).toHaveTextContent("Pancakes");
   });
 
-  it("pages a whole week with the arrows and comes back with Today", () => {
+  it("pages by the columns drawn — seven here — and comes back with Today", () => {
     renderBoard();
     fireEvent.click(screen.getByRole("button", { name: "Next week" }));
-    expect(dayNames()[0]).toBe("Sunday 13 September");
+    // Seven columns are drawn, so a step is seven days from today.
+    expect(dayNames()[0]).toBe("Wednesday 16 September");
     expect(screen.getByRole("group", { name: "Friday 18 September, Dinner, 1 meal" })).toHaveTextContent("🍕 Pizza");
     fireEvent.click(screen.getByRole("button", { name: "Previous week" }));
     fireEvent.click(screen.getByRole("button", { name: "Previous week" }));
-    expect(dayNames()[0]).toBe("Sunday 30 August");
+    // Two steps back from the 16th, seven days each.
+    expect(dayNames()[0]).toBe("Wednesday 2 September");
     expect(screen.getByRole("button", { name: "Today" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Today" }));
-    expect(dayNames()[0]).toBe("Sunday 6 September");
+    expect(dayNames()[0]).toBe("Wednesday 9 September");
     expect(screen.getByRole("button", { name: "Today" })).toBeDisabled();
   });
 
@@ -154,7 +172,7 @@ describe("MealsBoard", () => {
     const rail = screen.getByRole("list", { name: "Mealtimes" });
     expect(within(rail).queryByText("Dinner")).toBeNull();
     expect(screen.queryByRole("group", { name: /Dinner/ })).toBeNull();
-    expect(screen.getByRole("group", { name: "Sunday 6 September, Breakfast, 1 meal" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Sunday 13 September, Breakfast, 1 meal" })).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem("family:meal-hidden:v1") ?? "[]")).toEqual([DINNER]);
   });
 

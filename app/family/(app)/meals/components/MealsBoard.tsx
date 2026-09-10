@@ -12,7 +12,6 @@ import { useMealCategories, useMeals, useRecipes } from "@/lib/family/queries";
 import type { Meal, MealCategory, MealOccurrence, Recipe } from "@/lib/family/types";
 
 import { BoardNotice } from "../../components/BoardNotice";
-import { useColumnPage } from "../../components/ColumnPager";
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily } from "../../components/FamilyProvider";
 import { PagedColumns, type PagedColumn } from "../../components/PagedColumns";
@@ -24,7 +23,7 @@ import { MealRail } from "./MealRail";
 import { MealSurfaces, useMealSurfaceModel } from "./MealSurfaces";
 import { WeekNav } from "./WeekNav";
 import { useHiddenMealtimes } from "./useHiddenMealtimes";
-import { useMealWeek } from "./useMealWeek";
+import { useMealWindow } from "./useMealWindow";
 
 /**
  * 006 T034: the Meals tab — FR-602's week grid on the shipped board chassis
@@ -115,32 +114,68 @@ function useMealsData(
 /* ------------------------------------------------------------------ view -- */
 
 /**
- * `todayIndex` is which of the week's columns is today, and it is the column the
- * grid OPENS on (012). A seven-column tablet shows the whole week either way; a
- * two-column phone used to open on Sunday and Monday, so the tab a household
- * opens to plan dinner showed them days that had already gone.
+ * The grid measures itself, and that measurement IS the window's width (013
+ * FR-1301).
+ *
+ * There is no pager here any more. Until 013 this hook also held a
+ * `useColumnPage` — which slice of a seven-day week was visible — and the board
+ * had two independent ways to move: that slice by swipe, and the week by the
+ * labelled arrows. On a phone they disagreed and the arrows were the ones that
+ * skipped days. The window replaced both, so the only thing left to measure is
+ * how many columns fit.
+ *
+ * `MEASURED_COLUMN_CEILING` is what we ask the measurement about, not what the
+ * grid draws: `useBoardGeometry` reports how many of that many fit, and the
+ * window is then exactly that wide. Seven, because a week is as much as this
+ * grid has ever shown at once and the reference's own layout is seven columns
+ * `[VERIFIED]`.
  */
-function useMealsView(columnCount: number, todayIndex: number) {
-  const geometry = useBoardGeometry(columnCount, { widthToken: "--fam-meal-cell-w", layoutOf: rowLayoutOf });
-  const page = useColumnPage({
-    columnCount,
-    perRow: geometry.layout.perRow,
-    mode: geometry.layout.mode,
-    openOn: todayIndex,
+const MEASURED_COLUMN_CEILING = 7;
+
+function useMealsView() {
+  const geometry = useBoardGeometry(MEASURED_COLUMN_CEILING, {
+    widthToken: "--fam-meal-cell-w",
+    layoutOf: rowLayoutOf,
   });
-  return { layout: geometry.layout, boardRef: geometry.boardRef, page };
+  return { layout: geometry.layout, boardRef: geometry.boardRef };
 }
 
 /* ----------------------------------------------------------------- model -- */
 
 function useMealsBoardModel(props: MealsBoardProps) {
   const { householdId, settings, isParent } = useFamily();
-  const week = useMealWeek({ zone: settings.timezone, startWeekOn: settings.startWeekOn, initialToday: props.initialToday });
+  // The measurement comes first: the window's width IS what the grid fits, so
+  // the view is read before the window rather than handed a count by it.
+  const view = useMealsView();
+  const week = useMealWindow({
+    zone: settings.timezone,
+    initialToday: props.initialToday,
+    columns: view.layout.perRow,
+  });
   const hidden = useHiddenMealtimes();
   const data = useMealsData(householdId, props, week.dates, settings.timezone, hidden.hiddenIds);
-  // -1 when the shown week does not hold today, which `useColumnPage` reads as
-  // "no preference" after clamping — a navigated-to week opens at its start.
-  const view = useMealsView(week.dates.length, week.dates.indexOf(week.todayDate));
+
+  /**
+   * What `PagedColumns` needs, built from the window rather than from a pager
+   * (013 FR-1302, FR-1310).
+   *
+   * **Nothing is held back.** The window is already exactly as wide as the grid
+   * fits, so every one of its columns is drawn — `start` 0 through `end` length.
+   * That is what keeps the rendered structure the same size before and after the
+   * measurement lands, which is why this grid has never shifted its layout and
+   * must not start (CLS 0 at four widths, measured).
+   *
+   * **`paged` stays true, and means "the swipe is live" here.** On a Profile
+   * board it means columns are being withheld (FR-396). On this one it means the
+   * strip can move, which it always can: the window has no end. Keeping it true
+   * preserves the pager's group, its live region and its pan handlers — so the
+   * swipe and the arrows now do the SAME thing, one window at a time. Before 013
+   * they did different things, and that was the defect.
+   */
+  const page = useMemo(
+    () => ({ paged: true, start: 0, end: week.dates.length, step: week.page }),
+    [week.dates.length, week.page],
+  );
   const surfaces = useMealSurfaceModel({
     categories: data.categories,
     recipes: data.recipes,
@@ -158,6 +193,7 @@ function useMealsBoardModel(props: MealsBoardProps) {
 
   return {
     ...view,
+    page,
     week,
     hidden,
     data,
@@ -216,7 +252,7 @@ export function MealsBoard(props: MealsBoardProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 pt-2">
       <div className="flex flex-wrap items-center gap-2 px-(--fam-edge-inset)">
-        <WeekNav label={m.week.label} isCurrentWeek={m.week.isCurrentWeek} onPage={m.week.page} onToday={m.week.today} />
+        <WeekNav label={m.week.label} columns={m.week.dates.length} isLiveWindow={m.week.isLiveWindow} onPage={m.week.page} onToday={m.week.today} />
         <div className="ml-auto flex gap-2">
           <button type="button" onClick={() => editor.openRecipes(null)} className={TOOL} aria-haspopup="dialog">
             <BookOpen aria-hidden="true" size={20} strokeWidth={1.5} />

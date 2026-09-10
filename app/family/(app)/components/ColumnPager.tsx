@@ -75,22 +75,6 @@ export interface ColumnPageInput {
   perRow: number;
   /** Wrapped rows of a grid, or one row paged by swipe (FR-395, FR-396). */
   mode: BoardLayoutMode;
-  /**
-   * The column the board should OPEN on, when it has a reason to prefer one
-   * (012). Defaults to the first, which is what every Profile-columned board
-   * wants: Up for Grabs and then each Profile, in order, with no "current" one.
-   *
-   * The Meals grid is the exception and the reason this exists. Its columns are
-   * DAYS, its window is the household's week, and a two-column phone was opening
-   * on Sunday and Monday with today two pages away — so the tab a household
-   * opens to plan dinner showed them days that had already gone. The operator's
-   * call, in their words: *"most things should open with the same day, because
-   * the past is in the past"*.
-   *
-   * It is the opening page only. Paging away from it is not corrected, because a
-   * household that has navigated somewhere meant to.
-   */
-  openOn?: number;
 }
 
 export interface ColumnPage {
@@ -109,8 +93,8 @@ export interface ColumnPage {
  * Profile switched off the Tasks tab (FR-313) — lands on a legal page in the
  * same render, with no flash of an empty board and no second pass.
  */
-export function useColumnPage({ columnCount, perRow, mode, openOn = 0 }: ColumnPageInput): ColumnPage {
-  const [requested, setRequested] = useState(openOn);
+export function useColumnPage({ columnCount, perRow, mode }: ColumnPageInput): ColumnPage {
+  const [requested, setRequested] = useState(0);
 
   const step = useCallback(
     (direction: -1 | 1) =>
