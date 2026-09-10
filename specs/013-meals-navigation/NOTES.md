@@ -46,18 +46,49 @@ On a phone about two of the seven columns fit. So the visible window moves by sw
 labelled arrows skip the five columns between — the household is handed two different paging
 gestures on one screen, and the obvious control is the one that does the wrong thing.
 
-## The trap — read this before writing any code
+## Measured 2026-09-10, before writing any code
 
-**The server cannot measure a viewport, and Meals cannot borrow the Calendar's answer.**
+**The cookie trap this file used to warn about does not apply. Measured, not assumed.**
 
-012 hit exactly this on the Calendar: the server seeded `DEFAULT_COLUMN_COUNT` days, a phone measured
-three, and the grid re-laid-out on every load — **CLS 0.18**, the app's worst score. The fix was
-`lib/family/calendar/device-columns.ts`: the device's measured count rides in a cookie so the server
-seeds the window it will actually draw.
+The worry was that Meals would need its own width cookie, because the Calendar's CLS 0.18 came from
+the server seeding a width the device did not draw. **Meals measures CLS 0 at both 390px and 1280px**
+— the grid does not shift. Two reasons: the meals read is unwindowed (`useMeals` fetches every meal,
+so no server-seeded window can be wrong), and the visible slice is a transform over columns rather
+than a different set of them. **So no cookie, and that removes most of the anticipated work.**
 
-Meals needs its own measurement, not that cookie. The two grids size their columns from **different
-tokens** — `--fam-meal-cell-w` against `--fam-day-col-w` — so the counts genuinely differ at the same
-viewport. Reusing `family_columns` would seed the wrong width and reintroduce the shift.
+Baseline on a production build:
+
+| | shows | nav arrows |
+|---|---|---|
+| phone 390px | Thu 10, Fri 11 — two columns, today first | "Previous week" / "Next week" |
+| wall 1280px | Sun 6 … Sat 12 — all seven | "Previous week" / "Next week" |
+
+So the wall is already correct and matches the reference. **The defect is confined to widths where
+seven columns do not fit**, and it is exactly this: the arrows move seven days while the screen shows
+two, so five days are reachable only by swiping the strip.
+
+## The real complication, which is not the one I expected
+
+Making the arrows move by the visible width means collapsing the two-level model — a seven-day data
+window with a paged slice over it — into one rolling window. Three things make that phase-sized
+rather than an afternoon:
+
+1. **It reverses a documented decision.** `lib/family/meals/week.ts` states the current behaviour as
+   006's Assumption 3: "a whole week at a time — a planning grid, **not** the calendar's rolling
+   window anchored on today". Reversing it is legitimate — the operator's devices contradict the
+   assumption — but it has to be recorded as reversing Assumption 3.
+2. **`useColumnPage` steps ONE column per swipe, by design, and is shared by four boards.** Its own
+   test pins that: "steps ONE column per swipe, so each reveals exactly one more profile" (FR-396).
+   That is right for Profile columns on Tasks, Lists and Rewards, and wrong for days. So Meals needs
+   its own stepping rather than a change to the shared hook.
+3. **Continuity across the week boundary.** With two visible columns of a seven-day week, a page-sized
+   step from Thursday runs past Saturday. Rolling the anchor a week and resetting the slice skips a
+   day; getting it right means the window stops being "a slice of a week" at all.
+
+The clean answer is the Calendar's: the window IS the visible columns, `columnCount` days from an
+anchor, arrows moving the anchor by `columnCount`, anchored on today. On the wall that degrades to a
+rolling seven days, which is a further small divergence from the reference's Sunday-anchored grid and
+should be stated in the spec rather than discovered later.
 
 ## What tonight's work already did, and what supersedes it
 
