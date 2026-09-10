@@ -164,13 +164,24 @@ export const test = base.extend<Fixtures>({
   ownData: [
     async ({}, use, testInfo) => {
       await use();
+      // **Only after a FAILURE**, and the cost is the reason (012). A passing
+      // journey removes its own rows (harness.md §4 rule 3), so there is nothing
+      // here to do — and doing it anyway cost a Postgres connection and fifteen
+      // deletes after each of 143 tests, which took the suite from 8.5 minutes
+      // to 19.5 and failed twenty-seven journeys on timeouts it had caused
+      // itself. A teardown that makes the suite slower than the cascade it
+      // prevents is not worth having.
+      //
+      // A failure is the case that matters anyway: it is the journey that never
+      // reached its own cleanup.
+      if (testInfo.status === testInfo.expectedStatus) return;
+
       const removed = await clearLeftovers();
-      // Named in the report rather than swept up silently: a journey that leaves
-      // rows behind has a cleanup that did not run, and that is worth seeing
-      // even when this fixture makes it harmless.
       const left = Object.entries(removed)
         .map(([table, count]) => `${count} ${table}`)
         .join(", ");
+      // Named in the report rather than swept up silently: what a failed journey
+      // left behind is evidence about the failure.
       if (left !== "") testInfo.annotations.push({ type: "left behind", description: left });
     },
     { auto: true },

@@ -28,6 +28,13 @@ import { localDatabaseUrl } from "./stack";
  * **This does not hide a failure.** The journey that failed still fails. It just
  * stops being contagious.
  *
+ * **It runs only after a FAILURE**, and that is a cost decision measured the hard
+ * way. A passing journey removes its own rows, so running this after every test
+ * did nothing fifteen-sixteenths of the time — and a Postgres connection plus
+ * fifteen deletes after each of 143 tests took the suite from 8.5 minutes to
+ * 19.5 and failed twenty-seven journeys on timeouts it had introduced itself. A
+ * teardown that costs more than the cascade it prevents is not worth having.
+ *
  * **It is a WRITE, and the only one in the suite.** Everything else here reads.
  * It is confined to the local stack by `localDatabaseUrl`, which is the same
  * guard the rest of the harness uses, and it can never name the hosted project.
