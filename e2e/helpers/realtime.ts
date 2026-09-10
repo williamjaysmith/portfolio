@@ -60,19 +60,31 @@ export async function clearStaleSubscriptions(): Promise<void> {
   }
 }
 
-/** How many live subscriptions the database currently holds. `null` if it cannot be asked. */
-export async function subscriptionCount(): Promise<number | null> {
-  const url = await localDatabaseUrl();
-  if (url === null) return null;
-  const client = new Client({ connectionString: url });
-  try {
-    await client.connect();
-    const { rows } = await client.query<{ count: string }>("select count(*)::text as count from realtime.subscription");
-    return Number(rows[0]?.count ?? 0);
-  } catch {
-    return null;
-  } finally {
-    await client.end().catch(() => undefined);
+/**
+ * How long to let a browser get its channel registered before concluding this
+ * environment cannot deliver a live update.
+ *
+ * A single sample is not enough and the reason is measured: the subscription
+ * appears only after the socket has connected AND the channel has joined, and
+ * under load — Photos indexing, Spotlight, a suite already running — that takes
+ * noticeably longer than the navigation that precedes it. Sampling once turned
+ * a slow machine into "live updates do not work here", which is the same
+ * dishonest skip 012 set out to remove, arriving from the opposite direction.
+ */
+const WAIT_FOR_SUBSCRIPTION_MS = 8_000;
+const POLL_EVERY_MS = 250;
+
+/** Polls one open connection until there is a subscription, or the wait is spent. */
+async function countWhile(client: Client, done: (count: number) => boolean): Promise<number> {
+  const deadline = Date.now() + WAIT_FOR_SUBSCRIPTION_MS;
+  let count = 0;
+  for (;;) {
+    const { rows } = await client.query<{ count: string }>(
+      "select count(*)::text as count from realtime.subscription",
+    );
+    count = Number(rows[0]?.count ?? 0);
+    if (done(count) || Date.now() >= deadline) return count;
+    await new Promise((resolve) => setTimeout(resolve, POLL_EVERY_MS));
   }
 }
 
@@ -88,7 +100,19 @@ export async function subscriptionCount(): Promise<number | null> {
  * choose and the comment above describes what happens.
  */
 export async function liveUpdateSupport(): Promise<LiveUpdateSupport> {
-  const count = await subscriptionCount();
-  if (count === null) return { available: false, reason: NO_STACK };
-  return count > 0 ? { available: true, reason: "" } : { available: false, reason: NO_SUBSCRIPTION };
+  const url = await localDatabaseUrl();
+  if (url === null) return { available: false, reason: NO_STACK };
+
+  const client = new Client({ connectionString: url });
+  try {
+    await client.connect();
+    // Waits for a subscription rather than sampling for one — see
+    // WAIT_FOR_SUBSCRIPTION_MS for why one sample is not enough.
+    const count = await countWhile(client, (seen) => seen > 0);
+    return count > 0 ? { available: true, reason: "" } : { available: false, reason: NO_SUBSCRIPTION };
+  } catch {
+    return { available: false, reason: NO_STACK };
+  } finally {
+    await client.end().catch(() => undefined);
+  }
 }
