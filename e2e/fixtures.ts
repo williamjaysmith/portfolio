@@ -3,6 +3,7 @@ import { test as base, expect, type BrowserContext, type Locator, type Page } fr
 import { STORAGE_STATE } from "../playwright.config";
 import { expectNoSeriousViolations } from "./helpers/a11y";
 import { strip } from "./helpers/board";
+import { clearLeftovers } from "./helpers/leftovers";
 import { unique as uniqueName } from "./helpers/names";
 import { hideDevOverlay } from "./helpers/overlay";
 import { actAs, punchOut, type PinnedProfile } from "./helpers/punch";
@@ -47,6 +48,15 @@ interface Fixtures {
    * had navigated. Call it once both pages are on `/family`.
    */
   liveUpdates: () => Promise<LiveUpdateSupport>;
+  /**
+   * Automatic. Removes what this journey created, pass or fail (012).
+   *
+   * harness.md §4 rule 3 already asks every journey to remove its own data, and
+   * they do — but a journey that FAILS never reaches its cleanup, and the next
+   * journey inherits the rows. One flaky journey was taking six others down with
+   * it. See `helpers/leftovers.ts` for the two measured cases.
+   */
+  ownData: void;
 }
 
 function actor(page: Page, profile: PinnedProfile) {
@@ -150,6 +160,21 @@ export const test = base.extend<Fixtures>({
   axe: async ({ page }, use, testInfo) => {
     await use((label: string) => expectNoSeriousViolations(page, testInfo, label));
   },
+
+  ownData: [
+    async ({}, use, testInfo) => {
+      await use();
+      const removed = await clearLeftovers();
+      // Named in the report rather than swept up silently: a journey that leaves
+      // rows behind has a cleanup that did not run, and that is worth seeing
+      // even when this fixture makes it harmless.
+      const left = Object.entries(removed)
+        .map(([table, count]) => `${count} ${table}`)
+        .join(", ");
+      if (left !== "") testInfo.annotations.push({ type: "left behind", description: left });
+    },
+    { auto: true },
+  ],
 
   liveUpdates: async ({}, use) => {
     // Rows in `realtime.subscription` outlive the socket that made them, so a
