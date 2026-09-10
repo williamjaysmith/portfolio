@@ -12,7 +12,7 @@
 | `npm test` | **3813 passed**, 253 files |
 | `npm run typecheck` | **clean** |
 | `npm run lint` | **no new problems.** 11 errors remain in `app/skyhammer`, `app/colectivo` and `app/components/**` — pre-existing, untouched by this branch, the subject of the `fix-lint-react-19` stash |
-| `npm run test:e2e` | **155 passed, 2 failed, 3 skipped, 8.0 min** — see "The browser pass" |
+| `npm run test:e2e` | **156 passed, 1 failed, 3 skipped, 7.8 min** — the one failure is a pre-existing known-open. See "The browser pass" |
 
 No suppressions. `openOn`'s removal surfaced nothing to suppress, because its four
 tests went with it.
@@ -84,12 +84,18 @@ several specs name by date, which is not a change to make at 03:40.
 
 ## The browser pass
 
-**155 passed, 2 failed, 3 skipped, 8.0 minutes.**
+**156 passed, 1 failed, 3 skipped, 7.8 minutes** — the run this phase is gated on.
 
-| Failure | Verdict |
-|---|---|
-| `[wall] tasks.spec:69` | the documented time-of-day known-open. Proven twice this week to fail independently of the branch under test |
-| `[tablet-landscape] meals.spec:90` | **passes 11/11 when its file runs alone on that project.** The interference class 012 documented: a failing journey leaves rows its cleanup never removed, and the failing set moves between runs |
+The single failure is `[wall] tasks.spec:69`, the documented time-of-day known-open,
+proven twice this week to fail independently of whatever branch is under test.
+**Nothing this phase touched failed.**
+
+The run before it gave 155/2, the extra failure being
+`[tablet-landscape] meals.spec:90` — which **passes 11/11 when its file runs alone
+on that project**, and passed in this run. That is the interference class 012
+documented: a failing journey leaves rows its cleanup never removed, so the failing
+set moves between runs. Recorded rather than smoothed over, because a single green
+run is not evidence that a suite is stable — it is evidence that this one was.
 
 The 3 skips are `lists.spec:94` on the three touch profiles — `swipeBoard` drives
 `page.mouse`, which cannot reach framer's `onPan` on WebKit. Its reason is printed
