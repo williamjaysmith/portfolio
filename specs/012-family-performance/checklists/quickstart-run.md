@@ -108,6 +108,46 @@ Recorded because they cost time, and the next reader should spend it elsewhere.
    long-task insight on any interaction. Memoisation would have bought nothing.
 4. **A 1.8 GB `.next` directory.** The dev server starts in **835 ms**.
 
+## The cascade — real, and my two attempts to fix it were both worse
+
+**A failing journey is contagious, and that is most of what has made this suite unreadable since
+`011`.** A journey that fails never reaches its own cleanup (harness.md §4 rule 3), so its rows outlive
+it and the next journey inherits them. Measured twice:
+
+- `calendar.spec:91` lost a one-shot `count()` race, leaving a daily repeat drawing a block at the
+  default hour on every day. `preview-bar.spec:125` then created two more events at that hour; three
+  in one slot overflowed into "+n more" and its own event stopped being a findable button. It passes
+  3/3 alone.
+- A later run left **22 events against the seed's 13** and failed seven journeys, all on one project,
+  all downstream of one early drag failure.
+
+That is also why the failing SET moved between runs: which journey flaked first moved. It is the
+cascade `011`'s record went looking for from the meals journey and did not find, because it travels
+through leftover ROWS rather than through load.
+
+**What fixed it was fixing the flaky journeys, not insuring against them.** Making the three
+`count()` races wait took a run from 7 failures to 1, with 13 events left — exactly the seed.
+
+**And both of my attempts at a general teardown made things worse, which is why there isn't one.**
+
+1. *Clear non-seeded rows after every test.* It opened a Postgres connection and ran fifteen deletes
+   143 times: the suite went from **8.5 minutes to 19.5** and failed **27** journeys on timeouts it
+   had introduced itself.
+2. *Clear them only after a failure.* Cheap, and **it corrupted the seed.** The rule for "seeded"
+   was a deterministic id prefix — true for `events` and `list_items`, **false for `star_entries`,
+   whose single seeded row carries a random id.** So one failure deleted the seeded star balance, and
+   every `rewards.spec:27` after it failed for want of a balance to redeem. Reproduced
+   deterministically: `wall` passed, and all three later projects failed both rewards and punch-in.
+
+Re-seeding instead of deleting is not a way out either: `family:seed --local` upserts the fixtures
+without removing anything a journey added (verified — a junk event survives it), and `resetAndSeed`
+would wipe the PINs the setup project sets, breaking every punch-in after it.
+
+**Both attempts are reverted.** What a correct version needs is a BASELINE captured after the seed —
+the id set per table, written by the setup project and read by the teardown — so "seeded" is something
+observed rather than a pattern guessed at. That is the next phase's, and it should only be built
+alongside a measurement of what it costs per test.
+
 ## A product question this raised, and did not answer
 
 **The Meals grid anchors on the week's first day. The Week calendar anchors on today.** On the wall
