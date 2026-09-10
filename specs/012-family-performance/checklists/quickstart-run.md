@@ -108,6 +108,17 @@ Recorded because they cost time, and the next reader should spend it elsewhere.
    long-task insight on any interaction. Memoisation would have bought nothing.
 4. **A 1.8 GB `.next` directory.** The dev server starts in **835 ms**.
 
+## A product question this raised, and did not answer
+
+**The Meals grid anchors on the week's first day. The Week calendar anchors on today.** On the wall
+tablet nobody can tell — seven columns hold both. On a phone the grid fits **two**, so opening Meals
+lands on Sunday and Monday and today is two pages away, while opening the Calendar lands on today.
+
+This is what the suite's standing `phone` failure was really about, and naming it took paging the grid
+by hand to see. **Left alone deliberately**: which day a tab opens on is a product decision about how
+the household uses it, not a performance one, and changing it would change what a phone shows every
+time it is picked up. Recorded for the operator to rule on.
+
 ## What was found and left alone
 
 - **The production cold start.** `curl` against the deployed site: **1.81 s TTFB on the first request

@@ -1,4 +1,4 @@
-import { strip } from "../helpers/board";
+import { showDay, strip } from "../helpers/board";
 import { optionLabel } from "../helpers/controls";
 import { expect, test } from "../fixtures";
 
@@ -77,7 +77,11 @@ test.describe("the Meals tab", () => {
     const slot = filledCell(page, today, mealtime);
     await expect(slot.getByRole("button", { name: "Banana bread" })).toBeVisible();
 
+    // A reload puts the grid back on the week's first day, and a two-column
+    // phone does not hold today there (012, `showDay`). Page to it as a person
+    // would before asking whether the meal survived.
     await page.reload();
+    await showDay(page, today);
     await expect(filledCell(page, today, mealtime).getByRole("button", { name: "Banana bread" })).toBeVisible();
 
     // Take it back off the plan, from the popover this journey also proves.
@@ -91,6 +95,7 @@ test.describe("the Meals tab", () => {
     await expect(emptyCell(page, today, mealtime)).toBeVisible();
 
     await page.reload();
+    await showDay(page, today);
     await expect(emptyCell(page, today, mealtime)).toBeVisible();
   });
 

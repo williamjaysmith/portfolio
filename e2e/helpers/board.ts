@@ -21,6 +21,35 @@ export function strip(page: Page, label = "Profile columns"): Locator {
   return page.getByRole("group", { name: label });
 }
 
+/** How many pages right to look for a day before giving up — a week is enough. */
+const PAGES_TO_A_DAY = 7;
+
+/**
+ * Pages right until `dayLabel`'s column is on screen, and answers whether it got
+ * there (012).
+ *
+ * **Why a journey needs this at all.** The Meals grid anchors on the WEEK'S
+ * FIRST DAY and draws only the columns that fit, so a two-column phone opens on
+ * Sunday and Monday — and a Wednesday is two pages away. The wall tablet fits
+ * all seven and never notices. Every `page.goto` and every `page.reload()` puts
+ * the grid back there, so a journey that paged to today, wrote something, and
+ * reloaded to check it survived was then looking for today in a window that no
+ * longer held it. That is the whole of the standing `phone` failure in
+ * `meals.spec:62`.
+ *
+ * It pages the way a person does, which is what this suite already does
+ * elsewhere for the same reason.
+ */
+export async function showDay(page: Page, dayLabel: string, stripLabel = "Meals"): Promise<boolean> {
+  const day = page.getByRole("region", { name: new RegExp(`^${dayLabel}`) }).first();
+
+  for (let paged = 0; paged <= PAGES_TO_A_DAY; paged += 1) {
+    if ((await day.count()) > 0) return true;
+    await strip(page, stripLabel).press("ArrowRight");
+  }
+  return false;
+}
+
 /** What the board says it is showing — screen-reader only, so read it, never look for it. */
 export function showing(page: Page): Locator {
   return page.getByText(/^Showing /);

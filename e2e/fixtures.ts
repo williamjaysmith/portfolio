@@ -1,7 +1,8 @@
-import { test as base, expect, type BrowserContext, type Page } from "@playwright/test";
+import { test as base, expect, type BrowserContext, type Locator, type Page } from "@playwright/test";
 
 import { STORAGE_STATE } from "../playwright.config";
 import { expectNoSeriousViolations } from "./helpers/a11y";
+import { strip } from "./helpers/board";
 import { unique as uniqueName } from "./helpers/names";
 import { hideDevOverlay } from "./helpers/overlay";
 import { actAs, punchOut, type PinnedProfile } from "./helpers/punch";
@@ -50,6 +51,36 @@ interface Fixtures {
 
 function actor(page: Page, profile: PinnedProfile) {
   return (action: () => Promise<void>) => actAs(page, profile, action);
+}
+
+/**
+ * Today's column label, read off the Meals grid — **paging to it if it is not on
+ * screen** (012).
+ *
+ * This fixture used to read the first `aria-current="date"` column and trust it
+ * to be there. On the wall tablet it always is. **On a phone it is not**: the
+ * grid anchors on the week's first day and draws only the columns that fit, so a
+ * two-column phone opens on Sunday and Monday and a Wednesday is two pages away.
+ * The fixture then waited the full sixty seconds and failed the journey in its
+ * setup — the standing `phone` failure in `meals.spec:62`, blamed on "a narrow
+ * grid" without the cause ever being named.
+ *
+ * The paging itself is `showDay`, shared with the journeys that need it after a
+ * reload. The app stays the source of truth for what today is; the fixture just
+ * stops assuming today is in the first window it is handed.
+ */
+async function todayOnTheGrid(page: Page): Promise<string> {
+  const todayColumn = page.locator('section:has(header[aria-current="date"])').first();
+  if ((await todayColumn.count()) === 0) await pageToToday(page, todayColumn);
+  return (await todayColumn.getAttribute("aria-label")) ?? "";
+}
+
+/** Pages right until the grid marks one of its visible columns as today. */
+async function pageToToday(page: Page, todayColumn: Locator): Promise<void> {
+  for (let paged = 0; paged < 7; paged += 1) {
+    await strip(page, "Meals").press("ArrowRight");
+    if ((await todayColumn.count()) > 0) return;
+  }
 }
 
 /**
@@ -113,11 +144,7 @@ export const test = base.extend<Fixtures>({
     // seeded against the household's own clock, not this machine's (FR-711).
     // The Meals grid names each day column, and marks one of them as today.
     await page.goto("/family/meals");
-    const todayLabel = await page
-      .locator('section:has(header[aria-current="date"])')
-      .first()
-      .getAttribute("aria-label");
-    await use({ todayLabel: todayLabel ?? "", timezone: "America/Chicago" });
+    await use({ todayLabel: await todayOnTheGrid(page), timezone: "America/Chicago" });
   },
 
   axe: async ({ page }, use, testInfo) => {
