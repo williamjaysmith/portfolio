@@ -70,6 +70,29 @@ roll; and the lint fix stashed on `fix-lint-react-19` (11 errors in the legacy s
 
 Phases 1–9, `011` and `012` are shipped and live; `010` is shelved unbuilt.
 
+**In flight: `013-meals-navigation` — specced and planned, not built.** The Meals grid's day
+navigation becomes the Calendar's: as many whole day columns as fit, arrows moving the window by that
+many days, beginning on today. Read in this order:
+
+1. `specs/013-meals-navigation/spec.md` — FR-1301…FR-1310, SC-1301…SC-1307, and the Clarifications
+   entry recording the operator's choice of a single rule over a width-dependent one
+2. `specs/013-meals-navigation/research.md` — R1301…R1307
+3. `specs/013-meals-navigation/plan.md` — the structure, the constitution check, the task ordering
+4. `specs/013-meals-navigation/data-model.md` — the window, its invariants, and what retires
+5. `specs/013-meals-navigation/quickstart.md` — how to verify each criterion and what a failure means
+6. `specs/013-meals-navigation/NOTES.md` — the report and the measurements taken before speccing
+
+**The three things easy to get wrong**, all recorded with their evidence:
+
+- **It reverses 006 Assumption 3** ("a whole week at a time — a planning grid, not the calendar's
+  rolling window anchored on today"). Deliberate, because the household's devices contradict it.
+- **`useColumnPage` steps ONE column per swipe by design** and is shared by Tasks, Lists and Rewards,
+  with FR-396 pinning that rule for Profile columns. Meals gets its own navigation; the shared hook
+  does not change. This is where the phase could quietly break three other tabs (SC-1307).
+- **No device-width cookie.** Measured: Meals is CLS 0 at 390px and 1280px, because its read is
+  unwindowed and the visible slice is a transform. The 012 calendar problem does not arise — do not
+  add one by analogy.
+
 Read in this order before touching preview-bar code:
 Read in this order before touching preview-bar code:
 1. `specs/009-calendar-preview-bar/spec.md` — FR-901…FR-921, SC-901…SC-912, 7 assumptions, 6 divergences
