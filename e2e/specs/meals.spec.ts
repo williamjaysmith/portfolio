@@ -54,6 +54,34 @@ function filledCell(page: import("@playwright/test").Page, day: string, mealtime
   return page.getByRole("group", { name: new RegExp(`^${day}.*${mealtime}`) });
 }
 
+/**
+ * Brings a seeded meal into the window, paging backwards if it sits behind today.
+ *
+ * **Why this is needed at all (013).** The seed anchors its meals on the week's
+ * SUNDAY and spreads them at +0, +3 and +6 days. The grid's window used to begin
+ * on that same Sunday, so every fixture was on screen. Since 013 the window
+ * begins on TODAY — so on, say, a Thursday the Sunday breakfast and the Wednesday
+ * dinners are in the past and not drawn.
+ *
+ * How far back they are depends on what day the suite runs, which is why this
+ * pages until it finds the meal rather than clicking a fixed number of times.
+ * Bounded, so a genuinely missing meal fails as a missing meal rather than
+ * spinning.
+ */
+async function findSeededMeal(
+  page: import("@playwright/test").Page,
+  name: string,
+): Promise<import("@playwright/test").Locator> {
+  const meal = page.getByRole("button", { name }).first();
+  for (let back = 0; back < 3; back += 1) {
+    if ((await meal.count()) > 0) return meal;
+    await page.getByRole("button", { name: /^Previous / }).click();
+    await page.waitForTimeout(200);
+  }
+  await expect(meal, `${name} is not on the grid, forwards or back`).toBeVisible();
+  return meal;
+}
+
 test.describe("the Meals tab", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/family/meals");
@@ -100,7 +128,7 @@ test.describe("the Meals tab", () => {
   });
 
   test("opens a meal's popover and reaches its recipe from there", async ({ page }) => {
-    await page.getByRole("button", { name: "🍝 Spaghetti" }).first().click();
+    await (await findSeededMeal(page, "🍝 Spaghetti")).click();
     const popover = page.getByRole("dialog", { name: "🍝 Spaghetti" });
     await expect(popover).toBeVisible();
     for (const action of ["Open Recipe", "Add to List", "Edit", "Delete"]) {
@@ -133,7 +161,7 @@ test.describe("the Meals tab", () => {
   });
 
   test("pushes a recipe's chosen lines onto a list, and the Lists tab has them", async ({ page, actAsAna }) => {
-    await page.getByRole("button", { name: "🍝 Spaghetti" }).first().click();
+    await (await findSeededMeal(page, "🍝 Spaghetti")).click();
     await page.getByRole("button", { name: "Add to List" }).click();
 
     const sheet = page.getByRole("dialog", { name: /Add 🍝 Spaghetti to a list/ });
@@ -226,5 +254,106 @@ test.describe("the Meals tab", () => {
     await page.getByRole("button", { name: "Show all" }).click();
     await page.getByRole("button", { name: "Done" }).click();
     await expect(page.getByRole("list", { name: "Meals" })).toBeVisible();
+  });
+});
+
+/**
+ * 013 — the grid's day navigation (FR-1301–FR-1307).
+ *
+ * These run `@responsive`, at all four widths, because the defect they cover
+ * existed only where seven columns did not fit: the arrows moved seven days while
+ * two were on screen, so five days per step were reachable only by a swipe. At
+ * the wall's width the same rule is indistinguishable from the old behaviour,
+ * which is the point — one rule, not a special case.
+ *
+ * What they cannot check is the midnight hold (FR-1308): the clock helper refuses
+ * jumps over three hours, so that guarantee lives in
+ * `meals/components/__tests__/useMealWindow.test.ts` and nowhere else.
+ */
+test.describe("the Meals grid's day navigation", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/family/meals");
+  });
+
+  /**
+   * The day columns on show, in order — **once the grid has settled**.
+   *
+   * The wait is not defensive padding, it is the grid's actual behaviour: the
+   * server cannot measure a viewport, so the first paint draws the unmeasured
+   * ceiling of seven and the measurement then narrows it to what fits. On a phone
+   * that is seven columns replaced by two, within the initial paint — CLS stays 0,
+   * but a journey that counts columns immediately counts seven and then fails
+   * confusingly a line later.
+   *
+   * Settled means two reads in a row agree, which is cheaper and less brittle
+   * than guessing at a count per width.
+   */
+  async function daysShown(page: import("@playwright/test").Page): Promise<string[]> {
+    let previous: string[] = [];
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const current = await page.locator("section > header").allInnerTexts();
+      if (current.length > 0 && current.length === previous.length) return current;
+      previous = current;
+      await page.waitForTimeout(100);
+    }
+    return previous;
+  }
+
+  test("the arrows move the window by exactly the days on show @responsive", async ({ page }) => {
+    const first = await daysShown(page);
+    expect(first.length, "the grid draws at least one day column").toBeGreaterThan(0);
+
+    await page.getByRole("button", { name: /^Next / }).click();
+    const second = await daysShown(page);
+
+    // Same width, and no day seen twice — which is what "moves by the days on
+    // show" means and what the shipped behaviour broke on a narrow screen.
+    expect(second).toHaveLength(first.length);
+    for (const day of second) expect(first, `${day} was shown twice`).not.toContain(day);
+
+    await page.getByRole("button", { name: /^Previous / }).click();
+    expect(await daysShown(page)).toEqual(first);
+  });
+
+  test("the arrows say how far they go @responsive", async ({ page }) => {
+    const drawn = (await daysShown(page)).length;
+    // "week" where seven days is the width, "N days" otherwise — a week is not a
+    // special case, it is what seven days is called.
+    const distance = drawn === 7 ? "week" : drawn === 1 ? "day" : `${drawn} days`;
+
+    await expect(page.getByRole("button", { name: `Next ${distance}` })).toBeVisible();
+    await expect(page.getByRole("button", { name: `Previous ${distance}` })).toBeVisible();
+  });
+
+  test("opens on today, and Today brings it back @responsive", async ({ page, household }) => {
+    const today = household.todayLabel;
+    expect(today, "the grid marks one day as today").not.toBe("");
+
+    // Today is the FIRST column, not merely somewhere in the window.
+    const opensOn = (await daysShown(page))[0];
+    const todayHeader = await page
+      .locator('section:has(header[aria-current="date"]) > header')
+      .first()
+      .innerText();
+    expect(opensOn).toBe(todayHeader);
+
+    await page.getByRole("button", { name: /^Next / }).click();
+    await expect(page.getByRole("button", { name: "Today" })).toBeEnabled();
+
+    await page.getByRole("button", { name: "Today" }).click();
+    expect((await daysShown(page))[0]).toBe(todayHeader);
+    await expect(page.getByRole("button", { name: "Today" })).toBeDisabled();
+  });
+
+  test("skips no day across several steps @responsive", async ({ page }) => {
+    // The property a household notices, walked the way they walk it. Under the
+    // shipped behaviour a two-column window stepping seven days saw 4 of 14.
+    const seen: string[] = [];
+    for (let step = 0; step < 4; step += 1) {
+      seen.push(...(await daysShown(page)));
+      await page.getByRole("button", { name: /^Next / }).click();
+    }
+
+    expect(new Set(seen).size, "a day was shown twice").toBe(seen.length);
   });
 });
