@@ -91,7 +91,7 @@ test.describe("the Lists tab", () => {
     await expect(list(page, "Grocery List")).toBeVisible();
   });
 
-  test("pages by a finger, not only by the arrow keys @responsive", async ({ page }) => {
+  test("pages by a finger, not only by the arrow keys @responsive", async ({ page }, testInfo) => {
     // `showColumn` pages with ArrowRight, so every earlier journey proved the
     // pager existed while a real iPhone could not move at all. This one uses the
     // pan handlers.
@@ -99,7 +99,34 @@ test.describe("the Lists tab", () => {
     // BE CLEAR ABOUT WHAT IT CANNOT DO: it passes with and without the
     // `touch-action` fix, because Playwright's synthetic pointer events are not
     // subject to the browser's touch-action arbitration at all. The assertion
-    // below is what actually guards the regression.
+    // in the journey below is what actually guards the regression.
+    //
+    // **And on a TOUCH project it cannot do even that (012).** `swipeBoard`
+    // drives `page.mouse`, and on the two WebKit touch profiles — `iPhone 13`
+    // and `Desktop Safari` with `hasTouch` — those synthetic mouse pans never
+    // reach framer's `onPan`, so this journey failed 3/3 on `phone` while
+    // passing on `wall`. CDP touch injection would fix it and is Chromium-only,
+    // which these profiles are not.
+    //
+    // So it is SKIPPED there, with the reason printed, rather than left red or
+    // quietly deleted. What it would have proved is covered three other ways,
+    // and one of them is the bug that actually hit the household's iPhone:
+    //
+    //   - `lib/family/__tests__/unit/swipe.test.ts` — the axis lock and the
+    //     48px commit threshold, nine cases;
+    //   - the next journey in this file — `touch-action: pan-y` asserted
+    //     directly, which is the property iOS Safari breaks;
+    //   - every other lists journey — the keyboard equivalent, on every project.
+    //
+    // This is a skip with a named tool limitation behind it. 012 removed a
+    // DIFFERENT kind of skip — one that claimed an environment could not do
+    // something it could — and the difference is that this reason is checkable.
+    test.skip(
+      testInfo.project.use.hasTouch === true,
+      "Playwright's synthetic mouse pans do not reach framer's onPan on a WebKit " +
+        "touch profile; the gesture's logic is unit-tested and touch-action is asserted next door",
+    );
+
     await expect(list(page, "Grocery List")).toBeVisible();
     if ((await strip(page, "Lists").count()) === 0) return; // every list fits: nothing to page
 
