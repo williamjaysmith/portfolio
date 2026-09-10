@@ -144,11 +144,33 @@ time it is picked up. Recorded for the operator to rule on.
 
 ## The browser pass — three full runs, and why none of them certifies the gate
 
-| Run | Code | Result | Wall clock | Machine load |
+| Run | Code | Result | Wall clock | Load at start |
 |---|---|---|---|---|
 | 1 | before the realtime fix | 136 passed, **7 failed** | 9.2 min | — |
 | 2 | after the realtime fix | 140 passed, **3 failed** | 9.4 min | — |
-| 3 | after the `live.spec` fix (one test file) | 129 passed, **13 failed** | 10.4 min | load avg **4.2** |
+| 3 | after the `live.spec` fix (one test file) | 129 passed, **13 failed** | 10.4 min | **4.2** |
+| 4 | after targeted invalidation | 142 passed, **1 failed** | 8.4 min | **2.60** |
+| 5 | after the Meals anchor change | 134 passed, **8 failed** | 8.4 min | **4.83** |
+
+**Load at start predicts the failure count, and the code does not.** Run 4 is the only one taken on a
+quiet machine, and it failed exactly one journey — the `meals.spec:62` phone failure, which is now
+fixed. Run 5 ran the same suite at load 4.83 and failed eight, in a set overlapping run 3's barely at
+all: four of its eight were in `notifications.spec`, which `011`'s record already named as the file
+that "fails first" under load because its journeys are pinned to the clock.
+
+What was loading the machine, measured rather than assumed: **`mediaanalysisd` at 90% CPU** (Photos
+analysing the library), `mds_stores` at 30% (Spotlight indexing) and Logitech G Hub at ~40% across two
+processes. None of it is this project's, and none of it is something a test run should be asked to
+compete with.
+
+**So the gate's verdict is: everything this branch controls is green, and the browser pass needs one
+run on a quiet machine.** That is the same thing `011` asked for, and run 4 is the closest anyone has
+come to it.
+
+One process note, recorded because it wasted a run: **run 5's predecessor was invalidated by its own
+author.** App source was edited while the suite was in flight, and Playwright's web server is
+`next dev` with hot reload, so the later journeys ran against recompiled code. It was killed rather
+than reported. Do not edit `app/**` or `lib/**` while `npm run test:e2e` is running.
 
 **The only code change between runs 2 and 3 was a single e2e spec file, and the failures went from 3
 to 13.** Failure count tracks wall clock, which tracks machine load; it does not track the code.
