@@ -93,6 +93,12 @@ test.describe("the Week calendar", () => {
     const hours = await visibleHours(page);
     await createEvent(page, actAsAna, { title, repeats: "Every day" });
     await page.reload();
+    // A reload redraws from scratch, and `locator.count()` is a ONE-SHOT read
+    // with no retry — unlike `expect(...).toHaveCount()`. Counting straight
+    // after a reload therefore races the events arriving, and on a loaded
+    // machine it loses and reads 0. Wait for the first occurrence to be drawn,
+    // then count (012).
+    await expect(eventBlock(page, title)).toBeVisible();
     const occurrences = await eventBlocks(page, title).count();
     expect(occurrences, "a daily repeat draws on every remaining day of the visible week").toBeGreaterThan(1);
 
@@ -128,6 +134,12 @@ test.describe("the Week calendar", () => {
     const title = unique("Bins");
     await createEvent(page, actAsAna, { title, repeats: "Every day" });
     await page.reload();
+    // A reload redraws from scratch, and `locator.count()` is a ONE-SHOT read
+    // with no retry — unlike `expect(...).toHaveCount()`. Counting straight
+    // after a reload therefore races the events arriving, and on a loaded
+    // machine it loses and reads 0. Wait for the first occurrence to be drawn,
+    // then count (012).
+    await expect(eventBlock(page, title)).toBeVisible();
     const before = await eventBlocks(page, title).count();
     test.skip(before < 2, "the visible week holds only one occurrence of a daily repeat today");
 

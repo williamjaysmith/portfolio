@@ -2,6 +2,7 @@ import { showColumn } from "../helpers/board";
 import {
   createEvent,
   deleteEvent,
+  eventBlock,
   eventBlocks,
   openEventAt,
   reminderTextAt,
@@ -202,6 +203,12 @@ test.describe("an event's own reminder", () => {
     const title = unique("Piano lesson");
     await createEvent(page, actAsAna, { title, repeats: "Every day" });
     await page.reload();
+    // A reload redraws from scratch, and `locator.count()` is a ONE-SHOT read
+    // with no retry — unlike `expect(...).toHaveCount()`. Counting straight
+    // after a reload therefore races the events arriving, and on a loaded
+    // machine it loses and reads 0. Wait for the first occurrence to be drawn,
+    // then count (012).
+    await expect(eventBlock(page, title)).toBeVisible();
 
     const count = await eventBlocks(page, title).count();
     test.skip(count < 3, "the visible week holds too few daily occurrences today to prove a middle one");
