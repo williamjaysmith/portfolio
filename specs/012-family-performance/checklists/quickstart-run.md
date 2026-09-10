@@ -131,9 +131,43 @@ Recorded because they cost time, and the next reader should spend it elsewhere.
 - **The meals journey failed every Wednesday** and had since Phase 6: it clicked today's Lunch and
   the seed plants a Lunch on `sunday + 3`. It now reads an actually-empty mealtime off the grid.
 
-## The browser pass
+## The browser pass — three full runs, and why none of them certifies the gate
 
-**140 passed, 3 failed, 9.4 minutes** — the run after the realtime fix, and the authoritative one.
+| Run | Code | Result | Wall clock | Machine load |
+|---|---|---|---|---|
+| 1 | before the realtime fix | 136 passed, **7 failed** | 9.2 min | — |
+| 2 | after the realtime fix | 140 passed, **3 failed** | 9.4 min | — |
+| 3 | after the `live.spec` fix (one test file) | 129 passed, **13 failed** | 10.4 min | load avg **4.2** |
+
+**The only code change between runs 2 and 3 was a single e2e spec file, and the failures went from 3
+to 13.** Failure count tracks wall clock, which tracks machine load; it does not track the code.
+
+The discriminating evidence, which the earlier wrong version of this claim did not have:
+`calendar.spec.ts` run **entirely alone** passed **13/13** on `wall` earlier in the day, and later the
+same file across four projects gave **16/19 with three different journeys failing** — `:91` and `:154`
+on `wall`, `:36` on `tablet-landscape`, where the full run had failed `:36` on three *other* projects.
+**The same file, the same code, fails at different identities run to run, in isolation.** That is not
+"the rest of the suite interfering"; it is the machine, which sat at load 4.2 with none of this
+project's servers running.
+
+**So the gate is not met, and it is not met for a reason this branch does not control.** Every journey
+in the suite has passed at some point today. `011`'s record asked for one run on a quiet machine;
+that is still what is owed, and this machine was not quiet.
+
+### A consideration this phase created, and should own
+
+**Before the realtime fix, live updates delivered nothing at all. They now deliver every change on
+twenty tables, and each one runs `invalidateQueries(familyKeys.all)` — roughly six refetches on every
+open page.** An e2e suite is a machine that writes constantly, so the app is now doing a large amount
+of work per write that it has never done in its life, and `live.spec` holds two browsers doing it at
+once.
+
+Run 2 was the best of the three and came *after* the fix, so this is not a demonstrated cause. But the
+mechanism is real, and it moves the deferred finding below from "tablet CPU and database load" onto
+the hot path of every single write. **If the suite stays unstable on a quiet machine, targeted
+invalidation is the first thing to try, not the last.**
+
+### Run 2 in detail — 140 passed, 3 failed, 9.4 minutes
 
 The run before it, which found the defect: **136 passed, 7 failed, 9.2 minutes**. Four of those seven
 cleared without a line of code being written for them — `calendar.spec:91`, `tasks.spec:69` and both
