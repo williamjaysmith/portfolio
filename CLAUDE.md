@@ -63,8 +63,12 @@ research — five resolving article ids, an audit that rejected 23 over-claims, 
 traps named so nobody re-adopts one. Do not resurrect it without re-reading why it was shelved.
 
 **Still outstanding, and the operator's own**: verify two-device sync on the **hosted** project (see
-above — local-verified only); the Vercel cold start (**1.81 s TTFB cold against 0.17 s warm** — a
-dashboard setting, not code, and the largest latency number `012` measured); the overnight countdown
+above — local-verified only); ~~the Vercel cold start~~ (**CLOSED 2026-09-10**: Fluid Compute is
+already enabled and the Performance CPU tier is Pro-only, so the **1.81 s cold TTFB against 0.17 s
+warm** is simply what a cold instance costs on Hobby. It was never the main cause either — the
+operator reported all tabs equally slow, which ruled cold starts out; the causes were the missing
+loading boundary and `staleTimes.dynamic: 0`, both fixed. The only lever left is an external pinger
+keeping the function warm, since Hobby cron is daily. Do not re-raise this as a code problem); the overnight countdown
 roll; and the lint fix stashed on `fix-lint-react-19` (11 errors in the legacy sub-apps, none in
 `/family`).
 
