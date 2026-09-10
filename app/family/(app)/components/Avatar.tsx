@@ -11,9 +11,11 @@ import type { Category } from "@/lib/family/types";
  * Label, or initials on the category's own colour when it has none — the
  * reference product's own default.
  *
- * `alt=""` throughout: the name is always rendered beside the avatar, so
+ * `alt=""` throughout: the name is always rendered alongside the avatar, so
  * announcing it twice would be noise (FR-039 — colour is never the only
- * carrier, but neither is the picture).
+ * carrier, but neither is the picture). **A caller that draws no visible name
+ * owes the reader an `sr-only` one** — `ProfileChip` is the case, and without
+ * it that chip announces as nothing.
  *
  * Both images are `unoptimized`: the illustrations are already tiny SVGs, and
  * a photo's URL is a short-lived signed one that must not be cached past its

@@ -105,7 +105,38 @@ tablet shows a rolling seven days rather than a Sunday-anchored week.
 affects the seed, not the household, who plan forwards. Re-anchoring it touches fixtures
 `specs/007-family-e2e/harness.md` §3 documents and several specs name by date.
 
-Read in this order before touching preview-bar code:
+**`014-profile-chip` — the shell's profile chip is a face, not a pill.** The operator reported the
+family's avatars appearing twice on their phone — the shell's chip row above the Filter bar, and 009's
+Tasks Progress row above the calendar — and called it redundant. The chip lost its name body: it is now
+the person's face at `--fam-chip-h` diameter, ringed 2px in their own colour by the shipped `fam-ring`.
+Their words: *"I just dont even think we need names besides the photo because we know who it is"* and,
+on putting the chore count there instead, *"id rather show some other valuable information or nothing,
+just let it be a circle with our photo and the color"*.
+
+**This is a DIVERGENCE from the reference, deliberately.** The reference's chip carries avatar + name +
+a count — `07-visual-design-system.md` samples the label as "Dad 1/20" and the master map records the
+same, and `ProfileChip`'s own Phase 1 docstring promised the counter *"is deferred to the Tasks phase"*
+and never delivered it. We are not adding it. The count stays on the Tasks tab and in 009's Tasks
+Progress row.
+
+**The trap here is accessibility, and it is not obvious.** `Avatar` is `alt=""` + `aria-hidden`
+throughout *because* the name always sat beside it. Drop the visible name and the chip row — a
+focusable `role="group"` scroll region, SC-009 — announces as a focus stop containing nothing at all,
+and colour becomes the only carrier (FR-039). The name is therefore still rendered, `sr-only`. A test
+asserts both halves: `sr-only` on the name, and the chip's whole `textContent` being just the name.
+`Avatar`'s docstring now says a caller drawing no visible name owes the reader a hidden one.
+
+Also: `--fam-chip-h` now carries its own `max(38px, …)` floor, which the component used to hardcode as
+`min-h-[38px]` — fallow's `css-token-drift` advisory caught that on the first pass. `--fam-chip-cap-w`,
+`--fam-chip-avatar` and `--fam-fs-chip` are no longer drawn by anything; they stay in `tokens.css` as
+reference samples.
+
+**Still open, offered and not taken**: 009's Tasks Progress row draws every visible Profile even when
+none of them has a chore today, so a quiet day reads "Alex 0/0 Sam 0/0 …". Hiding it when every total is
+0 would trade that for a layout shift on first load, which is why it was not done unasked. The Filter
+sheet's "Show all" also flips `tasksProgress` on as a side effect, which is how the operator met the row
+without choosing it.
+
 Read in this order before touching preview-bar code:
 1. `specs/009-calendar-preview-bar/spec.md` — FR-901…FR-921, SC-901…SC-912, 7 assumptions, 6 divergences
 2. `specs/009-calendar-preview-bar/research.md` — R901–R915 and why

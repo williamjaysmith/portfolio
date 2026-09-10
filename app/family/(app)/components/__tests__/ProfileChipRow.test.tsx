@@ -8,17 +8,32 @@ import { ProfileChipRow } from "../ProfileChipRow";
 import { makeCategory, makeContext, withFamily } from "./family-test-utils";
 
 /**
- * FR-032/FR-036/FR-039: each chip carries the person's colour, but always with
- * their name — colour is never the only way to tell people apart.
+ * FR-032/FR-036/FR-039: each chip is the person's face ringed in their own
+ * colour. The operator retired the visible name on 2026-09-10 — "we know who it
+ * is" — so the name is `sr-only` rather than gone: `Avatar` is `aria-hidden`, so
+ * dropping it altogether would leave the row a focus stop announcing nothing
+ * (SC-009), and colour would become the only carrier (FR-039).
  */
 describe("ProfileChip", () => {
-  it("shows the name and sets the profile colour once, for the tints to derive from", () => {
+  it("sets the profile colour once, for the ring to derive from", () => {
     const category = makeCategory({ label: "Sam", color: PALETTE[8] });
     const { container } = render(<ProfileChip category={category} />);
 
-    expect(screen.getByText("Sam")).toBeInTheDocument();
     const chip = container.querySelector(".fam-profile");
     expect(chip).toHaveStyle({ "--profile": PALETTE[8] });
+    expect(container.querySelector(".fam-ring")).toBeInTheDocument();
+  });
+
+  it("names the person for a screen reader without drawing the name", () => {
+    const category = makeCategory({ label: "Sam", avatarKind: "illustration", avatarId: "fox" });
+    const { container } = render(<ProfileChip category={category} />);
+
+    const name = screen.getByText("Sam");
+    expect(name).toBeInTheDocument();
+    expect(name.className).toContain("sr-only");
+    // Nothing outside that one hidden span carries text: the chip draws a face
+    // and a ring, and the count the reference puts here lives on the Tasks tab.
+    expect(container.textContent).toBe("Sam");
   });
 
   it("falls back to initials when there is no avatar", () => {

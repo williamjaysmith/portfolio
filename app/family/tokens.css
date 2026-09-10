@@ -111,7 +111,11 @@
   --fam-nav-icon: calc(32 * var(--fam-u));       /* [ESTIMATED] stroke ~2 */
   --fam-pill-h: calc(52 * var(--fam-u));         /* [ESTIMATED] top-bar pill button height */
   --fam-pill-r: calc(26 * var(--fam-u));         /* [DERIVED] pill-h / 2 = full pill */
-  --fam-chip-h: calc(61 * var(--fam-u));         /* [SAMPLED] profile chip height */
+  --fam-chip-h: max(38px, calc(61 * var(--fam-u))); /* [SAMPLED] profile chip height — now the DIAMETER of
+                                                    the ringed face, the chip having lost its name body on
+                                                    2026-09-10. Floored [OURS] like the type scale, so a
+                                                    face stays recognisable at the 0.5 unit floor; the
+                                                    floor is what the component used to hardcode. */
   --fam-chip-r: calc(30 * var(--fam-u));         /* [DERIVED] chip-h / 2 = full pill */
   --fam-chip-cap-w: calc(72 * var(--fam-u));     /* [SAMPLED] coloured left cap ≈ 22 % of the chip */
   --fam-chip-avatar: calc(48 * var(--fam-u));    /* [ESTIMATED] avatar inside the cap, 2 px accent ring */
