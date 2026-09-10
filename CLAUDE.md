@@ -1,16 +1,50 @@
 <!-- SPECKIT START -->
-**Last shipped**: `009-calendar-preview-bar` — Phase 8: the strip of information the reference draws
-*above* its events, and the search that finds one. **Countdowns** end to end — a switch on the event
-form finally writes `events.countdown_enabled`, which has been in the schema since `010_events.sql`
-with nothing reading it; a household setting (Always / 3 months prior / 1 month prior) decides how
-early they appear; the calendar draws them above the week and the number falls at the household's
-midnight. **Tasks Progress** — the Filter toggle Phase 2 withheld, wired to the completed-of-total
-rule `lib/family/tasks/counters.ts` already owns. **Event search** — finds a series by title and
-takes the calendar to the day it next falls on.
-
-**State: SHIPPED 2026-09-08** — merged `de69f13`, deployed, and migration `039` applied to the
-hosted project. 59 of 59 tasks; 3691 tests; the run record is
+**Last shipped**: `009-calendar-preview-bar` — Phase 8, merged `de69f13` and deployed 2026-09-08,
+with migration `039` applied to the hosted project. Countdowns end to end, Tasks Progress, and the
+calendar's event search. Run record:
 `specs/009-calendar-preview-bar/checklists/quickstart-run.md`.
+
+**BUILT BUT NOT MERGED: `011` and `012`, 23 commits on `012-family-performance`.** The branch is
+stacked — `012` sits on `011` — so they merge together or not at all. `main` is still at Phase 9.
+
+- **`011-family-calendar-views`** — the view switcher, the Day view and the Month view. Note the name:
+  `011` was once planned as the offline cache and is NOT. The offline cache is still unbuilt, still has
+  **no Skylight source at all**, and must be written as this project's own invention rather than a
+  clone whenever it is taken up.
+- **`012-family-performance`** — measured performance work, and three defects it found on the way.
+
+**What `012` actually turned out to be about.** It began as "production feels slower than dev" and
+the largest thing it found is not performance at all:
+
+- **Live updates had NEVER worked, since Phase 1.** `useFamilyRealtime` filtered three of its twenty
+  tables by household, and **one filtered `postgres_changes` binding makes the server discard every
+  binding on the channel** while `subscribe()` still reports `SUBSCRIBED`. Two devices have never once
+  watched each other. Fixed; verified by hand and by `live.spec:21` passing for the first time.
+- **The check that should have caught it could not fail.** `liveUpdateSupport()` counted rows in
+  `realtime.subscription` — registration, never delivery — and those rows outlive the socket that made
+  them, so on any machine that had ever run the app the answer was "yes, live updates work here",
+  permanently. It was also read before either browser had navigated, because it was a fixture value
+  and Playwright resolves fixtures before the test body. The journeys therefore **skipped**, and a skip
+  reads as a pass. **The bar that follows: a capability check must observe the capability, not a trace
+  that the capability was once attempted.**
+- **Two e2e journeys asserted on fixtures they did not own** — the seed's Saturday Banana bread, in a
+  seven-column window that shows Saturday. A fixture that appears twice in one window cannot be
+  identified by name alone.
+- **The phone's calendar stopped re-laying-out**: CLS 0.18 → 0.00, by letting the device tell the
+  server how wide it is through a cookie.
+- **The Meals grid now opens on today** (the operator's ruling: "the past is in the past"). The Week
+  calendar already did; Meals opened on the week's first day, so a two-column phone showed days that
+  had already gone.
+
+**The one thing `012` owes: a browser pass on a quiet machine.** Four gates are green (3796 tests,
+typecheck, lint, fallow). Five full `test:e2e` runs gave 7, 3, 13, 1 and 8 failures on effectively
+identical code, and **load at start predicts the count while the code does not** — the 1-failure run
+was the only quiet one, and that failure is now fixed. `mediaanalysisd` and `mds_stores` were each
+taking ~90–99% of a core. Read `specs/012-family-performance/checklists/quickstart-run.md` before
+concluding anything about this suite.
+
+**Do not edit `app/**` or `lib/**` while `npm run test:e2e` is running** — its web server is
+`next dev` with hot reload, and one run was invalidated that way.
 
 **`010` — the home screen — is SHELVED (2026-09-08), specified but not built.** The operator's call:
 the Calendar tab already is a fine home screen now that Phase 8's preview bar puts the countdowns and
@@ -18,12 +52,15 @@ each Profile's chore progress above the week. `specs/010-family-home-screen/` is
 research — five resolving article ids, an audit that rejected 23 over-claims, and four "home screen"
 traps named so nobody re-adopts one. Do not resurrect it without re-reading why it was shelved.
 
-**Next: `011` — the offline cache.** Note before specifying it: **no dossier supports a Skylight
-offline feature at all** — the product is criticised for lacking one — so `011` is this project's own
-invention and must be written as a divergence, not as a clone.
+**Still outstanding, and the operator's own**: verify two-device sync on the **hosted** project (the
+realtime fix is local-verified only, and the local stack does not enforce realtime RLS); the Vercel
+cold start (**1.81 s TTFB on a cold request against 0.17 s warm** — a dashboard setting, not code);
+the overnight countdown roll; and the lint fix stashed on `fix-lint-react-19` (11 errors in the legacy
+sub-apps, none in `/family`).
 
-Phases 1–8 are shipped and live; `010` is shelved unbuilt.
+Phases 1–9 are shipped and live; `010` is shelved unbuilt; `011` and `012` are built and unmerged.
 
+Read in this order before touching preview-bar code:
 Read in this order before touching preview-bar code:
 1. `specs/009-calendar-preview-bar/spec.md` — FR-901…FR-921, SC-901…SC-912, 7 assumptions, 6 divergences
 2. `specs/009-calendar-preview-bar/research.md` — R901–R915 and why
