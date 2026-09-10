@@ -1,6 +1,8 @@
 <!-- SPECKIT START -->
-**Last shipped**: `009-calendar-preview-bar` — Phase 8, merged `de69f13` and deployed 2026-09-08,
-with migration `039` applied to the hosted project. Countdowns end to end, Tasks Progress, and the
+**Last shipped**: `011-family-calendar-views` + `012-family-performance`, together, 2026-09-10.
+
+Before them, `009-calendar-preview-bar` — Phase 8, merged `de69f13` and deployed 2026-09-08, with
+migration `039` applied to the hosted project: countdowns end to end, Tasks Progress, and the
 calendar's event search. Run record:
 `specs/009-calendar-preview-bar/checklists/quickstart-run.md`.
 
