@@ -1,7 +1,5 @@
 "use client";
 
-import { useRef, useState } from "react";
-
 import { CALENDAR_VIEWS, VIEW_LABELS, type CalendarView } from "@/lib/family/calendar/views";
 
 /**
@@ -13,14 +11,21 @@ import { CALENDAR_VIEWS, VIEW_LABELS, type CalendarView } from "@/lib/family/cal
  * `[UNKNOWN]`: the dossier records "cycles/opens a picker" and declines to
  * choose.
  *
- * **This opens a list** (spec Assumption 1). Cycling through three views to
- * reach the one you want means two wrong screens on a wall display somebody is
- * walking past; a list names them and takes one tap. The label still carries
- * the current view, which is the part the reference actually specifies.
+ * **It cycles.** 011 opened a list instead, reasoning that cycling costs two
+ * wrong screens to reach the third view on a wall display somebody is walking
+ * past. Shipped, that reasoning lost to a phone: the operator's report is that
+ * the menu *"is off the page on my small phone"*, which makes the control not
+ * merely slower but unusable on the device it matters most on. A cycle has no
+ * popover to fit, no overlay to tap through, and no placement to get wrong at
+ * 320px.
  *
- * The list is a plain popover rather than a `<dialog>`: it is a three-item menu
- * beside its own button, not a modal, and the shell's dialog idiom would trap
- * focus for a choice that should be one tap in and one tap out.
+ * The cost is named rather than waved away: reaching Month from Day is two taps.
+ * Three views make that a ceiling of two, and the view is remembered per device
+ * (`useCalendarView`), so a household that lives in Month pays it once.
+ *
+ * Week stays the default (`DEFAULT_VIEW`), and the order is `CALENDAR_VIEWS`
+ * itself — Day, Week, Month — so the cycle reads as widening the window and
+ * wrapping, rather than as an arbitrary rotation.
  */
 
 const PILL =
@@ -28,76 +33,32 @@ const PILL =
   "rounded-full bg-(--fam-pill-btn-bg) px-4 font-medium " +
   "text-(length:--fam-fs-pill) text-(--fam-text-muted)";
 
-const ITEM =
-  "flex min-h-(--fam-touch) w-full items-center rounded-(--fam-radius-pill) px-4 text-left " +
-  "text-(length:--fam-fs-body) text-(--fam-text-primary)";
-
 export interface ViewSwitcherProps {
   view: CalendarView;
   onChange: (next: CalendarView) => void;
 }
 
-export function ViewSwitcher({ view, onChange }: ViewSwitcherProps) {
-  const [open, setOpen] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
+/** The next view in `CALENDAR_VIEWS`, wrapping Month back round to Day. */
+export function nextView(view: CalendarView): CalendarView {
+  const at = CALENDAR_VIEWS.indexOf(view);
+  return CALENDAR_VIEWS[(at + 1) % CALENDAR_VIEWS.length];
+}
 
-  function choose(next: CalendarView): void {
-    setOpen(false);
-    buttonRef.current?.focus();
-    onChange(next);
-  }
+export function ViewSwitcher({ view, onChange }: ViewSwitcherProps) {
+  const next = nextView(view);
 
   return (
-    <div className="relative">
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        // The accessible name says what it DOES; the visible label says which
-        // view is showing, which is the reference's own idiom.
-        aria-label={`Change view — currently ${VIEW_LABELS[view]}`}
-        onClick={() => setOpen((current) => !current)}
-        // Above the outside-tap overlay below. Without this the overlay covers
-        // the button while the menu is open, so a second tap on the control
-        // that opened it does nothing — the household taps "Week" expecting the
-        // menu to close and the menu stays put.
-        className={`relative z-20 ${PILL}`}
-      >
-        {VIEW_LABELS[view]}
-      </button>
-
-      {open ? (
-        <>
-          {/* A tap anywhere else closes it, the way the reference's own
-              detail panels dismiss (08:38). */}
-          <button
-            type="button"
-            aria-label="Close the view menu"
-            onClick={() => setOpen(false)}
-            className="fixed inset-0 z-10 cursor-default"
-          />
-          <ul
-            role="menu"
-            aria-label="Calendar view"
-            className="absolute right-0 top-full z-30 mt-1 w-40 rounded-(--fam-radius-modal) border border-(--fam-hairline) bg-(--fam-app-bg) p-1 shadow-lg"
-          >
-            {CALENDAR_VIEWS.map((option) => (
-              <li key={option} role="none">
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={option === view}
-                  onClick={() => choose(option)}
-                  className={ITEM}
-                >
-                  {VIEW_LABELS[option]}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
-    </div>
+    <button
+      type="button"
+      // The accessible name says what is showing AND what one tap will do,
+      // because with no menu to open there is nothing else to discover it from.
+      // The visible label stays the current view, which is the part the
+      // reference actually specifies.
+      aria-label={`Calendar view: ${VIEW_LABELS[view]}. Tap for ${VIEW_LABELS[next]}.`}
+      onClick={() => onChange(next)}
+      className={PILL}
+    >
+      {VIEW_LABELS[view]}
+    </button>
   );
 }

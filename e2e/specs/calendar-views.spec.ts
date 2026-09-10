@@ -19,19 +19,30 @@ import { expect, test } from "../fixtures";
  */
 
 function switcher(page: import("@playwright/test").Page) {
-  return page.getByRole("button", { name: /^Change view/ });
+  return page.getByRole("button", { name: /^Calendar view:/ });
 }
 
+/** The three the cycle passes through, in its order. */
+const VIEW_CYCLE = ["Day", "Week", "Month"] as const;
+
+/**
+ * Taps the control until the view asked for is showing.
+ *
+ * The control CYCLES rather than opening a menu (012b): 011's popover hung off
+ * the edge of a narrow phone, so it was replaced. Three views make two taps the
+ * ceiling, which is why this loop is bounded by the cycle's own length — if it
+ * ever needs more, the cycle is broken and the bound says so rather than
+ * spinning.
+ */
 async function chooseView(
   page: import("@playwright/test").Page,
   view: "Day" | "Week" | "Month",
 ): Promise<void> {
-  // Already showing is not a no-op worth a round trip through the menu, and an
-  // `afterEach` that restores the default hits that case most of the time.
-  if ((await switcher(page).textContent()) === view) return;
-  await switcher(page).click();
-  await page.getByRole("menuitemradio", { name: view }).click();
-  await expect(switcher(page)).toHaveText(view);
+  for (let taps = 0; taps < VIEW_CYCLE.length; taps += 1) {
+    if ((await switcher(page).textContent())?.trim() === view) return;
+    await switcher(page).click();
+  }
+  await expect(switcher(page), `the cycle never reached ${view}`).toHaveText(view);
 }
 
 test.describe("the view switcher", () => {
@@ -55,11 +66,24 @@ test.describe("the view switcher", () => {
     await expect(switcher(page)).toHaveText("Day");
   });
 
-  test("offers the three this project ships and NOT Schedule (FR-1103)", async ({ page }) => {
+  test("cycles the three this project ships, wrapping, and never Schedule (FR-1103)", async ({ page }) => {
+    // One tap per view, back to where it started: that the cycle closes in
+    // exactly three is what proves Schedule is not in it.
+    await expect(switcher(page)).toHaveText("Week");
     await switcher(page).click();
-    await expect(page.getByRole("menuitemradio")).toHaveText(["Day", "Week", "Month"]);
-    await expect(page.getByRole("menuitemradio", { name: /Schedule/i })).toHaveCount(0);
-    await page.getByRole("button", { name: "Close the view menu" }).click();
+    await expect(switcher(page)).toHaveText("Month");
+    await switcher(page).click();
+    await expect(switcher(page)).toHaveText("Day");
+    await switcher(page).click();
+    await expect(switcher(page)).toHaveText("Week");
+  });
+
+  test("needs no popover, so nothing can hang off a narrow screen (012b)", async ({ page }) => {
+    // The defect this replaced: a menu positioned beside the control, off the
+    // page at phone widths. There is now nothing to position.
+    await switcher(page).click();
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(page.getByRole("menuitemradio")).toHaveCount(0);
   });
 
   test("remembers the view across a reload, per device (FR-1102)", async ({ page }) => {

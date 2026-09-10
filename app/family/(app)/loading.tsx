@@ -29,7 +29,11 @@
 export default function TabLoading() {
   return (
     <div
-      className="flex flex-1 items-center justify-center p-(--fam-edge-inset)"
+      // `absolute inset-0` rather than `flex-1`: the shell's `<main>` is a flex
+      // CHILD that stretches, but it is not a flex CONTAINER, so `flex-1` here
+      // resolved to nothing and the spinner sat at the top of the tab. `main`
+      // carries `relative` for exactly this, so filling it is what centres.
+      className="absolute inset-0 flex items-center justify-center p-(--fam-edge-inset)"
       // Polite, so a screen reader is told the tab is coming rather than being
       // left reading the previous one as though it were still current.
       role="status"

@@ -1,12 +1,18 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ViewSwitcher } from "../ViewSwitcher";
+import { nextView, ViewSwitcher } from "../ViewSwitcher";
 
 /**
  * 011 FR-1101 — one control whose LABEL is the view currently showing
  * [VERIFIED](44738510847259). That is the part the reference actually
- * specifies; that it opens a list rather than cycling is spec Assumption 1.
+ * specifies; whether it cycles or opens a picker is `[UNKNOWN]` and was
+ * 011's Assumption 1.
+ *
+ * **It cycles.** 011 chose a list, and shipped, that choice lost to a phone: the
+ * popover sat off the edge of a small screen, so the control was unusable on the
+ * device it matters most on. These tests pin the cycle's two properties that a
+ * household would actually notice if they broke — the order, and the wrap.
  */
 
 function renderSwitcher(view: "day" | "week" | "month" = "week") {
@@ -28,62 +34,57 @@ describe("ViewSwitcher", () => {
     expect(screen.getByRole("button")).toHaveTextContent("Month");
   });
 
-  it("says what it does as well as what is showing", () => {
+  it("opens nothing at all — there is no menu to fall off a narrow screen", () => {
+    renderSwitcher("week");
+    fireEvent.click(screen.getByRole("button"));
+
+    // The failure this replaces: a popover positioned beside the control, which
+    // at 320px hung off the edge of the page.
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.queryAllByRole("menuitemradio")).toHaveLength(0);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("cycles Day → Week → Month and wraps back to Day", () => {
+    expect(nextView("day")).toBe("week");
+    expect(nextView("week")).toBe("month");
+    // The wrap is the whole reason two taps is the ceiling rather than the floor.
+    expect(nextView("month")).toBe("day");
+  });
+
+  it("asks for the next view on a tap, never for the one showing", () => {
+    const { onChange } = renderSwitcher("week");
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith("month");
+  });
+
+  it("wraps from Month round to Day on a tap", () => {
+    const { onChange } = renderSwitcher("month");
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(onChange).toHaveBeenCalledWith("day");
+  });
+
+  /**
+   * With no menu to open, the button is the only place a household can learn
+   * what the tap will do — so its accessible name has to say both things. A
+   * screen-reader user tapping a control named only "Week" would have no way to
+   * know a second view exists.
+   */
+  it("says what is showing AND what a tap will do", () => {
     renderSwitcher("day");
     expect(
-      screen.getByRole("button", { name: "Change view — currently Day" }),
+      screen.getByRole("button", { name: "Calendar view: Day. Tap for Week." }),
     ).toBeInTheDocument();
   });
 
-  it("shows nothing until it is opened", () => {
-    renderSwitcher();
-    expect(screen.queryByRole("menu")).toBeNull();
-  });
-
-  it("offers all three views, marking the one showing", () => {
-    renderSwitcher("week");
-    fireEvent.click(screen.getByRole("button", { name: /Change view/ }));
-
-    const items = screen.getAllByRole("menuitemradio");
-    expect(items.map((item) => item.textContent)).toEqual(["Day", "Week", "Month"]);
-    expect(screen.getByRole("menuitemradio", { name: "Week" })).toBeChecked();
-    expect(screen.getByRole("menuitemradio", { name: "Day" })).not.toBeChecked();
-  });
-
-  it("does NOT offer Schedule — the reference's fourth is out of scope (FR-1103)", () => {
-    renderSwitcher();
-    fireEvent.click(screen.getByRole("button", { name: /Change view/ }));
-    expect(screen.queryByRole("menuitemradio", { name: /Schedule/i })).toBeNull();
-  });
-
-  it("reports the chosen view and closes", () => {
-    const { onChange } = renderSwitcher("week");
-    fireEvent.click(screen.getByRole("button", { name: /Change view/ }));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Month" }));
-
-    expect(onChange).toHaveBeenCalledWith("month");
-    expect(screen.queryByRole("menu")).toBeNull();
-  });
-
-  it("closes when its own control is tapped again", () => {
-    // The button must sit ABOVE the outside-tap overlay: without that the
-    // overlay covers it while the menu is open and a second tap does nothing,
-    // which is what a household hits first when it changes its mind.
-    renderSwitcher();
-    const control = screen.getByRole("button", { name: /Change view/ });
-    fireEvent.click(control);
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.click(control);
-    expect(screen.queryByRole("menu")).toBeNull();
-  });
-
-  it("closes without choosing when the outside is tapped", () => {
-    const { onChange } = renderSwitcher();
-    fireEvent.click(screen.getByRole("button", { name: /Change view/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Close the view menu" }));
-
-    expect(screen.queryByRole("menu")).toBeNull();
-    expect(onChange).not.toHaveBeenCalled();
+  it("never offers Schedule, which this project has not built", () => {
+    renderSwitcher("month");
+    // Month wraps to Day. If a fourth view were ever added to CALENDAR_VIEWS
+    // without a view to render, this is where the cycle would reveal it.
+    expect(nextView("month")).toBe("day");
+    expect(screen.getByRole("button")).not.toHaveTextContent(/Schedule/i);
   });
 });
