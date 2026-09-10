@@ -31,7 +31,7 @@ and this phase turns on the difference.
 | `npm test` | **3779 passed**, 251 files |
 | `npm run typecheck` | **clean** |
 | `npm run lint` | **no new problems.** 11 errors remain in `app/skyhammer`, `app/colectivo` and `app/components/**` — pre-existing, untouched by this branch, and the subject of the `fix-lint-react-19` stash |
-| `npm run test:e2e` | *(see "The browser pass", below)* |
+| `npm run test:e2e` | **140 passed, 0 failed, 3 skipped, 7.3 min** — GREEN, at load 3.27 |
 
 Two fallow findings were raised by this phase's own code and both were fixed rather than suppressed,
 per `.claude/rules/quality-bars.md`:
@@ -200,7 +200,34 @@ time it is picked up. Recorded for the operator to rule on.
 - **The meals journey failed every Wednesday** and had since Phase 6: it clicked today's Lunch and
   the seed plants a Lunch on `sunday + 3`. It now reads an actually-empty mealtime off the grid.
 
-## The browser pass — three full runs, and why none of them certifies the gate
+## The browser pass — GREEN
+
+**140 passed, 0 failed, 3 skipped, 7.3 minutes**, at machine load 3.27 — not even the quiet machine
+`011` asked for. Seed intact afterwards: 13 events, 2 PINs.
+
+The three skips are one journey on the three touch profiles: `lists.spec:94`, which drives a finger
+pan through `page.mouse` and cannot reach framer's `onPan` on WebKit. It carries its reason, and what
+it would prove is covered by `swipe.test.ts`, by the `touch-action: pan-y` assertion in the journey
+beside it, and by the keyboard path every other lists journey exercises.
+
+**What it took was fixing journeys, not the environment.** Nine full runs; the failure count moved
+7, 3, 13, 1, 8, 9, 2, 1, 0 on code that barely changed between some of them. The things that actually
+closed it:
+
+| Fix | What it was |
+|---|---|
+| three `count()` races | `await locator.count()` is a one-shot read; called straight after a reload it lost to the events arriving. One journey failed on it; two others **silently skipped**, printing a plausible reason for testing nothing |
+| the live-update channel | a filtered binding discarded every binding on the channel — live updates had never worked |
+| the live-update check | counted rows that outlive their socket, and was read before either browser had navigated |
+| the same check again | then sampled once, so a slow machine read as a broken stack |
+| two journeys' locators | asserted on the seed's Saturday Banana bread, which a seven-column window shows |
+| the Meals fixture | assumed today's column was in the first window a phone is handed |
+
+**And the load theory was wrong.** It is recorded below because it was believed for several runs and
+shaped the work; the run that disproved it failed 2 journeys at load 7.05 while a run at load 4.2 had
+failed 13. What actually moved the count was the cascade, and then the journeys themselves.
+
+## The earlier reading: three full runs, and why none of them certified the gate
 
 | Run | Code | Result | Wall clock | Load at start |
 |---|---|---|---|---|
