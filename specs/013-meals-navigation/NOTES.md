@@ -1,9 +1,14 @@
 # 013 — the Meals tab navigates like the Calendar
 
-**Status**: not started. Notes taken from the operator's report on 2026-09-10, before any spec.
+**Status**: BUILT. This file is the record of what was asked for and what was measured BEFORE any
+spec existed; it is kept because the order the evidence arrived in is the useful part.
 
-This file is deliberately notes rather than a spec: it records what was asked for, what the research
-already says about it, and the one trap that will catch whoever builds it. The spec comes next.
+**For what was actually built, read these instead** — they supersede the "Sketch of the work" below:
+
+- [spec.md](./spec.md) — FR-1301…FR-1310, SC-1301…SC-1307, and the Clarifications entry
+- [research.md](./research.md) — R1301…R1307
+- [plan.md](./plan.md) · [data-model.md](./data-model.md) · [quickstart.md](./quickstart.md)
+- [checklists/run-record.md](./checklists/run-record.md) — the before/after numbers and the gates
 
 ## What was reported
 
@@ -100,7 +105,11 @@ for the grid as it stands.
 correct, and `useColumnPage`'s `openOn` becomes dead for this caller. Whoever builds this should
 remove it rather than leave two mechanisms aimed at the same problem.
 
-## Sketch of the work
+## Sketch of the work — SUPERSEDED by plan.md, kept for the record
+
+One item below turned out to be wrong and is worth seeing wrong: it calls for carrying the measured
+count to the server "with its **own** cookie". Measurement said otherwise (above), and the built phase
+has no cookie at all.
 
 - Measure the Meals grid's column fit (it already runs `useBoardGeometry` with `--fam-meal-cell-w`).
 - Roll the window by that width from an anchor, replacing `weekDatesOf` + `shiftWeek`.

@@ -70,28 +70,36 @@ roll; and the lint fix stashed on `fix-lint-react-19` (11 errors in the legacy s
 
 Phases 1–9, `011` and `012` are shipped and live; `010` is shelved unbuilt.
 
-**In flight: `013-meals-navigation` — specced and planned, not built.** The Meals grid's day
-navigation becomes the Calendar's: as many whole day columns as fit, arrows moving the window by that
-many days, beginning on today. Read in this order:
+**`013-meals-navigation` — BUILT, gates green, not yet merged.** The Meals grid's day navigation is
+now the Calendar's: as many whole day columns as fit, arrows moving the window by that many days,
+every window beginning on today. Measured at four widths — 2 columns/"2 days" at 390px, 5/"5 days" at
+768px, 7/"week" at 1024 and 1280px, **CLS 0 at all four**. Run record:
+`specs/013-meals-navigation/checklists/run-record.md`.
 
-1. `specs/013-meals-navigation/spec.md` — FR-1301…FR-1310, SC-1301…SC-1307, and the Clarifications
-   entry recording the operator's choice of a single rule over a width-dependent one
-2. `specs/013-meals-navigation/research.md` — R1301…R1307
-3. `specs/013-meals-navigation/plan.md` — the structure, the constitution check, the task ordering
-4. `specs/013-meals-navigation/data-model.md` — the window, its invariants, and what retires
-5. `specs/013-meals-navigation/quickstart.md` — how to verify each criterion and what a failure means
-6. `specs/013-meals-navigation/NOTES.md` — the report and the measurements taken before speccing
+**It reversed 006 Assumption 3** — "a whole week at a time — a planning grid, not the calendar's
+rolling window anchored on today" — because the household's phone showed two of those seven columns
+while the arrows skipped five days per step. Not a divergence from the reference: the 7-column grid is
+`[VERIFIED]` and untouched; the navigation was `[UNKNOWN]` and our own research had inferred parity
+with the Calendar (`03-lists-meals-recipes.md:105`). One further step WAS taken and was the operator's
+call, recorded in the spec's Clarifications: the window begins on today at every width, so the wall
+tablet shows a rolling seven days rather than a Sunday-anchored week.
 
-**The three things easy to get wrong**, all recorded with their evidence:
+**The three things easy to get wrong here**, each now with a test behind it:
 
-- **It reverses 006 Assumption 3** ("a whole week at a time — a planning grid, not the calendar's
-  rolling window anchored on today"). Deliberate, because the household's devices contradict it.
-- **`useColumnPage` steps ONE column per swipe by design** and is shared by Tasks, Lists and Rewards,
-  with FR-396 pinning that rule for Profile columns. Meals gets its own navigation; the shared hook
-  does not change. This is where the phase could quietly break three other tabs (SC-1307).
-- **No device-width cookie.** Measured: Meals is CLS 0 at 390px and 1280px, because its read is
-  unwindowed and the visible slice is a transform. The 012 calendar problem does not arise — do not
-  add one by analogy.
+- **`useColumnPage` steps ONE column per swipe by design** (FR-396) and is shared by Tasks, Lists and
+  Rewards. Meals got its own navigation rather than a mode on the shared hook, and `openOn` — added
+  and removed on the same day — is gone from it. SC-1307 exists solely to catch a regression there.
+- **No device-width cookie.** Measured: CLS 0, because the meals read is unwindowed and the visible
+  slice is a transform. An earlier draft of the notes called for one by analogy with 012 and was
+  wrong — the file says so.
+- **The first paint draws the unmeasured ceiling of seven and the measurement narrows it.** Any test
+  that counts day columns must wait for two reads to agree; one of mine did not and failed
+  confusingly a line later.
+
+**Known, and recorded rather than fixed**: the dev seed anchors its meals on the week's SUNDAY at +0,
++3 and +6 days, so with a today-anchored window a freshly seeded grid looks emptier on a Thursday. It
+affects the seed, not the household, who plan forwards. Re-anchoring it touches fixtures
+`specs/007-family-e2e/harness.md` §3 documents and several specs name by date.
 
 Read in this order before touching preview-bar code:
 Read in this order before touching preview-bar code:
