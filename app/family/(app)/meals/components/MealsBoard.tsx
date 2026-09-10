@@ -114,9 +114,20 @@ function useMealsData(
 
 /* ------------------------------------------------------------------ view -- */
 
-function useMealsView(columnCount: number) {
+/**
+ * `todayIndex` is which of the week's columns is today, and it is the column the
+ * grid OPENS on (012). A seven-column tablet shows the whole week either way; a
+ * two-column phone used to open on Sunday and Monday, so the tab a household
+ * opens to plan dinner showed them days that had already gone.
+ */
+function useMealsView(columnCount: number, todayIndex: number) {
   const geometry = useBoardGeometry(columnCount, { widthToken: "--fam-meal-cell-w", layoutOf: rowLayoutOf });
-  const page = useColumnPage({ columnCount, perRow: geometry.layout.perRow, mode: geometry.layout.mode });
+  const page = useColumnPage({
+    columnCount,
+    perRow: geometry.layout.perRow,
+    mode: geometry.layout.mode,
+    openOn: todayIndex,
+  });
   return { layout: geometry.layout, boardRef: geometry.boardRef, page };
 }
 
@@ -127,7 +138,9 @@ function useMealsBoardModel(props: MealsBoardProps) {
   const week = useMealWeek({ zone: settings.timezone, startWeekOn: settings.startWeekOn, initialToday: props.initialToday });
   const hidden = useHiddenMealtimes();
   const data = useMealsData(householdId, props, week.dates, settings.timezone, hidden.hiddenIds);
-  const view = useMealsView(week.dates.length);
+  // -1 when the shown week does not hold today, which `useColumnPage` reads as
+  // "no preference" after clamping — a navigated-to week opens at its start.
+  const view = useMealsView(week.dates.length, week.dates.indexOf(week.todayDate));
   const surfaces = useMealSurfaceModel({
     categories: data.categories,
     recipes: data.recipes,

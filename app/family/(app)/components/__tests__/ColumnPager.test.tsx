@@ -144,6 +144,56 @@ describe("useColumnPage: which columns are on screen", () => {
     expect(result.current.start).toBe(1);
   });
 
+  /**
+   * 012 — the Meals grid's reason for existing, and nobody else's.
+   *
+   * Its columns are DAYS over the household's week, and a two-column phone was
+   * opening on Sunday and Monday with today two pages away: the tab a household
+   * opens to plan dinner showed them days that had already gone. The operator's
+   * ruling was that a tab should open on today, "because the past is in the
+   * past".
+   *
+   * Every Profile-columned board passes nothing and opens on Up for Grabs as it
+   * always has, which the first test in this block pins.
+   */
+  it("opens on the page holding the column it was asked for (012)", () => {
+    // Seven days, two fit: Wednesday is index 3, so the page starting at 3.
+    const { result } = renderHook(() =>
+      useColumnPage({ columnCount: 7, perRow: 2, mode: "pager", openOn: 3 }),
+    );
+
+    expect({ start: result.current.start, end: result.current.end }).toEqual({ start: 3, end: 5 });
+  });
+
+  it("clamps an opening column it cannot honour, rather than showing a gap", () => {
+    // The last full window of seven columns two at a time starts at five.
+    const { result } = renderHook(() =>
+      useColumnPage({ columnCount: 7, perRow: 2, mode: "pager", openOn: 6 }),
+    );
+
+    expect(result.current.start).toBe(5);
+  });
+
+  it("treats a missing column as no preference — a week without today opens at its start", () => {
+    // `indexOf` answers -1 when the shown week does not hold today at all.
+    const { result } = renderHook(() =>
+      useColumnPage({ columnCount: 7, perRow: 2, mode: "pager", openOn: -1 }),
+    );
+
+    expect(result.current.start).toBe(0);
+  });
+
+  it("still pages one column at a time from wherever it opened", () => {
+    const { result } = renderHook(() =>
+      useColumnPage({ columnCount: 7, perRow: 2, mode: "pager", openOn: 3 }),
+    );
+
+    act(() => result.current.step(1));
+    expect(result.current.start).toBe(4);
+    act(() => result.current.step(-1));
+    expect(result.current.start).toBe(3);
+  });
+
   it("is not paged at all when every column fits — the wall tablet", () => {
     const { result } = renderHook(() =>
       useColumnPage({ columnCount: 4, perRow: 4, mode: "grid" }),
