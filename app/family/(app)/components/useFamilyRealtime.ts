@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { familyKeys } from "@/lib/family/queries";
+import { invalidationPrefixesFor } from "@/lib/family/invalidation";
 import { createClient } from "@/lib/family/supabase/client";
 
 /**
@@ -56,29 +56,28 @@ const TABLES: readonly TableSubscription[] = [
   // makes routine rather than rare: an un-complete and an unskip each DELETE a
   // `task_resolutions` row, so deletes are the hot path, not the edge case.
   //
-  // The bare `familyKeys.all` invalidation below is now LOAD-BEARING, not
-  // merely convenient: completing a Completed Date occurrence creates a FUTURE
-  // day's occurrence, and the cursor read that publishes it is unwindowed, so
-  // narrowing this sweep to the displayed day would break that mode first.
+  // Completing a Completed Date occurrence creates a FUTURE day's occurrence,
+  // and the cursor read that publishes it is unwindowed — so a sweep narrowed to
+  // the DISPLAYED DAY would break that mode first and quietly. 012 narrows by
+  // domain instead, and `invalidation.ts` keeps `task-cursors` in the task
+  // domain for exactly this reason. The warning stands; what satisfies it moved.
   { table: "tasks" },
   { table: "task_assignees" },
   { table: "task_resolutions" },
   { table: "task_box_items" },
   // Rewards (004 FR-410, R411). Unfiltered for the same reason: a reward's
   // deletion and a Profile's cascade are DELETEs, and every un-tick's ledger
-  // row is what moves the other device's balance, pill, bar and button. The
-  // bare sweep below reaches the four new keys (`starWeek`, `balances`,
-  // `rewards`, `redemptions`) because they are prefix-shaped under
-  // `familyKeys.all` (R407). Replica identity is left at default, so a DELETE
-  // payload carries a primary key and never a reward's name.
+  // row is what moves the other device's balance, pill, bar and button — which
+  // is why every task-domain notice reaches the rewards domain too (R407,
+  // `invalidation.ts`). Replica identity is left at default, so a DELETE payload
+  // carries a primary key and never a reward's name.
   { table: "rewards" },
   { table: "reward_eligibilities" },
   { table: "star_entries" },
   { table: "redemptions" },
   // Lists (005 FR-538, R506). Unfiltered for the same reason, and this phase
   // deletes on the hot path: Clear Completed and Delete list are DELETEs whose
-  // payloads carry only a key. The bare sweep reaches `lists` and `listItems`
-  // because they are prefix-shaped under `familyKeys.all`.
+  // payloads carry only a key. Both keys sit in the lists domain.
   { table: "lists" },
   { table: "list_items" },
   // Meals (006 FR-643, R605). Unfiltered for the same reason: "This recipe and
@@ -109,11 +108,24 @@ export function useFamilyRealtime(householdId: string): void {
 
   useEffect(() => {
     const supabase = createClient();
-    const invalidate = () => void queryClient.invalidateQueries({ queryKey: familyKeys.all });
+    // 012: what the table can have changed, not everything the household has.
+    // Until this phase the channel delivered nothing, so a bare
+    // `familyKeys.all` sweep cost nobody anything; now every change reaches
+    // every open device, and a ticked chore was refetching the week's events,
+    // the meal plan and the shopping lists on the phone as well. It narrows by
+    // DOMAIN and never by window — see `lib/family/invalidation.ts` for why the
+    // task domain must always keep `task-cursors`.
+    const invalidateFor = (table: string) => {
+      for (const queryKey of invalidationPrefixesFor(table, householdId)) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
+    };
 
     let channel = supabase.channel(`family:${householdId}`);
     for (const { table } of TABLES) {
-      channel = channel.on("postgres_changes", { event: "*", schema: "family", table }, invalidate);
+      channel = channel.on("postgres_changes", { event: "*", schema: "family", table }, () =>
+        invalidateFor(table),
+      );
     }
     channel.subscribe(reportChannelStatus);
 

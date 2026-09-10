@@ -10,9 +10,10 @@ import { useFamilyRealtime } from "../useFamilyRealtime";
 /**
  * FR-276 / Assumption 39 / R209: the calendar tables must be subscribed with
  * NO server-side `household_id` filter — DELETE payloads carry primary keys
- * only, so a filtered subscription silently never fires on deletes — and every
- * notice must stay a bare `invalidateQueries(familyKeys.all)` with no payload
- * content used (Realtime does not apply column privileges to payloads).
+ * only, so a filtered subscription silently never fires on deletes — and no
+ * notice may use its PAYLOAD's content, because Realtime does not apply a normal
+ * read's column privileges to payloads. (The breadth of the invalidation was
+ * also pinned here until 012; it now belongs to `lib/family/invalidation.ts`.)
  *
  * FR-392 / R324 puts the four task tables on the same terms, and raises the
  * stakes: Phase 3 DELETES on the hot path (every un-complete and every unskip),
@@ -160,17 +161,54 @@ describe("useFamilyRealtime", () => {
     }
   });
 
-  it("maps every notice to a bare invalidateQueries(familyKeys.all), payload unused", () => {
+  /**
+   * The payload half of the old contract still holds and is what matters for
+   * privacy: a notice is a SIGNAL, and nothing in it is read. Realtime does not
+   * apply a normal read's column privileges, so the refetch — which does — is
+   * the only thing allowed to put data on a screen.
+   *
+   * What changed in 012 is the breadth. Every notice used to invalidate
+   * `familyKeys.all`, which cost nothing while the channel delivered nothing;
+   * now that it delivers, a ticked chore was refetching the week's events, the
+   * meal plan and the shopping lists on every open device. Which keys each table
+   * reaches is `lib/family/invalidation.ts`'s business and is tested there,
+   * exhaustively and including the orphan check. What is asserted here is only
+   * the wiring: the table's own prefixes, and no use of the payload.
+   */
+  it("invalidates by the changed table's own prefixes, never reading the payload", () => {
+    const { invalidateSpy } = renderRealtime();
+    const byTable = subscriptionsByTable();
+
+    // A lists notice touches the two list reads and nothing else.
+    const listItems = captured.subscriptions.find(({ params }) => params.table === "list_items");
+    listItems?.handler({ eventType: "DELETE", old: { id: "pk-only" }, new: {} });
+
+    expect(invalidateSpy.mock.calls.map(([arg]) => arg)).toEqual([
+      { queryKey: ["family", "lists", HOUSEHOLD_ID] },
+      { queryKey: ["family", "list-items", HOUSEHOLD_ID] },
+    ]);
+
+    // A Profile is wide and rare, and still sweeps the household.
+    invalidateSpy.mockClear();
+    const categories = captured.subscriptions.find(({ params }) => params.table === "categories");
+    categories?.handler({ eventType: "UPDATE", old: {}, new: { id: "pk-only" } });
+
+    expect(invalidateSpy.mock.calls).toEqual([[{ queryKey: familyKeys.all }]]);
+    expect(byTable.get("list_items"), "the lists binding exists to be driven").toBeDefined();
+  });
+
+  it("still answers a notice for every table it subscribed to", () => {
     const { invalidateSpy } = renderRealtime();
 
     for (const { handler } of captured.subscriptions) {
       handler({ eventType: "DELETE", old: { id: "pk-only" }, new: {} });
     }
 
-    expect(invalidateSpy).toHaveBeenCalledTimes(captured.subscriptions.length);
-    for (const call of invalidateSpy.mock.calls) {
-      expect(call).toEqual([{ queryKey: familyKeys.all }]);
-    }
+    // Narrowing must not have left a table whose notice does nothing at all —
+    // the silent failure this change could have introduced.
+    expect(invalidateSpy.mock.calls.length).toBeGreaterThanOrEqual(
+      captured.subscriptions.length,
+    );
   });
 
   it("reports a subscription that failed rather than going quietly dead", () => {
