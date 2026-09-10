@@ -1,43 +1,35 @@
-import { addDays, weekStartOf } from "../calendar/dates";
-import type { WeekStart } from "../types";
-
-/**
- * The Meals grid's week (006 FR-602, FR-603, R606): the seven days from the
- * household's start day, a whole week at a time — a planning grid, not the
- * calendar's rolling window anchored on today (spec Assumption 3).
- */
-
-const WEEK_DAYS = 7;
-
-/** The seven dates of the week `anchorDate` falls in, from the household's start day. */
-export function weekDatesOf(anchorDate: string, startWeekOn: WeekStart): string[] {
-  const start = weekStartOf(anchorDate, startWeekOn);
-  return Array.from({ length: WEEK_DAYS }, (_, index) => addDays(start, index));
-}
-
-/** The same day `weeks` weeks away — the arrows' step. */
-export function shiftWeek(anchorDate: string, weeks: number): string {
-  return addDays(anchorDate, weeks * WEEK_DAYS);
-}
-
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 
-function partsOf(date: string): { day: number; month: string; year: number } {
-  return { day: Number(date.slice(8, 10)), month: MONTHS[Number(date.slice(5, 7)) - 1], year: Number(date.slice(0, 4)) };
-}
+/**
+ * How the Meals grid words a day (006 FR-625, FR-646).
+ *
+ * **This file used to own the grid's week, and no longer does.** It held
+ * `weekDatesOf`, `shiftWeek` and `weekLabelOf`, and its header stated 006
+ * Assumption 3 as settled: *"the seven days from the household's start day, a
+ * whole week at a time — a planning grid, not the calendar's rolling window
+ * anchored on today"*.
+ *
+ * **013 reversed that assumption**, because the devices the household actually
+ * uses contradicted it: on a phone two of the seven columns fit, so arrows that
+ * moved a week skipped five days per step and the household's own report was
+ * that the tab "doesn't really navigate days the way calendar view does". The
+ * window now lives in `window.ts` — a first day and a measured count — and
+ * `weekLabelOf` went with it as `windowLabelOf`, since it always rendered a day
+ * RANGE rather than a week's name and only the name was lying.
+ *
+ * The reference's 7-column grid is `[VERIFIED]` and untouched by any of that.
+ * What changed is navigation, which the research had marked `[UNKNOWN]` and
+ * inferred should match the Calendar tab.
+ *
+ * What is left here is the wording of a single day, which no model of the window
+ * affects.
+ */
 
-/** "7–13 September", "28 September – 4 October", "28 December 2026 – 3 January 2027". */
-export function weekLabelOf(dates: readonly string[]): string {
-  const first = partsOf(dates[0]);
-  const last = partsOf(dates[dates.length - 1]);
-  if (first.year !== last.year) {
-    return `${first.day} ${first.month} ${first.year} – ${last.day} ${last.month} ${last.year}`;
-  }
-  if (first.month !== last.month) return `${first.day} ${first.month} – ${last.day} ${last.month}`;
-  return `${first.day}–${last.day} ${first.month}`;
+function partsOf(date: string): { day: number; month: string } {
+  return { day: Number(date.slice(8, 10)), month: MONTHS[Number(date.slice(5, 7)) - 1] };
 }
 
 

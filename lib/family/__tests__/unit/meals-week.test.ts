@@ -1,37 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { dayHeaderOf, dayWordsOf, shiftWeek, weekDatesOf, weekLabelOf } from "@/lib/family/meals/week";
+import { dayHeaderOf, dayWordsOf } from "@/lib/family/meals/week";
 
-/** 006 T021 — the grid's week (FR-602, FR-603, R606): from the household's start day, a week at a time. */
-
-describe("weekDatesOf", () => {
-  it("gives the seven days from the household's start day around any date of the week", () => {
-    expect(weekDatesOf("2026-09-09", 0)).toEqual([
-      "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12",
-    ]);
-    expect(weekDatesOf("2026-09-06", 0)[0]).toBe("2026-09-06");
-    expect(weekDatesOf("2026-09-12", 0)[0]).toBe("2026-09-06");
-    expect(weekDatesOf("2026-09-09", 1)).toEqual([
-      "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13",
-    ]);
-    expect(weekDatesOf("2026-09-06", 1)[0]).toBe("2026-08-31");
-  });
-});
-
-describe("shiftWeek", () => {
-  it("moves a whole week either way", () => {
-    expect(shiftWeek("2026-09-09", 1)).toBe("2026-09-16");
-    expect(shiftWeek("2026-09-09", -2)).toBe("2026-08-26");
-  });
-});
-
-describe("weekLabelOf", () => {
-  it("reads as one month, two months, or two years", () => {
-    expect(weekLabelOf(weekDatesOf("2026-09-09", 0))).toBe("6–12 September");
-    expect(weekLabelOf(weekDatesOf("2026-09-30", 0))).toBe("27 September – 3 October");
-    expect(weekLabelOf(weekDatesOf("2026-12-30", 0))).toBe("27 December 2026 – 2 January 2027");
-  });
-});
+/**
+ * 006 T021 — how the Meals grid words a day (FR-625, FR-646).
+ *
+ * This file used to cover the grid's week too — `weekDatesOf`, `shiftWeek` and
+ * `weekLabelOf`. 013 replaced the week with a window and those moved to
+ * `meals-window.test.ts`, which covers them far more thoroughly because two of
+ * that phase's requirements can only be checked in a unit test. What is left
+ * here is the wording of a single day, which no model of the window affects.
+ */
 
 describe("dayWordsOf / dayHeaderOf", () => {
   it("reads a date in words and as a column header", () => {
