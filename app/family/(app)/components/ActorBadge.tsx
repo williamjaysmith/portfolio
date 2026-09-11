@@ -95,11 +95,14 @@ export function ActorBadge() {
         </p>
         <button
           type="button"
-          // Punch out FIRST, then close. Closing first re-renders this
-          // component before the action is dispatched, and the badge stayed on
-          // screen — caught by the punch-in journey, not by a unit test.
-          onClick={() => {
-            void punchOut();
+          // AWAIT the punch-out, then close. Three orderings were tried and
+          // only this one holds on every project: closing first re-rendered
+          // before the action was dispatched, and fire-and-forget left the
+          // badge up on the wall. Awaiting means the panel is still on screen
+          // while the write is in flight — which is also the honest signal
+          // that something is happening.
+          onClick={async () => {
+            await punchOut();
             setOpen(false);
           }}
           className="mt-4 min-h-(--fam-touch) w-full rounded-full bg-(--fam-pill-btn-bg) px-5 text-(length:--fam-fs-body) font-medium text-(--fam-text-primary)"

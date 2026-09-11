@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { useCountdownSwitches } from "@/app/family/(app)/calendar/components/useCountdownSwitches";
 import { localDateOf } from "@/lib/family/calendar/dates";
 import type { TaskCounters } from "@/lib/family/tasks/counters";
 
@@ -16,26 +17,29 @@ import { useTaskProgress } from "./useTaskProgress";
  * FR-912). It is the only horizontally scrolling region in the shell — the page
  * itself never scrolls sideways (SC-006).
  *
- * **This is 014's one row.** 009 drew the counts in a second row of the same
+ * **This is the one row.** 009 drew the counts in a second row of the same
  * faces above the calendar; the operator reported the duplication and asked for
- * them combined here. `TasksProgressRow` and the per-device Tasks Progress
- * switch are both gone.
+ * them combined here, so `TasksProgressRow` is gone for good.
  *
- * **The clock is the mount gate**, and it has to be. `useTaskProgress` runs
- * only inside `CountingChips`, which exists only once the household's today is
- * known — so the server render and the first paint issue no task read at all.
- * Passing a placeholder date instead is the 012 bug: `useTaskReads` fetched an
- * epoch week on every load of every tab because `"1970-01-01"` looked like a
- * real day. `hidden` or `enabled: false` would be the same mistake in a
- * different place.
+ * **The per-device switch, however, came back** — gating the COUNT rather than a
+ * row (see `useCountdownSwitches`). Off by default, which is what retires 014's
+ * stated cost: the chip row is in the shell, so a read issued here is a read
+ * paid for on Lists and Meals too, and with the switch off there is no read.
  *
- * **The cost, stated plainly**: the chip row is in the shell, so these four
- * reads now happen on Lists and Meals too. Three of the four are keyed by the
- * household alone (003 R314), so the Tasks tab shares this cache rather than
- * duplicating it, and a chore ticked on either surface moves both.
+ * **The switch and the clock are both mount gates**, and both have to be.
+ * `useTaskProgress` runs only inside `CountingChips`, which exists only once
+ * the device has asked for counts AND the household's today is known — so the
+ * server render and the first paint issue nothing. Passing a placeholder date
+ * instead is the 012 bug: `useTaskReads` fetched an epoch week on every load of
+ * every tab because `"1970-01-01"` looked like a real day. `hidden` or
+ * `enabled: false` would be the same mistake in a different place.
+ *
+ * Three of the four reads are keyed by the household alone (003 R314), so when
+ * the switch IS on the Tasks tab shares this cache rather than duplicating it,
+ * and a chore ticked on either surface moves both.
  */
 
-function ChipScroller({ counters }: { counters: (profileId: string) => TaskCounters | null }) {
+function ChipScroller({ counters }: { counters: (profileId: string) => TaskCounters | null | undefined }) {
   const { visibleProfiles, avatarUrls } = useFamily();
 
   return (
@@ -74,6 +78,7 @@ function CountingChips({ todayDate, zone }: { todayDate: string; zone: string })
 
 export function ProfileChipRow() {
   const { profiles, settings } = useFamily();
+  const { switches } = useCountdownSwitches();
   const now = useNow();
   const todayDate = now === null ? null : localDateOf(settings.timezone, now.getTime());
 
@@ -91,6 +96,9 @@ export function ProfileChipRow() {
     );
   }
 
+  // `undefined`, not `null`: the device has asked for no counts, so the chips
+  // carry no slot at all rather than a blank one waiting to fill.
+  if (!switches.taskProgress) return <ChipScroller counters={() => undefined} />;
   if (todayDate === null) return <ChipScroller counters={() => null} />;
   return <CountingChips todayDate={todayDate} zone={settings.timezone} />;
 }

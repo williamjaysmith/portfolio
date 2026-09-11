@@ -73,20 +73,25 @@ function TimesFieldset({ form }: { form: EventFormState }) {
       {/* A grid, not `flex flex-wrap`: wrap decides per width and on a phone it
           split this pair onto two lines and let the time field run to the
           modal's edge. A grid splits the row evenly and never wraps.
-          One column on a phone, two from `sm` (640px) up.
-          The breakpoint was 360px, chosen because two columns MEASURE as
-          fitting at 375: each field gets 143px against a 141px requirement, and
-          WebKit at both iPhone SE sizes showed no overlap and no spill. The
-          operator's device disagreed anyway, repeatedly. The likeliest
-          mechanism is that iOS Safari paints a native date control's content
-          wider than the box it is given (`overflow: visible`), so the box
-          shrinks correctly and the GLYPHS still collide — which no measurement
-          taken here can see. Two columns cannot be made reliable on a phone
-          against a control whose painted width is not its layout width, so the
-          phone gets one field per row and the collision becomes impossible
-          rather than narrowly avoided.
+          Side by side from 360px, stacked below it.
+
+          Two things had to be true for the pair to work at all, and the second
+          was the operator's question: "why are they not following padding the
+          way other options are?"
+
+          1. `input[type="date"]` and `[type="time"]` are UA controls that size
+             and PAINT themselves outside CSS's control — which is why they
+             alone ignored the padding every other field obeys. `tokens.css`
+             now gives them `appearance: none`, and they lay out like a text
+             box: measured, a date field and the Title field share their left
+             and right edges exactly, at 320 and at 375.
+          2. Even sized honestly, 320px leaves each column 117px and WebKit
+             renders the year as "09/ 10 / 202". `scrollWidth` reports no
+             clipping — it equals the box — so this is invisible to
+             measurement and was found by looking at a screenshot. Hence the
+             floor: below 360px each field takes the whole row.
           All day hides the time, and then the date takes the whole row. */}
-      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 sm:grid-cols-2"}>
+      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2"}>
         <label className={LABEL}>
           Start date
           <input
@@ -111,7 +116,7 @@ function TimesFieldset({ form }: { form: EventFormState }) {
         )}
       </div>
       <FieldError messages={messagesFor(errors, "startDate", "startsAt")} />
-      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 sm:grid-cols-2"}>
+      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2"}>
         <label className={LABEL}>
           End date
           <input

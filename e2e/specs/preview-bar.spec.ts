@@ -232,14 +232,14 @@ test.describe("Show Countdowns decides what the bar shows", () => {
 });
 
 /**
- * 014 moved the counts onto the shell's profile chips and deleted both the
- * separate row and the switch that revealed it. What is left to walk is the
- * same two claims at their new address: every visible Profile carries a count,
- * and hiding somebody takes their count away with their events (FR-911,
- * FR-912, SC-908).
+ * The counts live on the shell's profile chips, and the separate row of faces
+ * that 009 drew above the calendar is gone for good. The per-device switch came
+ * back — **Task progress** in the Filter sheet — but it now reveals the count on
+ * the face already on screen rather than a second copy of every face.
  *
- * There is no "off" state to walk any more, which is the point: the operator
- * met the old row because "Show all" turned it on as a side effect.
+ * Three claims worth walking: the chips are bare until the device asks, every
+ * visible Profile carries a count once it has, and hiding somebody takes their
+ * count away with their events (FR-911, FR-912, SC-908).
  */
 test.describe("the chips carry each Profile's chore count", () => {
   test.beforeEach(async ({ page }) => {
@@ -247,18 +247,27 @@ test.describe("the chips carry each Profile's chore count", () => {
     await hideDevOverlay(page);
   });
 
-  test("every visible Profile shows a completed-of-total, with no switch to find (FR-911)", async ({
+  test("shows a completed-of-total only once this device asks for it (FR-911)", async ({
     page,
   }) => {
     const chips = page.getByRole("group", { name: "Family" });
     await expect(chips).toBeVisible();
-    // The count is reserved from the first paint and filled once the clock and
+    // Off by default: the faces are there, the counts are not, and no task read
+    // has been issued on a tab that is not the Tasks tab.
+    await expect(chips).not.toContainText(/\d+\/\d+/);
+
+    await inFilter(page, async (sheet) => {
+      await sheet.getByRole("checkbox", { name: "Task progress" }).check();
+    });
+
+    // The slot is reserved from the first paint and filled once the clock and
     // the reads land, so wait for the text rather than counting immediately.
     await expect(chips).toContainText(/\d+\/\d+/);
 
-    await inFilter(page, async (sheet) => {
-      await expect(sheet.getByRole("checkbox", { name: "Tasks Progress" })).toHaveCount(0);
-    });
+    // And it is remembered for this device, not for the household.
+    await page.reload();
+    await hideDevOverlay(page);
+    await expect(chips).toContainText(/\d+\/\d+/);
   });
 
   test("hiding a Profile takes their count with their events (SC-908)", async ({ page }) => {
@@ -360,11 +369,17 @@ test.describe("the bar at every width", () => {
     await page.goto("/family/calendar");
     await hideDevOverlay(page);
 
+    // The counts are per-device and off by default, and this journey wants the
+    // WIDEST chip row there is — a bare circle is narrower than a circle plus a
+    // count, so leaving the switch alone would test the easy case.
+    await inFilter(page, async (sheet) => {
+      await sheet.getByRole("checkbox", { name: "Task progress" }).check();
+    });
+
     const title = unique("Phone countdown");
     await createEvent(page, actAsAna, { title, countdown: true });
     await expect(previewBar(page)).toBeVisible();
-    // The counts are in the shell now, not the bar (014), so both rows are on
-    // screen and neither may push the page sideways.
+    // Both rows are on screen now, and neither may push the page sideways.
     await expect(page.getByRole("group", { name: "Family" })).toContainText(/\d+\/\d+/);
 
     // The page itself never scrolls sideways: the bar's own row does (SC-006).

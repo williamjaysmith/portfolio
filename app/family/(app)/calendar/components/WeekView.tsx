@@ -377,7 +377,17 @@ function DayHeaderBand({
   children?: ReactNode;
 }) {
   return (
-    <div className="min-h-(--fam-dayheader-h) shrink-0 border-b border-(--fam-hairline)">
+    // **No `min-h-(--fam-dayheader-h)` here, deliberately.** The sampled token
+    // is "date line + one all-day row", so this band reserved room for an
+    // all-day row on every day that has none — which is the gap the operator
+    // measured against the Month view, whose headings sit right on the grid:
+    // *"doesnt have as much space between it and the calendar — closer to the
+    // calendar … i would like day and week to match that"*. `AllDayBand`
+    // collapses to nothing when it has no bars, so the band is now as tall as
+    // what is in it. The bars arrive in the same read as the timed events, so
+    // there is no second paint to shift under the reader. Meals still draws its
+    // own header at the full token height and is unaffected.
+    <div className="shrink-0 border-b border-(--fam-hairline)">
       <WeekHeader columnDates={columnDates} todayDate={todayDate} />
       <div ref={bandRef}>
         <AllDayBand

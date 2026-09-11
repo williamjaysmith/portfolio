@@ -256,7 +256,7 @@ function EveryFieldset({ form, units }: { form: TaskFormState; units: readonly R
   const { draft } = form;
   return (
     <>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         <label className={LABEL}>
           Repeat every
           <input
@@ -338,7 +338,7 @@ function CompletedDateFields({ form }: { form: TaskFormState }) {
         ))}
       </fieldset>
       {draft.delay === "custom" ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           <label className={LABEL}>
             After how long
             <input
@@ -418,7 +418,7 @@ function ChoreSchedule({ form }: { form: TaskFormState }) {
   return (
     <>
       {/* Two columns, never wrapping — see EventForm for why. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         <label className={LABEL}>
           Due date
           <input

@@ -10,7 +10,16 @@ import type { CSSProperties } from "react";
  *
  * The leading spacer column mirrors the grid's hour gutter so the header
  * cells sit exactly over their day columns; T033 stacks this line and the
- * all-day band inside the `--fam-dayheader-h` region.
+ * all-day band above the grid.
+ *
+ * **The weekday word is SECONDARY ink, matching the Month view.** It read as
+ * primary here and secondary there, which the operator spotted from a phone:
+ * *"do you see the color and size of the text (mon,tue,thur,fri) on the month
+ * tab? … its lighter than on the day and week view"*. Month is the one that was
+ * right — a column heading is a label for what is under it, not content — so
+ * this line follows it rather than the other way round. The date NUMERAL stays
+ * as it is: on today it is the coral badge (FR-209), and a badge whose digit
+ * faded would be a worse thing than an inconsistency.
  */
 
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
@@ -45,7 +54,7 @@ export function WeekHeader({ columnDates, todayDate }: WeekHeaderProps) {
           <div
             key={date}
             aria-current={isToday ? "date" : undefined}
-            className="flex items-center justify-center gap-2 py-1 font-(family-name:--fam-font-serif) text-(length:--fam-fs-day-header) text-(--fam-text-primary)"
+            className="flex items-center justify-center gap-2 py-1 font-(family-name:--fam-font-serif) text-(length:--fam-fs-day-header) text-(--fam-text-secondary)"
           >
             <span>{WEEKDAY_NAMES[weekdayOf(date)]}</span>
             {isToday ? (

@@ -35,6 +35,35 @@ import type { MonthCellModel } from "./useMonthOccurrences";
 /** Sunday-first labels; the household's start-of-week rotates them. */
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 
+/**
+ * The month on show, in words. UTC so a plain date cannot slide across
+ * midnight — the shipped `celebrations.ts` idiom.
+ */
+const MONTH_NAME = new Intl.DateTimeFormat("en-US", {
+  timeZone: "UTC",
+  month: "long",
+  year: "numeric",
+});
+
+/**
+ * Which month this grid IS, derived from the cells rather than passed in.
+ *
+ * The grid runs from the week containing the 1st to the week containing the
+ * last day, so up to a third of the cells belong to a neighbour — and the
+ * month is simply the one the in-month cells share. Deriving it here rather
+ * than taking an `anchorDate` prop means the heading cannot disagree with what
+ * is drawn, which is the failure mode every other label in this app has had at
+ * least once.
+ */
+function monthNameOf(rows: readonly MonthCellModel[][]): string {
+  for (const row of rows) {
+    for (const cell of row) {
+      if (cell.inMonth) return MONTH_NAME.format(new Date(`${cell.date}T00:00:00Z`));
+    }
+  }
+  return "";
+}
+
 const SEGMENT =
   "pointer-events-auto flex h-5 min-w-0 items-center overflow-hidden whitespace-nowrap px-2 " +
   "text-(length:--fam-fs-small) text-(--fam-text-primary)";
@@ -73,6 +102,18 @@ export function MonthView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* Which month you are looking at. The Day and Week views answer that in
+          their day headers ("Thu 10"), so this view was the only one with no
+          answer anywhere on screen — the operator's ask: "the user needs to
+          know which month theyre viewing so lets put that above the days text".
+          Unlike the weekday row below it this is NOT decoration: it is the only
+          thing naming the month, so it is a real heading and stays readable. */}
+      <p
+        aria-live="polite"
+        className="shrink-0 px-(--fam-edge-inset) pb-1 font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)"
+      >
+        {monthNameOf(rows)}
+      </p>
       {/* The weekday headings are decoration for a screen reader: every cell's
           own control already carries its full date, so reading "Sun" before
           each one would be noise. */}

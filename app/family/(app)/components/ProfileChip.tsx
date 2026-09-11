@@ -9,62 +9,65 @@ import type { Category } from "@/lib/family/types";
 import { Avatar } from "./Avatar";
 
 /**
- * The profile chip: a solid cap carrying the face, and a lighter body carrying
- * today's chore count — both derived from the profile's single stored colour at
- * 100 % and 40 % (FR-032, FR-036, FR-911, FR-912).
+ * The profile chip: a circle carrying the face, and — only when this device has
+ * **Task progress** switched on — a lighter pill growing out of it with today's
+ * chore count (FR-032, FR-036, FR-911, FR-912). Both colours come from the
+ * profile's single stored one, at 100 % and 40 %.
  *
- * **The body used to carry the NAME, and there used to be two of these rows.**
- * 009's Tasks Progress row drew the same faces again above the calendar, with
- * the name and the count. The operator reported the duplication from their
- * phone and asked for the two combined: *"I just dont even think we need names
- * besides the photo because we know who it is"*, and *"putting the task 0/0 up
- * next to the profile icons/photo and getting rid of the separate task progress
- * bar, sort of combining those ideas into one at the top"*. So the pill stayed,
- * the count took the name's place, and the second row is gone.
+ * **Three shapes were tried here, and the third is the operator's.** Phase 1
+ * drew a pill whose body carried the NAME, with 009 drawing the same faces
+ * AGAIN in a Tasks Progress row above the calendar. 014 merged the two — the
+ * count took the name's place, and the cap became a straight-edged slab so the
+ * face met the body on a vertical line (*"that nice straight line between the
+ * photo and the progress stat"*). Then, from a phone with real photographs
+ * loaded: *"the circular photos run off the edge and square off, they should
+ * follow the same size as their background color circle"*, and *"on calendar
+ * view its just the colored circle with user photos fitting nice in that circle
+ * by default … but you can in filter turn on 'show task progress' … where then
+ * the task stat comes out similar to how it is now (but the user photo
+ * background color stays a circle, not the straight dividing line)"*.
  *
- * **This is the reference's anatomy, finally.** `07-visual-design-system.md`
- * samples the chip label as "Dad 1/20" and the master map records avatar + name
- * + count; this component's Phase 1 docstring promised *"the per-profile task
- * counter is deferred to the Tasks phase"* and it never arrived. The one
- * divergence is dropping the name, which is the operator's call above.
+ * So: **the cap is a circle, always.** It is `--fam-chip-h` square, so with no
+ * count the chip simply IS that circle, and with a count it is that same circle
+ * sitting on a 40 % pill. A photograph is clipped to it rather than squared off
+ * against a slab edge; an illustration or a set of initials shows the colour
+ * through, which is what keeps colour a carrier at all (FR-039).
  *
- * **The face FILLS the cap, and the cap is a slab.** The pill clips it, so the
- * cap takes the pill's curve on the left and meets the lighter body on a
- * straight vertical edge on the right — which is the join the operator asked
- * for: *"that nice straight line between the photo and the progress stat rather
- * than this circle around the profile photo"*. An intermediate version made the
- * cap a circle with the face inset by a 2px ring; it was tried and rejected.
+ * **`--fam-chip-cap-w` is no longer drawn**, and that is the point — a circle's
+ * width is its height, so there is nothing left to drift. The sampled cap width
+ * described the slab, and the slab is gone.
  *
- * The width is `--fam-chip-cap-w`, **drawn for the first time here**. It is the
- * dossier's sampled cap ("≈ 22 % of the chip") and has sat in `tokens.css`
- * unused since Phase 1, while this component hardcoded `chip-h × 1.18` with a
- * 45px floor — the same number, written twice, one of them uncheckable.
- *
- * **FR-039 still holds — colour is not the only carrier.** The face is an
- * illustrated animal, an uploaded photo, or the person's initials. The name is
- * still rendered, `sr-only`, because `Avatar` is deliberately `alt=""` and
- * `aria-hidden` on the understanding that a name sat beside it — without this
- * span the chip announces as a bare "1/4" and the row (a focusable scroll
- * region, SC-009) says nothing about who is in it.
+ * **FR-039 still holds.** The face is an illustrated animal, an uploaded photo,
+ * or the person's initials. The name is rendered `sr-only` because `Avatar` is
+ * deliberately `alt=""` and `aria-hidden` on the understanding that a name sat
+ * beside it — without this span a chip with no count announces as NOTHING, and
+ * the row it sits in is a focusable scroll region (SC-009).
  *
  * **The count's slot is reserved, not sized to its content** — see
- * `--fam-chip-count-w`. `counters` is `null` until the household's clock
- * publishes and the reads land, and it renders as blank rather than as a
- * guessed number, because "0/0" that later becomes "1/4" is a lie held for a
- * few hundred milliseconds.
+ * `--fam-chip-count-w`. `counters` is `null` while the clock and the reads are
+ * still coming, and renders blank rather than as a guessed number, because
+ * "0/0" that becomes "1/4" is a lie held for a few hundred milliseconds.
  */
 
 export interface ProfileChipProps {
   category: Category;
   photoUrl?: string;
   /**
-   * Today's completed-of-total, or `null` while the clock and the reads are
-   * still coming. Never absent: a chip with no slot at all would shift.
+   * Three states, and they are different things:
+   *
+   * · `undefined` — this device has Task progress switched **off**. No body,
+   *   no slot, no task read was ever issued: the chip is the bare circle.
+   * · `null` — switched on, but the household's clock or the reads have not
+   *   landed. The slot is held open and blank so the chip does not resize
+   *   under the reader.
+   * · a count — switched on and known.
    */
-  counters: TaskCounters | null;
+  counters?: TaskCounters | null;
 }
 
 export function ProfileChip({ category, photoUrl, counters }: ProfileChipProps) {
+  const showsProgress = counters !== undefined;
+
   return (
     <div
       // React's CSSProperties has no room for custom properties; the value is
@@ -76,27 +79,41 @@ export function ProfileChip({ category, photoUrl, counters }: ProfileChipProps) 
       // horizontally scrolled chip row then extended the document's own scroll
       // width, and the phone's "no sideways scroll" journeys (SC-1111, T052)
       // failed with 208px of overflow that no visible element accounted for.
-      className="fam-profile fam-tint-40 relative flex h-(--fam-chip-h) shrink-0 items-center overflow-hidden rounded-full"
+      //
+      // The 40 % body is painted only when there IS a body. With progress off
+      // the circle is the whole chip, so a pill tint behind it would show as a
+      // faint square halo at the circle's corners.
+      className={`fam-profile relative flex h-(--fam-chip-h) shrink-0 items-center rounded-full ${
+        showsProgress ? "fam-tint-40" : ""
+      }`}
     >
-      <span className="fam-tint-100 flex h-full w-(--fam-chip-cap-w) shrink-0 items-center justify-center">
-        <Avatar
-          category={category}
-          size={48}
-          photoUrl={photoUrl}
-          fill
-          sizeClassName="h-full w-full"
-        />
+      <span
+        // Square, round, and the clip. `overflow-hidden` lives HERE rather than
+        // on the pill: the circle is what crops a photograph to a circle, and a
+        // photo is `object-cover` so a portrait and a landscape shot both fill
+        // it without distorting.
+        //
+        // The padding is the visible colour. Measured in WebKit at 375: with
+        // the face edge to edge, an illustration's own pale disc and an
+        // uploaded photograph each covered `fam-tint-100` entirely, so with the
+        // count switched off the profile's colour was not on screen anywhere —
+        // "the colored circle" would have been a photo in a circle.
+        className="fam-tint-100 flex h-(--fam-chip-h) w-(--fam-chip-h) shrink-0 items-center justify-center overflow-hidden rounded-full p-(--fam-chip-face-inset)"
+      >
+        <Avatar category={category} size={48} photoUrl={photoUrl} sizeClassName="h-full w-full" />
       </span>
       <span className="sr-only">{category.label}</span>
-      <span
-        aria-hidden={counters === null}
-        // `box-content` so the reserved width is the DIGITS' width and the
-        // padding sits outside it; with border-box the padding would eat into
-        // the slot and a wide count would still push the pill open.
-        className="box-content w-(--fam-chip-count-w) px-3 text-(length:--fam-fs-chip) font-medium tabular-nums text-(--fam-text-primary)"
-      >
-        {counters === null ? " " : `${counters.complete}/${counters.total}`}
-      </span>
+      {showsProgress ? (
+        <span
+          aria-hidden={counters === null}
+          // `box-content` so the reserved width is the DIGITS' width and the
+          // padding sits outside it; with border-box the padding would eat into
+          // the slot and a wide count would still push the pill open.
+          className="box-content w-(--fam-chip-count-w) px-3 text-(length:--fam-fs-chip) font-medium tabular-nums text-(--fam-text-primary)"
+        >
+          {counters === null ? " " : `${counters.complete}/${counters.total}`}
+        </span>
+      ) : null}
     </div>
   );
 }

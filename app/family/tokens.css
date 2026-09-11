@@ -272,6 +272,13 @@
                                                     and this floor. The face fills it, so the cap's right
                                                     edge is the straight line between face and count. */
   --fam-chip-avatar: calc(48 * var(--fam-u));    /* [ESTIMATED] avatar inside the cap, 2 px accent ring */
+  --fam-chip-face-inset: max(3px, calc(5 * var(--fam-u))); /* [OURS] the coloured rim left showing around the
+                                                    face. It is not decoration: an illustration SVG carries its
+                                                    own pale disc and a photograph is opaque, so a face drawn
+                                                    edge to edge hides the profile's colour completely — and
+                                                    with the count switched off the colour would then not be on
+                                                    screen at all (FR-036, FR-039). Floored like --fam-chip-h so
+                                                    the rim survives the smallest text scale. */
   --fam-fab-d: calc(90 * var(--fam-u));          /* [SAMPLED] FAB diameter */
   --fam-fab-inset: calc(32 * var(--fam-u));      /* [ESTIMATED] FAB inset from the content corner */
   --fam-bottomnav-h: calc(102 * var(--fam-u));   /* [DERIVED] not in source — mirrors the rail width so the
@@ -801,6 +808,22 @@
 .family .fam-field-input:focus,
 .family .fam-field-input:focus-visible {
   outline: none;
+}
+
+/* Native date and time inputs size and PAINT themselves outside CSS. Left alone, a
+ * `<input type="date">` in a 2-up row draws its own wider intrinsic box and its calendar
+ * glyph spills past the field's right edge and past the modal's padding — which is what
+ * the operator reported as "they run into each other and hit outside the modal", and why
+ * a `scrollWidth` probe could never see it (for these controls `scrollWidth` equals the
+ * box). `appearance: none` opts them out of the UA's own layout and drops the glyph; the
+ * picker itself still opens on tap, so nothing is lost but the decoration. [OURS] */
+.family input[type="date"],
+.family input[type="time"],
+.family input[type="datetime-local"] {
+  appearance: none;
+  -webkit-appearance: none;
+  /* Safari ignores `width` on these unless min-width is released too. */
+  min-width: 0;
 }
 
 /* A bare glyph control — the dialogs' X. The global 3px ring at 2px offset draws

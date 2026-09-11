@@ -250,7 +250,7 @@ test.describe("the reminder banner", () => {
     unique,
     household,
   }) => {
-    await installClock(page);
+    await installClock(page, household.timezone);
     await page.goto("/family/calendar");
 
     const title = unique("Swim lesson");
@@ -298,7 +298,7 @@ test.describe("the reminder banner", () => {
     unique,
     household,
   }) => {
-    await installClock(page);
+    await installClock(page, household.timezone);
     await page.goto("/family/calendar");
 
     const title = unique("Recital");

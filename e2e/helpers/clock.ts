@@ -21,14 +21,55 @@ import type { Page } from "@playwright/test";
 const MAX_JUMP_MS = 3 * 60 * 60 * 1000;
 
 /**
+ * How much of the household's day a reminder journey needs left in front of it.
+ *
+ * These journeys put an event a few minutes out and end it half an hour later,
+ * then read the wall time of both ends into the form's `time` fields — which
+ * carry no date. Run them close enough to midnight and the end wraps to
+ * "00:14" against a start of "23:44", the form says *"The end must be after
+ * the start"*, and every later assertion fails with an event that was never
+ * saved. It failed exactly that way at 23:32 on 2026-09-10 and would have
+ * failed every night in that hour.
+ */
+const MIDNIGHT_CLEARANCE_MS = 90 * 60 * 1000;
+
+/** Milliseconds left in the household's own day. */
+function msLeftInDay(atMs: number, zone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: zone,
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date(atMs));
+  const of = (type: string): number => Number(parts.find((part) => part.type === type)?.value ?? "0");
+  const elapsed = (of("hour") * 60 + of("minute")) * 60_000 + of("second") * 1000;
+  return 24 * 60 * 60_000 - elapsed;
+}
+
+/**
  * Install the fake clock at (essentially) real "now", before this page
  * navigates anywhere. Installing before the first `goto` — Playwright's own
  * recommendation — means the sign-in session and every timer already
  * scheduled by the app is set up against a clock that has not yet been
  * touched, and only diverges from real time once a journey asks it to.
+ *
+ * **Pass `zone` and it will also step back off midnight**, by however little
+ * it takes to leave `MIDNIGHT_CLEARANCE_MS` of the household's day in front of
+ * the journey — at most that, and never a whole day, so harness.md §5's rule
+ * still holds. Backwards is the safe direction for the session: the token was
+ * minted on the real clock, and a browser that believes it is slightly earlier
+ * sees that token as further from expiry, never past it.
  */
-export async function installClock(page: Page): Promise<void> {
-  await page.clock.install({ time: Date.now() });
+export async function installClock(page: Page, zone?: string): Promise<void> {
+  const now = Date.now();
+  if (zone === undefined) {
+    await page.clock.install({ time: now });
+    return;
+  }
+  const left = msLeftInDay(now, zone);
+  const back = left >= MIDNIGHT_CLEARANCE_MS ? 0 : MIDNIGHT_CLEARANCE_MS - left;
+  await page.clock.install({ time: now - back });
 }
 
 /** The browser's own idea of "now", in milliseconds — read directly, never parsed from text. */

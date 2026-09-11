@@ -60,7 +60,12 @@ export function MonthCell({
       // titles below the contrast floor — an event on the 31st of August is a
       // real event a household must still be able to read on September's grid.
       className={`flex min-h-0 min-w-0 flex-col gap-0.5 border-b border-r border-(--fam-hairline) p-1 ${
-        cell.inMonth ? "" : "bg-(--fam-pill-btn-bg)/40"
+        // A day belonging to a neighbouring month takes the SAME wash the week
+        // view gives a weekend column (--fam-weekend-shade) — the operator's
+        // call: "gray the days which are not a part of the current month view,
+        // same gray as on the week view (weekends)". It was the pill neutral at
+        // 40 % here, a second grey nothing else in the app used.
+        cell.inMonth ? "" : "bg-(--fam-weekend-shade)"
       }`}
     >
       <button

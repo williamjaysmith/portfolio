@@ -328,44 +328,52 @@ describe("FilterSheet — the Calendar section", () => {
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
   }
 
-  it("offers its one switch under a Calendar heading", () => {
+  it("offers both switches under a Calendar heading", () => {
     renderSheet();
     expect(screen.getByRole("heading", { name: "Calendar" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Task progress" })).toBeInTheDocument();
   });
 
-  it("no longer offers Tasks Progress at all (014)", () => {
-    renderSheet();
-    expect(screen.queryByRole("checkbox", { name: "Tasks Progress" })).toBeNull();
-  });
-
-  it("starts with the rotation running", () => {
+  it("starts with the rotation running and the counts hidden", () => {
     renderSheet();
     expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Task progress" })).not.toBeChecked();
   });
 
-  it("writes it to the preview store", () => {
+  it("writes each one to the preview store", () => {
     renderSheet();
     fireEvent.click(screen.getByRole("checkbox", { name: "Pause countdowns" }));
-
     expect(JSON.parse(localStorage.getItem("family:calendar-preview:v1") ?? "{}")).toEqual({
       pauseRotation: true,
+      taskProgress: false,
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Task progress" }));
+    expect(JSON.parse(localStorage.getItem("family:calendar-preview:v1") ?? "{}")).toEqual({
+      pauseRotation: true,
+      taskProgress: true,
     });
   });
 
   /**
-   * The side effect that started 014: "Show all" wrote `tasksProgress: true`,
-   * so un-hiding a Profile switched on a whole extra row of faces. It now means
-   * only "nothing held still".
+   * The side effect that started 014: "Show all" wrote the progress switch TRUE,
+   * so un-hiding a Profile switched on a whole extra row of faces. The row is
+   * gone and the switch is back — and the lesson is kept, which is the whole
+   * point of this test: "all" is about what is HIDDEN, so it starts the rotation
+   * and leaves a switched-on surface exactly as the reader left it.
    */
-  it("means one thing by Show all now: the rotation running, and no extra row", () => {
+  it("means one thing by Show all: the rotation running, and nothing else touched", () => {
     renderSheet();
     fireEvent.click(screen.getByRole("checkbox", { name: "Pause countdowns" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Task progress" }));
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
 
     expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Task progress" })).toBeChecked();
     expect(JSON.parse(localStorage.getItem("family:calendar-preview:v1") ?? "{}")).toEqual({
       pauseRotation: false,
+      taskProgress: true,
     });
   });
 });

@@ -189,11 +189,16 @@ function MealFilterSection({ showMeals, setShowMeals }: { showMeals: boolean; se
  * and nothing about stopping it (Assumption 6), and a bar that changes while
  * somebody is reading it is a poor wall display.
  *
- * **Tasks Progress used to be here** — the reference's own toggle, in its own
- * words (36625171368987). 014 retired it: the counts it revealed now live on
- * the shell's profile chips, always, because the row it gated drew the family's
- * faces a second time. It is also the toggle "Show all" flipped on as a side
- * effect, which is how the operator met that row without asking for it.
+ * **Task progress** is the reference's own toggle (36625171368987), back after
+ * 014 retired it — but it no longer gates a ROW. 009's switch revealed a second
+ * row of the family's faces above the calendar; 014 moved the counts onto the
+ * shell's chips and dropped the switch. What the operator actually wanted was
+ * the switch without the duplication: a bare coloured circle by default, and
+ * the count appearing beside the same face when this is on. The faces are drawn
+ * once either way.
+ *
+ * It is OFF by default, which is also why `showAll` no longer touches it — see
+ * `useCountdownSwitches`.
  */
 function CalendarFilterSection({
   switches,
@@ -208,6 +213,11 @@ function CalendarFilterSection({
         label="Pause countdowns"
         checked={switches.pauseRotation}
         onChange={(on) => set("pauseRotation", on)}
+      />
+      <ToggleRow
+        label="Task progress"
+        checked={switches.taskProgress}
+        onChange={(on) => set("taskProgress", on)}
       />
     </SheetSection>
   );

@@ -195,6 +195,27 @@ describe("WeekView", () => {
     expect(within(pager).getByText("Wed")).toBeInTheDocument();
   });
 
+  /**
+   * The operator held the three views side by side on a phone and the Month
+   * view won on both counts: the weekday word lighter, and the line sitting
+   * right on the grid. Two assertions, because two different things were wrong
+   * and either could regress on its own.
+   */
+  it("draws the weekday line in Month's lighter ink, with no all-day row reserved", () => {
+    renderWeek();
+
+    const cell = document.querySelector('[aria-current="date"]');
+    expect(cell?.className).toContain("text-(--fam-text-secondary)");
+    expect(cell?.className).not.toContain("text-(--fam-text-primary)");
+
+    // The band is as tall as what is IN it. `--fam-dayheader-h` is "date line
+    // + one all-day row", so holding it as a floor left a blank row's worth of
+    // space above the grid on every day with no all-day event.
+    const band = document.querySelector("div.grid")?.parentElement;
+    expect(band?.className).toContain("border-b");
+    expect(band?.className).not.toContain("min-h-(--fam-dayheader-h)");
+  });
+
   it("Today returns to the live window with today badged", async () => {
     renderWeek();
     await press(PAGE_LABEL.next);

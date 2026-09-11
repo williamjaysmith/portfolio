@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, renderHook, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { localDateOf } from "@/lib/family/calendar/dates";
@@ -13,6 +13,10 @@ import { columnCountersOf, type TaskCounters } from "@/lib/family/tasks/counters
 import { expandTaskDay } from "@/lib/family/tasks/expand";
 import type { Task, TaskAssignee, TaskResolution } from "@/lib/family/types";
 
+import {
+  resetCountdownSwitches,
+  useCountdownSwitches,
+} from "../../calendar/components/useCountdownSwitches";
 import { ProfileChip } from "../ProfileChip";
 import { ProfileChipRow } from "../ProfileChipRow";
 import { makeCategory, makeContext, withFamily } from "./family-test-utils";
@@ -33,6 +37,17 @@ vi.mock("@/lib/family/queries", async (importOriginal) => {
     useTaskCursors: vi.fn(),
   };
 });
+
+/**
+ * The counts are behind a per-device switch again (the Filter sheet's **Task
+ * progress**), off by default — so a test that wants a count has to ask for it
+ * exactly as a reader does. Done through the hook's own setter rather than by
+ * writing localStorage, so the store's shape stays the store's business.
+ */
+function switchCountsOn(): void {
+  const { result } = renderHook(() => useCountdownSwitches());
+  act(() => result.current.set("taskProgress", true));
+}
 
 const ZONE = "America/Chicago";
 const HOUSEHOLD = "household-1";
@@ -89,6 +104,8 @@ function stub(hook: unknown, data: unknown): void {
  */
 beforeEach(() => {
   for (const hook of TASK_READS) stub(vi.mocked(hook), []);
+  resetCountdownSwitches();
+  localStorage.clear();
 });
 
 /**
@@ -144,6 +161,43 @@ describe("ProfileChip", () => {
   it("falls back to initials when there is no avatar", () => {
     render(<ProfileChip category={makeCategory({ label: "Alex Smith" })} counters={null} />);
     expect(screen.getByText("AS")).toBeInTheDocument();
+  });
+
+  /**
+   * With **Task progress** off the chip is the bare circle: no body, no slot,
+   * and no 40 % tint — a pill tint behind a circle shows as a faint square halo
+   * at the circle's corners.
+   *
+   * `undefined` and `null` mean different things here and the distinction is
+   * load-bearing: `null` reserves the slot because a count is coming, while
+   * `undefined` says none ever will.
+   */
+  it("is just the circle when this device wants no count", () => {
+    const category = makeCategory({ label: "Sam", avatarKind: "illustration", avatarId: "fox" });
+    const { container } = render(<ProfileChip category={category} />);
+
+    expect(container.querySelector("[aria-hidden='true'].box-content")).toBeNull();
+    expect(container.querySelector(".fam-tint-40")).toBeNull();
+    // The name survives: without it a countless chip announces as nothing at
+    // all, since `Avatar` is deliberately aria-hidden (FR-039, SC-009).
+    expect(screen.getByText("Sam").className).toContain("sr-only");
+    expect(container.textContent).toBe("Sam");
+  });
+
+  /**
+   * The cap is SQUARE — one token for both axes — which is what makes it a
+   * circle at any text scale, and what stopped a photograph squaring off
+   * against the straight cap edge the operator reported from their phone.
+   */
+  it("clips the face inside a circle the chip's own height across", () => {
+    const category = makeCategory({ label: "Sam", avatarKind: "illustration", avatarId: "fox" });
+    const { container } = render(<ProfileChip category={category} counters={counters(1, 4)} />);
+
+    const cap = container.querySelector(".fam-tint-100");
+    expect(cap?.className).toContain("h-(--fam-chip-h)");
+    expect(cap?.className).toContain("w-(--fam-chip-h)");
+    expect(cap?.className).toContain("rounded-full");
+    expect(cap?.className).toContain("overflow-hidden");
   });
 });
 
@@ -255,6 +309,7 @@ describe("the counts on the chips (009 FR-911, FR-912)", () => {
     stub(vi.mocked(useTaskResolutions), RESOLUTIONS);
     stub(vi.mocked(useTaskCarryForward), []);
     stub(vi.mocked(useTaskCursors), []);
+    switchCountsOn();
   });
 
   it("reports EXACTLY what the Tasks board's own counters say (FR-912, SC-907)", () => {
@@ -331,11 +386,32 @@ describe("mounting is the `enabled` (R905)", () => {
     for (const hook of TASK_READS) expect(hook as Mock).not.toHaveBeenCalled();
   });
 
-  it("issues them the moment the row is rendered", () => {
+  it("issues no task read while this device has the counts switched off", () => {
+    for (const hook of TASK_READS) (hook as Mock).mockClear();
+
+    render(
+      withFamily(
+        makeContext({
+          householdId: HOUSEHOLD,
+          categories: [makeCategory({ id: ANA, label: "Ana" })],
+        }),
+        <ProfileChipRow />,
+      ),
+    );
+
+    // The faces are on screen; the counts are not asked for. This is what makes
+    // the switch worth more than a preference — the row is in the SHELL, so a
+    // read issued here is a read paid for on Lists and Meals too.
+    expect(screen.getByText("Ana")).toBeInTheDocument();
+    for (const hook of TASK_READS) expect(hook as Mock).not.toHaveBeenCalled();
+  });
+
+  it("issues them the moment the counts are switched on", () => {
     for (const hook of TASK_READS) {
       (hook as Mock).mockClear();
       stub(vi.mocked(hook), []);
     }
+    switchCountsOn();
 
     render(
       withFamily(

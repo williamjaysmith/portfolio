@@ -93,6 +93,21 @@ describe("MonthView", () => {
     expect(headings[6]).toBe("Sun");
   });
 
+  /**
+   * The Day and Week views name the day in their headers; this view named
+   * nothing, so the month on show was the one thing a reader could not get from
+   * the screen. It is DERIVED from the in-month cells rather than passed in, so
+   * the heading cannot disagree with the grid under it.
+   */
+  it("names the month on show, above the weekday row", () => {
+    renderMonth([]);
+    const heading = screen.getByText("September 2026");
+    expect(heading).toBeInTheDocument();
+    // Not aria-hidden like the weekday row below it: it is the only thing that
+    // says which month this is.
+    expect(heading.closest("[aria-hidden='true']")).toBeNull();
+  });
+
   it("marks today", () => {
     renderMonth([]);
     expect(document.querySelectorAll('[data-month-cell][aria-current="date"]')).toHaveLength(1);
@@ -191,6 +206,8 @@ describe("MonthCell", () => {
     cellFor([], "2026-08-31");
     const cell = document.querySelector("[data-month-cell]");
     expect(cell?.className).not.toContain("opacity-50");
-    expect(cell?.className).toContain("bg-(--fam-pill-btn-bg)/40");
+    // And it is the week view's weekend wash, not a second grey of its own
+    // (the operator's ask: "same gray as on the week view (weekends)").
+    expect(cell?.className).toContain("bg-(--fam-weekend-shade)");
   });
 });
