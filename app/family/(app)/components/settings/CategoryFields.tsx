@@ -17,7 +17,7 @@ import type { CategoryFormState } from "./useCategoryForm";
 // sizes those controls wider than Chrome, so this is what stops them spilling out
 // of a narrow modal on the phone — the case that cannot be reproduced here.
 export const FIELD =
-  "min-h-[44px] w-full min-w-0 rounded-xl border border-(--fam-control-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-control) text-(--fam-text-primary) disabled:opacity-60";
+  "min-h-[44px] w-full min-w-0 rounded-xl border border-(--fam-input-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-control) text-(--fam-text-primary) disabled:opacity-60";
 // `min-w-0` is load-bearing, not tidiness. A flex or grid item defaults to
 // `min-width: auto`, which refuses to shrink below its content's intrinsic
 // width — and a NATIVE date or time input is intrinsically wide (wider still on

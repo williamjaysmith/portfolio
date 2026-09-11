@@ -11,7 +11,7 @@ const PASSWORD_ID = "sign-in-password";
 // A text input's outline is its only affordance, so it is a control boundary
 // (WCAG 1.4.11, 3:1) rather than a hairline divider.
 const FIELD =
-  "min-h-[44px] w-full rounded-xl border border-(--fam-control-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-body) text-(--fam-text-primary)";
+  "min-h-[44px] w-full rounded-xl border border-(--fam-input-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-body) text-(--fam-text-primary)";
 
 const BUTTON =
   "min-h-[44px] w-full rounded-full bg-(--fam-primary-blue) px-6 py-3 text-(length:--fam-fs-body) font-medium text-white transition-opacity disabled:opacity-60";

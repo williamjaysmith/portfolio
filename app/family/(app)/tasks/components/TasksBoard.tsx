@@ -40,6 +40,7 @@ import { dayInWords, TaskDetails } from "./TaskDetails";
 import { TaskForm } from "./TaskForm";
 import { DayNav } from "../../components/DayNav";
 import { TaskSearch } from "./TaskSearch";
+import { TopBarSearch } from "../../components/TopBarSearch";
 import {
   UP_FOR_GRABS_COLUMN_ID,
   UP_FOR_GRABS_TITLE,
@@ -675,9 +676,13 @@ function BoardNav({
       onPage={onStep}
       onToday={onToday}
     >
-      {/* FR-386, Assumption 27: the search sits in the tab's own chrome,
-          beside Previous / Today / Next, and filters the board in place. */}
-      <TaskSearch value={query} onChange={onQuery} />
+      {/* FR-386, Assumption 27: the search filters the board in place. It is
+          PAINTED in the shell's top bar rather than beside Previous / Today /
+          Next — see `TopBarSearch` — but it is still this board's control and
+          still owns the query. */}
+      <TopBarSearch>
+        <TaskSearch value={query} onChange={onQuery} />
+      </TopBarSearch>
     </DayNav>
   );
 }

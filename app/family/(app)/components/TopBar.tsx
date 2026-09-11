@@ -1,14 +1,23 @@
 "use client";
 
 import { ActorBadge } from "./ActorBadge";
-import { Clock, formatDate, useNow } from "./Clock";
+import { formatDate, useNow } from "./Clock";
 import { FilterSheet } from "./FilterSheet";
 import { useFamily } from "./FamilyProvider";
+import { TopBarSearchSlot } from "./TopBarSearch";
 
 /**
- * The top bar (FR-031): the time, and the date beside it when the household
- * asked for one. The right-hand pill slot holds the device filter and the
- * punch-in badge.
+ * The top bar (FR-031): the tab's search box, centred, with the date beside it
+ * when the household asked for one. The right-hand pill slot holds the device
+ * filter and the punch-in badge.
+ *
+ * **The clock is gone from here, and that is what made room.** On an iPhone SE
+ * the search shared the ‹ Today › row with the view switcher and the arrows,
+ * the row wrapped, and the Day/Week/Month switcher dropped out of reach. The
+ * operator: *"we dont need the time because these devices already have a
+ * clock"*. `useNow` is untouched and still drives everything that depends on
+ * the household's minute — the chip row's mount gate, the day headers, the
+ * now-line; only the PRINTED time went.
  *
  * **014 took the household's name off it**, on the operator's call: *"at the top
  * of our app we list our families name like 'our family', we dont need that, we
@@ -38,17 +47,21 @@ export function TopBar() {
       // `min-h` and not `h`: at the 0.5 unit floor the sampled 85 resolves to
       // 42.5px, which is less than the touch floor of the Filter pill inside
       // it. The bar now grows to fit its own controls plus the padding.
-      className="flex min-h-(--fam-topbar-h) shrink-0 items-center gap-4 px-(--fam-edge-inset) py-(--fam-topbar-pad)"
+      className="flex min-h-(--fam-topbar-h) shrink-0 items-center gap-4 px-(--fam-edge-inset) pt-(--fam-topbar-pad-top) pb-(--fam-topbar-pad)"
     >
       <h1 className="sr-only">{household.name}</h1>
-      <Clock
-        format={settings.timeFormat}
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-date) text-(--fam-text-primary) tabular-nums"
-      />
       {date === null ? null : (
-        <span className="truncate text-(length:--fam-fs-clock) text-(--fam-text-secondary)">{date}</span>
+        <span className="shrink-0 truncate text-(length:--fam-fs-clock) text-(--fam-text-secondary)">
+          {date}
+        </span>
       )}
-      <div className="ml-auto flex items-center gap-3">
+      {/* The tab's own search, aligned LEFT. Centred was tried first and read as
+          crooked, because the badges on the right take width the date on the
+          left does not — so "centre of what is left over" is not the centre of
+          the bar, and the eye measures against the bar. `min-w-0` so a long
+          field gives way to the badges rather than pushing them off the edge. */}
+      <TopBarSearchSlot className="flex min-w-0 flex-1 justify-start" />
+      <div className="flex shrink-0 items-center gap-3">
         <ActorBadge />
         <FilterSheet />
       </div>

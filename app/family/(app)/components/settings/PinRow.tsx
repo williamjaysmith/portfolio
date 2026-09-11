@@ -19,7 +19,7 @@ import { useFamily } from "../FamilyProvider";
 // `--fam-control-border`, not the hairline: an empty PIN box is nothing but
 // its outline, and WCAG 1.4.11 wants 3:1 for that (the hairline is 1.17:1).
 const PIN_INPUT =
-  "min-h-[44px] w-24 rounded-xl border border-(--fam-control-border) bg-(--fam-app-bg) px-3 text-center text-(length:--fam-fs-body) tracking-[0.4em]";
+  "min-h-[44px] w-24 rounded-xl border border-(--fam-input-border) bg-(--fam-app-bg) px-3 text-center text-(length:--fam-fs-body) tracking-[0.4em]";
 
 export interface PinRowProps {
   profile: Category;

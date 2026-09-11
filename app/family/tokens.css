@@ -99,11 +99,14 @@
   --fam-sidebar-active: var(--fam-app-bg);     /* The active tab is the canvas colour — a white pill on
                                                   the pale rail, which is Skylight's own shape and reads
                                                   as continuous with the content it is showing. */
-  --fam-door-bg: var(--brand-beige);           /* The sign-in page, and now the ONLY place brand-beige is
-                                                  drawn. It had borrowed --fam-sidebar-bg to match the
-                                                  rail; it was split off when the rail went black, and it
-                                                  stays split because the operator asked for the beige
-                                                  specifically. */
+  --fam-door-bg: var(--brand-white);           /* The sign-in page. It was brand-beige — the last place
+                                                  that colour was drawn anywhere — until the operator
+                                                  swapped it: "instead of that tan lets go with warm
+                                                  white". brand-white (#f6f6f6) against the card's own
+                                                  #FFFFFF is 1.05:1, so the card is held by its
+                                                  `shadow-sm` rather than by the step in tone; the beige
+                                                  gave 1.71:1 and needed no shadow at all. That is the
+                                                  trade, and the shadow is already there. */
   --fam-nav-ink: color-mix(in srgb, var(--brand-black) 85%, white);
                                    /* An inactive tab's icon and label. Dark again now that the rail is
                                       light — the warm-gray version of this was brand-warm-gray ON black.
@@ -159,6 +162,16 @@
                                                   when in focus". Focus changes the ring's COLOUR, not
                                                   its width, so nothing on the row moves when a field is
                                                   focused. */
+  --fam-input-border: var(--brand-black); /* [OURS] the edge of a FORM FIELD — the sign-in password, a
+                                      Profile's name, a star count, a PIN box. Brand-black at one pixel,
+                                      the operator's call once they saw the grey: "lets use a thinner
+                                      border than youve used and try brand black for all inputs instead
+                                      of this light gray … so thinner line but darker". Its own token
+                                      rather than a change to --fam-control-border, which also draws
+                                      things that are NOT fields — the "+n more" pill, the Up for Grabs
+                                      toggle ring, a no-category event block — and would have turned all
+                                      of those black too. A field's edge and a control's edge are
+                                      different jobs; this is the one the operator named. */
   --fam-control-border: #888484;   /* [DERIVED] brand-black at 55 % on the canvas.
                                    /* was #8A8A8A [OURS]. The outline of a text input is the only thing
                                       that says "type here", so it stays a real edge: 3.42:1 on the app
@@ -204,7 +217,24 @@
   --fam-danger: #AC4A39;           /* [DERIVED] the verified coral at 70 % in sRGB — validation text and
                                       "Delete" labels ON the canvas, and the confirm-delete button fill
                                       UNDER white. The raw #F66951 it is derived from fails both. */
-  --fam-focus-ring: var(--fam-primary-blue); /* [OURS] focus states are not photographed (touch device) */
+  --fam-focus-ring: var(--fam-input-border); /* [OURS] focus states are not photographed (touch
+                                      device). It was --fam-primary-blue and drew a 3px halo at a 2px
+                                      offset around every focused thing in the app; the operator has now
+                                      rejected that ring three times in three places — on the dialogs' X
+                                      ("i dont want a blue circle around it, any of them"), on the search
+                                      pill ("i dont like the big blue accessibility ring, lets just put a
+                                      thin brand black ring"), and finally everywhere: "im really not a
+                                      fan of anywhere in the app where we have this blue highlight … id
+                                      rather have a sleek thin brand black border stroke like we have
+                                      done elsewhere".
+
+                                      It is the INPUTS' OWN border colour — "id rather have the same
+                                      color the inputs already are but thicker" — which is now
+                                      brand-black. So focus changes one thing, the WIDTH: one pixel at
+                                      rest, two when focused, and a focused field reads as the same field
+                                      drawn more firmly rather than as a different component. The
+                                      search pill keeps its own darkening (--fam-field-ring-focus) because
+                                      its rest state is a 30 % hairline with nowhere to go but darker. */
   /* There is NO global success green: a completed check-circle uses the profile's own accent [VERIFIED]. */
 
   /* ---------- the 20-colour palette — GET /api/colors, in API order (07 §1.1) [VERIFIED] --- */
@@ -241,6 +271,13 @@
   --fam-rail-w: calc(102 * var(--fam-u));        /* [SAMPLED] 102 + 117 + 5×337 = 1904 ≈ 1920 */
   --fam-topbar-h: calc(85 * var(--fam-u));       /* [SAMPLED] 85 + 89 + 137 + 769 = 1080. A MINIMUM, not a
                                                     fixed height, since 014 — see --fam-topbar-pad. */
+  --fam-topbar-pad-top: calc(var(--fam-topbar-pad) + 5px); /* [OURS] the bar sits a little lower than it
+                                                    hangs: the row above it is the screen edge (or a
+                                                    notch), and the operator asked for it off that edge —
+                                                    "lets give that top row with filter like 5px more top
+                                                    padding or margin to push it down a bit". Derived from
+                                                    the symmetric value below rather than replacing it, so
+                                                    the bottom gap and this one cannot drift apart. */
   --fam-topbar-pad: max(8px, calc(12 * var(--fam-u))); /* [OURS] the clock row's breathing room. On a phone
                                                     --fam-u hits its 0.5 floor, so the sampled 85 becomes
                                                     42.5px — measured: a 36px clock with 3px above and
@@ -272,13 +309,18 @@
                                                     and this floor. The face fills it, so the cap's right
                                                     edge is the straight line between face and count. */
   --fam-chip-avatar: calc(48 * var(--fam-u));    /* [ESTIMATED] avatar inside the cap, 2 px accent ring */
-  --fam-chip-face-inset: max(3px, calc(5 * var(--fam-u))); /* [OURS] the coloured rim left showing around the
-                                                    face. It is not decoration: an illustration SVG carries its
-                                                    own pale disc and a photograph is opaque, so a face drawn
-                                                    edge to edge hides the profile's colour completely — and
-                                                    with the count switched off the colour would then not be on
-                                                    screen at all (FR-036, FR-039). Floored like --fam-chip-h so
-                                                    the rim survives the smallest text scale. */
+  --fam-avatar-face-inset: max(3px, calc(5 * var(--fam-u))); /* [OURS] the coloured rim left showing around
+                                                    EVERY face, on every surface. It is not decoration: an
+                                                    illustration SVG carries its own pale disc and a photograph
+                                                    is opaque, so a face drawn edge to edge hides the profile's
+                                                    colour completely (FR-036, FR-039). It began as the chip's
+                                                    own and became the avatar's when the operator found the two
+                                                    boards had never had it: "on both the tasks and rewards page
+                                                    behind the user photo we should have the users color in a
+                                                    circle as their background for the photo but we dont …
+                                                    everywhere we use the user photo should be done like the
+                                                    calendar". Floored so the rim survives the smallest text
+                                                    scale. */
   --fam-fab-d: calc(90 * var(--fam-u));          /* [SAMPLED] FAB diameter */
   --fam-fab-inset: calc(32 * var(--fam-u));      /* [ESTIMATED] FAB inset from the content corner */
   --fam-bottomnav-h: calc(102 * var(--fam-u));   /* [DERIVED] not in source — mirrors the rail width so the
@@ -806,10 +848,20 @@
 }
 
 /* ---------- focus (SC-009) --------------------------------------------------------------------
- * Pressed / hover / focus states are [UNKNOWN] (touch device, nothing photographed) — designed by us. */
+ * Pressed / hover / focus states are [UNKNOWN] (touch device, nothing photographed) — designed by us.
+ *
+ * **A stroke ON the control, not a halo around it.** This was `3px` at
+ * `outline-offset: 2px`, which floats a ring clear of the element — on a round
+ * button that reads as a second circle, and on a pill as a second pill. At 2px
+ * with no offset the outline hugs the border it sits on and reads as that
+ * border thickening, which is what the operator asked for and what the search
+ * bars already did on their own.
+ *
+ * 1.4.11 still holds with room to spare: `--fam-input-border` is brand-black,
+ * 14.79:1 on the canvas. */
 .family :focus-visible {
-  outline: 3px solid var(--fam-focus-ring);
-  outline-offset: 2px;
+  outline: 2px solid var(--fam-focus-ring);
+  outline-offset: 0;
 }
 
 /* A field whose CONTAINER draws the focus state instead — the search bars, whose

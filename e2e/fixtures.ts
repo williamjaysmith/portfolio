@@ -7,6 +7,7 @@ import { unique as uniqueName } from "./helpers/names";
 import { hideDevOverlay } from "./helpers/overlay";
 import { actAs, punchOut, type PinnedProfile } from "./helpers/punch";
 import { clearStaleSubscriptions, liveUpdateSupport, type LiveUpdateSupport } from "./helpers/realtime";
+import { HOUSEHOLD_ZONE } from "./helpers/calendar";
 
 /**
  * 007 T017 — the extended `test` every journey imports (harness.md §2).
@@ -144,7 +145,7 @@ export const test = base.extend<Fixtures>({
     // seeded against the household's own clock, not this machine's (FR-711).
     // The Meals grid names each day column, and marks one of them as today.
     await page.goto("/family/meals");
-    await use({ todayLabel: await todayOnTheGrid(page), timezone: "America/Chicago" });
+    await use({ todayLabel: await todayOnTheGrid(page), timezone: HOUSEHOLD_ZONE });
   },
 
   axe: async ({ page }, use, testInfo) => {

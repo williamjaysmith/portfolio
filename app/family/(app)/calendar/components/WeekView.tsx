@@ -52,6 +52,7 @@ import { WeekGrid } from "./WeekGrid";
 import { WeekHeader } from "./WeekHeader";
 import { DayNav } from "../../components/DayNav";
 import { WeekPager } from "./WeekPager";
+import { TopBarSearch } from "../../components/TopBarSearch";
 
 /**
  * The Month view's swipe partition: nothing is rejected. Every month cell is a
@@ -750,7 +751,12 @@ export function WeekView(props: WeekViewProps) {
         {/* 011 FR-1101: one control, labelled with the view showing. */}
         <ViewSwitcher view={m.view} onChange={m.setView} />
         {/* 009 FR-916: a chosen result takes the calendar to the day the event
-            next falls on AND opens it — a finder, not a filter (divergence 6). */}
+            next falls on AND opens it — a finder, not a filter (divergence 6).
+            It is PAINTED in the shell's top bar rather than on this row — five
+            controls do not fit an iPhone SE, and the view switcher was the one
+            that fell off — but it still lives here, so the term, the results
+            and the jump are all this view's as before. */}
+        <TopBarSearch>
         <EventSearch
           value={m.chrome.search.term}
           onChange={m.chrome.search.setTerm}
@@ -767,6 +773,7 @@ export function WeekView(props: WeekViewProps) {
             m.editor.openTarget(target);
           }}
         />
+        </TopBarSearch>
       </WeekNav>
 
       {/* 011 FR-1116: the preview bar belongs above the events in EVERY view

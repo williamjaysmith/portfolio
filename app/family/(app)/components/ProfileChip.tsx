@@ -87,21 +87,16 @@ export function ProfileChip({ category, photoUrl, counters }: ProfileChipProps) 
         showsProgress ? "fam-tint-40" : ""
       }`}
     >
-      <span
-        // Square, round, and the clip. `overflow-hidden` lives HERE rather than
-        // on the pill: the circle is what crops a photograph to a circle, and a
-        // photo is `object-cover` so a portrait and a landscape shot both fill
-        // it without distorting.
-        //
-        // The padding is the visible colour. Measured in WebKit at 375: with
-        // the face edge to edge, an illustration's own pale disc and an
-        // uploaded photograph each covered `fam-tint-100` entirely, so with the
-        // count switched off the profile's colour was not on screen anywhere —
-        // "the colored circle" would have been a photo in a circle.
-        className="fam-tint-100 flex h-(--fam-chip-h) w-(--fam-chip-h) shrink-0 items-center justify-center overflow-hidden rounded-full p-(--fam-chip-face-inset)"
-      >
-        <Avatar category={category} size={48} photoUrl={photoUrl} sizeClassName="h-full w-full" />
-      </span>
+      {/* The circle IS the avatar. The coloured disc, the rim and the crop all
+          live in `Avatar` now, so every surface that draws a face gets them —
+          this chip had them first and the two boards had never had them at
+          all. */}
+      <Avatar
+        category={category}
+        size={48}
+        photoUrl={photoUrl}
+        sizeClassName="h-(--fam-chip-h) w-(--fam-chip-h)"
+      />
       <span className="sr-only">{category.label}</span>
       {showsProgress ? (
         <span

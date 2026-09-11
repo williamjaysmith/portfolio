@@ -66,7 +66,10 @@ const BOX =
   "grid h-(--fam-list-check-d) w-(--fam-list-check-d) shrink-0 place-items-center rounded-full " +
   "border-2 border-(--fam-control-border) bg-(--fam-app-bg) transition-colors " +
   "peer-checked:border-(--fam-profile-100) peer-checked:bg-(--fam-profile-100) peer-checked:text-(--fam-profile-ink) " +
-  "peer-focus-visible:outline-3 peer-focus-visible:outline-(--fam-focus-ring) peer-disabled:opacity-60";
+  // The checkbox's own focus ring, because the real `<input>` is `sr-only` and
+  // this span is what a reader sees. `outline-2` to match the app's one focus
+  // width — it was 3, left over from the blue halo that used to be everywhere.
+  "peer-focus-visible:outline-2 peer-focus-visible:outline-(--fam-focus-ring) peer-disabled:opacity-60";
 
 export function ListItemRow({ item, busy = false, lifted = false, onToggle, onOpen }: ListItemRowProps) {
   const checked = item.checkedAt !== null;

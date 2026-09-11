@@ -71,22 +71,37 @@ export function eventBlock(page: Page, title: string): Locator {
 }
 
 /**
+ * The seeded household's zone — the one every date in the app is expressed in.
+ * `fixtures.ts` hands the same value to journeys as `household.timezone`.
+ */
+export const HOUSEHOLD_ZONE = "America/Chicago";
+
+/**
  * An hour the grid is already showing. The grid keeps "now" in view, so an
  * event made at the current hour needs no scrolling — and the hour comes from
  * the app's own clock, in the household's zone, never from this machine's
  * (FR-711).
  */
 export async function visibleHours(page: Page): Promise<{ start: string; end: string }> {
-  // The shell renders the clock only once the client has ticked; reading before
-  // that gives the fallback hour and a journey that asserts on the wrong time.
-  const banner = page.getByRole("banner");
-  await expect(banner).toHaveText(/\d{1,2}:\d{2}/);
-  const clock = await banner.innerText();
-  const match = /(\d{1,2}):(\d{2})\s?(AM|PM)?/.exec(clock);
-  let hour = Number(match?.[1] ?? "9");
-  const meridiem = match?.[3];
-  if (meridiem === "PM" && hour !== 12) hour += 12;
-  if (meridiem === "AM" && hour === 12) hour = 0;
+  // **Read from the BROWSER's clock in the household's zone, not from a printed
+  // one.** This used to parse the time out of the top bar, which is where the
+  // shell drew it until the search took that place — the operator's call, since
+  // every device running this app already shows a clock of its own. The
+  // guarantee FR-711 actually wants is the HOUSEHOLD's hour rather than this
+  // machine's naive local one, and `Intl` in the page gives that directly.
+  //
+  // It is also strictly better for the reminder journeys: `installClock` pins
+  // the page's `Date`, so this now reads the pinned hour where parsing the bar
+  // read whatever the shell had last painted.
+  const hour = await page.evaluate(
+    (zone) =>
+      Number(
+        new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "2-digit", hourCycle: "h23" }).format(
+          new Date(),
+        ),
+      ),
+    HOUSEHOLD_ZONE,
+  );
   // Keep both ends inside the day, and off its very last hour.
   const start = Math.min(Math.max(hour, 1), 21);
   const two = (value: number): string => String(value).padStart(2, "0");

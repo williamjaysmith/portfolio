@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { BottomNav } from "./BottomNav";
 import { Fab } from "./Fab";
 import { FabActionProvider } from "./FabAction";
+import { TopBarSearchProvider } from "./TopBarSearch";
 import { useFamily } from "./FamilyProvider";
 import { showsChipRow } from "./nav";
 import { ReminderBanner } from "./notifications/ReminderBanner";
@@ -52,6 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <FabActionProvider>
+      <TopBarSearchProvider>
       <div data-text-size={settings.textSize} className="flex h-dvh overflow-hidden">
         <Sidebar />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -71,6 +73,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <BottomNav />
         </div>
       </div>
+      </TopBarSearchProvider>
     </FabActionProvider>
   );
 }
