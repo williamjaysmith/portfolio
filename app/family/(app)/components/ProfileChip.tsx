@@ -70,7 +70,13 @@ export function ProfileChip({ category, photoUrl, counters }: ProfileChipProps) 
       // React's CSSProperties has no room for custom properties; the value is
       // a plain string either way.
       style={profileVars(category.color) as CSSProperties}
-      className="fam-profile fam-tint-40 flex h-(--fam-chip-h) shrink-0 items-center overflow-hidden rounded-full"
+      // `relative` is load-bearing, not decoration. The `sr-only` name below is
+      // `position: absolute`, so without a positioned ancestor it resolves
+      // against the INITIAL containing block — its static position inside the
+      // horizontally scrolled chip row then extended the document's own scroll
+      // width, and the phone's "no sideways scroll" journeys (SC-1111, T052)
+      // failed with 208px of overflow that no visible element accounted for.
+      className="fam-profile fam-tint-40 relative flex h-(--fam-chip-h) shrink-0 items-center overflow-hidden rounded-full"
     >
       <span className="fam-tint-100 flex h-full w-(--fam-chip-cap-w) shrink-0 items-center justify-center">
         <Avatar

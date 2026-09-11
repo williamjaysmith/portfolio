@@ -1,3 +1,4 @@
+import { actorBadge, punchOut } from "../helpers/punch";
 import { showColumn, strip, swipeBoard } from "../helpers/board";
 import { expect, test } from "../fixtures";
 
@@ -198,12 +199,12 @@ test.describe("the Lists tab", () => {
       await list(page, "Grocery List").getByRole("textbox", { name: "Add item to Grocery List" }).fill(mark);
       await page.keyboard.press("Enter");
     });
-    await expect(page.getByRole("button", { name: "Punch out Ana" })).toBeVisible();
+    await expect(actorBadge(page, "Ana")).toBeVisible();
 
     await showColumn(page, "Party", "Lists");
     await expect(list(page, "Party")).toBeVisible();
 
-    await page.getByRole("button", { name: "Punch out Ana" }).click();
+    await punchOut(page, "Ana");
 
     // With a member punched in instead, it is not on the board and no route the
     // interface offers reaches it.
@@ -211,11 +212,11 @@ test.describe("the Lists tab", () => {
     await actAsCleo(async () => {
       await tickBox(page, "Grocery List", mark).click();
     });
-    await expect(page.getByRole("button", { name: "Punch out Cleo" })).toBeVisible();
+    await expect(actorBadge(page, "Cleo")).toBeVisible();
     await expect(page.getByRole("region", { name: "Party" })).toHaveCount(0);
 
     // Put the seed back: the item this journey made goes with it.
-    await page.getByRole("button", { name: "Punch out Cleo" }).click();
+    await punchOut(page, "Cleo");
     await actAsAna(async () => {
       await list(page, "Grocery List").getByRole("button", { name: mark }).click();
       await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();

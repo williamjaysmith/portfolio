@@ -95,9 +95,12 @@ export function ActorBadge() {
         </p>
         <button
           type="button"
+          // Punch out FIRST, then close. Closing first re-renders this
+          // component before the action is dispatched, and the badge stayed on
+          // screen — caught by the punch-in journey, not by a unit test.
           onClick={() => {
-            setOpen(false);
             void punchOut();
+            setOpen(false);
           }}
           className="mt-4 min-h-(--fam-touch) w-full rounded-full bg-(--fam-pill-btn-bg) px-5 text-(length:--fam-fs-body) font-medium text-(--fam-text-primary)"
         >

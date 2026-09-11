@@ -3,7 +3,7 @@ import { test as setup, expect } from "@playwright/test";
 import { STORAGE_STATE } from "../../playwright.config";
 import { signIn, warmRoutes } from "../helpers/auth";
 import { hideDevOverlay } from "../helpers/overlay";
-import { PINS, setPin } from "../helpers/punch";
+import { PINS, punchOut, setPin } from "../helpers/punch";
 import { requireLocalStack, resetAndSeed } from "../helpers/stack";
 
 /**
@@ -54,7 +54,7 @@ setup.describe("with the saved session", () => {
     // authorise it (FR-018). The second does, and Ana is now that somebody.
     await setPin(page, "Ana", PINS.Ana);
     await setPin(page, "Cleo", PINS.Cleo, "Ana");
-    await page.getByRole("button", { name: "Punch out Ana" }).click();
+    await punchOut(page, "Ana");
   });
 
   setup("warm every route", async ({ page }) => {

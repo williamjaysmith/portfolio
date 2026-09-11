@@ -79,11 +79,24 @@ export async function actAs(page: Page, profile: PinnedProfile, action: () => Pr
   await answerPunchIn(page, profile);
 }
 
+/**
+ * The badge that says who is in. 014 turned it from a pill reading
+ * `● Ana  Punch out` into the person's face in a circle, so the NAME is on the
+ * trigger and the way out is in the panel behind it.
+ */
+export function actorBadge(page: Page, profile: string) {
+  return page.getByRole("button", { name: `Punched in as ${profile}` });
+}
+
+/** Two taps now: open the badge, then punch out from inside it. */
 export async function punchOut(page: Page, profile: string): Promise<void> {
-  const out = page.getByRole("button", { name: `Punch out ${profile}` });
-  if (await out.isVisible()) await out.click();
+  const badge = actorBadge(page, profile);
+  if (!(await badge.isVisible())) return;
+  await badge.click();
+  await page.getByRole("button", { name: "Punch out" }).click();
+  await expect(badge).toBeHidden();
 }
 
 export function isPunchedIn(page: Page, profile: string): Promise<boolean> {
-  return page.getByRole("button", { name: `Punch out ${profile}` }).isVisible();
+  return actorBadge(page, profile).isVisible();
 }
