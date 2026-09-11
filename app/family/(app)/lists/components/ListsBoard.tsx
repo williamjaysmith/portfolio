@@ -13,6 +13,7 @@ import type { ListInput } from "@/lib/family/validation";
 
 import { BoardNotice } from "../../components/BoardNotice";
 import { useColumnPage } from "../../components/ColumnPager";
+import { ListTabs } from "./ListTabs";
 import { useRegisterFabAction } from "../../components/FabAction";
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
 import { PagedColumns, type PagedColumn } from "../../components/PagedColumns";
@@ -595,17 +596,26 @@ export function ListsBoard(props: ListsBoardProps) {
           {NO_LISTS}
         </p>
       ) : (
-        // The window the measured layout allows: every card when they all fit, a page otherwise
-        // (FR-502, FR-543) — the cards at the list gap, never the task column's.
-        <PagedColumns
-          page={m.page}
-          boardRef={m.boardRef}
-          perRow={m.layout.perRow}
-          columns={drawnColumnsOf(m)}
-          gapClassName="gap-(--fam-list-card-gap)"
-          suspended={m.dragging}
-          label="Lists"
-        />
+        <>
+          {/* Which lists exist, for the widths where only some are on screen.
+              `page.paged` is the condition: it is true exactly when cards are
+              being withheld, so the wall tablet — where every name is already
+              on a card — never draws this. */}
+          {m.page.paged && m.page.goTo ? (
+            <ListTabs lists={m.lists} activeIndex={m.page.start} onSelect={m.page.goTo} />
+          ) : null}
+          {/* The window the measured layout allows: every card when they all fit, a page otherwise
+              (FR-502, FR-543) — the cards at the list gap, never the task column's. */}
+          <PagedColumns
+            page={m.page}
+            boardRef={m.boardRef}
+            perRow={m.layout.perRow}
+            columns={drawnColumnsOf(m)}
+            gapClassName="gap-(--fam-list-card-gap)"
+            suspended={m.dragging}
+            label="Lists"
+          />
+        </>
       )}
 
       <ListSurfaces m={m} />

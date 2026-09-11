@@ -11,7 +11,7 @@ import { CompleteCircle } from "../CompleteCircle";
  * outstanding, a disc in the credited Profile's own accent under a white check
  * once it is done.
  *
- * Every colour here is a token, and deliberately so. `--fam-profile-deep` is
+ * Every colour here is a token, and deliberately so. The accent's rungs are
  * the accent's own channels scaled toward black (FR-398's "how much deeper",
  * never another hue) and `task-tokens.test.ts` already proves it carries a
  * white checkmark at 4.5:1 across all twenty accents — so this suite asserts
@@ -56,19 +56,25 @@ describe("CompleteCircle", () => {
     expect(disc().className).toContain("border-(--fam-task-ink)");
   });
 
-  it("fills the disc with the deepened accent under a white check when complete (FR-348)", () => {
+  it("fills the disc with the accent, edged and checked in the accent's own ink (FR-348)", () => {
     renderCircle({ state: "complete" });
 
     expect(circle("Mark Brush teeth incomplete")).toHaveAttribute("data-state", "complete");
-    expect(disc().className).toContain("bg-(--fam-profile-deep)");
+    expect(disc().className).toContain("bg-(--fam-profile-100)");
+    // The EDGE, not just the check. A completed card is filled at 100 % too, so
+    // a disc in the accent on it is its own background colour; the ink outlines
+    // it. Before the ladder collapsed to two rungs the disc was mixed with
+    // black and separated itself.
+    expect(disc().className).toContain("border-(--fam-profile-ink)");
+    expect(disc().className).toContain("text-(--fam-profile-ink)");
     expect(disc().querySelector("svg")).not.toBeNull();
   });
 
-  it("falls back to the card ink when there is no accent to deepen (FR-308)", () => {
-    // Up for Grabs belongs to nobody, so `--fam-profile-deep` is not declared
-    // anywhere above this circle — a completed disc there would be invisible.
+  it("falls back to the card ink when there is no accent at all (FR-308)", () => {
+    // Up for Grabs belongs to nobody, so no profile rung is declared anywhere
+    // above this circle — a completed disc there would be invisible.
     renderCircle({ state: "complete", accent: null });
-    expect(disc().className).not.toContain("--fam-profile-deep");
+    expect(disc().className).not.toContain("--fam-profile-100");
     expect(disc().className).toContain("bg-(--fam-task-ink)");
   });
 

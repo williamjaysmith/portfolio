@@ -30,14 +30,42 @@ export interface ListItemRowProps {
   onOpen: (item: ListItem) => void;
 }
 
+/**
+ * **A hairline under every row but the last.** The row's own fill is the card's
+ * fill — both `fam-tint-40` — so a row had no edge of any kind and a list read
+ * as text floating on a colour. The operator: *"i think the items could perhaps
+ * be seperated by light lines just to make them easier to view"*, and then, on
+ * the first attempt: *"not gray lines, light like white"*.
+ *
+ * White is right here and grey was not, because these rows sit on a COLOUR
+ * rather than on the page. `--fam-hairline` is a grey mixed for the white app
+ * background; on a 40 % tint it muddies rather than separates, while the app
+ * background itself reads as a clean light rule on all twenty accents.
+ *
+ * `last:border-b-0` rather than a border on the top of each: a trailing rule
+ * above "Add section" would read as a divider between the list and the footer,
+ * which is a different claim.
+ */
 const ROW =
   "fam-tint-40 relative flex min-h-(--fam-list-row-h) items-center gap-3 rounded-(--fam-list-row-r) " +
+  "border-b border-(--fam-app-bg) last:border-b-0 " +
   "px-3 text-(length:--fam-fs-list-item) select-none";
 
+/**
+ * **Round, and DRAWN at `--fam-list-check-d` inside a `--fam-list-check` target.**
+ * It was a rounded square drawn at the full hit size, so a phone row carried a
+ * 44px box — *"the checkboxes are way too big"*, and *"i would like the
+ * checkboxes styled more like the tasks, radial check"*. The Tasks board's
+ * `CompleteCircle` had this right from the start: 22px of circle inside a 44px
+ * tap area (FR-397). This is the same split and the same token arithmetic, so
+ * the two tabs now tick identically.
+ *
+ * The hit area is the LABEL around this box, not the box — see below.
+ */
 const BOX =
-  "grid h-(--fam-list-check) w-(--fam-list-check) shrink-0 place-items-center rounded-(--fam-list-check-r) " +
+  "grid h-(--fam-list-check-d) w-(--fam-list-check-d) shrink-0 place-items-center rounded-full " +
   "border-2 border-(--fam-control-border) bg-(--fam-app-bg) transition-colors " +
-  "peer-checked:border-(--fam-profile-deep) peer-checked:bg-(--fam-profile-deep) peer-checked:text-white " +
+  "peer-checked:border-(--fam-profile-100) peer-checked:bg-(--fam-profile-100) peer-checked:text-(--fam-profile-ink) " +
   "peer-focus-visible:outline-3 peer-focus-visible:outline-(--fam-focus-ring) peer-disabled:opacity-60";
 
 export function ListItemRow({ item, busy = false, lifted = false, onToggle, onOpen }: ListItemRowProps) {
@@ -69,7 +97,11 @@ export function ListItemRow({ item, busy = false, lifted = false, onToggle, onOp
       >
         {item.text}
       </button>
-      <label className="flex shrink-0 cursor-pointer items-center">
+      {/* The LABEL is the tap target, and it has to be: the box inside it is
+          drawn at --fam-list-check-d, which is 22px on a phone. FR-397's floor
+          lives out here so shrinking the circle could not shrink the thing a
+          finger has to hit. */}
+      <label className="grid h-(--fam-list-check) w-(--fam-list-check) shrink-0 cursor-pointer place-items-center">
         <input
           type="checkbox"
           checked={checked}

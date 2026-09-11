@@ -8,6 +8,7 @@ import { FIELD, FieldError, LABEL } from "./CategoryFields";
 import { SaveRow } from "./SaveRow";
 import { useSettingsForm, type SettingsDraft } from "./useSettingsForm";
 import { useSettingsSave } from "./useSettingsSave";
+import { SectionHeading } from "./SectionHeading";
 
 /**
  * Household name and display preferences (FR-031, FR-043).
@@ -50,15 +51,6 @@ const CHOICES: ChoiceField[] = [
     ],
   },
   {
-    key: "density",
-    label: "Display density",
-    options: [
-      { value: "cozy", label: "Cozy" },
-      { value: "snug", label: "Snug" },
-      { value: "roomy", label: "Roomy" },
-    ],
-  },
-  {
     // 009 FR-903. Exactly the reference's three values, in its own words
     // [VERIFIED](40459070511515) — there is no fourth and no "never", which is
     // achieved by not marking an event as a countdown at all.
@@ -92,12 +84,7 @@ export function HouseholdSection() {
 
   return (
     <section aria-labelledby="household-heading" className="flex flex-col gap-4">
-      <h2
-        id="household-heading"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)"
-      >
-        Household
-      </h2>
+      <SectionHeading id="household-heading">Household</SectionHeading>
       {disabled ? (
         <p className="text-(length:--fam-fs-small) text-(--fam-text-secondary)">Parents only</p>
       ) : null}

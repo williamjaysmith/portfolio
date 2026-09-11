@@ -107,9 +107,20 @@ export function tints(hex: PaletteColor): { full: string; medium: string; faint:
   };
 }
 
-/** Inline-style object that sets the accent the `.fam-profile` tints derive from. */
-export function profileVars(hex: PaletteColor): { "--profile": string } {
-  return { "--profile": hex };
+/**
+ * Inline-style object that sets the accent the `.fam-profile` tints derive from
+ * — and the ink that can be read ON that accent at full strength.
+ *
+ * The ink has to travel WITH the colour, because CSS cannot decide it: picking
+ * between dark and white is a luminance comparison, and `color-mix()` has no
+ * way to branch. Anything drawing a glyph on the 100 % rung — the completed
+ * chore's disc, a ticked list item's box — used to hardcode `white`, which is
+ * 1.37:1 on Sunshine and 1.50:1 on Sprout: no ink at all (FR-039, FR-398).
+ * Every `.fam-profile` element gets it for free now, from the one door every
+ * caller already goes through.
+ */
+export function profileVars(hex: PaletteColor): { "--profile": string; "--profile-ink": string } {
+  return { "--profile": hex, "--profile-ink": inkOn(hex) };
 }
 
 /* ---------------------------------------------------------------------------

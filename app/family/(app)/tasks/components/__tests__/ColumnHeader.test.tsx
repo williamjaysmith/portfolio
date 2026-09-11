@@ -131,3 +131,62 @@ describe("ColumnHeader — the star pill (FR-407)", () => {
     expect(star?.getAttribute("class")).toContain("text-(--fam-star-gold)");
   });
 });
+
+/**
+ * The section toggles, measured across fourteen real viewports before this was
+ * written. The row broke onto a second line wherever the column came up short:
+ * 181px on a 430×932 phone and — by ONE pixel — 207px on a 1024×768 iPad,
+ * against the 189 + 3·gap it wanted. The header then grew a line on a screen
+ * that had none to spare.
+ *
+ * The fix is structural rather than dimensional, because the old requirement
+ * moved with the label text: four tap targets that cannot grow, a row that
+ * cannot break, and spacing that absorbs whatever is left. These assertions are
+ * that structure — a viewport sweep cannot live in a unit test, but the reason
+ * it passed can.
+ */
+describe("ColumnHeader — the section toggles never wrap (FR-306, FR-397)", () => {
+  function toggleRow(): HTMLElement {
+    for (const div of header().querySelectorAll("div")) {
+      const kids = [...div.children];
+      if (kids.length === 4 && /Morn/.test(kids[0].textContent ?? "")) return div as HTMLElement;
+    }
+    throw new Error("no toggle row rendered");
+  }
+
+  it("is a row that cannot break, spaced by what is left over", () => {
+    renderHeader([]);
+    expect(toggleRow().className).toContain("flex-nowrap");
+    expect(toggleRow().className).not.toContain("flex-wrap");
+    expect(toggleRow().className).toContain("justify-between");
+  });
+
+  it("gives each toggle an EXACT tap width, so a long word cannot widen it", () => {
+    renderHeader([]);
+    for (const toggle of [...toggleRow().children]) {
+      // Width exact, height still a floor: the label sits under the glyph and
+      // must not be clipped (FR-397).
+      expect(toggle.className).toContain("w-(--fam-task-toggle-hit)");
+      expect(toggle.className).toContain("min-h-(--fam-task-toggle-hit)");
+      expect(toggle.className).not.toContain("min-w-(--fam-task-toggle-hit)");
+    }
+  });
+
+  it("draws the short word and speaks the full one", () => {
+    renderHeader([]);
+    const [morning, afternoon] = [...toggleRow().children];
+    expect(morning).toHaveTextContent("Morn");
+    expect(afternoon).toHaveTextContent("Noon");
+    // The accessible name is what a screen reader gets, and it is unabbreviated.
+    expect(morning).toHaveAccessibleName("Morning");
+    expect(afternoon).toHaveAccessibleName("Afternoon");
+  });
+
+  it("truncates a label rather than letting it push the row open", () => {
+    renderHeader([]);
+    for (const toggle of [...toggleRow().children]) {
+      const label = toggle.lastElementChild;
+      expect(label?.className).toContain("truncate");
+    }
+  });
+});

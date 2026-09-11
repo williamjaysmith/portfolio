@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   boardGeometryOf,
+  contentWidthOf,
   useBoardGeometry,
   type BoardMeasurement,
 } from "@/app/family/(app)/components/useBoardGeometry";
@@ -27,6 +28,7 @@ const WALL_TABLET: BoardMeasurement = {
   viewportHeight: 1080,
   boardWidth: 1778,
   referenceColumnWidth: 400,
+  columnGap: 16,
 };
 
 /** `--fam-task-col-w` at the reference unit, which is what the probe resolves. */
@@ -237,5 +239,41 @@ describe("useBoardGeometry", () => {
     );
     expect(result.current.measured).toBe(true);
     expect(result.current.layout).toEqual({ perRow: 2, mode: "pager" });
+  });
+});
+
+/**
+ * The board's own box is not the space its columns get. It carries the shell's
+ * edge inset, and the columns are laid into what is left — so handing the fit
+ * rule the border box lets it seat a column the content box cannot hold, and
+ * the grid then squeezes every column below the width the token promised.
+ *
+ * Measured on a 414×896 phone: rect 414, inset 10 a side, columns sharing 394.
+ * At 414 the rule seated two 200px columns and the grid drew them at 193 —
+ * under the 176px the header's four 44px toggles need with their gaps, so the
+ * toggle row wrapped to a second line and the header grew. Two fixes, one
+ * defect: this, and `columnGap` in `boardLayoutOf`.
+ */
+describe("contentWidthOf", () => {
+  const nodeOf = (width: number) =>
+    ({ getBoundingClientRect: () => ({ width }) }) as unknown as Element;
+  const styleOf = (left: string, right: string) =>
+    ({ getPropertyValue: (p: string) => (p === "padding-left" ? left : right) }) as CSSStyleDeclaration;
+
+  it("takes the inset off both sides", () => {
+    expect(contentWidthOf(nodeOf(414), styleOf("10px", "10px"))).toBe(394);
+  });
+
+  it("is the whole box when there is no inset", () => {
+    expect(contentWidthOf(nodeOf(1778), styleOf("0px", "0px"))).toBe(1778);
+  });
+
+  it("treats unreadable or absent padding as none, never as NaN", () => {
+    expect(contentWidthOf(nodeOf(320), null)).toBe(320);
+    expect(contentWidthOf(nodeOf(320), styleOf("normal", ""))).toBe(320);
+  });
+
+  it("never reports a negative width, whatever the inset says", () => {
+    expect(contentWidthOf(nodeOf(10), styleOf("40px", "40px"))).toBe(0);
   });
 });

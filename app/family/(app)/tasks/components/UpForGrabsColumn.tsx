@@ -71,15 +71,19 @@ export function UpForGrabsColumn({
         aria-label={UP_FOR_GRABS_TITLE}
         className="flex flex-col gap-(--fam-task-header-gap) rounded-(--fam-task-col-r) bg-(--fam-pill-btn-bg) p-(--fam-task-header-pad)"
       >
-        <span className="truncate font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
-          {UP_FOR_GRABS_TITLE}
-        </span>
-        <p
-          aria-label={`${unclaimed} unclaimed`}
-          className="w-fit rounded-(--fam-task-badge-r) bg-(--fam-app-bg) px-(--fam-task-badge-pad) py-(--fam-task-badge-gap) text-(length:--fam-fs-pill) tabular-nums"
-        >
-          {unclaimed}
-        </p>
+        {/* Title and count on ONE row, as the Profile columns' header now does —
+            a phone's header was three rows deep before the tasks began. */}
+        <div className="flex items-center gap-(--fam-task-header-gap)">
+          <span className="min-w-0 truncate font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
+            {UP_FOR_GRABS_TITLE}
+          </span>
+          <p
+            aria-label={`${unclaimed} unclaimed`}
+            className="ml-auto w-fit shrink-0 rounded-(--fam-task-badge-r) bg-(--fam-app-bg) px-(--fam-task-badge-pad) py-(--fam-task-badge-gap) text-(length:--fam-fs-pill) tabular-nums"
+          >
+            {unclaimed}
+          </p>
+        </div>
         <SectionToggleRow toggles={toggles} accent={null} onToggle={onToggleSection} />
       </header>
       <ColumnBody

@@ -131,7 +131,7 @@ export function ListCard(props: ListCardProps) {
       aria-label={list.name}
       data-list={list.id}
       style={profileVars(list.color) as CSSProperties}
-      className="fam-profile fam-tint-20 flex h-full min-h-0 w-full min-w-0 flex-col gap-2 rounded-(--fam-list-card-r) pb-2"
+      className="fam-profile fam-tint-40 flex h-full min-h-0 w-full min-w-0 flex-col gap-2 rounded-(--fam-list-card-r) pb-2"
     >
       <ListCardHeader list={list} count={count} onEdit={props.onEdit} onMenu={props.onMenu} />
       <AddItemBox

@@ -27,9 +27,15 @@ import { TopBar } from "./TopBar";
  * attribute the whole type scale is pinned at 1 and the Text size control in
  * Settings saves to the database and changes nothing on screen.
  *
- * `settings.density` has no CSS behind it yet — recorded as a known no-op
- * rather than wired here, because nothing in the shell reads a spacing token
- * it could scale (every gap and pad is a literal Tailwind class).
+ * **There was a `density` setting beside it and it is gone.** It was shipped as
+ * a known no-op — stored, validated, saved and re-displayed, with no CSS behind
+ * it, because nothing in the shell reads a spacing token it could scale (every
+ * gap and pad is a literal Tailwind class). Cozy, Snug and Roomy rendered
+ * byte-identically for as long as it existed. The operator asked what it did,
+ * was told "nothing", and had it removed: a control that saves and changes
+ * nothing costs more trust than the three words of the label are worth. The
+ * COLUMN is untouched — dropping it needs a migration, and an unread column
+ * costs nothing.
  *
  * The FAB and the page it floats over share one registry (`FabAction.tsx`):
  * the page registers what "+" creates, the FAB runs it — which is why the

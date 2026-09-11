@@ -45,7 +45,6 @@ export function makeSettings(overrides: Partial<HouseholdSettings> = {}): Househ
     startWeekOn: 0,
     punchOutMinutes: 3,
     textSize: "medium",
-    density: "roomy",
     timezone: "America/Chicago",
     notifyEventAtTime: false,
     notifyEventBefore: true,

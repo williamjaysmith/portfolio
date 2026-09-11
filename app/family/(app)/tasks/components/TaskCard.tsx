@@ -15,7 +15,7 @@ import { resolutionKeyOf } from "@/lib/family/tasks/resolutions";
 import type { BoardOccurrence, OccurrenceState } from "@/lib/family/types";
 
 import { CompleteCircle } from "./CompleteCircle";
-import { LateBadge } from "./LateBadge";
+import { LateBadge, lateSpokenOf } from "./LateBadge";
 import { StarChip, starsWorthOf } from "./StarChip";
 import { StreakBadge, useTaskStreak } from "./StreakBadge";
 
@@ -121,11 +121,17 @@ function cardLabelOf(
   progress: ProgressLabel | null,
   streak: number,
   worth: string | null,
+  lateSince: string | null,
 ): string {
   const parts = [summary];
   if (progress !== null) parts.push(progress.spoken);
   if (streak > 0) parts.push(`${streak} day streak`);
   if (worth !== null) parts.push(worth);
+  // Late is spoken HERE now rather than by the badge's own `sr-only` half. The
+  // badge moved inside this button to sit under the title, and a button with an
+  // explicit `aria-label` announces none of its contents — so a badge that kept
+  // its own hidden text would have gone silent.
+  if (lateSince !== null) parts.push(lateSince);
   return parts.join(", ");
 }
 
@@ -188,9 +194,15 @@ export function TaskCard({
           label,
           streak,
           starsWorthOf(occurrence.rewardPoints),
+          lateSpokenOf(occurrence.scheduledDate, occurrence.isLate),
         )}
         onClick={() => onOpen(occurrence)}
-        className="flex min-h-(--fam-task-card-min-h) flex-1 items-center gap-(--fam-task-card-gap) p-(--fam-task-card-pad) text-left"
+        // `min-w-0` is the structural half of the fix, and it is the one that
+        // cannot regress: a flex item defaults to `min-width: auto`, so this
+        // button refused to shrink below its own content and the card's
+        // children ran straight out of it — measured at 224px wide with 289px
+        // of content, the Late badge 8px past the edge and the circle 55px.
+        className="flex min-h-(--fam-task-card-min-h) min-w-0 flex-1 items-center gap-(--fam-task-card-gap) p-(--fam-task-card-pad) text-left"
       >
         {occurrence.emoji === null ? null : (
           <span aria-hidden="true" className="shrink-0 text-(length:--fam-task-emoji) leading-none">
@@ -198,31 +210,43 @@ export function TaskCard({
           </span>
         )}
         <span className="flex min-w-0 flex-col gap-(--fam-task-badge-gap)">
-          {/* The name, the streak and the star chip on one line, because
-              FR-372 and FR-403 both put their mark beside the name and not
-              under it. */}
-          <span className="flex min-w-0 items-center gap-(--fam-task-badge-gap)">
-            <span
-              className={`truncate text-(length:--fam-fs-body) font-medium ${
-                occurrence.state === "skipped" ? "line-through" : ""
-              }`}
-            >
-              {occurrence.summary}
-            </span>
+          {/*
+            **The name gets the line to itself, and the marks get the next one.**
+            This is a deliberate reversal of FR-372 and FR-403, which both put
+            their mark BESIDE the name. On a phone the operator's board wraps
+            into two columns, and a column then has ~170px for a title, a
+            streak, a star chip, a late pill and a tap target — so the title
+            truncated to nothing while the marks sat at full width. Their call:
+            *"when a task is done late or has stars associated with it, it
+            doesnt fit that info in the column so maybe those signifiers should
+            go just below the description"*.
+          */}
+          <span
+            className={`truncate text-(length:--fam-fs-body) font-medium ${
+              occurrence.state === "skipped" ? "line-through" : ""
+            }`}
+          >
+            {occurrence.summary}
+          </span>
+          {/*
+            The marks and the time, one row, allowed to wrap among themselves.
+            `empty:hidden` so a card with none of them keeps its old height
+            rather than carrying a blank line — most cards have none.
+          */}
+          <span className="flex flex-wrap items-center gap-(--fam-task-badge-gap) empty:hidden">
+            {label === null ? null : (
+              <span className="text-(length:--fam-fs-small) tabular-nums opacity-80">
+                {label.text}
+              </span>
+            )}
             <StreakBadge count={streak} />
             <StarChip count={occurrence.rewardPoints} />
+            {/* Inside the button now, so it sits under the title. The button's
+                explicit aria-label carries the words — see `cardLabelOf`. */}
+            <LateBadge dueDate={occurrence.scheduledDate} late={occurrence.isLate} />
           </span>
-          {label === null ? null : (
-            <span className="text-(length:--fam-fs-small) tabular-nums opacity-80">
-              {label.text}
-            </span>
-          )}
         </span>
       </button>
-      {/* Outside the body button on purpose: that button carries an explicit
-          aria-label, so anything inside it is not announced — and the badge's
-          own date is the reason this card is here at all (FR-358). */}
-      <LateBadge dueDate={occurrence.scheduledDate} late={occurrence.isLate} />
       <CompleteCircle
         state={occurrence.state}
         accent={accent}

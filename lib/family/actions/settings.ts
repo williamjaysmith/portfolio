@@ -39,7 +39,6 @@ const SETTINGS_FIELDS = {
   startWeekOn: "start_week_on",
   punchOutMinutes: "punch_out_minutes",
   textSize: "text_size",
-  density: "density",
   // 008 FR-802..FR-807. Household-wide, never per person: every documented
   // Skylight reminder is an unaddressed pop-up on a shared display
   // [VERIFIED](36836043247131), and this project knows who somebody is only

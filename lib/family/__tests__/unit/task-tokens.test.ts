@@ -15,8 +15,12 @@ import {
 /**
  * T038's board tokens, guarded as arithmetic (FR-304, FR-348, FR-349, FR-398).
  *
- * The three-rung tint ladder is a family's own colour composited on white, and
- * the palette spans Sunshine (luminance 0.72) to Deep River (0.08). Every claim
+ * The tint ladder is a family's own colour composited on white — TWO rungs, 100
+ * and 40, since the operator asked for one consistent scheme across every tab
+ * (it was 100 / 40 / 20 plus a fourth mixed with BLACK for the board's arcs,
+ * rings and discs, which is what made the same person read as a different
+ * colour here than on the calendar). The palette spans Sunshine (luminance
+ * 0.72) to Deep River (0.08). Every claim
  * this suite makes is therefore made across all twenty sanctioned colours, not
  * against one specimen: a value that reads on Deep River and vanishes on
  * Sunshine has not been chosen, it has been guessed.
@@ -33,26 +37,6 @@ const TOKENS = readFileSync(resolve(process.cwd(), "app/family/tokens.css"), "ut
 const TEXT_CONTRAST = 4.5;
 const NON_TEXT_CONTRAST = 3;
 
-/**
- * `color-mix(in srgb, hex p%, black)` — every channel scaled by `p`. CSS keeps
- * the un-rounded channel; rounding here moves a ratio by well under 0.01.
- */
-function deepen(hex: string, strength: number): string {
-  const channels = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
-  const mixed = channels.map((channel) => Math.round(channel * strength));
-  return `#${mixed.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
-}
-
-/** `color-mix(in srgb, a p%, b)` in sRGB — the two-colour form of the same rule. */
-function blend(a: string, b: string, strength: number): string {
-  const parse = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
-  const [first, second] = [parse(a), parse(b)];
-  const mixed = first.map((channel, index) =>
-    Math.round(channel * strength + second[index] * (1 - strength)),
-  );
-  return `#${mixed.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
-}
-
 /** The one declaration this token names, or a failure that names the token. */
 function declarationOf(token: string): string {
   const found = new RegExp(`${token}:\\s*([^;]+);`).exec(TOKENS);
@@ -60,24 +44,41 @@ function declarationOf(token: string): string {
   return found[1].trim();
 }
 
-/** A `color-mix` percentage, as the fraction the arithmetic above takes. */
-function strengthOf(token: string): number {
-  const found = /(\d+)%/.exec(declarationOf(token));
-  if (found === null) throw new Error(`${token} is not a color-mix percentage`);
-  return Number(found[1]) / 100;
+/** True when the stylesheet declares this token at all. */
+function declares(token: string): boolean {
+  return new RegExp(`${token}:\\s*[^;]+;`).test(TOKENS);
 }
 
-const DEEP_STRENGTH = strengthOf("--fam-profile-deep");
-const RING_OFF_STRENGTH = strengthOf("--fam-task-ring-off");
-
 const tint = (hex: PaletteColor, strength: number) => mixWithWhite(hex, strength);
-const deepOf = (hex: PaletteColor) => deepen(hex, DEEP_STRENGTH);
 
 describe("the profile tint ladder — FR-304, FR-349", () => {
-  it("uses the shipped 20 / 40 / 100 rungs and adds no fourth", () => {
-    expect(declarationOf("--fam-profile-20")).toContain("20%");
+  /**
+   * The point of this test is the NEGATIVE half. A third or fourth rung is
+   * exactly how the app drifted into showing one person as two colours, and the
+   * only way that cannot come back is for the extra rungs not to exist.
+   */
+  it("is two rungs and only two", () => {
     expect(declarationOf("--fam-profile-40")).toContain("40%");
     expect(declarationOf("--fam-profile-100")).toBe("var(--profile)");
+    expect(declares("--fam-profile-20")).toBe(false);
+    expect(declares("--fam-profile-deep")).toBe(false);
+    expect(declares("--fam-task-ring-off")).toBe(false);
+  });
+
+  /**
+   * What made collapsing the ladder safe. Anything drawing a glyph ON the
+   * 100 % rung used to hardcode `white`, which the black-mixed rung could
+   * carry; on the accent itself white is 1.37:1 on Sunshine. The ink is
+   * carried in by `profileVars` now and chosen per colour.
+   */
+  it("carries an ink that is readable ON the full-strength rung, for every accent", () => {
+    expect(declarationOf("--fam-profile-ink")).toBe("var(--profile-ink, var(--fam-text-primary))");
+    for (const hex of PALETTE) {
+      expect(contrastRatio(hex, inkOn(hex))).toBeGreaterThanOrEqual(TEXT_CONTRAST);
+    }
+    // And it genuinely has to switch: a static white would fail on some.
+    expect(PALETTE.some((hex) => inkOn(hex) !== INK_LIGHT)).toBe(true);
+    expect(PALETTE.some((hex) => inkOn(hex) === INK_LIGHT)).toBe(true);
   });
 
   it("keeps card text at 4.5:1 on BOTH card tints, for every palette colour (FR-398)", () => {
@@ -96,9 +97,11 @@ describe("the profile tint ladder — FR-304, FR-349", () => {
     }
   });
 
-  it("keeps the 20 % header panel's text at 4.5:1 on the primary ink (FR-304)", () => {
+  it("keeps the header panel's text at 4.5:1 on the primary ink (FR-304)", () => {
+    // The panel is the 40 % rung now — the same lighter shade the calendar's
+    // chip body draws, which is the whole of the operator's ask.
     for (const hex of PALETTE) {
-      expect(contrastRatio(tint(hex, 0.2), inkOn(tint(hex, 0.2)))).toBeGreaterThanOrEqual(
+      expect(contrastRatio(tint(hex, 0.4), inkOn(tint(hex, 0.4)))).toBeGreaterThanOrEqual(
         TEXT_CONTRAST,
       );
     }
@@ -106,96 +109,120 @@ describe("the profile tint ladder — FR-304, FR-349", () => {
 });
 
 describe("the completed disc — FR-348, FR-398", () => {
-  it("is the profile's OWN accent drawn deeper, never another hue", () => {
-    expect(declarationOf("--fam-profile-deep")).toBe(
-      `color-mix(in srgb, var(--profile) ${DEEP_STRENGTH * 100}%, black)`,
-    );
-  });
-
-  it("carries a white checkmark at 4.5:1, for every palette colour", () => {
+  it("carries a checkmark at 4.5:1 on the accent itself, for every palette colour", () => {
+    // The old disc was the accent mixed with black under a hardcoded white
+    // check. It is the accent, under --fam-profile-ink.
     for (const hex of PALETTE) {
-      expect(contrastRatio(deepOf(hex), INK_LIGHT)).toBeGreaterThanOrEqual(TEXT_CONTRAST);
+      expect(contrastRatio(hex, inkOn(hex))).toBeGreaterThanOrEqual(TEXT_CONTRAST);
     }
   });
 
-  it("stays perceivable on the completed card's own full-strength fill (1.4.11)", () => {
-    // Either half of the control clears 3:1 against the card: the disc itself
-    // on a light accent, the white check on a dark one. Deepening a colour
-    // that is already dark cannot separate it, which is why both count.
+  /**
+   * A completed card is filled at 100 %, and so is the disc on it — the same
+   * colour, no separation at all (1.0:1). The old disc was mixed with black and
+   * stood out on its own. What replaces that is the disc's EDGE, which is the
+   * accent's own ink, so it clears 4.5:1 on the card for every one of the
+   * twenty — better than the disc ever did, where six of them relied on a white
+   * check at 1.37:1.
+   */
+  it("outlines itself on the completed card it sits on, for every palette colour", () => {
     for (const hex of PALETTE) {
-      const disc = contrastRatio(deepOf(hex), hex);
-      const check = contrastRatio(INK_LIGHT, hex);
-      expect(Math.max(disc, check)).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST);
-    }
-  });
-
-  it("is visibly deeper than the incomplete card it replaces", () => {
-    for (const hex of PALETTE) {
-      expect(contrastRatio(deepOf(hex), tint(hex, 0.4))).toBeGreaterThanOrEqual(
-        NON_TEXT_CONTRAST,
-      );
+      expect(contrastRatio(hex, hex)).toBe(1);
+      expect(contrastRatio(inkOn(hex), hex)).toBeGreaterThanOrEqual(TEXT_CONTRAST);
     }
   });
 });
 
 describe("the header toggles' ring states — FR-306, FR-307", () => {
-  it("draws an ON ring at 3:1 against the 20 % panel it sits on", () => {
-    for (const hex of PALETTE) {
-      expect(contrastRatio(deepOf(hex), tint(hex, 0.2))).toBeGreaterThanOrEqual(
-        NON_TEXT_CONTRAST,
-      );
-    }
+  it("draws OFF as the PAGE rather than a third shade of the accent", () => {
+    expect(declarationOf("--fam-task-progress-track")).toBe("var(--fam-app-bg)");
   });
 
-  it("fades the OFF ring to 40 %, and keeps the two states 3:1 apart", () => {
-    expect(RING_OFF_STRENGTH).toBe(0.4);
-    for (const hex of PALETTE) {
-      const on = deepOf(hex);
-      const off = blend(on, tint(hex, 0.2), RING_OFF_STRENGTH);
-      expect(contrastRatio(on, off)).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST);
-    }
+  /**
+   * **The honest limit of two rungs, asserted rather than hidden.** The old ON
+   * ring was mixed with black precisely so it cleared 3:1 against its own panel
+   * on all twenty accents. A full-strength ring on a 40 % panel does not: the
+   * pale end of the palette is where it fails, and this test names how many so
+   * that nobody re-reads the collapse as free.
+   *
+   * What carries the control instead is unchanged and still measured below —
+   * the label's ink, and the OFF ring being thinner as well as a different
+   * colour (--fam-task-ring-w-off).
+   */
+  it("separates an ON ring from its panel on the darker accents, and not the palest", () => {
+    const separated = PALETTE.filter(
+      (hex) => contrastRatio(hex, tint(hex, 0.4)) >= NON_TEXT_CONTRAST,
+    );
+    expect(separated.length).toBeGreaterThan(0);
+    expect(separated.length).toBeLessThan(PALETTE.length);
   });
 
   it("puts the toggle's own label in the panel ink, so an off toggle is still a control", () => {
-    // The faded ring reads as state; it is NOT what makes the control
-    // perceivable, because a 40 % fade of anything cannot clear 3:1 on the
-    // rung it was faded toward. The label carries that, at 12:1 or better.
+    // The ring reads as state; it is NOT what makes the control perceivable.
+    // The label carries that, on the 40 % panel, at 4.5:1 or better.
     expect(declarationOf("--fam-task-toggle-ink")).toBe("var(--fam-text-primary)");
     for (const hex of PALETTE) {
-      expect(contrastRatio(tint(hex, 0.2), "#1A1A1A")).toBeGreaterThanOrEqual(TEXT_CONTRAST);
+      expect(contrastRatio(tint(hex, 0.4), "#1A1A1A")).toBeGreaterThanOrEqual(TEXT_CONTRAST);
     }
   });
 });
 
 describe("the late treatment — FR-358, Assumption 22", () => {
-  const late = declarationOf("--fam-late-fill");
-  const danger = declarationOf("--fam-danger").split(/\s/)[0];
+  /** The fill is declared as `var(--fam-accent-coral)`; the arithmetic needs the hex behind it. */
+  const late = declarationOf("--fam-accent-coral").split(/\s/)[0];
 
-  it("is not the destructive-action colour", () => {
-    expect(late).not.toBe(danger);
-    // Ochre-derived (yellow-orange) against coral-derived (red): the two are
-    // separated by hue, and the badge always carries the date it was due.
-    expect(contrastRatio(late, danger)).toBeLessThan(NON_TEXT_CONTRAST);
+  /**
+   * **This test used to assert the opposite, and the reversal is the point.**
+   * The fill was a derived ochre so that a late mark could not be read as
+   * `--fam-danger`'s "delete this" (Assumption 22). The operator read the ochre
+   * as a mistake rather than a distinction and asked for the app's red twice —
+   * once for `--fam-danger`, which is that same coral darkened 30 % and still
+   * reads brown, and then for the coral itself, which is the red actually on
+   * screen (the today badge, the now-line). What separates a late mark from a
+   * destructive one is no longer hue: one is a PILL ON A CARD and the other a
+   * BUTTON IN A DIALOG, and nothing draws them near each other.
+   */
+  it("is the verified coral the rest of the app already wears", () => {
+    expect(declarationOf("--fam-late-fill")).toBe("var(--fam-accent-coral)");
   });
 
-  it("carries white text at 4.5:1", () => {
-    expect(contrastRatio(late, INK_LIGHT)).toBeGreaterThanOrEqual(TEXT_CONTRAST);
+  /**
+   * And the ink had to move with it. White on the coral is 2.98:1 — the badge
+   * would have been a red pill with unreadable text, which is the trap the
+   * today badge's own digit already fell into once (visual brief §13).
+   */
+  it("carries the DARK ink at 4.5:1, because white does not survive the coral", () => {
+    expect(declarationOf("--fam-late-ink")).toBe("var(--fam-text-primary)");
+    expect(contrastRatio(late, "#1A1A1A")).toBeGreaterThanOrEqual(TEXT_CONTRAST);
+    expect(contrastRatio(late, INK_LIGHT)).toBeLessThan(TEXT_CONTRAST);
   });
 
-  it("stays perceivable on every incomplete card (1.4.11)", () => {
+  /**
+   * **The fill now separates the pill from NO card at all**, at either tint —
+   * the ochre managed it on every one (worst 4.34:1). That is the price of
+   * matching the app's red, and it is stated here rather than left to be
+   * discovered: the edge is not a fallback for the awkward colours any more, it
+   * is the only thing holding the pill's boundary on all twenty. The next test
+   * is what makes that safe.
+   */
+  it("no longer separates from any card by its fill — the edge carries all of it", () => {
     for (const hex of PALETTE) {
-      expect(contrastRatio(late, tint(hex, 0.4))).toBeGreaterThanOrEqual(NON_TEXT_CONTRAST);
+      expect(contrastRatio(late, tint(hex, 0.4))).toBeLessThan(NON_TEXT_CONTRAST);
+      expect(contrastRatio(late, hex)).toBeLessThan(NON_TEXT_CONTRAST);
     }
   });
 
-  it("takes its edge from the card's own ink, because a completed dark card swallows it", () => {
-    // On a full-strength Deep River card the badge fill is 1.04:1 — invisible.
-    // The edge is the card ink, which is 4.5:1 on that card by construction.
+  it("takes its edge from the card's own ink, which is 4.5:1 on that card by construction", () => {
+    // `--fam-task-ink` is the ink TaskCard chose for the fill it actually drew
+    // (FR-398), so the edge clears AA against the card on every accent at both
+    // tints — which is the guarantee the fill gave up.
     expect(declarationOf("--fam-late-edge")).toBe("var(--fam-task-ink)");
-    const swallowed = PALETTE.filter(
-      (hex) => contrastRatio(late, hex) < NON_TEXT_CONTRAST,
-    );
-    expect(swallowed.length).toBeGreaterThan(0);
+    for (const hex of PALETTE) {
+      for (const strength of [0.4, 1]) {
+        const card = tint(hex, strength);
+        expect(contrastRatio(card, inkOn(card))).toBeGreaterThanOrEqual(TEXT_CONTRAST);
+      }
+    }
   });
 });
 

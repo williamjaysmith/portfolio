@@ -31,7 +31,6 @@ const settings = makeSettings({
   startWeekOn: 1,
   punchOutMinutes: 15,
   textSize: "large",
-  density: "snug",
   showCountdowns: "three_months",
 });
 
@@ -81,9 +80,20 @@ describe("HouseholdSection", () => {
     expect(screen.getByLabelText("Clock")).toHaveValue("24h");
     expect(screen.getByLabelText("Start week on")).toHaveValue("1");
     expect(screen.getByLabelText("Text size")).toHaveValue("large");
-    expect(screen.getByLabelText("Display density")).toHaveValue("snug");
     expect(screen.getByLabelText("Show Countdowns")).toHaveValue("three_months");
     expect(screen.getByLabelText("Punch out after (minutes)")).toHaveValue(15);
+  });
+
+  /**
+   * Display density is GONE, and this is the guard on it staying gone. It was
+   * stored, validated, saved and re-displayed with no CSS behind it — Cozy,
+   * Snug and Roomy rendered byte-identically — so the operator had it removed
+   * once they learned it did nothing. A control that saves and changes nothing
+   * is worse than no control.
+   */
+  it("offers no Display density control, because it never did anything", () => {
+    renderSection();
+    expect(screen.queryByLabelText("Display density")).toBeNull();
   });
 
   it("sends the name and every preference in the types the action's schema demands", async () => {
@@ -109,7 +119,6 @@ describe("HouseholdSection", () => {
       startWeekOn: 0,
       punchOutMinutes: 7,
       textSize: "large",
-      density: "snug",
       showCountdowns: "three_months",
     });
     // The select and the number input both hand back strings; sending them

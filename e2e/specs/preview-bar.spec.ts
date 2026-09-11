@@ -6,6 +6,7 @@ import {
 } from "../helpers/calendar";
 import { hideDevOverlay } from "../helpers/overlay";
 import { expect, test } from "../fixtures";
+import { gotoSettings, punchOut } from "../helpers/punch";
 
 /**
  * 009 T054, Phase 8 — the calendar's preview bar (FR-901–FR-921).
@@ -167,7 +168,7 @@ test.describe("countdowns", () => {
 
 test.describe("Settings → Show Countdowns", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/family/settings");
+    await gotoSettings(page);
   });
 
   test("offers exactly the reference's three values (FR-903)", async ({ page }) => {
@@ -180,12 +181,37 @@ test.describe("Settings → Show Countdowns", () => {
     ]);
   });
 
-  test("a punched-in member may read it and not change it (US3-4)", async ({ page, actAsCleo }) => {
-    // Cleo has to be punched in for the shell to know she is a member at all.
+  /**
+   * It read "a punched-in member may read it and not change it (US3-4)" — the
+   * control disabled, but on screen. `SettingsGate` took the whole tab, so a
+   * member now meets a door instead of a greyed-out select.
+   */
+  test("a punched-in member does not reach it at all (US3-4, superseded by SettingsGate)", async ({
+    page,
+    actAsCleo,
+  }) => {
+    // **Punch the parent out first.** The `beforeEach` reaches Settings through
+    // its door, which punches ANA in — and an actor already in means the app
+    // never asks again, so `actAsCleo` would run as Ana and this journey would
+    // quietly test a parent. The browser pass caught exactly that.
+    await punchOut(page, "Ana");
+
+    // And punch Cleo in somewhere ELSE. This used to save the very form behind
+    // the door; with Ana out, that Save no longer exists to click. A write on
+    // another tab is the same punch-in and needs nothing from this one.
+    await page.goto("/family/calendar");
+    await hideDevOverlay(page);
     await actAsCleo(async () => {
-      await page.getByRole("button", { name: "Save" }).first().click();
+      await page.getByRole("button", { name: "Filter" }).click();
+      const sheet = page.getByRole("dialog");
+      await sheet.getByRole("checkbox", { name: "Cleo" }).uncheck();
+      await sheet.getByRole("checkbox", { name: "Cleo" }).check();
+      await sheet.getByRole("button", { name: "Dismiss" }).click();
     });
-    await expect(page.getByRole("combobox", { name: "Show Countdowns" })).toBeDisabled();
+
+    await page.goto("/family/settings");
+    await expect(page.getByRole("heading", { name: "Settings is for parents" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Show Countdowns" })).toHaveCount(0);
   });
 });
 
@@ -203,7 +229,7 @@ test.describe("Show Countdowns decides what the bar shows", () => {
     await createEvent(page, actAsAna, { title, countdown: true });
     await expect(previewBar(page)).toContainText(title);
 
-    await page.goto("/family/settings");
+    await gotoSettings(page);
     await actAsAna(async () => {
       await page
         .getByRole("combobox", { name: "Show Countdowns" })
@@ -219,7 +245,7 @@ test.describe("Show Countdowns decides what the bar shows", () => {
     // (countdown-inforce.test.ts, at 31 days in and 32 out).
     await expect(previewBar(page)).toContainText(title);
 
-    await page.goto("/family/settings");
+    await gotoSettings(page);
     await actAsAna(async () => {
       await page.getByRole("combobox", { name: "Show Countdowns" }).selectOption({ label: "Always" });
       await page.getByRole("button", { name: "Save" }).first().click();

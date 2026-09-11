@@ -213,7 +213,6 @@ export const settingsPatchSchema = z
       .max(60, { error: "Punch-out time must be between 1 and 60 minutes." })
       .optional(),
     textSize: z.enum(["small", "medium", "large"], { error: "Text size must be small, medium or large." }).optional(),
-    density: z.enum(["cozy", "snug", "roomy"], { error: "Density must be cozy, snug or roomy." }).optional(),
 
     /* Reminders (008 FR-802..FR-807). The bounds mirror 034's CHECK: the schema
        exists to give the field a good message, the constraint to make a bad row

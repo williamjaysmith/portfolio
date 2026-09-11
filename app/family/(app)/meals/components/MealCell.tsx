@@ -36,7 +36,7 @@ export interface MealCellProps {
 
 const CELL =
   "fam-profile flex h-(--fam-meal-cell-h) w-full flex-col gap-2 overflow-y-auto rounded-(--fam-meal-cell-r) " +
-  "bg-(--fam-profile-20) p-2";
+  "bg-(--fam-profile-40) p-2";
 
 function countWords(count: number): string {
   if (count === 0) return "empty";

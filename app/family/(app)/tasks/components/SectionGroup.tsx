@@ -41,6 +41,28 @@ export const SECTION_LABELS: Record<TaskSectionKey, string> = {
   chores: "Chores",
 };
 
+/**
+ * The same four, short, for the narrowest phones (the operator's ask: *"maybe
+ * at this smallest screen we could call it Morn, Noon, Night to save space from
+ * text"*).
+ *
+ * **This buys width, not height, and it is worth being honest about which.**
+ * A toggle is already a 44×44 square — the tap-target floor — with a 24px glyph
+ * over a 12px label on one line, so the row cannot get shorter whatever the
+ * word is. What the long words DO cost is evenness: "Afternoon" measures 56px
+ * against its siblings' 44, so that one toggle is wider than the rest.
+ *
+ * Only the toggles use these. The section HEADINGS above each group keep the
+ * full word — they have the column's whole width and nothing to gain — which is
+ * why this is a second map rather than a shortening of the one above.
+ */
+export const SECTION_LABELS_SHORT: Record<TaskSectionKey, string> = {
+  morning: "Morn",
+  afternoon: "Noon",
+  evening: "Night",
+  chores: "Chores",
+};
+
 /** FR-306's toggle faces: the three windows and the one that is not a time of day. */
 export const SECTION_GLYPHS: Record<TaskSectionKey, string> = {
   morning: "🌤",

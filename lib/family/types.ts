@@ -13,7 +13,6 @@ export type Role = "parent" | "member";
 export type AvatarKind = "illustration" | "photo";
 export type TimeFormat = "12h" | "24h";
 export type TextSize = "small" | "medium" | "large";
-export type Density = "cozy" | "snug" | "roomy";
 /** 0 = Sunday, 1 = Monday. */
 export type WeekStart = 0 | 1;
 
@@ -73,7 +72,6 @@ export interface HouseholdSettings {
   startWeekOn: WeekStart;
   punchOutMinutes: number;
   textSize: TextSize;
-  density: Density;
   /**
    * The one IANA zone every render and every expansion works in (FR-284,
    * FR-219/FR-234). Seeded at setup; no interface changes it this phase.
@@ -156,7 +154,6 @@ export interface HouseholdSettingsPatch {
   startWeekOn?: WeekStart;
   punchOutMinutes?: number;
   textSize?: TextSize;
-  density?: Density;
   notifyEventAtTime?: boolean;
   notifyEventBefore?: boolean;
   notifyEventBeforeMinutes?: number;

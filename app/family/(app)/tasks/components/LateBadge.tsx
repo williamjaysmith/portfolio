@@ -1,19 +1,30 @@
 "use client";
 
 /**
- * FR-358's late mark (T061): a carried-forward occurrence, showing **the date
- * it was due** rather than the day it is drawn on — that date is the
- * occurrence's identity (FR-353), and it is the whole reason the card is on
- * today's board at all (FR-356, FR-357, US3-1).
+ * FR-358's late mark (T061): a carried-forward occurrence. The date it was due
+ * is the occurrence's identity (FR-353) and the whole reason the card is on
+ * today's board at all (FR-356, FR-357, US3-1) — but it is no longer PRINTED
+ * here. The operator: *"doesnt need to say the date because you can see date
+ * when you click on it, it can just say late"*, and the details view does
+ * exactly that. The date is still spoken, by the card's own accessible name.
  *
- * It is a **pill, not tinted text**, and it is ochre rather than coral. Raw
- * text at 4.5:1 on every one of the twenty profile tints at both card
- * strengths is not achievable in one colour, while a pill only has to be
- * legible against its own fill; and a red mark beside a title reads as
- * "delete this", which is the one thing this badge must not say. Both
- * decisions live in `tokens.css`, which T038 owns — this component **consumes**
- * `--fam-late-fill` / `--fam-late-ink` / `--fam-late-edge` and the shared badge
- * geometry, and neither redefines nor extends them.
+ * It is a **pill, not tinted text**: raw text at 4.5:1 on every one of the
+ * twenty profile tints at both card strengths is not achievable in one colour,
+ * while a pill only has to be legible against its own fill.
+ *
+ * **It is the app's red now, and that reverses a shipped decision.** The fill
+ * was a derived ochre (`#674117`) chosen so a late mark could not be mistaken
+ * for a destructive one — "a red mark beside a title reads as delete this". The
+ * operator read that ochre as a mistake rather than a distinction: *"i hate the
+ * werid brown color used for the late background maybe it should be the same
+ * red the app uses"*. Their board, their call. What keeps the two apart now is
+ * position and shape rather than hue — this is a pill on a card, and the
+ * destructive action is a button in a dialog — and `task-tokens.test.ts` says
+ * so where it used to assert the colours differed.
+ *
+ * The colours live in `tokens.css`, which T038 owns — this component
+ * **consumes** `--fam-late-fill` / `--fam-late-ink` / `--fam-late-edge` and the
+ * shared badge geometry, and neither redefines nor extends them.
  *
  * The edge is `--fam-late-edge`, which `tokens.css` sets to `--fam-task-ink` —
  * the ink the CARD chose for the fill it actually drew: on a completed card in
@@ -32,16 +43,23 @@
  */
 
 /**
- * Both dates are formatted in **UTC** on purpose: a plain date carries no zone,
+ * The date is formatted in **UTC** on purpose: a plain date carries no zone,
  * and running it through the household's would shift it across midnight.
  */
-const AS_UTC = { timeZone: "UTC" } as const;
+const FULL_DAY = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "long" });
 
-/** The visible half — short, because a card has one line to spare. */
-const SHORT_DAY = new Intl.DateTimeFormat("en-US", { ...AS_UTC, month: "short", day: "numeric" });
-
-/** The spoken half, where there is no width to run out of. */
-const FULL_DAY = new Intl.DateTimeFormat("en-US", { ...AS_UTC, dateStyle: "long" });
+/**
+ * What a screen reader hears, for the card to fold into its own name.
+ *
+ * It lives here rather than in `TaskCard` because the date formatting and the
+ * "an anytime chore is never late" rule are this module's, and splitting them
+ * across two files is how the two halves drift apart. Returns `null` when there
+ * is nothing to say — the same condition under which the badge draws nothing.
+ */
+export function lateSpokenOf(dueDate: string | null, late: boolean): string | null {
+  if (!late || dueDate === null) return null;
+  return `Late — due ${FULL_DAY.format(new Date(`${dueDate}T00:00:00Z`))}`;
+}
 
 export interface LateBadgeProps {
   /**
@@ -55,16 +73,17 @@ export interface LateBadgeProps {
 
 export function LateBadge({ dueDate, late }: LateBadgeProps) {
   if (!late || dueDate === null) return null;
-  const due = new Date(`${dueDate}T00:00:00Z`);
   return (
+    // `aria-hidden`: this sits inside the card's body button, which carries an
+    // explicit accessible name that already says "Late — due <date>" in full
+    // (`lateSpokenOf` above). Without that the word would be said twice on the
+    // details view's badge and not at all on the card's.
     <span
       data-late-badge
-      className="inline-flex h-(--fam-task-badge-h) shrink-0 items-center rounded-(--fam-task-badge-r) border-(length:--fam-task-badge-edge) border-(--fam-late-edge) bg-(--fam-late-fill) px-(--fam-task-badge-pad) text-(length:--fam-fs-small) font-medium text-(--fam-late-ink) tabular-nums"
+      aria-hidden="true"
+      className="inline-flex h-(--fam-task-badge-h) shrink-0 items-center rounded-(--fam-task-badge-r) border-(length:--fam-task-badge-edge) border-(--fam-late-edge) bg-(--fam-late-fill) px-(--fam-task-badge-pad) text-(length:--fam-fs-small) font-medium text-(--fam-late-ink)"
     >
-      {/* Said in full where there is no width to run out of, and short where
-          there is — one badge, two audiences, never two badges. */}
-      <span className="sr-only">{`Late — due ${FULL_DAY.format(due)}`}</span>
-      <span aria-hidden="true">{`Late · ${SHORT_DAY.format(due)}`}</span>
+      Late
     </span>
   );
 }

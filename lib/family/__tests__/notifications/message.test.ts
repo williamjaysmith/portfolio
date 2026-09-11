@@ -104,7 +104,6 @@ describe("the household's five choices", () => {
       startWeekOn: 0,
       punchOutMinutes: 3,
       textSize: "medium",
-      density: "roomy",
       timezone: "America/Chicago",
       notifyEventAtTime: true,
       notifyEventBefore: false,

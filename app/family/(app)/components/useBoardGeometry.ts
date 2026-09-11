@@ -68,10 +68,12 @@ export interface BoardMeasurement {
   /** Visual viewport width — with its height, FR-395's wrap-or-page test. */
   viewportWidth: number;
   viewportHeight: number;
-  /** Rendered content width the columns share. */
+  /** Rendered CONTENT width the columns share — the board's box less its inset. */
   boardWidth: number;
   /** Resolved `--fam-task-col-w` — the "whole column that fits" width. */
   referenceColumnWidth: number;
+  /** The gap the board actually draws between columns — see `BoardLayoutInput`. */
+  columnGap: number;
 }
 
 /** How a board is measured and decided; the Tasks board's values when absent. */
@@ -199,12 +201,43 @@ function buildProbe(doc: Document, widthToken: string): ProbeElements {
   return { root, column };
 }
 
+/** A computed length in px, or 0 when it is `normal`, absent or unreadable. */
+function pxOf(style: CSSStyleDeclaration | null, property: string): number {
+  const value = Number.parseFloat(style?.getPropertyValue(property) ?? "");
+  return Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * The width the columns are actually laid into — the CONTENT box, not the
+ * border box.
+ *
+ * **This is where a column got narrower than the token promised it.** Measured
+ * on a 414×896 phone: the board's rect is 414px and it carries 10px of inset on
+ * each side, so the columns share 394. Handing the fit rule 414 let it seat two
+ * 200px columns that the 394 could not hold, and the grid then squeezed them to
+ * 193px each — below the 176px its four 44px section toggles need once the gaps
+ * between them are counted, so the toggle row wrapped and the header grew a
+ * line. The operator reported the wrap; this and the gap term are its two
+ * halves.
+ */
+export function contentWidthOf(node: Element, style: CSSStyleDeclaration | null): number {
+  const box = node.getBoundingClientRect().width;
+  const inset = pxOf(style, "padding-left") + pxOf(style, "padding-right");
+  return Math.max(0, box - inset);
+}
+
 function measurementOf(attachment: Attachment): BoardMeasurement {
+  const { node } = attachment;
+  // Read off the board itself rather than probed: the gap and the inset are the
+  // board's own computed values, already resolved to px, and a second probe for
+  // them could only ever disagree with the thing being drawn.
+  const style = node.ownerDocument.defaultView?.getComputedStyle(node) ?? null;
   return {
     viewportWidth: window.innerWidth,
     viewportHeight: window.innerHeight,
-    boardWidth: attachment.node.getBoundingClientRect().width,
+    boardWidth: contentWidthOf(node, style),
     referenceColumnWidth: attachment.probe.column.getBoundingClientRect().width,
+    columnGap: pxOf(style, "column-gap"),
   };
 }
 
@@ -213,6 +246,7 @@ const MEASUREMENT_KEYS = [
   "viewportHeight",
   "boardWidth",
   "referenceColumnWidth",
+  "columnGap",
 ] as const satisfies readonly (keyof BoardMeasurement)[];
 
 /** Value equality, so a no-op observer pass never re-renders the board. */

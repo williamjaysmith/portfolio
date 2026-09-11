@@ -49,11 +49,28 @@ describe("the item row — FR-518, FR-519, FR-541; 07 §3 'row 76', 'checkbox 63
     expect(declarationOf("--fam-list-row-gap")).toBe("calc(38 * var(--fam-u))");
   });
 
-  it("draws a rounded SQUARE checkbox of ~63 with r ~10, never below the touch floor", () => {
-    const check = declarationOf("--fam-list-check");
-    expect(check).toContain("var(--fam-touch)");
-    expect(check).toContain("calc(63 * var(--fam-u))");
-    expect(declarationOf("--fam-list-check-r")).toBe("calc(10 * var(--fam-u))");
+  /**
+   * **A ROUND checkbox, drawn smaller than the target it sits in.** It was a
+   * rounded square drawn at the full hit size, which on a phone meant a 44px
+   * box in every row — *"the checkboxes are way too big"*, and *"i would like
+   * the checkboxes styled more like the tasks, radial check"*. The Tasks
+   * board's `CompleteCircle` had the split right from the start (FR-397): the
+   * DRAWN circle is `--fam-task-circle-d`, and the 44pt floor lives on the hit
+   * area around it. These two tokens are now that same pair, to the pixel.
+   */
+  it("draws the checkbox at the Tasks circle's size, inside a touch-floor target", () => {
+    expect(declarationOf("--fam-list-check-d")).toBe("calc(44 * var(--fam-u))");
+    expect(declarationOf("--fam-list-check-d")).toBe(declarationOf("--fam-task-circle-d"));
+
+    const hit = declarationOf("--fam-list-check");
+    expect(hit).toContain("var(--fam-touch)");
+    expect(hit).toContain("var(--fam-list-check-d)");
+    // The drawn size must never BE the hit size — that was the whole defect.
+    expect(hit).not.toBe(declarationOf("--fam-list-check-d"));
+  });
+
+  it("declares no corner radius, because a circle has none", () => {
+    expect(() => declarationOf("--fam-list-check-r")).toThrow();
   });
 
   it("gives the count badge the photographed ~53 circle", () => {

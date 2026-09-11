@@ -64,12 +64,25 @@ export function beginsOnBlock(target: EventTarget | null): boolean {
 export interface WeekPagerProps {
   /** One step: `1` = one page later, `-1` = one page earlier — `columns` days (FR-279). */
   onPage: (direction: -1 | 1) => void;
+  /**
+   * Which presses are NOT paging. Defaults to `beginsOnBlock`, which is the
+   * Week view's partition with the drag layer (Assumption 44).
+   *
+   * **The Month view must override it, and the reason is structural.** That
+   * partition works on the week because its background — empty grid, the hour
+   * ruler, the day-header band — is inert, and only blocks are controls. On the
+   * month EVERY CELL is a button (FR-1113: a cell is a door to its day), so
+   * `beginsOnBlock` would refuse a swipe that began anywhere at all. There is
+   * nothing to partition against there either: the month has no drag layer
+   * (spec Assumption 6), which is exactly why it can take every press.
+   */
+  rejects?: (target: EventTarget | null) => boolean;
   /** The day-header band, the notices and the hour grid — the strip that moves. */
   children: ReactNode;
 }
 
-export function WeekPager({ onPage, children }: WeekPagerProps) {
-  const { x, handlers } = useSwipePan(onPage, beginsOnBlock);
+export function WeekPager({ onPage, rejects = beginsOnBlock, children }: WeekPagerProps) {
+  const { x, handlers } = useSwipePan(onPage, rejects);
 
   // `overflow-x-clip` and not `hidden`: clip leaves the vertical axis
   // `visible`, so this wrapper never becomes a second scroll container over

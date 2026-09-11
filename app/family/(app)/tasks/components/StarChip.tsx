@@ -34,10 +34,24 @@ import { Star } from "lucide-react";
 /** The badge's icon size — one token, shared with FR-372's bolt, so the two icons match. */
 const ICON = "h-(--fam-task-streak-icon) w-(--fam-task-streak-icon) text-(--fam-star-gold)";
 
+/**
+ * **A WHITE pill, like the header's counts** (the operator's ask). It was a
+ * bare outline with the card's tint showing through, which meant the chip
+ * changed colour with every accent and every state. On white it reads the same
+ * on all twenty, and it matches `ColumnHeader`'s own pills, so the marks on a
+ * card and the counts above it are one family.
+ *
+ * **The ink had to be pinned with it.** The chip inherited `--fam-task-ink`,
+ * which is WHITE on the six dark accents — white digits on a white pill. It is
+ * `--fam-text-primary` now, which is 4.5:1 on the app background by
+ * construction (`tokens.test.ts`). The border stays `--fam-task-ink` so the
+ * pill still has an edge against the card it sits on, whatever that card is.
+ */
 const CHIP =
   "inline-flex h-(--fam-task-badge-h) shrink-0 items-center gap-(--fam-task-badge-gap) " +
   "rounded-(--fam-task-badge-r) border-(length:--fam-task-badge-edge) border-(--fam-task-ink) " +
-  "px-(--fam-task-badge-pad) text-(length:--fam-fs-small) font-medium tabular-nums";
+  "bg-(--fam-app-bg) px-(--fam-task-badge-pad) text-(length:--fam-fs-small) font-medium " +
+  "text-(--fam-text-primary) tabular-nums";
 
 /** FR-402's one rule: blank and zero are both "worth nothing". */
 function isWorthSomething(count: number | null): count is number {

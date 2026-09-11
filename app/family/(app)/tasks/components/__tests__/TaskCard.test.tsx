@@ -69,11 +69,16 @@ function renderCard(
 }
 
 /**
- * The card's BODY — the control that opens details (FR-352). It is addressed
- * by its accessible name, which is the title alone; the circle beside it is
+ * The card's BODY — the control that opens details (FR-352). It is addressed by
+ * its accessible name, which STARTS with the title; the circle beside it is
  * named for its action, so the two are never confusable.
+ *
+ * The name is a prefix match rather than the whole string because the body
+ * folds in whatever the card also shows — the progress, the streak, the star
+ * value, and now "Late — due <date>", which moved here when the pill stopped
+ * printing it.
  */
-function body(name: string = "Brush teeth"): HTMLElement {
+function body(name: string | RegExp = /^Brush teeth\b/): HTMLElement {
   return screen.getByRole("button", { name });
 }
 
@@ -148,15 +153,46 @@ describe("TaskCard", () => {
     expect(card()).toHaveAttribute("data-late", "true");
   });
 
-  it("shows the date it was DUE on the late card, not the day it is drawn on (T063, US3-1)", () => {
-    // Drawn on today, due on the 1st: the badge names the 1st, because that is
-    // the occurrence's own identity and the reason it is here at all.
+  it("speaks the date it was DUE, not the day it is drawn on (T063, US3-1)", () => {
+    // Drawn on today, due on the 1st: the card names the 1st, because that is
+    // the occurrence's own identity and the reason it is here at all. The pill
+    // itself now says only "Late" — the operator's call, since the details view
+    // shows the date and a phone column has no width for it.
     renderCard(
       occurrence({ isLate: true, scheduledDate: "2026-09-01", displayedDate: TODAY, routine: false }),
     );
     const badge = card().querySelector("[data-late-badge]");
     expect(badge).not.toBeNull();
-    expect(badge).toHaveTextContent("Sep 1");
+    expect(badge).toHaveTextContent("Late");
+    expect(badge?.textContent).not.toContain("Sep");
+    expect(body()).toHaveAccessibleName(/Late — due September 1, 2026/);
+  });
+
+  /**
+   * The spill the operator reported: on a phone the board drew two columns, and
+   * a card then had ~170px for a title, a streak, a star chip, a late pill and
+   * a tap target. Measured at 224px wide with 289px of content.
+   *
+   * Two things fix it and this pins both. The marks sit UNDER the title now
+   * (reversing FR-372/FR-403's "beside the name"), and the body carries
+   * `min-w-0` so it can shrink at all — a flex item defaults to
+   * `min-width: auto` and simply refuses to.
+   */
+  it("puts the marks under the title, on a body that is allowed to shrink", () => {
+    renderCard(
+      occurrence({ isLate: true, scheduledDate: "2026-09-01", rewardPoints: 3, routine: false }),
+    );
+    expect(body().className).toContain("min-w-0");
+
+    const title = card().querySelector("[data-task-card] .truncate");
+    const badge = card().querySelector("[data-late-badge]");
+    expect(title).not.toBeNull();
+    expect(badge).not.toBeNull();
+    // The badge is not on the title's line any more: it sits in the row that
+    // directly follows the title, which is what "just below the description"
+    // means structurally.
+    expect(title?.parentElement).not.toBe(badge?.parentElement);
+    expect(badge?.parentElement?.previousElementSibling).toBe(title);
   });
 
   it("draws no late badge on an occurrence due the day it is drawn on", () => {

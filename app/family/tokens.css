@@ -350,7 +350,7 @@
   --fam-task-col-gap: calc(16 * var(--fam-u));   /* [ESTIMATED] between columns, and between wrapped rows */
   --fam-task-col-pad: calc(12 * var(--fam-u));   /* [ESTIMATED] a column body's own inset */
 
-  /* Column header (FR-304, FR-305, FR-306) — the panel is --fam-profile-20. */
+  /* Column header (FR-304, FR-305, FR-306) — the panel is --fam-profile-40, the app's one lighter rung. */
   --fam-task-header-pad: calc(20 * var(--fam-u));  /* [ESTIMATED] */
   --fam-task-header-gap: calc(12 * var(--fam-u));  /* [ESTIMATED] avatar → name → count → toggles */
   --fam-task-avatar: calc(96 * var(--fam-u));      /* [ESTIMATED] the header avatar the ring encircles */
@@ -395,11 +395,16 @@
 
   /* The FR-358 late treatment. A pill, not tinted text: raw text at 4.5:1 on EVERY card tint is
    * not achievable in one colour, and a pill only has to be legible against its own fill. */
-  --fam-late-fill: #674117;        /* [DERIVED] the verified palette ochre at 50 % in sRGB. White on it is
-                                      8.95:1, and it clears 3:1 on every incomplete card (worst 4.34:1).
-                                      Ochre-derived (yellow-orange) rather than coral-derived, so it cannot
-                                      be read as --fam-danger's "delete this" (FR-358). */
-  --fam-late-ink: #FFFFFF;         /* [OURS] 8.95:1 on the fill above */
+  --fam-late-fill: var(--fam-accent-coral); /* [OURS] "the red the app uses" — the VERIFIED coral the today
+                                      badge and the now-line already wear, so a late mark belongs to the same
+                                      family as every other red on screen. Two colours were tried and
+                                      rejected first: the shipped ochre #674117, picked so a late mark could
+                                      not read as "delete this" (FR-358) — "i hate the weird brown color" —
+                                      and then --fam-danger #AC4A39, which is the coral darkened 30 % and
+                                      reads brown next to the badge it is meant to match. */
+  --fam-late-ink: var(--fam-text-primary); /* [OURS] 5.86:1 on the coral. White is 2.98:1 there and fails
+                                      1.4.3 outright — the same reason the today badge's DIGIT is dark ink
+                                      rather than the photographed white (visual brief §13). */
   --fam-late-edge: var(--fam-task-ink); /* [OURS] on a COMPLETED dark card the fill alone is 1.04:1 — the
                                       edge is the card's own ink, which is ≥4.5:1 on that card by
                                       construction, so the badge is perceivable on every one of the twenty */
@@ -432,7 +437,7 @@
    *    ColumnHeader's HEADER_PILL: --fam-task-badge-gap / --fam-task-badge-r / --fam-task-badge-pad,
    *    bg --fam-app-bg, type --fam-fs-pill — so the Rewards header and the Tasks header read as
    *    one header. Negative balances are drawn by the same pill, honestly (FR-413).
-   *  · the column header panel is --fam-profile-20 and the name is --fam-fs-title (07 §4.12
+   *  · the column header panel is --fam-profile-40 and the name is --fam-fs-title (07 §4.12
    *    "same panel as Tasks", "name serif 36px"); the column and pager geometry is
    *    --fam-task-col-w / -col-gap / -col-pad unchanged (FR-422, R409).
    *  · the bar's TRACK is --fam-profile-40 and its FILL is --fam-profile-100 (07 §4.12), so the
@@ -547,7 +552,7 @@
    *
    * WHAT IS REUSED, AND DECLARES NOTHING NEW HERE (R512):
    *  · the card's three tints are the shipped ladder with --profile = the LIST's colour: the panel
-   *    is --fam-profile-20, an item row --fam-profile-40, the count badge --fam-profile-100
+   *    is --fam-profile-40, an item row --fam-profile-40, the count badge --fam-profile-100
    *    (07 §1.7 "panel (very light) / row (mid) / badge (saturated)"; FR-504) — never hand-picked;
    *  · the lifted row's pointer (FR-523 "a small orange pointer to the left") is --fam-accent-coral;
    *  · the menu, the sheets and the confirmations are the shipped dialog idiom (--fam-radius-modal,
@@ -557,7 +562,13 @@
   /* Card (FR-502, FR-503; 07 §3 "List card width ~495", "gap ~38", "radius ~28", "header ~100",
    * "'Add section' footer ~110"). The width is what the fit divides by (useBoardGeometry's probe),
    * never a drawn width: cards share the strip in equal tracks. */
-  --fam-list-card-w: calc(495 * var(--fam-u));     /* [ESTIMATED] 07 §3 — [SAMPLED: l1.png ≈ 490 × 1.02] */
+  --fam-list-card-w: calc(495 * var(--fam-u));     /* [ESTIMATED] 07 §3 — [SAMPLED: l1.png ≈ 490 × 1.02].
+                                      TWO cards on a phone was tried (a `min(…, 42vw)` cap) and taken back out
+                                      by the operator — "yeah maybe we can only fit one list on mobile". At
+                                      168px a card could not hold its own header: the title truncated to
+                                      "Gr…", and wrapping it instead ran the second line under the count
+                                      badge. The card's insides are designed around this sampled width, so
+                                      halving it costs more than the second list is worth. */
   --fam-list-card-r: calc(28 * var(--fam-u));      /* [ESTIMATED] 07 §3 "radius ~28" */
   --fam-list-card-gap: calc(38 * var(--fam-u));    /* [ESTIMATED] 07 §3 "card gap ~38" — [SAMPLED: l1.png] */
   --fam-list-header-h: calc(100 * var(--fam-u));   /* [ESTIMATED] 07 §3 "header (title + count badge) ~100" */
@@ -570,8 +581,14 @@
   --fam-list-row-h: max(var(--fam-touch), calc(76 * var(--fam-u)));   /* [ESTIMATED] 07 §3 — [SAMPLED: "Eggs" 248→323] */
   --fam-list-row-r: calc(14 * var(--fam-u));       /* [ESTIMATED] 07 §3 "item radius ~14" */
   --fam-list-row-gap: calc(38 * var(--fam-u));     /* [ESTIMATED] 07 §3 "pitch ~114 (row 76 + gap 38)" */
-  --fam-list-check: max(var(--fam-touch), calc(63 * var(--fam-u)));  /* [ESTIMATED] 07 §3 "checkbox ~63" — square */
-  --fam-list-check-r: calc(10 * var(--fam-u));     /* [ESTIMATED] 07 §3 "radius ~10" */
+  --fam-list-check-d: calc(44 * var(--fam-u));     /* [OURS] the DRAWN checkbox, and the Tasks board's own
+                                      --fam-task-circle-d to the pixel so the two tabs tick alike. */
+  --fam-list-check: max(var(--fam-touch), var(--fam-list-check-d)); /* FR-397: the HIT area, which is the
+                                      floor — never the drawn size. It used to be
+                                      `max(44px, calc(63 * var(--fam-u)))` and the box was DRAWN at that, so
+                                      on a phone every row carried a 44px square: "the checkboxes are way too
+                                      big". A task's circle had the split right all along — 22px drawn inside
+                                      a 44px target — and this is that, applied here. */
   --fam-list-badge: calc(53 * var(--fam-u));       /* [ESTIMATED] 07 §3 "count badge circle ~53" — saturated, white numeral */
 
   /* ---------- Meals (Phase 6, 07 §3.7, gallery/06, pdp/07) ----------------------------------- */
@@ -584,7 +601,7 @@
    * WHAT IS REUSED, AND DECLARES NOTHING NEW HERE (R614):
    *  · a mealtime row's wash and a chip's tint are the shipped ladder with --profile = the MEALTIME's
    *    colour (07 §1.6 — the rows are "visually louder than any event block", so the row is
-   *    --fam-profile-20 and the chip --fam-profile-40; FR-605) — never hand-picked;
+   *    --fam-profile-40 and the chip --fam-profile-40; FR-605) — never hand-picked;
    *  · the calendar's meal token is a chip at the all-day pill height (--fam-allday-h) on the
    *    header grid (FR-634);
    *  · the popover, the pane and the sheets are the shipped dialog idiom; the touch floor is --fam-touch. */
@@ -637,6 +654,13 @@
   --fam-fs-clock: max(12px, calc(40 * var(--fam-t)));   /* sans 500 — clock, temperature */
   --fam-fs-title: max(12px, calc(36 * var(--fam-t)));   /* serif 400 — modal / page / profile-name title */
   --fam-fs-section: max(12px, calc(28 * var(--fam-t))); /* serif 400 — section heading ("Morning") */
+  --fam-fs-settings-section: max(12px, calc(32 * var(--fam-t))); /* [OURS] serif 600 — the headings that open
+                                                    each block of Settings, one rung between section (28) and
+                                                    title (36). Settings is a long scrolling page of unrelated
+                                                    blocks with no other structure to find them by, where a
+                                                    section heading inside a tab already has the tab around it.
+                                                    Its own token rather than a bump to --fam-fs-section,
+                                                    which every tab's headings also draw from. */
   --fam-fs-body: max(12px, calc(24 * var(--fam-t)));    /* sans 400 — body, event time, hour gutter, buttons */
   --fam-fs-chip: max(12px, calc(24 * var(--fam-t)));    /* sans 500 — profile chip label */
   --fam-fs-pill: max(12px, calc(21 * var(--fam-t)));    /* sans 500 — top-bar pill label ("Today", "Filter") */
@@ -711,7 +735,22 @@
 /* ---------- profile tint system (07 §1.4, research R8) ---------------------------------------
  * Every profile-coloured surface is ONE accent hex composited on white at a fixed opacity per role:
  * 100 % (event block, all-day pill, chip cap, completed task card, avatar ring), ≈40 % (chip body,
- * incomplete task card), ≈20 % (Tasks / Rewards column header). [SAMPLED, checks within ±3/channel]
+ * incomplete task card). [SAMPLED, checks within ±3/channel]
+ *
+ * **TWO RUNGS, app-wide, and that is the operator's ruling.** It was four: 100 / 40 / 20 on white
+ * plus --fam-profile-deep composited on BLACK for the board's arcs, rings and discs. The deep rung
+ * is why the same person looked one colour on the calendar and another on Tasks — Sam's #CB434C
+ * read maroon, Kit's #B6E085 olive — and the 20 % rung made the Tasks, Lists and Rewards panels
+ * paler than the calendar's chip body. Their call, holding the two pages side by side: *"every page
+ * should be using the same consistent coloring schemes as the calendar page so its consistent
+ * shades across the app. it seems theres the main user color and then a lighter associated shade"*.
+ *
+ * What that cost, stated plainly rather than buried: the deep rung existed to make a glyph readable
+ * on the accent and a ring separable from its own panel across all twenty colours. The glyph is
+ * handled properly now — --fam-profile-ink below chooses dark or white per colour, which the old
+ * hardcoded `white` never did. The RING is a real loss: on a pale accent a 100 % arc against the
+ * page reads more softly than a black-mixed one did. Accepted, on the operator's standing ruling
+ * that this app is not held to WCAG compliance.
  *
  * Put .fam-profile on the element that sets the accent: style={{ "--profile": category.color }}.
  * The derived variables must be declared on THAT element (var() resolves where declared), so they
@@ -719,33 +758,16 @@
 .family .fam-profile {
   --fam-profile-100: var(--profile);
   --fam-profile-40: color-mix(in srgb, var(--profile) 40%, white);
-  --fam-profile-20: color-mix(in srgb, var(--profile) 20%, white);
 
-  /* The fourth rung is DOWNWARD and is not part of the tint ladder: the ladder composites the
-   * accent on WHITE (100 / 40 / 20) and the board needs one value composited on BLACK, because
-   * three things have to survive a Sunshine-yellow profile as well as a Deep River one —
-   * FR-348's completed disc under a white check, FR-306's ON toggle ring on the 20 % panel, and
-   * FR-305's progress arc. FR-398 permits deriving only HOW MUCH DEEPER, never another hue, so
-   * this is the accent's own channels scaled: never a substituted colour. At 40 %, across all
-   * twenty: white on the disc ≥7.12:1; the ring ≥6.66:1 on its panel; the disc ≥6.27:1 against
-   * the incomplete card it replaces; and on the completed card either the disc (≥1.94:1) or its
-   * white check (≥1.37:1) clears 3:1 — deepening an already-dark accent cannot separate it, and
-   * on exactly those colours the white check does. Measured in task-tokens.test.ts. */
-  --fam-profile-deep: color-mix(in srgb, var(--profile) 40%, black);
+  /* The ink a glyph takes when it sits ON the 100 % rung, carried in by `profileVars` because CSS
+   * cannot decide it — choosing between dark and white is a luminance comparison and color-mix()
+   * cannot branch. The fallback is only for markup that sets --profile by hand. [OURS, FR-398] */
+  --fam-profile-ink: var(--profile-ink, var(--fam-text-primary));
 
-  /* FR-306's two ring states. ON is the deep rung above. OFF is that ring faded 40 % toward the
-   * panel it sits on — 3.56:1 or better from the ON ring, which is what distinguishes the two —
-   * and it is deliberately NOT what makes the toggle perceivable: nothing faded 40 % toward a
-   * 20 % panel can reach 3:1 against it. --fam-task-toggle-ink carries that, at ≥12.35:1, and
-   * the OFF ring is thinner as well as fainter (--fam-task-ring-w-off). The Chores toggle draws
-   * the FULL circumference in both states — it is not a time of day and never draws the partial
-   * arc — so an off Chores toggle is visibly off rather than readable only by its section's
-   * absence (FR-306, FR-307). */
-  --fam-task-ring-off: color-mix(in srgb, var(--fam-profile-deep) 40%, var(--fam-profile-20));
-
-  /* FR-305's ring is a filled arc in --fam-profile-deep over this track. The unfilled part is
-   * decoration, not state, so it takes the faded rung rather than a neutral of its own. */
-  --fam-task-progress-track: var(--fam-task-ring-off);
+  /* The unfilled part of FR-305's progress ring, and the OFF state of FR-306's toggles. It is
+   * the PAGE, not a third shade of the accent: two rungs is the whole ladder now (see below), so
+   * "not filled" has to read as absence of colour rather than as less of it. [OURS] */
+  --fam-task-progress-track: var(--fam-app-bg);
 }
 
 .family .fam-tint-100 {
@@ -754,10 +776,6 @@
 
 .family .fam-tint-40 {
   background-color: var(--fam-profile-40);
-}
-
-.family .fam-tint-20 {
-  background-color: var(--fam-profile-20);
 }
 
 .family .fam-ring {
@@ -769,9 +787,6 @@
 @supports not (color: color-mix(in srgb, red, white)) {
   .family .fam-profile {
     --fam-profile-40: var(--profile);
-    --fam-profile-20: var(--profile);
-    --fam-profile-deep: var(--profile);
-    --fam-task-ring-off: var(--profile);
   }
 }
 

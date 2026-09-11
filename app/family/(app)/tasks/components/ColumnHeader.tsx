@@ -7,7 +7,12 @@ import type { TaskCounters } from "@/lib/family/tasks/counters";
 import type { Category } from "@/lib/family/types";
 
 import { Avatar } from "../../components/Avatar";
-import { SECTION_GLYPHS, SECTION_LABELS, SECTION_ORDER } from "./SectionGroup";
+import {
+  SECTION_GLYPHS,
+  SECTION_LABELS,
+  SECTION_LABELS_SHORT,
+  SECTION_ORDER,
+} from "./SectionGroup";
 import type { TaskSectionKey, SectionToggles } from "./useSectionToggles";
 
 /**
@@ -74,9 +79,13 @@ interface ToggleTone {
 }
 
 const PROFILE_TONE: ToggleTone = {
-  on: "var(--fam-profile-deep)",
-  off: "var(--fam-task-ring-off)",
-  face: "bg-(--fam-profile-20)",
+  // Two rungs, app-wide (see tokens.css's tint ladder): the accent at full
+  // strength for ON, and the PAGE for OFF. It was the black-mixed deep rung
+  // over a faded third shade, which is what made the same person read as a
+  // different colour here than on the calendar.
+  on: "var(--fam-profile-100)",
+  off: "var(--fam-task-progress-track)",
+  face: "bg-(--fam-profile-40)",
 };
 
 /** Up for Grabs has no accent to deepen, so its toggles take the neutral chrome. */
@@ -115,7 +124,17 @@ export function SectionToggleRow({ toggles, accent, onToggle }: SectionToggleRow
   const tone = accent === null ? NEUTRAL_TONE : PROFILE_TONE;
 
   return (
-    <div className="flex flex-wrap items-start justify-between gap-(--fam-task-header-gap)">
+    // **Never wraps, by construction.** It was `flex-wrap` with a fixed gap, and
+    // it broke onto a second line wherever the column came up a few pixels
+    // short: measured at 181px on a 430×932 phone and — by ONE pixel — at 207px
+    // on a 1024×768 iPad, against the 189 + 3·gap it wanted. Chasing that with
+    // column widths is unwinnable, because the requirement moves with the text.
+    //
+    // Instead the row is four FIXED tap targets that cannot grow, `nowrap` so
+    // they can never break, and `justify-between` so the leftover width becomes
+    // the spacing. Four 44px targets need 176px; the narrowest column this app
+    // can draw leaves more than that, so the row always fits on one line.
+    <div className="flex flex-nowrap items-start justify-between gap-1">
       {SECTION_ORDER.map((section) => {
         const on = toggles[section];
         return (
@@ -123,12 +142,16 @@ export function SectionToggleRow({ toggles, accent, onToggle }: SectionToggleRow
             key={section}
             type="button"
             aria-pressed={on}
+            aria-label={SECTION_LABELS[section]}
             data-ring={ringKindOf(section, on)}
             data-section={section}
             onClick={() => onToggle(section)}
-            // A MINIMUM, not a size: the hit floor must not clip the label
-            // that carries the control's perceivability (FR-397, FR-306).
-            className="flex min-h-(--fam-task-toggle-hit) min-w-(--fam-task-toggle-hit) shrink-0 flex-col items-center justify-center gap-(--fam-task-badge-gap) text-(--fam-task-toggle-ink)"
+            // The HEIGHT is a minimum — the hit floor must not clip the label
+            // that carries the control's perceivability (FR-397, FR-306). The
+            // WIDTH is now exact: a button that grew to fit "Afternoon" was
+            // what pushed the row past its column in the first place, so the
+            // label truncates inside a 44px target instead of widening it.
+            className="flex min-h-(--fam-task-toggle-hit) w-(--fam-task-toggle-hit) shrink-0 flex-col items-center justify-center gap-(--fam-task-badge-gap) text-(--fam-task-toggle-ink)"
           >
             <span
               aria-hidden="true"
@@ -143,8 +166,17 @@ export function SectionToggleRow({ toggles, accent, onToggle }: SectionToggleRow
                 {SECTION_GLYPHS[section]}
               </span>
             </span>
-            <span className="text-(length:--fam-fs-nav) leading-none">
-              {SECTION_LABELS[section]}
+            {/*
+              The SHORT spelling everywhere, not just on small screens. It was
+              swapped by a viewport media query, which is the wrong axis
+              entirely: what runs out of room is the COLUMN, and a 1024px iPad
+              showing four of them has narrower columns than a 414px phone
+              showing one. The full word is still the button's accessible name
+              (`aria-label` above), so nothing is lost to a screen reader, and
+              the section HEADINGS below still spell it out in full.
+            */}
+            <span className="w-full truncate text-center text-(length:--fam-fs-nav) leading-none">
+              {SECTION_LABELS_SHORT[section]}
             </span>
           </button>
         );
@@ -173,21 +205,66 @@ export interface ColumnHeaderProps {
 }
 
 /**
- * The Profile's name, and — for a parent — FR-309's drag handle. The board's
- * own listeners do the work (`useListReorder`); what belongs here is only that
- * a press must LAND on the name, and that the keyboard can reach it.
+ * The Profile's FACE — the progress ring with the avatar inside it — and, for a
+ * parent, FR-309's drag handle.
+ *
+ * **The name used to be here, visibly, and it was also the handle.** The
+ * operator's call, once real photographs were loaded: *"i think we dont even
+ * need a name on ours because were using photos"* — the same reasoning that
+ * took the name off the calendar's profile chip ("we know who it is").
+ *
+ * So the handle moved onto the face. It had to move somewhere: `reorderable` is
+ * true whenever a PARENT is punched in, on any device, so deleting the visible
+ * name without this would have deleted column reordering with it. The face is
+ * the better handle anyway — it is `--fam-task-avatar` square against a line of
+ * text, and it is unambiguously the person.
+ *
+ * **The column is still named.** `ColumnHeader`'s own `<header role="group">`
+ * carries `aria-label={category.label}`, and this button carries the name too,
+ * so nothing that reads the board lost anything. `Avatar` stays `aria-hidden`
+ * (FR-039's rule holds: colour is not the only carrier — the face is).
+ *
+ * The board's own listeners do the work (`useListReorder`); what belongs here
+ * is only that a press must LAND on the handle and the keyboard can reach it.
  */
-function ColumnName({ label, reorderable }: { label: string; reorderable: boolean }) {
-  const text = "min-w-0 truncate font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)";
-  if (!reorderable) return <span className={text}>{label}</span>;
+function ProfileFace({
+  category,
+  photoUrl,
+  fraction,
+  reorderable,
+}: {
+  category: Category;
+  photoUrl?: string;
+  fraction: number;
+  reorderable: boolean;
+}) {
+  const ring = (
+    <span
+      data-progress-ring
+      data-fraction={fraction}
+      aria-hidden="true"
+      style={{
+        backgroundImage: `conic-gradient(var(--fam-profile-100) ${fraction}turn, var(--fam-task-progress-track) 0)`,
+      }}
+      className="grid shrink-0 place-items-center rounded-full p-(--fam-task-progress-w)"
+    >
+      <Avatar
+        category={category}
+        photoUrl={photoUrl}
+        sizeClassName="h-(--fam-task-avatar) w-(--fam-task-avatar)"
+      />
+    </span>
+  );
+
+  if (!reorderable) return ring;
   return (
     <button
       type="button"
       data-reorder-handle
-      aria-label={`${label} — hold to drag this column, or press Enter to move it`}
-      className={`flex min-h-(--fam-touch) items-center text-left ${text}`}
+      aria-label={`${category.label} — hold to drag this column, or press Enter to move it`}
+      className="flex min-h-(--fam-touch) min-w-(--fam-touch) shrink-0 items-center justify-center"
     >
-      {label}
+      {ring}
     </button>
   );
 }
@@ -207,40 +284,37 @@ export function ColumnHeader({
     <header
       role="group"
       aria-label={category.label}
-      className="fam-tint-20 flex flex-col gap-(--fam-task-header-gap) rounded-(--fam-task-col-r) p-(--fam-task-header-pad)"
+      className="fam-tint-40 flex flex-col gap-(--fam-task-header-gap) rounded-(--fam-task-col-r) p-(--fam-task-header-pad)"
     >
+      {/*
+        **One row: the face and both counts.** It was three rows — face + name,
+        then the pills, then the toggles — and on an iPhone SE that header ate
+        130px of a 568px screen while the task list got 155px. Folding the rows
+        and dropping the visible name (see `ProfileFace`) took it to 97px.
+        The pills are `shrink-0` because a count that truncates is a wrong number.
+      */}
       <div className="flex items-center gap-(--fam-task-header-gap)">
-        <span
-          data-progress-ring
-          data-fraction={fraction}
-          aria-hidden="true"
-          style={{
-            backgroundImage: `conic-gradient(var(--fam-profile-deep) ${fraction}turn, var(--fam-task-progress-track) 0)`,
-          }}
-          className="grid shrink-0 place-items-center rounded-full p-(--fam-task-progress-w)"
-        >
-          <Avatar
-            category={category}
-            photoUrl={photoUrl}
-            sizeClassName="h-(--fam-task-avatar) w-(--fam-task-avatar)"
-          />
-        </span>
-        <ColumnName label={category.label} reorderable={reorderable} />
-      </div>
-      <div className="flex flex-wrap items-center gap-(--fam-task-badge-gap)">
-        <p aria-label={`${counters.complete} of ${counters.total} complete`} className={HEADER_PILL}>
-          <Check aria-hidden="true" className={PILL_ICON} />
-          {`${counters.complete}/${counters.total}`}
-        </p>
-        <p data-star-pill aria-label={starsEarnedLabelOf(starsToday)} className={HEADER_PILL}>
-          {/* Filled, not outlined, and the verified palette gold — the same star the card's chip draws. */}
-          <Star
-            aria-hidden="true"
-            fill="currentColor"
-            className={`${PILL_ICON} text-(--fam-star-gold)`}
-          />
-          {starsToday}
-        </p>
+        <ProfileFace
+          category={category}
+          photoUrl={photoUrl}
+          fraction={fraction}
+          reorderable={reorderable}
+        />
+        <div className="ml-auto flex shrink-0 items-center gap-(--fam-task-badge-gap)">
+          <p aria-label={`${counters.complete} of ${counters.total} complete`} className={HEADER_PILL}>
+            <Check aria-hidden="true" className={PILL_ICON} />
+            {`${counters.complete}/${counters.total}`}
+          </p>
+          <p data-star-pill aria-label={starsEarnedLabelOf(starsToday)} className={HEADER_PILL}>
+            {/* Filled, not outlined, and the verified palette gold — the same star the card's chip draws. */}
+            <Star
+              aria-hidden="true"
+              fill="currentColor"
+              className={`${PILL_ICON} text-(--fam-star-gold)`}
+            />
+            {starsToday}
+          </p>
+        </div>
       </div>
       <SectionToggleRow toggles={toggles} accent={category.color} onToggle={onToggleSection} />
     </header>

@@ -1,5 +1,7 @@
 "use client";
 
+import { SectionHeading } from "./SectionHeading";
+
 /**
  * A way to reload the app from inside it (014).
  *
@@ -30,12 +32,7 @@ export function ReloadSection() {
 
   return (
     <section aria-labelledby="reload-heading" className="flex flex-col gap-3">
-      <h2
-        id="reload-heading"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)"
-      >
-        This device
-      </h2>
+      <SectionHeading id="reload-heading">This device</SectionHeading>
       <p className="text-(length:--fam-fs-body) text-(--fam-text-secondary)">
         Added to the home screen there is no address bar, so this is the way to
         pick up a new version of the app.

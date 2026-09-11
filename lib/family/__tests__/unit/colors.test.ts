@@ -123,8 +123,12 @@ describe("tints", () => {
 });
 
 describe("profileVars", () => {
-  it("exposes the accent as --profile", () => {
-    expect(profileVars("#2178AF")).toEqual({ "--profile": "#2178AF" });
+  it("exposes the accent as --profile, with the ink that reads on it", () => {
+    // The ink travels with the colour because CSS cannot choose it: a glyph on
+    // the 100 % rung needs a luminance comparison, and color-mix() cannot
+    // branch. #2178AF takes white; a pale accent takes the dark ink.
+    expect(profileVars("#2178AF")).toEqual({ "--profile": "#2178AF", "--profile-ink": "#FFFFFF" });
+    expect(profileVars("#FBD97E")).toEqual({ "--profile": "#FBD97E", "--profile-ink": "#1A1A1A" });
   });
 });
 

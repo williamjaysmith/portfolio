@@ -54,6 +54,14 @@ import { DayNav } from "../../components/DayNav";
 import { WeekPager } from "./WeekPager";
 
 /**
+ * The Month view's swipe partition: nothing is rejected. Every month cell is a
+ * button (FR-1113), and the month has no drag layer to partition against
+ * (Assumption 6) — so the default `beginsOnBlock` would refuse every swipe.
+ * Module-level so it is one identity rather than a new closure per render.
+ */
+const NOTHING_REJECTS = (): boolean => false;
+
+/**
  * T033: the Week view orchestrator — the FR-201 day-columns-over-hours grid
  * assembled from the US1 pieces, each of which stays ignorant of the others:
  *
@@ -694,8 +702,8 @@ function WeekBody({ m }: { m: ReturnType<typeof useWeekViewModel> }) {
         <DayHeaderBand
           columnDates={m.week.columnDates}
           layout={m.layout.allDay}
-          colorsById={m.colorsById}
-          todayDate={m.todayDate}
+            colorsById={m.colorsById}
+            todayDate={m.todayDate}
           onOpen={m.editor.openDetails}
           bandRef={m.dragBandRef}
         >
@@ -721,8 +729,8 @@ function WeekBody({ m }: { m: ReturnType<typeof useWeekViewModel> }) {
           todayDate={m.todayDate}
           layout={m.layout}
           colorsById={m.colorsById}
-          zone={m.zone}
-          timeFormat={m.settings.timeFormat}
+            zone={m.zone}
+            timeFormat={m.settings.timeFormat}
           viewportRef={m.attachViewport}
           onViewportScroll={m.onScroll}
           onOpen={m.editor.openDetails}
@@ -765,23 +773,29 @@ export function WeekView(props: WeekViewProps) {
           [VERIFIED](36625171368987, 40459070511515), so on the month it sits
           here rather than inside the week's header band. */}
       {m.view === "month" ? (
-        <MonthBody
-          householdId={m.householdId}
-          anchorDate={m.anchorDate}
+        // The month pages by swipe too, on the same step its arrows call — it
+        // never did, and the operator asked for it once the Week and Day views
+        // had it. `rejects` is overridden because every month cell is a button;
+        // see `WeekPagerProps.rejects`.
+        <WeekPager onPage={m.page} rejects={NOTHING_REJECTS}>
+          <MonthBody
+            householdId={m.householdId}
+            anchorDate={m.anchorDate}
           zone={m.zone}
-          startWeekOn={m.settings.startWeekOn}
+            startWeekOn={m.settings.startWeekOn}
           todayDate={m.todayDate}
           timeFormat={m.settings.timeFormat}
           colorsById={m.colorsById}
-          previewBar={<CalendarPreviewBar m={m} slots={MONTH_COUNTDOWN_SLOTS} />}
-          notices={<Notice message={m.editor.notice} />}
-          onOpenDay={(date) => {
-            // FR-1113 / Assumption 5: a cell is a door to its DAY.
-            m.openAt(date);
-            m.setView("day");
-          }}
-          onOpenTarget={m.editor.openTarget}
-        />
+            previewBar={<CalendarPreviewBar m={m} slots={MONTH_COUNTDOWN_SLOTS} />}
+            notices={<Notice message={m.editor.notice} />}
+            onOpenDay={(date) => {
+              // FR-1113 / Assumption 5: a cell is a door to its DAY.
+              m.openAt(date);
+              m.setView("day");
+            }}
+            onOpenTarget={m.editor.openTarget}
+          />
+        </WeekPager>
       ) : (
         <WeekBody m={m} />
       )}

@@ -5,7 +5,7 @@
  * Why a projection and not just passing `HouseholdSettings` around: the
  * due-computation is the piece of this phase that most needs to be easy to
  * test exhaustively, and a function that takes five booleans is easier to
- * cover than one that takes a row with a timezone, a text size and a density
+ * cover than one that takes a row with a timezone and a text size
  * it never reads.
  *
  * These choices are HOUSEHOLD-WIDE and never per person. Every documented

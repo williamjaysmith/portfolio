@@ -17,7 +17,11 @@ const HEADINGS: Record<(typeof TABS)[number], string> = {
   rewards: "Our Family",
   meals: "Our Family",
   lists: "Our Family",
-  settings: "Household",
+  // Nobody is punched in on a bare smoke load, so Settings answers with its
+  // door rather than its first block — `SettingsGate` made the tab a parent's.
+  // The claim here is unchanged in spirit: the route renders, titled, with a
+  // clean console.
+  settings: "Settings is for parents",
 };
 
 const TITLES: Record<(typeof TABS)[number], RegExp> = {

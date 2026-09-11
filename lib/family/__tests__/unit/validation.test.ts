@@ -370,7 +370,6 @@ describe("settingsPatchSchema", () => {
       startWeekOn: 1,
       punchOutMinutes: 5,
       textSize: "large",
-      density: "cozy",
     });
     expect(parsed).toEqual({
       householdName: "The Smiths",
@@ -379,7 +378,6 @@ describe("settingsPatchSchema", () => {
       startWeekOn: 1,
       punchOutMinutes: 5,
       textSize: "large",
-      density: "cozy",
     });
   });
 
@@ -402,12 +400,22 @@ describe("settingsPatchSchema", () => {
     expect(failurePaths(settingsPatchSchema, { startWeekOn: 2 })).toEqual(["startWeekOn"]);
     expect(failurePaths(settingsPatchSchema, { startWeekOn: "0" })).toEqual(["startWeekOn"]);
     expect(failurePaths(settingsPatchSchema, { textSize: "huge" })).toEqual(["textSize"]);
-    expect(failurePaths(settingsPatchSchema, { density: "packed" })).toEqual(["density"]);
     expect(failurePaths(settingsPatchSchema, { showNameNotDate: "yes" })).toEqual(["showNameNotDate"]);
     expect(settingsPatchSchema.safeParse({ startWeekOn: 0 }).success).toBe(true);
-    expect(settingsPatchSchema.safeParse({ timeFormat: "12h", textSize: "small", density: "snug" }).success).toBe(
-      true,
-    );
+    expect(settingsPatchSchema.safeParse({ timeFormat: "12h", textSize: "small" }).success).toBe(true);
+  });
+
+  /**
+   * `density` was removed once the operator learned it did nothing — stored,
+   * validated and saved, with no CSS behind it at all. The schema is
+   * `strictObject`, so this also proves an old client still sending the field
+   * is REFUSED rather than silently writing a column nobody reads.
+   */
+  it("no longer knows about density at all", () => {
+    // `strictObject` reports an unrecognised key against the OBJECT, not against
+    // the key — so the path is the root. What matters is the refusal.
+    expect(settingsPatchSchema.safeParse({ density: "snug" }).success).toBe(false);
+    expect(failurePaths(settingsPatchSchema, { density: "snug" })).toEqual([""]);
   });
 });
 

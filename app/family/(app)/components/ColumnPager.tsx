@@ -85,6 +85,20 @@ export interface ColumnPage {
   end: number;
   /** One page later (`1`) or earlier (`-1`) — one column either way. */
   step: (direction: -1 | 1) => void;
+  /**
+   * Put a particular column on screen, by its index among all of them.
+   *
+   * `step` alone means a reader can only WALK to a card, which is fine for days
+   * and poor for a set of named things: the Lists tab's mobile tab row jumps
+   * straight to a list. The index is clamped exactly as `start` is, so an
+   * out-of-range one lands on a legal page rather than an empty board.
+   *
+   * **Optional, because not every pager has an index to jump to.** The Meals
+   * grid builds its own `ColumnPage` over a ROLLING window of dates with no end
+   * (013) — "column 4" names nothing there, and a pager that cannot answer the
+   * question should say so rather than answer it wrongly.
+   */
+  goTo?: (index: number) => void;
 }
 
 /**
@@ -104,9 +118,14 @@ export function useColumnPage({ columnCount, perRow, mode }: ColumnPageInput): C
     [columnCount, perRow],
   );
 
+  const goTo = useCallback(
+    (index: number) => setRequested(pageStartOf(index, columnCount, perRow)),
+    [columnCount, perRow],
+  );
+
   const paged = mode === "pager" && columnCount > perRow;
   const start = paged ? pageStartOf(requested, columnCount, perRow) : 0;
-  return { paged, start, end: paged ? start + perRow : columnCount, step };
+  return { paged, start, end: paged ? start + perRow : columnCount, step, goTo };
 }
 
 /** FR-397: the swipe has a keyboard equivalent, on the group the columns sit in. */

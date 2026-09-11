@@ -110,7 +110,13 @@ export function MonthView({
           thing naming the month, so it is a real heading and stays readable. */}
       <p
         aria-live="polite"
-        className="shrink-0 px-(--fam-edge-inset) pb-1 font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)"
+        // `pt-2` because it sat hard against the row above it, and the
+        // SECONDARY ink because the weekday headings under it are secondary —
+        // a month and the days inside it are one heading block, so two inks
+        // read as two ranks (the operator, holding it next to the row below:
+        // "it needs space above it" and "should be the same color as the days
+        // text").
+        className="shrink-0 px-(--fam-edge-inset) pt-2 pb-1 font-(family-name:--fam-font-serif) text-(length:--fam-fs-section) text-(--fam-text-secondary)"
       >
         {monthNameOf(rows)}
       </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronUp, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ChevronUp, MoreHorizontal, Plus } from "lucide-react";
 
 import { itemsInWords } from "@/lib/family/lists/grouping";
 
@@ -13,7 +13,13 @@ import { itemsInWords } from "@/lib/family/lists/grouping";
  *
  * `AddSectionFooter` is the same header in its placeholder state (FR-503;
  * `gallery/07` — "Add section (0) ⌃"): the label in the muted serif, a count of
- * 0, the chevron — and a tap begins Add section.
+ * 0, and a tap that begins Add section.
+ *
+ * **It leads with a `+`, not the chevron the gallery shows.** A chevron in this
+ * row means "fold the section under me away", because that is what it means in
+ * every real section header above it — and this row folds nothing, it makes
+ * something. The operator: *"i feel like add section should have a + icon not
+ * ^"*. A divergence from the sampled shot, and a deliberate one.
  */
 
 const ROW = "flex min-h-(--fam-touch) items-center gap-2 px-3 pt-2 text-(length:--fam-fs-small) text-(--fam-text-muted)";
@@ -40,7 +46,11 @@ export function SectionHeader({ section, count, folded, onToggleFold, onMenu }: 
       >
         {folded ? <ChevronDown aria-hidden="true" size={20} /> : <ChevronUp aria-hidden="true" size={20} />}
       </button>
-      <span className="min-w-0 flex-1 truncate font-medium text-(--fam-text-primary)">{section}</span>
+      {/* Bolder than an item, deliberately: a section is a heading for the rows
+          under it, and at `font-medium` against an item's regular weight the
+          two read as the same rank (the operator: "section titles should also
+          be more bold than items"). */}
+      <span className="min-w-0 flex-1 truncate font-semibold text-(--fam-text-primary)">{section}</span>
       <span className="tabular-nums">{itemsInWords(count)}</span>
       <button type="button" aria-label={`${section} menu`} onClick={onMenu} className={ICON_BUTTON}>
         <MoreHorizontal aria-hidden="true" size={20} />
@@ -57,9 +67,9 @@ export function AddSectionFooter({ onAdd }: { onAdd: () => void }) {
       onClick={onAdd}
       className="mx-(--fam-task-col-pad) flex min-h-(--fam-touch) items-center gap-2 rounded-(--fam-list-row-r) px-3 text-(length:--fam-fs-small) text-(--fam-text-muted)"
     >
-      <ChevronUp aria-hidden="true" size={20} />
+      <Plus aria-hidden="true" size={20} />
       <span className="flex-1 text-left font-(family-name:--fam-font-serif) text-(length:--fam-fs-body)">Add section</span>
-      <span aria-hidden="true" className="tabular-nums">
+      <span aria-hidden="true" className="shrink-0 tabular-nums">
         0 items
       </span>
     </button>

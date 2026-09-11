@@ -41,7 +41,7 @@ describe("ListCard", () => {
     const { container } = renderCard();
     const card = screen.getByRole("region", { name: "Grocery List" });
     expect(card).toHaveAttribute("style", expect.stringContaining("--profile: #B6E085"));
-    expect(container.querySelector(".fam-profile.fam-tint-20")).toBe(card);
+    expect(container.querySelector(".fam-profile.fam-tint-40")).toBe(card);
     expect(within(card).getByRole("group", { name: "Grocery List" })).toBeInTheDocument();
     expect(within(card).getByRole("textbox", { name: "Add item to Grocery List" })).toBeInTheDocument();
     expect(within(card).getByRole("button", { name: /Add section/ })).toBeInTheDocument();

@@ -11,6 +11,7 @@ import { LeadTimeField } from "./LeadTimeField";
 import { useReminderSwitches } from "../notifications/reminderSwitches";
 import { SaveRow } from "./SaveRow";
 import { useSettingsSave } from "./useSettingsSave";
+import { SectionHeading } from "./SectionHeading";
 
 /**
  * The household's reminder choices (008 FR-802–FR-807).
@@ -98,12 +99,7 @@ export function NotificationsSection() {
 
   return (
     <section aria-labelledby="notifications-heading" className="flex flex-col gap-4">
-      <h2
-        id="notifications-heading"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)"
-      >
-        Notifications
-      </h2>
+      <SectionHeading id="notifications-heading">Notifications</SectionHeading>
 
       {/*
         Assumption 15, said out loud in the product and not only in the spec. A

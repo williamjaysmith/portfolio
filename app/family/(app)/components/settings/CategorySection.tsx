@@ -9,6 +9,7 @@ import { useFamily } from "../FamilyProvider";
 import { CategoryForm } from "./CategoryForm";
 import { CategoryRow } from "./CategoryRow";
 import { DeleteDialog } from "./DeleteDialog";
+import { SectionHeading } from "./SectionHeading";
 
 /**
  * The Profiles list or the Labels list (FR-025).
@@ -48,12 +49,9 @@ function SectionHeader({
   return (
     <>
       <div className="flex items-center gap-3">
-        <h2
-          id={`${kind}-heading`}
-          className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)"
-        >
+        <SectionHeading id={`${kind}-heading`}>
           {isProfile ? "Profiles" : "Labels"}
-        </h2>
+        </SectionHeading>
         <button
           type="button"
           disabled={disabled || waitingForParent}

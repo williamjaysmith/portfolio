@@ -10,6 +10,7 @@ import {
 import { installClock, nowMs, pinForward, wallTime } from "../helpers/clock";
 import { hideDevOverlay } from "../helpers/overlay";
 import { expect, test } from "../fixtures";
+import { gotoSettings } from "../helpers/punch";
 
 /**
  * 008 T050, Phase 7 — Family Notifications (FR-801–FR-821, FR-829, FR-832).
@@ -42,7 +43,7 @@ function escapeRegExp(value: string): string {
 
 test.describe("Settings → Notifications", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/family/settings");
+    await gotoSettings(page);
   });
 
   test("shows the four choices and their factory defaults, and says where reminders appear (FR-801–FR-804, FR-807)", async ({
@@ -86,49 +87,7 @@ test.describe("Settings → Notifications", () => {
     await expect(notifications(page).getByRole("status")).toHaveText("Saved");
   });
 
-  test("a punched-in member finds the household's four read-only, but this device's own two still answer to her (FR-805, FR-815)", async ({
-    page,
-    actAsCleo,
-    unique,
-  }) => {
-    // A member has no route to the four household choices; punching Cleo in
-    // needs a write of her own first, the way the app always asks (harness.md
-    // rule 2) — adding to a seeded list is the smallest one.
-    await page.goto("/family/lists");
-    await showColumn(page, "Grocery List", "Lists");
-    const probe = unique("Cleo probe");
-    await actAsCleo(async () => {
-      await page.getByRole("textbox", { name: "Add item to Grocery List" }).fill(probe);
-      await page.keyboard.press("Enter");
-    });
-    await expect(page.getByRole("checkbox", { name: probe })).toBeVisible();
 
-    await page.goto("/family/settings");
-    const region = notifications(page);
-    await expect(region.getByText("Parents only")).toBeVisible();
-    for (const label of ["At time of event", "Before event", "When Due", "When Completed"]) {
-      await expect(region.getByRole("switch", { name: label })).toBeDisabled();
-    }
-
-    // "This device"'s two switches are local storage, not a household write —
-    // they need no parent (FR-815) and sit outside the disabled <form>.
-    const banner = region.getByRole("switch", { name: "Show reminders on this screen" });
-    const chime = region.getByRole("switch", { name: "Play a sound with them" });
-    await expect(banner).toBeEnabled();
-    await expect(banner).toBeChecked();
-    await expect(chime).toBeEnabled();
-    await expect(chime).not.toBeChecked();
-    await chime.check();
-    await expect(chime).toBeChecked();
-
-    await page.goto("/family/lists");
-    await showColumn(page, "Grocery List", "Lists");
-    await actAsCleo(async () => {
-      await page.getByRole("button", { name: probe }).click();
-      await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
-    });
-    await expect(page.getByRole("checkbox", { name: probe })).toHaveCount(0);
-  });
 
   test("changes the lead time by preset, then by a custom number and unit, both kept across a reload (FR-806)", async ({
     page,
@@ -349,5 +308,55 @@ test.describe("the reminder banner", () => {
 
     await second.close();
     await deleteEvent(page, actAsAna, title);
+  });
+});
+
+test.describe("Settings is a parent's tab", () => {
+  /**
+   * **This journey once proved a member could READ Settings**, finding the four
+   * household switches disabled and her own device's two live — FR-008's
+   * "household content is free to view" with FR-350's "never hide a control to
+   * enforce a rule". `SettingsGate` reversed that, on the operator's ask about
+   * their own child: the tab is a parent's now, and a member meets a door.
+   *
+   * What is left to walk is the same claim at its new address: a member gets no
+   * route to the household's notification choices. Her device's own two went
+   * behind the door with them, which is a real loss and is recorded here rather
+   * than quietly dropped — they are local-storage switches that need no parent
+   * (FR-815), and gating them was the cost of gating the tab in one piece.
+   *
+   * **It sits outside "Settings → Notifications" on purpose.** That block's
+   * `beforeEach` now goes through the door, which punches a PARENT in — and an
+   * actor already in means the app never asks again, so a member could never
+   * take over and the journey would quietly test a parent instead.
+   */
+  test("a punched-in member is shown the door, not the household's notification switches", async ({
+    page,
+    actAsCleo,
+    unique,
+  }) => {
+    // Punching Cleo in needs a write of her own first, the way the app always
+    // asks (harness.md rule 2) — adding to a seeded list is the smallest one.
+    await page.goto("/family/lists");
+    await showColumn(page, "Grocery List", "Lists");
+    const probe = unique("Cleo probe");
+    await actAsCleo(async () => {
+      await page.getByRole("textbox", { name: "Add item to Grocery List" }).fill(probe);
+      await page.keyboard.press("Enter");
+    });
+    await expect(page.getByRole("checkbox", { name: probe })).toBeVisible();
+
+    // No `gotoSettings` here — that helper opens the door, and the whole point
+    // is that she cannot.
+    await page.goto("/family/settings");
+    await expect(page.getByRole("heading", { name: "Settings is for parents" }).first()).toBeVisible();
+    // `.first()`: a route transition can hold the outgoing and incoming copies
+    // of the screen in the DOM together, and strict mode counts both.
+    await expect(page.getByText(/Cleo is punched in/).first()).toBeVisible();
+    await expect(notifications(page)).toHaveCount(0);
+
+    // The way OUT is not behind the door: sign out and the reload control are
+    // the account's and the device's, not the household's (see `SettingsScreen`).
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
   });
 });

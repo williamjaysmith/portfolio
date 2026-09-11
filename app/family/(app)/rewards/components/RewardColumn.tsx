@@ -141,7 +141,7 @@ function RewardColumnHeader({ category, balance, photoUrl }: ColumnHeaderProps) 
     <header
       role="group"
       aria-label={category.label}
-      className="fam-tint-20 flex flex-col gap-(--fam-task-header-gap) rounded-(--fam-radius-card) p-(--fam-task-header-pad)"
+      className="fam-tint-40 flex flex-col gap-(--fam-task-header-gap) rounded-(--fam-radius-card) p-(--fam-task-header-pad)"
     >
       <div className="flex items-center gap-(--fam-task-header-gap)">
         <Avatar

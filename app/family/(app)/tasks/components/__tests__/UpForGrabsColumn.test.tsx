@@ -107,7 +107,7 @@ describe("UpForGrabsColumn", () => {
     const region = screen.getByRole("region", { name: UP_FOR_GRABS_TITLE });
     expect(region.querySelector("[data-progress-ring]")).toBeNull();
     expect(region.className).not.toContain("fam-profile");
-    expect(header().className).not.toContain("fam-tint-20");
+    expect(header().className).not.toContain("fam-tint-40");
     expect(region.style.getPropertyValue("--profile")).toBe("");
   });
 

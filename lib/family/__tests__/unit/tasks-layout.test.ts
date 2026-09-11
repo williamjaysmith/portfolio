@@ -321,6 +321,69 @@ describe("boardLayoutOf — wrap, then page", () => {
     expect(boardLayoutOf(portrait(7, 2))).toEqual({ perRow: 2, mode: "pager" });
   });
 
+  /**
+   * The defect the operator reported from their phone: four people drawn two-up,
+   * each column about 170px wide and 250px tall — a header and no room for the
+   * tasks under it. "Portrait" was the whole test, and a phone passes it exactly
+   * as a portrait iPad does.
+   */
+  /**
+   * The 414×896 phone, measured. `--fam-u` clamps to its 0.5px floor there, so
+   * a column token resolves to 200px and the board is 400px wide — and
+   * `floor(400 / 200)` promised two whole columns that do not fit once the 13px
+   * between them is counted. Each was drawn at 173px, and a 173px column cannot
+   * hold its own header: four 44px tap targets need 176px, so the section
+   * toggles wrapped to a second line (the operator's report).
+   */
+  /**
+   * **Only the BOARDS count the gap.** `rowLayoutOf` — the Meals grid and the
+   * Lists tab — deliberately does not: its tracks are `1fr` and squeeze
+   * happily, and counting the gap there cost the wall tablet its week (six day
+   * columns instead of seven, with the arrows relabelling themselves from
+   * "week" to "6 days"). A Tasks column is the one with a floor inside it.
+   */
+  it("counts the GAP between columns, so a column is never narrower than promised", () => {
+    const phone = { viewportWidth: 414, viewportHeight: 896, boardWidth: 400, columnCount: 4 };
+    expect(boardLayoutOf({ ...phone, referenceColumnWidth: 200, columnGap: 13 }).perRow).toBe(1);
+    // Without the gap it over-counts, which is the defect this pins.
+    expect(boardLayoutOf({ ...phone, referenceColumnWidth: 200, columnGap: 0 }).perRow).toBe(2);
+  });
+
+  it("fits n columns exactly when the board has room for n widths and n-1 gaps", () => {
+    const at = (boardWidth: number) =>
+      boardLayoutOf({
+        viewportWidth: 1920,
+        viewportHeight: 1080,
+        boardWidth,
+        referenceColumnWidth: 200,
+        columnGap: 16,
+        columnCount: 9,
+      }).perRow;
+    expect(at(200)).toBe(1); // one column, no gap needed
+    expect(at(415)).toBe(1); // 2·200 + 16 = 416 — one pixel short
+    expect(at(416)).toBe(2); // exactly two
+    expect(at(648)).toBe(3); // 3·200 + 2·16
+  });
+
+  it("pages rather than wrapping on a portrait viewport too SHORT for two rows", () => {
+    const phone = (columnCount: number, perRowFits: number) => ({
+      viewportWidth: 390,
+      viewportHeight: 844,
+      boardWidth: perRowFits * 200,
+      referenceColumnWidth: 200,
+      columnCount,
+    });
+    // Two columns fit and four would wrap onto exactly two rows — the shipped
+    // rule's every other condition is met, and only the height now refuses it.
+    expect(boardLayoutOf(phone(4, 2))).toEqual({ perRow: 2, mode: "pager" });
+    expect(boardLayoutOf(phone(3, 2))).toEqual({ perRow: 2, mode: "pager" });
+  });
+
+  it("still wraps the portrait iPad the reference photographed", () => {
+    // 820x1180: the 2x2 FR-395 is actually about, unchanged by the height rule.
+    expect(boardLayoutOf(portrait(4, 2))).toEqual({ perRow: 2, mode: "grid" });
+  });
+
   it("pages rather than wrapping in landscape (FR-396)", () => {
     expect(
       boardLayoutOf({

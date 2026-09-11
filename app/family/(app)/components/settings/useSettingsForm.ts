@@ -3,7 +3,6 @@
 import { useState } from "react";
 
 import type {
-  Density,
   Household,
   HouseholdSettings,
   HouseholdSettingsPatch,
@@ -27,7 +26,6 @@ export interface SettingsDraft {
   startWeekOn: string;
   punchOutMinutes: string;
   textSize: string;
-  density: string;
   /** 009 FR-903 — how early countdowns start appearing. */
   showCountdowns: string;
 }
@@ -49,7 +47,6 @@ export function useSettingsForm(
     startWeekOn: String(settings.startWeekOn),
     punchOutMinutes: String(settings.punchOutMinutes),
     textSize: settings.textSize,
-    density: settings.density,
     showCountdowns: settings.showCountdowns,
   }));
 
@@ -65,7 +62,6 @@ export function useSettingsForm(
       startWeekOn: draft.startWeekOn === "1" ? 1 : 0,
       punchOutMinutes: Number(draft.punchOutMinutes),
       textSize: draft.textSize as TextSize,
-      density: draft.density as Density,
       showCountdowns: draft.showCountdowns as ShowCountdowns,
     };
   }

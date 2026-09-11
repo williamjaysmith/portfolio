@@ -94,10 +94,17 @@ export function useTaskStreak(occurrence: BoardOccurrence): number {
   return index.get(streakKeyOf(occurrence.taskId, occurrence.assigneeId)) ?? 0;
 }
 
+/**
+ * **A WHITE pill** — see `StarChip`, which carries the same note: the bare
+ * outline took the card's tint, the fill is the app background now, and the ink
+ * is pinned to `--fam-text-primary` because `--fam-task-ink` is white on the
+ * six dark accents and would have vanished.
+ */
 const BADGE =
   "inline-flex h-(--fam-task-badge-h) shrink-0 items-center gap-(--fam-task-badge-gap) " +
   "rounded-(--fam-task-badge-r) border-(length:--fam-task-badge-edge) border-(--fam-task-ink) " +
-  "px-(--fam-task-badge-pad) text-(length:--fam-fs-small) font-medium tabular-nums";
+  "bg-(--fam-app-bg) px-(--fam-task-badge-pad) text-(length:--fam-fs-small) font-medium " +
+  "text-(--fam-text-primary) tabular-nums";
 
 export interface StreakBadgeProps {
   /** The stored count. Zero — a run of no days — is not a run, and draws nothing. */

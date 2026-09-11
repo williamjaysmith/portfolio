@@ -13,7 +13,6 @@ import type {
   ReminderMode,
   AvatarKind,
   Category,
-  Density,
   Event,
   EventException,
   EventTimes,
@@ -82,7 +81,6 @@ export interface HouseholdSettingsRow {
   start_week_on: WeekStart;
   punch_out_minutes: number;
   text_size: TextSize;
-  density: Density;
   timezone: string;
   notify_event_at_time: boolean;
   notify_event_before: boolean;
@@ -164,7 +162,7 @@ export const CATEGORY_COLUMNS =
 
 export const SETTINGS_COLUMNS =
   "household_id, show_name_not_date, time_format, start_week_on, punch_out_minutes, " +
-  "text_size, density, timezone, notify_event_at_time, notify_event_before, " +
+  "text_size, timezone, notify_event_at_time, notify_event_before, " +
   "notify_event_before_minutes, notify_task_due, notify_task_completed, " +
   "show_countdowns, updated_at";
 
@@ -243,7 +241,6 @@ export function toSettings(row: HouseholdSettingsRow): HouseholdSettings {
     startWeekOn: row.start_week_on,
     punchOutMinutes: row.punch_out_minutes,
     textSize: row.text_size,
-    density: row.density,
     timezone: row.timezone,
     notifyEventAtTime: row.notify_event_at_time,
     notifyEventBefore: row.notify_event_before,

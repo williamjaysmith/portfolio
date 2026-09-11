@@ -83,6 +83,7 @@ function renderColumn(options: {
   visible?: readonly BoardOccurrence[];
   toggles?: SectionToggles;
   starsToday?: number;
+  reorderable?: boolean;
 }) {
   const onToggleSection = vi.fn();
   const onOpen = vi.fn();
@@ -97,6 +98,7 @@ function renderColumn(options: {
       onToggleSection={onToggleSection}
       onOpen={onOpen}
       onResolve={onResolve}
+      reorderable={options.reorderable ?? false}
     />,
   );
   return { onToggleSection, onOpen, onResolve };
@@ -118,13 +120,47 @@ function section(name: string): HTMLElement {
 }
 
 describe("ProfileColumn", () => {
-  it("heads the column with the Profile's name on its own 20 % panel (FR-304)", () => {
+  /**
+   * The name is no longer PRINTED — the operator's call once photographs were
+   * loaded, matching the calendar chip: *"i think we dont even need a name on
+   * ours because were using photos"*. The column still has to SAY who it
+   * belongs to, and the header's own group label is what does it.
+   */
+  it("names the column by its group label, not by printed text (FR-304)", () => {
     renderColumn({ all: [occurrence()] });
 
-    expect(screen.getByText("Cleo")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Cleo" })).toBeInTheDocument();
+    expect(screen.queryByText("Cleo")).toBeNull();
     expect(column().className).toContain("fam-profile");
     expect(column().style.getPropertyValue("--profile")).toBe(SUNSHINE);
-    expect(header().className).toContain("fam-tint-20");
+    expect(header().className).toContain("fam-tint-40");
+  });
+
+  /**
+   * FR-309's handle moved when the printed name went. It had to move somewhere:
+   * `reorderable` is true whenever a PARENT is punched in, on any device, so
+   * deleting the name without this would have deleted column reordering.
+   *
+   * `TasksBoard` finds the handle by `[data-reorder-handle]`, so that attribute
+   * and the accessible name are the contract, not the element it happens to be.
+   */
+  it("puts FR-309's drag handle on the face once a parent may reorder", () => {
+    renderColumn({ all: [occurrence()], reorderable: true });
+
+    const handle = header().querySelector("[data-reorder-handle]");
+    expect(handle).not.toBeNull();
+    expect(handle).toHaveAccessibleName(/^Cleo — hold to drag/);
+    // It IS the face: the progress ring lives inside it, so a press anywhere on
+    // the person starts the drag.
+    expect(handle?.querySelector("[data-progress-ring]")).not.toBeNull();
+  });
+
+  it("draws no handle at all when nobody may reorder", () => {
+    renderColumn({ all: [occurrence()] });
+    // A control nobody may use is not a control — it would be an unnamed stop
+    // in every reading order.
+    expect(header().querySelector("[data-reorder-handle]")).toBeNull();
+    expect(header().querySelector("[data-progress-ring]")).not.toBeNull();
   });
 
   it("shows a completed-of-total count and a ring around the avatar (FR-305)", () => {
@@ -210,8 +246,14 @@ describe("ProfileColumn", () => {
       const toggle = within(header()).getByRole("button", { name: label });
       // The token is itself `max(var(--fam-touch), …)`, so the 44-point floor
       // travels with the token instead of being restated per control.
+      //
+      // The HEIGHT is a floor and the WIDTH is exact. A `min-w` let a button
+      // grow to fit "Afternoon", and four grown buttons overflowed their column
+      // and wrapped to a second line — measured at 181px on a 430×932 phone and
+      // at 207px on a 1024×768 iPad. The label truncates inside the target now.
       expect(toggle.className).toContain("min-h-(--fam-task-toggle-hit)");
-      expect(toggle.className).toContain("min-w-(--fam-task-toggle-hit)");
+      expect(toggle.className).toContain("w-(--fam-task-toggle-hit)");
+      expect(toggle.className).not.toContain("min-w-(--fam-task-toggle-hit)");
     }
     expect(within(header()).getByRole("button", { name: "Morning" })).toHaveAttribute(
       "aria-pressed",
@@ -241,7 +283,7 @@ describe("ProfileColumn", () => {
   it("renders a Profile with nothing to do, header and all (FR-316)", () => {
     renderColumn({ all: [] });
 
-    expect(screen.getByText("Cleo")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Cleo" })).toBeInTheDocument();
     expect(within(header()).getByText("0/0")).toBeInTheDocument();
     expect(screen.getByText(/nothing/i)).toBeInTheDocument();
     // A ring exists at 0/0 too, or the column reads as broken rather than free.
