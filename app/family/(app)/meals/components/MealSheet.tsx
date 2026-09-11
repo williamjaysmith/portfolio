@@ -81,7 +81,7 @@ export function MealSheet({ mode, categories, recipes, notes, onSubmit, onClose 
   return (
     <FormDialog titleId="meal-sheet-title" title={titleOf(mode, categories)} onClose={onClose}>
       <form onSubmit={form.handleSubmit} className="mt-4 flex flex-col gap-4">
-        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="flex min-w-0 flex-col gap-1">
             <label className={LABEL}>
               Date

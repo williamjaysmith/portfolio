@@ -73,13 +73,20 @@ function TimesFieldset({ form }: { form: EventFormState }) {
       {/* A grid, not `flex flex-wrap`: wrap decides per width and on a phone it
           split this pair onto two lines and let the time field run to the
           modal's edge. A grid splits the row evenly and never wraps.
-          One column until there is room for two. A date control needs ~141px to
-          show its year; at 320px (the original iPhone SE) a two-column row gives
-          each 117px and WebKit renders "09/ 10 / 202" — the year clipped, with
-          no overflow and no scrollWidth to detect it. Verified in WebKit on the
-          iPhone SE and SE 3rd-gen profiles.
+          One column on a phone, two from `sm` (640px) up.
+          The breakpoint was 360px, chosen because two columns MEASURE as
+          fitting at 375: each field gets 143px against a 141px requirement, and
+          WebKit at both iPhone SE sizes showed no overlap and no spill. The
+          operator's device disagreed anyway, repeatedly. The likeliest
+          mechanism is that iOS Safari paints a native date control's content
+          wider than the box it is given (`overflow: visible`), so the box
+          shrinks correctly and the GLYPHS still collide — which no measurement
+          taken here can see. Two columns cannot be made reliable on a phone
+          against a control whose painted width is not its layout width, so the
+          phone gets one field per row and the collision becomes impossible
+          rather than narrowly avoided.
           All day hides the time, and then the date takes the whole row. */}
-      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2"}>
+      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 sm:grid-cols-2"}>
         <label className={LABEL}>
           Start date
           <input
@@ -104,7 +111,7 @@ function TimesFieldset({ form }: { form: EventFormState }) {
         )}
       </div>
       <FieldError messages={messagesFor(errors, "startDate", "startsAt")} />
-      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2"}>
+      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 sm:grid-cols-2"}>
         <label className={LABEL}>
           End date
           <input
