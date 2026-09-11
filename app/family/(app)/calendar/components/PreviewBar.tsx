@@ -11,13 +11,15 @@ import type { ReactNode } from "react";
  *   2. it is OUTSIDE the drag layer — no pointer binding, so a chip never
  *      lifts and the events' drag is untouched;
  *   3. it returns `null` when it has nothing, so a household with no
- *      countdowns and Tasks Progress off loses no vertical space at all
- *      (FR-910, SC-906) — which matters most on the phone where the band
- *      already carries day headers, the all-day bar and the meal tokens.
+ *      countdowns loses no vertical space at all (FR-910, SC-906) — which
+ *      matters most on the phone where the band already carries day headers,
+ *      the all-day bar and the meal tokens.
  *
- * It is ONE row and not two. The reference is explicit that countdowns appear
- * "alongside Tasks Progress" [VERIFIED](40459070511515), and two rows would
- * each cost the band its height separately.
+ * **014 took Tasks Progress out of it.** The reference has countdowns
+ * "alongside Tasks Progress" [VERIFIED](40459070511515) and 009 read that as
+ * one row holding both; the operator saw the result on their phone as the
+ * family's faces drawn twice, and the counts moved onto the shell's chips. What
+ * is left here is the countdowns, and rule 3 now decides on them alone.
  *
  * It holds no state and makes no decision: whether there is anything to show
  * is the caller's, which is what keeps rule 3 true of the two halves together
@@ -26,18 +28,16 @@ import type { ReactNode } from "react";
 
 export interface PreviewBarProps {
   /**
-   * Tasks Progress, when this device has it on (FR-911) — and `undefined`, not
-   * a component that will render nothing, when it does not. A JSX element is
+   * The countdown chips, when any are in force (FR-902) — and `undefined`, not
+   * a component that will render nothing, when there are none. A JSX element is
    * truthy whatever it renders, so a caller that always passes one would give
    * the bar an empty row forever and quietly break FR-910.
    */
-  progress?: ReactNode;
-  /** The countdown chips, when any are in force (FR-902). Same rule. */
   countdowns?: ReactNode;
 }
 
-export function PreviewBar({ progress, countdowns }: PreviewBarProps) {
-  if (!progress && !countdowns) return null;
+export function PreviewBar({ countdowns }: PreviewBarProps) {
+  if (!countdowns) return null;
 
   return (
     <div
@@ -45,7 +45,6 @@ export function PreviewBar({ progress, countdowns }: PreviewBarProps) {
       role="group"
       className="flex items-center gap-3 overflow-x-auto border-t border-(--fam-hairline) px-(--fam-edge-inset) py-1"
     >
-      {progress}
       {countdowns}
     </div>
   );

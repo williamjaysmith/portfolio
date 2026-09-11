@@ -7,6 +7,7 @@ import { WEEKDAYS } from "@/lib/family/types";
 
 import { useFamily } from "../../components/FamilyProvider";
 import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFields";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import {
   useTaskForm,
@@ -255,7 +256,7 @@ function EveryFieldset({ form, units }: { form: TaskFormState; units: readonly R
   const { draft } = form;
   return (
     <>
-      <div className="flex flex-wrap gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         <label className={LABEL}>
           Repeat every
           <input
@@ -337,7 +338,7 @@ function CompletedDateFields({ form }: { form: TaskFormState }) {
         ))}
       </fieldset>
       {draft.delay === "custom" ? (
-        <div className="flex flex-wrap gap-3">
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
           <label className={LABEL}>
             After how long
             <input
@@ -416,7 +417,8 @@ function ChoreRepeatFieldset({ form }: { form: TaskFormState }) {
 function ChoreSchedule({ form }: { form: TaskFormState }) {
   return (
     <>
-      <div className="flex flex-wrap gap-3">
+      {/* Two columns, never wrapping — see EventForm for why. */}
+      <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         <label className={LABEL}>
           Due date
           <input
@@ -518,7 +520,11 @@ export function TaskForm({ mode, seed, onSubmit, onClose, onOpenTaskBox }: TaskF
       }}
       className="m-auto w-[min(92vw,34rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
-      <div className="flex items-center justify-between gap-3">
+      <DialogClose onClose={onClose} />
+      {/* The padding is on the ROW, not the title: this header has a control of
+          its own at the right (Task Box), and the X is absolutely positioned
+          over that corner. Padding the title alone left the two overlapping. */}
+      <div className="flex items-center justify-between gap-3 pr-(--fam-touch)">
         <h2
           id="task-form-title"
           className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"

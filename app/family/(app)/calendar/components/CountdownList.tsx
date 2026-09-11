@@ -5,6 +5,7 @@ import { useRef } from "react";
 import type { CountdownStatus } from "@/lib/family/countdowns/target";
 import { countdownPhrase } from "@/lib/family/countdowns/wording";
 
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 
 /**
@@ -51,9 +52,10 @@ export function CountdownList({ countdowns, onOpen, onClose }: CountdownListProp
       }}
       className="m-auto w-[min(92vw,26rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <h2
         id="countdown-list-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         Countdowns
       </h2>

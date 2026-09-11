@@ -39,7 +39,16 @@ describe("MealPopover", () => {
     expect(screen.getByText("Wednesday 9 September")).toBeInTheDocument();
     expect(screen.getByText("Dinner")).toBeInTheDocument();
     expect(screen.getByText("Ben cooks")).toBeInTheDocument();
-    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual([
+    // The dialog's own Dismiss (the X, 014) is chrome rather than one of the
+    // popover's actions, and carries its name on `aria-label` — so it is
+    // excluded by name here rather than by having an empty string smuggled
+    // into the expected list.
+    expect(
+      screen
+        .getAllByRole("button")
+        .filter((button) => button.getAttribute("aria-label") !== "Dismiss")
+        .map((button) => button.textContent),
+    ).toEqual([
       "Open Recipe",
       "Add to List",
       "Edit",

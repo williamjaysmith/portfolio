@@ -124,7 +124,7 @@ export function HouseholdSection() {
             onChange={(event) => set("showNameNotDate", event.target.checked)}
             className="h-5 w-5"
           />
-          Show the household name instead of the date
+          Show only the time in the top bar (hide the date)
         </label>
 
         {CHOICES.map((choice) => (

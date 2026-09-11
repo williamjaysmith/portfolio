@@ -8,6 +8,7 @@ import type { RewardInput } from "@/lib/family/validation";
 import { FormFooter } from "../../components/FormFooter";
 import { ProfileMultiSelect } from "../../components/ProfileMultiSelect";
 import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFields";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import {
   useRewardForm,
@@ -169,9 +170,10 @@ export function RewardForm({ mode, seed, profiles, onSubmit, onClose }: RewardFo
       }}
       className="m-auto w-[min(92vw,34rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <h2
         id="reward-form-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         {mode === "create" ? "Add a reward" : "Edit reward"}
       </h2>

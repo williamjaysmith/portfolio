@@ -16,6 +16,7 @@ import {
 } from "../../components/formSubmit";
 import { ProfileMultiSelect } from "../../components/ProfileMultiSelect";
 import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFields";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 
 /**
@@ -313,9 +314,10 @@ export function GiveStarsSheet({ profiles, balances, onSubmit, onClose }: GiveSt
       }}
       className="m-auto w-[min(92vw,34rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <h2
         id="give-stars-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         Give stars
       </h2>

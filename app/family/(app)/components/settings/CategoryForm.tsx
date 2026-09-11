@@ -8,6 +8,7 @@ import { isLastParent } from "@/lib/family/permissions";
 import type { Category, CategoryInput } from "@/lib/family/types";
 
 import { useFamily, type FamilyContextValue } from "../FamilyProvider";
+import { DialogClose } from "../DialogClose";
 import { useModalDialog } from "../useModalDialog";
 import { FIELD, FieldError, LABEL, LabelFields, ProfileFields } from "./CategoryFields";
 import { ColorPicker } from "./ColorPicker";
@@ -156,9 +157,10 @@ export function CategoryForm({ mode, kind, existing, forceParent, onClose }: Cat
       }}
       className="m-auto w-[min(92vw,34rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <h2
         id="category-form-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         {dialogTitle(mode, isProfile, existing)}
       </h2>

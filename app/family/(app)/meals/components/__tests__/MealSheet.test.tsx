@@ -40,7 +40,7 @@ describe("MealSheet — add", () => {
 
   it("names the slot, prefills the date and mealtime, lists the slot's mealtime's recipes first, and shows the dietary notes", () => {
     renderSheet();
-    expect(screen.getByRole("heading", { name: "Add to Dinner, Wednesday 9 September" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add to Dinner" })).toBeInTheDocument();
     expect(screen.getByLabelText("Date")).toHaveValue("2026-09-09");
     expect(screen.getByRole("combobox", { name: "Mealtime" })).toHaveValue(DINNER);
     expect(screen.getByRole("radio", { name: "Dinner" })).toBeChecked();

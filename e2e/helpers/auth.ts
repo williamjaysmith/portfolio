@@ -19,7 +19,11 @@ export async function signIn(page: Page, password = HOUSEHOLD_PASSWORD): Promise
   await page.goto("/family/sign-in");
   await page.getByLabel("Household password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("heading", { name: "Our Family" })).toBeVisible();
+  // 014 made the household name an `sr-only` <h1> — the top bar shows the time
+  // now — so the heading is ATTACHED rather than visible, and the thing you can
+  // actually see arriving is the clock.
+  await expect(page.getByRole("heading", { name: "Our Family" })).toBeAttached();
+  await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
 }
 
 /** The one line that says a page really rendered for a signed-in member. */

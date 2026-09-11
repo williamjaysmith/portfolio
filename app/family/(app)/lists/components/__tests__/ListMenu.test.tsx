@@ -27,7 +27,12 @@ describe("ListMenu", () => {
       />,
     );
     expect(screen.getByRole("dialog", { name: "Grocery List" })).toBeInTheDocument();
-    const buttons = screen.getAllByRole("button").map((button) => button.textContent);
+    const buttons = screen
+      .getAllByRole("button")
+      // 014's Dismiss (the X) is dialog chrome, not one of these controls, and
+      // carries its name on `aria-label` rather than in text.
+      .filter((button) => button.getAttribute("aria-label") !== "Dismiss")
+      .map((button) => button.textContent);
     expect(buttons).toEqual(["Add item", "Edit list", "Clear Completed", "Delete list", "Close"]);
     expect(screen.getByRole("button", { name: "Clear Completed" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Delete list" })).toHaveClass("text-(--fam-danger)");

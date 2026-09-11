@@ -12,6 +12,7 @@ import {
 import type { Category } from "@/lib/family/types";
 
 import { useFamily } from "../FamilyProvider";
+import { DialogClose } from "../DialogClose";
 import { useModalDialog } from "../useModalDialog";
 
 /**
@@ -138,7 +139,8 @@ export function DeleteDialog({ category, onClose }: DeleteDialogProps) {
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
-      <h2 id="delete-title" className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
+      <DialogClose onClose={onClose} />
+      <h2 id="delete-title" className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
         {category.isProfile ? `Delete ${category.label}?` : `Delete the ${category.label} label?`}
       </h2>
 

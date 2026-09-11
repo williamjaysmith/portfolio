@@ -75,6 +75,19 @@ export function WeekGrid({
       tabIndex={0}
       role="group"
       aria-label="Hours"
+      // `touch-action: pan-y` HERE and not only on WeekPager above. A touch that
+      // begins inside a scrolling element is arbitrated by WebKit against THAT
+      // element, so on iOS the horizontal part of a swipe was taken for the
+      // scroller's own panning and framer's `onPan` never saw it — the page
+      // slid instead of the week turning. Declaring the axis on the scroller
+      // itself is what hands the horizontal back to JS.
+      //
+      // The operator's evidence is what located this: dragging the DAY-HEADER
+      // band paged correctly while dragging the grid did not, and the header is
+      // the one part of the pager that is not inside this scroller. A mouse
+      // ignores `touch-action` altogether, which is why it always worked in
+      // Chrome on a desktop and never on the phone.
+      style={{ touchAction: "pan-y" }}
       className="min-h-0 flex-1 overflow-y-auto"
     >
       <div className="grid" style={headerGridTemplate(columnDates.length)}>

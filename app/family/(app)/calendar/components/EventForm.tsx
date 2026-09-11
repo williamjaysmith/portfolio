@@ -7,6 +7,7 @@ import { useFamily } from "../../components/FamilyProvider";
 import { RepeatFieldset } from "../../components/RepeatFieldset";
 import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFields";
 import { ReminderFieldset } from "./ReminderFieldset";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import {
   useEventForm,
@@ -69,7 +70,16 @@ function TimesFieldset({ form }: { form: EventFormState }) {
         />
         All day
       </label>
-      <div className="flex flex-wrap gap-3">
+      {/* A grid, not `flex flex-wrap`: wrap decides per width and on a phone it
+          split this pair onto two lines and let the time field run to the
+          modal's edge. A grid splits the row evenly and never wraps.
+          One column until there is room for two. A date control needs ~141px to
+          show its year; at 320px (the original iPhone SE) a two-column row gives
+          each 117px and WebKit renders "09/ 10 / 202" — the year clipped, with
+          no overflow and no scrollWidth to detect it. Verified in WebKit on the
+          iPhone SE and SE 3rd-gen profiles.
+          All day hides the time, and then the date takes the whole row. */}
+      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2"}>
         <label className={LABEL}>
           Start date
           <input
@@ -94,7 +104,7 @@ function TimesFieldset({ form }: { form: EventFormState }) {
         )}
       </div>
       <FieldError messages={messagesFor(errors, "startDate", "startsAt")} />
-      <div className="flex flex-wrap gap-3">
+      <div className={draft.allDay ? undefined : "grid grid-cols-1 gap-3 min-[360px]:grid-cols-2"}>
         <label className={LABEL}>
           End date
           <input
@@ -194,9 +204,10 @@ export function EventForm({ mode, seed, onSubmit, onClose }: EventFormProps) {
       }}
       className="m-auto w-[min(92vw,34rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <h2
         id="event-form-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         {mode === "create" ? "Add an event" : "Edit event"}
       </h2>

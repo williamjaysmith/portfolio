@@ -6,6 +6,7 @@ import type { ListInput } from "@/lib/family/validation";
 import { FormFooter } from "../../components/FormFooter";
 import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFields";
 import { ColorPicker } from "../../components/settings/ColorPicker";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import { useListForm, type ListFormMode, type ListFormSeed, type ListSubmitOutcome } from "./useListForm";
 
@@ -81,7 +82,8 @@ export function ListForm({ mode, seed, lists, excludeId, onSubmit, onClose }: Li
       }}
       className="m-auto w-[min(92vw,34rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
-      <h2 id="list-form-title" className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
+      <DialogClose onClose={onClose} />
+      <h2 id="list-form-title" className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
         {mode === "create" ? "Add a list" : "Edit list"}
       </h2>
 

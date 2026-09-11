@@ -13,6 +13,7 @@ import type {
   Weekday,
 } from "@/lib/family/types";
 
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import { leadPhrase } from "@/lib/family/notifications/message";
 
@@ -224,9 +225,10 @@ export function EventDetails({
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <h2
         id="event-details-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         {occurrence.summary}
       </h2>

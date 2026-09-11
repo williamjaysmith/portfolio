@@ -1,4 +1,4 @@
-import { PINS, enterPin, punchSheet } from "../helpers/punch";
+import { PINS, actorBadge, enterPin, punchOut, punchSheet } from "../helpers/punch";
 import { expect, test } from "../fixtures";
 
 /**
@@ -22,13 +22,13 @@ test.describe("the punch-in gate", () => {
     await enterPin(page, "Ana", PINS.Ana);
 
     // The interrupted write finishes on its own.
-    await expect(page.getByRole("button", { name: "Punch out Ana" })).toBeVisible();
+    await expect(actorBadge(page, "Ana")).toBeVisible();
     await expect(page.getByText("Punch-in probe")).toBeVisible();
 
     // Clean up after ourselves: this journey owns that row.
     await page.getByRole("button", { name: /Punch-in probe/ }).first().click();
     await page.getByRole("button", { name: "Delete" }).click();
-    await page.getByRole("button", { name: "Punch out Ana" }).click();
+    await punchOut(page, "Ana");
   });
 
   test("refuses a wrong PIN and punches nobody in", async ({ page }) => {
@@ -42,7 +42,7 @@ test.describe("the punch-in gate", () => {
     for (const digit of "9999") await pad.getByRole("button", { name: digit, exact: true }).click();
 
     await expect(page.getByText("That PIN isn't right.")).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Punch out/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Punched in as/ })).toHaveCount(0);
   });
 
   test("offers only the Profiles that have a PIN, and says so about the rest", async ({ page }) => {
@@ -67,8 +67,8 @@ test.describe("the punch-in gate", () => {
     });
     await expect(page.getByText("Second probe")).toBeVisible();
 
-    await page.getByRole("button", { name: "Punch out Ana" }).click();
-    await expect(page.getByRole("button", { name: /^Punch out/ })).toHaveCount(0);
+    await punchOut(page, "Ana");
+    await expect(page.getByRole("button", { name: /^Punched in as/ })).toHaveCount(0);
 
     await page.getByRole("button", { name: /Second probe/ }).first().click();
     await page.getByRole("button", { name: "Delete" }).click();

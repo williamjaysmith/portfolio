@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 
+import { DialogClose } from "./DialogClose";
 import { useModalDialog } from "./useModalDialog";
 
 /**
@@ -54,7 +55,8 @@ export function ConfirmDialog({
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
-      <h2 id="list-confirm-title" className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
+      <DialogClose onClose={onCancel} />
+      <h2 id="list-confirm-title" className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
         {title}
       </h2>
       <p id="list-confirm-body" className="mt-3 text-(length:--fam-fs-body) text-(--fam-text-secondary)">

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ownsOccurrence } from "@/lib/family/permissions";
 import type { ActorSession, Category } from "@/lib/family/types";
 
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 
 /**
@@ -100,16 +101,17 @@ export function ClaimDialog({
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onCancel} />
       <h2
         id="task-claim-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         &ldquo;{summary}&rdquo;
       </h2>
 
       <p
         id="task-claim-question"
-        className="mt-3 text-(length:--fam-fs-body) text-(--fam-text-secondary)"
+        className="pr-(--fam-touch) mt-3 text-(length:--fam-fs-body) text-(--fam-text-secondary)"
       >
         Who did this one?
       </p>

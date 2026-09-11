@@ -39,37 +39,171 @@
    * the small/large multipliers are [UNKNOWN] in the source → 0.875 / 1.125 are placeholders [OURS]. */
   --fam-text-scale: 1;
 
-  /* ---------- surfaces & chrome (07 §1.2) ----------------------------------- */
-  --fam-app-bg: #FFFFFF;           /* [SAMPLED] calendar canvas, cards, modals */
-  --fam-sidebar-bg: #E9F0F7;       /* [SAMPLED] left rail + portrait bottom bar — "a cool pale blue, not grey" */
-  --fam-sidebar-active: #FFFFFF;   /* [SAMPLED] active nav item = white pill, no border, no shadow */
-  --fam-pill-btn-bg: #F7F7F8;      /* [SAMPLED] top-bar pill buttons (Day / Filter / Today / ‹ ›) */
-  --fam-btn-secondary-bg: #F9F9F9; /* [SAMPLED] modal secondary button */
-  --fam-hairline: #EDEDED;         /* [ESTIMATED] grid / divider hairlines — sub-pixel in every photo.
-                                      DECORATION ONLY: 1.17:1 on --fam-app-bg. Fine between two things
-                                      layout has already separated; never the boundary of a control. */
-  --fam-control-border: #8A8A8A;   /* [OURS] the outline of a text input, which is the only thing that
-                                      says "type here" — WCAG 1.4.11 wants 3:1 for that. 3.45:1 on
-                                      --fam-app-bg (and 3.00:1 on --fam-sidebar-bg). Nothing is
-                                      photographed at this level of detail, so the value is ours. */
+  /* ---------- the brand palette (014) --------------------------------------
+   * StrangebadEffects' brand colours, from
+   * ../StrangebadEffectsShop/app/globals.css and its docs/style-guide.md. The
+   * operator's call on 2026-09-10: "those are the colors i would like to start
+   * using on this app rather than the color pallet youve [got]". They replace
+   * the Skylight-sampled chrome below; the dossier's [SAMPLED] values are kept
+   * in the comments so the divergence is legible rather than lost.
+   *
+   * **This app is not targeting WCAG AA.** Also the operator's call, same day:
+   * "we dont actually need this app to be accessibility compliant, this is a
+   * personal use app for my family". So the brand hexes are used AS PUBLISHED —
+   * not nudged darker to clear a ratio, which is what an earlier pass here was
+   * about to do. What is still weighed is plain legibility on the wall tablet
+   * across a kitchen, which is why the two text greys are mixes of brand-black
+   * rather than the mid-greys they replace, and why the mealtime rail and nav
+   * labels sit on brand-black.
+   *
+   * Measured anyway, for the record rather than as a gate — every pair below is
+   * against its own background:
+   *   brand-black on brand-white 14.79 · on brand-beige 9.36
+   *   85 % black (muted) on beige 5.85 · 70 % black (secondary) on white 5.47
+   *   white on brand-blue 4.25 · white on brand-red 4.91 · red on white 4.54
+   *   dark ink on brand-pink 4.41 · on brand-yellow 7.16
+   *   brand-pink on white 3.35 (the old coral was 2.98 — the now-line got
+   *   STRONGER, not weaker, which is the one thing this change had to not break)
+   */
+  --brand-black: #272020;
+  --brand-beige: #cdc5ba;
+  --brand-beige-light: #d2ccc4;
+  --brand-warm-gray: #dfdddb;
+  --brand-white: #f6f6f6;
+  --brand-red: #c9412f;
+  --brand-purple: #a35863;
+  --brand-green: #aa9737;
+  --brand-yellow: #dda34a;
+  --brand-pink: #e95065;
+  --brand-blue: #13888f;
+  --brand-peach: #e99469;
+  --brand-brown: #9a7d61;
 
-  /* ---------- text (07 §1.2) — all [ESTIMATED]; photo blur prevents an exact read ---- */
-  --fam-text-primary: #1A1A1A;     /* date, day headers, event titles, list/task titles */
-  --fam-text-secondary: #6E6E6E;   /* event times, hour gutter, modal subtitle */
-  --fam-text-muted: #4A4A4A;       /* sidebar labels, pill labels (NB: darker than "secondary" — dossier naming kept as-is) */
+  /* ---------- surfaces & chrome ---------------------------------------------- */
+  --fam-app-bg: #FFFFFF;                       /* [SAMPLED] the calendar and meals canvas, cards, modals.
+                                                  Brand-white (#f6f6f6) was tried here and the operator
+                                                  asked for plain white back: "lets make the calendar
+                                                  background regular white as well as for meals". This is
+                                                  ONE token for the whole app, so it is every tab's
+                                                  canvas and every card and modal, not only those two.
+                                                  Note --fam-field-bg is now the same value: a search
+                                                  pill is drawn entirely by its ring, which is why that
+                                                  ring exists. */
+  --fam-sidebar-bg: #E9F0F7;                   /* [SAMPLED] the rail and the bottom bar — "a cool pale
+                                                  blue, not grey". It went brand-beige, brand-black,
+                                                  brand-warm-gray and then the pills' #F7F7F8 over the
+                                                  course of one afternoon, and the operator brought it
+                                                  back: "screw it lets just go back to this color for the
+                                                  nav, no blur, no drop shadow. It was a better look".
+                                                  The sampled value is the one that survived. */
+  --fam-sidebar-active: var(--fam-app-bg);     /* The active tab is the canvas colour — a white pill on
+                                                  the pale rail, which is Skylight's own shape and reads
+                                                  as continuous with the content it is showing. */
+  --fam-door-bg: var(--brand-beige);           /* The sign-in page, and now the ONLY place brand-beige is
+                                                  drawn. It had borrowed --fam-sidebar-bg to match the
+                                                  rail; it was split off when the rail went black, and it
+                                                  stays split because the operator asked for the beige
+                                                  specifically. */
+  --fam-nav-ink: color-mix(in srgb, var(--brand-black) 85%, white);
+                                   /* An inactive tab's icon and label. Dark again now that the rail is
+                                      light — the warm-gray version of this was brand-warm-gray ON black.
+                                      85 % rather than full: it has to sit BELOW the active tab's ink
+                                      without disappearing (6.13:1 on the rail). */
+  --fam-nav-ink-active: var(--brand-black);    /* The active tab's, on its lighter panel */
 
-  /* ---------- semantics — cross-confirmed against the API palette (07 §1.2) ----------- */
+  --fam-pill-btn-bg: #F7F7F8;                  /* [SAMPLED] every pill control: Filter, the punch-in
+                                                  badge, Week / Search / Today / ‹ › and the task and
+                                                  list menus. brand-warm-gray (#dfdddb) was tried here
+                                                  and the operator asked for the sampled light grey back:
+                                                  "i much prefer this light color we previously used on
+                                                  these buttons". It is the one place the brand's
+                                                  neutrals lost — warm gray reads as a filled chip where
+                                                  this reads as a resting surface. */
+  --fam-hairline: #E5E4E4;         /* [DERIVED] brand-black at 12 % on the canvas.
+                                   /* was #EDEDED. 12 % of brand-black is the shop's own hairline recipe
+                                      (its .input-solid rest border), and lands at 1.17:1 on the new
+                                      app background — the very ratio the sampled value had on white.
+                                      DECORATION ONLY: never the boundary of a control. */
+  /* An icon-only control drawn as a filled circle: the Filter eye. It is the
+   * SAME fill and ink as every pill beside it — it went solid black, then an
+   * outlined white circle, then transparent with a hairline ring, and the
+   * operator settled it: "lets use that same color scheme, get rid of the black
+   * border around the filter icon circle". A round pill rather than a different
+   * species of control. */
+  --fam-glyph-bg: var(--fam-pill-btn-bg);
+  --fam-glyph-ink: var(--fam-text-muted);
+  --fam-notice-bg: color-mix(in srgb, var(--fam-app-bg) 75%, transparent);
+                                   /* The reminder banner, which floats OVER the week. It referred to
+                                      `--fam-surface`, a token that was never defined — an undefined
+                                      custom property resolves to nothing, so the banner has never had a
+                                      background at all and the grid read straight through its text. The
+                                      operator saw it: "the background of this notification should be a
+                                      little less transparent … somewhat seethrough is fine just not
+                                      full transparent". 75 % plus the blur below keeps it a panel while
+                                      still admitting what it covers. */
+  --fam-field-bg: #FFFFFF;                     /* [OURS] a text field's own surface — plain white, a shade
+                                                  above the brand-white canvas. On its own that is a
+                                                  1.04:1 difference and invisible; the ring below is what
+                                                  actually draws the field, which is why the two arrived
+                                                  together. */
+  --fam-field-ring: color-mix(in srgb, var(--brand-black) 30%, transparent);
+                                   /* [OURS] a field's border at REST — one hairline of brand-black at
+                                      30 %, enough to draw the pill against a white canvas without
+                                      shouting. */
+  --fam-field-ring-focus: var(--brand-black);  /* [OURS] the same hairline at full strength on focus.
+                                                  Together these REPLACE the 3px blue outline on the
+                                                  search bars — the operator's call: "i dont like the big
+                                                  blue accessibility ring, lets just put a thin brand
+                                                  black ring around the search bar … and lets keep a
+                                                  light border around the search pill, which will darken
+                                                  when in focus". Focus changes the ring's COLOUR, not
+                                                  its width, so nothing on the row moves when a field is
+                                                  focused. */
+  --fam-control-border: #888484;   /* [DERIVED] brand-black at 55 % on the canvas.
+                                   /* was #8A8A8A [OURS]. The outline of a text input is the only thing
+                                      that says "type here", so it stays a real edge: 3.42:1 on the app
+                                      background, where the value it replaces was 3.45:1. The shop's
+                                      inputs use 12 % at rest and snap to 100 % on focus; /family's are
+                                      on a wall tablet nobody hovers, so the rest state carries it. */
+
+  /* ---------- text -----------------------------------------------------------
+   * These four — the two inks, the input border and the hairline — are written
+   * as LITERAL hex rather than as `var(--brand-black)` or a `color-mix`, and
+   * that is load-bearing: `app/family/__tests__/tokens.test.ts` parses this
+   * file and measures the real contrast of each one, and it can only do that
+   * against a literal. Writing them as brand references made the suite throw
+   * "--fam-text-primary is not declared as a literal hex in tokens.css" —
+   * a guard doing its job. The values below ARE the brand values, composited. */
+  --fam-text-primary: #272020;     /* brand-black, literal. was #1A1A1A — dates, day headers, titles.
+                                                  NOTE: lib/family/colors.ts still reasons about #1A1A1A
+                                                  as its INK_DARK, 7 points lighter than this. Verified
+                                                  harmless rather than assumed: `inkOn` picks the SAME
+                                                  ink for all twenty palette colours under either black,
+                                                  so no surface draws the wrong one. Syncing them would
+                                                  drop that module's guard from 4.5:1 to 4.17:1, which is
+                                                  not worth doing to close a 7-point gap nobody can see. */
+  --fam-text-secondary: #686363;   /* [DERIVED] brand-black at 70 % on white.
+                                   /* was #6E6E6E — event times, hour gutter, modal subtitle */
+  --fam-text-muted: #474141;       /* [DERIVED] brand-black at 85 % on white.
+                                   /* was #4A4A4A — nav labels and pill labels, which now sit on
+                                      brand-beige and brand-warm-gray rather than on near-white. A
+                                      mid-grey disappears on beige; this does not. Still darker than
+                                      "secondary", as the dossier's naming has it. */
+
+  /* ---------- semantics ------------------------------------------------------ */
+  /* The CHROMATIC semantics stayed Skylight's. The operator tried the brand's
+   * accents here and reverted them — "just go back to the color pallet you had,
+   * that was fine … but keep my black, warm gray and white". So the brand
+   * supplies the NEUTRALS (above: the canvas, the rail, the pills, every ink)
+   * and Skylight still supplies anything with a hue. */
   --fam-primary-blue: #2178AF;     /* [VERIFIED] palette "Blue"   — FAB, modal "Done" */
   --fam-accent-coral: #F66951;     /* [VERIFIED] palette "Coral"  — today badge, now-line.
                                       DECORATIVE FILL ONLY: 2.98:1 on --fam-app-bg, so it may tint a
                                       surface but must never be text, and must never sit under white text. */
   --fam-star-gold: #FDC36D;        /* [VERIFIED] palette "Orange" — star chips, reward stars */
-  --fam-danger: #AC4A39;           /* [DERIVED] the verified coral at 70 % in sRGB — 5.54:1 on
-                                      --fam-app-bg, which is the same measurement for both of its jobs:
-                                      validation text / "Delete" labels ON white, and the confirm-delete
-                                      button fill UNDER white (WCAG 1.4.3 wants 4.5:1 for each).
-                                      The raw #F66951 it is derived from is 2.98:1 and fails both.
-                                      A true error colour is still [UNKNOWN] in the source. */
+  --fam-danger: #AC4A39;           /* [DERIVED] the verified coral at 70 % in sRGB — validation text and
+                                      "Delete" labels ON the canvas, and the confirm-delete button fill
+                                      UNDER white. The raw #F66951 it is derived from fails both. */
   --fam-focus-ring: var(--fam-primary-blue); /* [OURS] focus states are not photographed (touch device) */
   /* There is NO global success green: a completed check-circle uses the profile's own accent [VERIFIED]. */
 
@@ -105,15 +239,38 @@
 
   /* ---------- metrics — px @1920×1080 × --fam-u (07 §3.2–3.4) — all [ESTIMATED] unless noted */
   --fam-rail-w: calc(102 * var(--fam-u));        /* [SAMPLED] 102 + 117 + 5×337 = 1904 ≈ 1920 */
-  --fam-topbar-h: calc(85 * var(--fam-u));       /* [SAMPLED] 85 + 89 + 137 + 769 = 1080 */
+  --fam-topbar-h: calc(85 * var(--fam-u));       /* [SAMPLED] 85 + 89 + 137 + 769 = 1080. A MINIMUM, not a
+                                                    fixed height, since 014 — see --fam-topbar-pad. */
+  --fam-topbar-pad: max(8px, calc(12 * var(--fam-u))); /* [OURS] the clock row's breathing room. On a phone
+                                                    --fam-u hits its 0.5 floor, so the sampled 85 becomes
+                                                    42.5px — measured: a 36px clock with 3px above and
+                                                    below it, and a Filter pill whose 44px touch floor
+                                                    was taller than the bar containing it. The operator
+                                                    saw it: "the top header where filter button is seems
+                                                    like it could use some vertical padding so its not
+                                                    against the top so far". Floored at 8px so the phone
+                                                    gets real space; at the reference scale the 85 still
+                                                    wins and nothing about the wall display moves. */
   --fam-chiprow-h: calc(89 * var(--fam-u));      /* [SAMPLED] */
   --fam-nav-pitch: calc(118 * var(--fam-u));     /* [ESTIMATED] vertical pitch between rail items */
   --fam-nav-icon: calc(32 * var(--fam-u));       /* [ESTIMATED] stroke ~2 */
   --fam-pill-h: calc(52 * var(--fam-u));         /* [ESTIMATED] top-bar pill button height */
   --fam-pill-r: calc(26 * var(--fam-u));         /* [DERIVED] pill-h / 2 = full pill */
-  --fam-chip-h: calc(61 * var(--fam-u));         /* [SAMPLED] profile chip height */
+  --fam-chip-h: max(38px, calc(61 * var(--fam-u))); /* [SAMPLED] profile chip height. Floored [OURS] like
+                                                    the type scale, so the face stays recognisable at the
+                                                    0.5 unit floor; the floor is what the component used
+                                                    to hardcode as min-h-[38px]. */
+  --fam-chip-count-w: 4ch;                       /* [OURS] the count's reserved slot, wide enough for
+                                                    "0/19" from the FIRST paint — a slot that grew when
+                                                    the number arrived would shift every chip right of
+                                                    it, which is the CLS 012 spent the phone's budget
+                                                    driving to 0.00. */
   --fam-chip-r: calc(30 * var(--fam-u));         /* [DERIVED] chip-h / 2 = full pill */
-  --fam-chip-cap-w: calc(72 * var(--fam-u));     /* [SAMPLED] coloured left cap ≈ 22 % of the chip */
+  --fam-chip-cap-w: max(45px, calc(72 * var(--fam-u))); /* [SAMPLED] coloured left cap ≈ 22 % of the chip.
+                                                    Finally DRAWN as of 014 — the component hardcoded
+                                                    chip-h × 1.18 with a 45px floor, which is this token
+                                                    and this floor. The face fills it, so the cap's right
+                                                    edge is the straight line between face and count. */
   --fam-chip-avatar: calc(48 * var(--fam-u));    /* [ESTIMATED] avatar inside the cap, 2 px accent ring */
   --fam-fab-d: calc(90 * var(--fam-u));          /* [SAMPLED] FAB diameter */
   --fam-fab-inset: calc(32 * var(--fam-u));      /* [ESTIMATED] FAB inset from the content corner */
@@ -631,6 +788,35 @@
 .family :focus-visible {
   outline: 3px solid var(--fam-focus-ring);
   outline-offset: 2px;
+}
+
+/* A field whose CONTAINER draws the focus state instead — the search bars, whose
+ * pill thickens its --fam-field-ring on focus-within. Two indicators on one
+ * control is worse than one, and the ring is the one the operator asked for.
+ *
+ * It has to be here rather than a `focus-visible:outline-none` utility on the
+ * input: this file is plain CSS and un-layered, so it outranks Tailwind's
+ * `@layer utilities` — the same reason the reduced-motion rule below works. A
+ * utility was tried first and lost, silently, which is the trap. */
+.family .fam-field-input:focus,
+.family .fam-field-input:focus-visible {
+  outline: none;
+}
+
+/* A bare glyph control — the dialogs' X. The global 3px ring at 2px offset draws
+ * a blue CIRCLE around a round button, which is most of what you see; the
+ * operator's call: "i dont want a blue circle around it though, any of them —
+ * just the x". Focus is shown by the glyph going to full-strength ink instead,
+ * which is the only thing that control has to show.
+ *
+ * **`:focus` as well as `:focus-visible`**, on both rules above: Safari has its
+ * own view of when a tapped control is "visibly" focused, and the operator's
+ * devices are Safari. Suppressing only the `-visible` variant left the ring on
+ * a plain focus there — a blue SQUARE, since this button is not rounded. */
+.family .fam-glyph-btn:focus,
+.family .fam-glyph-btn:focus-visible {
+  outline: none;
+  color: var(--fam-text-primary);
 }
 
 /* ---------- reduced motion ------------------------------------------------------------------

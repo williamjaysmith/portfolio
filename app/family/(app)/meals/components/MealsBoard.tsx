@@ -21,7 +21,9 @@ import { CategoryForm } from "./CategoryForm";
 import { DAY_HEADER_CLASS, MealDayColumn } from "./MealDayColumn";
 import { MealRail } from "./MealRail";
 import { MealSurfaces, useMealSurfaceModel } from "./MealSurfaces";
-import { WeekNav } from "./WeekNav";
+import { distanceInWords } from "@/lib/family/meals/window";
+
+import { DayNav } from "../../components/DayNav";
 import { useHiddenMealtimes } from "./useHiddenMealtimes";
 import { useMealWindow } from "./useMealWindow";
 
@@ -208,12 +210,13 @@ function useMealsBoardModel(props: MealsBoardProps) {
 type MealsBoardModel = ReturnType<typeof useMealsBoardModel>;
 
 function drawnColumnsOf(m: MealsBoardModel): PagedColumn[] {
-  return m.week.dates.map((date) => ({
+  return m.week.dates.map((date, index) => ({
     label: dayWordsOf(date),
     node: (
       <MealDayColumn
         key={date}
         date={date}
+        dividerBefore={index > 0}
         todayDate={m.week.todayDate}
         categories={m.data.shownCategories}
         slots={m.data.slots}
@@ -251,19 +254,26 @@ export function MealsBoard(props: MealsBoardProps) {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3 pt-2">
-      <div className="flex flex-wrap items-center gap-2 px-(--fam-edge-inset)">
-        <WeekNav label={m.week.label} columns={m.week.dates.length} isLiveWindow={m.week.isLiveWindow} onPage={m.week.page} onToday={m.week.today} />
-        <div className="ml-auto flex gap-2">
-          <button type="button" onClick={() => editor.openRecipes(null)} className={TOOL} aria-haspopup="dialog">
-            <BookOpen aria-hidden="true" size={20} strokeWidth={1.5} />
-            Recipes
-          </button>
-          <button type="button" onClick={editor.openCategories} className={TOOL} aria-haspopup="dialog">
-            <SlidersHorizontal aria-hidden="true" size={20} strokeWidth={1.5} />
-            Categories
-          </button>
-        </div>
-      </div>
+      {/* Recipes and Categories ride this row as DayNav's children, the way the
+          Calendar's view switcher and search box do — 014. They used to sit in
+          a wrapper of their own with its own `ml-auto`, which fought the
+          cluster's, and the two tabs' toolbars drifted apart from there. */}
+      <DayNav
+        distance={distanceInWords(m.week.dates.length)}
+        label={m.week.label}
+        todayDisabled={m.week.isLiveWindow}
+        onPage={m.week.page}
+        onToday={m.week.today}
+      >
+        <button type="button" onClick={() => editor.openRecipes(null)} className={TOOL} aria-haspopup="dialog">
+          <BookOpen aria-hidden="true" size={20} strokeWidth={1.5} />
+          Recipes
+        </button>
+        <button type="button" onClick={editor.openCategories} className={TOOL} aria-haspopup="dialog">
+          <SlidersHorizontal aria-hidden="true" size={20} strokeWidth={1.5} />
+          Categories
+        </button>
+      </DayNav>
 
       <BoardNotice notice={m.notice} />
 

@@ -51,7 +51,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col">
           <TopBar />
           {showsChipRow(pathname) ? <ProfileChipRow /> : null}
-          <main className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          {/* The changing container, stated rather than inherited: brand white,
+              the operator's call. A warm-gray header band above it was tried
+              and dropped the same day. */}
+          <main className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-(--fam-app-bg)">
             {/* Mounted once, here, so a reminder appears on whichever tab is
                 showing — the calendar's data is not loaded on Lists or Meals,
                 which is exactly why the banner brings its own (008 R802). */}

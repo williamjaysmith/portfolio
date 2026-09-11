@@ -10,7 +10,8 @@ import { expect, test } from "../fixtures";
 /**
  * 009 T054, Phase 8 — the calendar's preview bar (FR-901–FR-921).
  *
- * Countdowns end to end, the Tasks Progress toggle Phase 2 withheld, and the
+ * Countdowns end to end, the per-Profile chore counts (on the shell's chips
+ * since 014, not in this bar), and the
  * event search. Three surfaces above the week, and the writes that feed them.
  *
  * **What this file does NOT claim.** SC-902 asks that a countdown's number fall
@@ -230,49 +231,49 @@ test.describe("Show Countdowns decides what the bar shows", () => {
   });
 });
 
-test.describe("Tasks Progress", () => {
+/**
+ * 014 moved the counts onto the shell's profile chips and deleted both the
+ * separate row and the switch that revealed it. What is left to walk is the
+ * same two claims at their new address: every visible Profile carries a count,
+ * and hiding somebody takes their count away with their events (FR-911,
+ * FR-912, SC-908).
+ *
+ * There is no "off" state to walk any more, which is the point: the operator
+ * met the old row because "Show all" turned it on as a side effect.
+ */
+test.describe("the chips carry each Profile's chore count", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/family/calendar");
     await hideDevOverlay(page);
   });
 
-  test("is off by default, and turning it on puts each visible Profile above the events (FR-911)", async ({
+  test("every visible Profile shows a completed-of-total, with no switch to find (FR-911)", async ({
     page,
   }) => {
-    await expect(page.getByRole("list", { name: "Tasks Progress" })).toHaveCount(0);
+    const chips = page.getByRole("group", { name: "Family" });
+    await expect(chips).toBeVisible();
+    // The count is reserved from the first paint and filled once the clock and
+    // the reads land, so wait for the text rather than counting immediately.
+    await expect(chips).toContainText(/\d+\/\d+/);
 
     await inFilter(page, async (sheet) => {
-      await expect(sheet.getByRole("checkbox", { name: "Tasks Progress" })).not.toBeChecked();
-      await sheet.getByRole("checkbox", { name: "Tasks Progress" }).check();
+      await expect(sheet.getByRole("checkbox", { name: "Tasks Progress" })).toHaveCount(0);
     });
-
-    const progress = page.getByRole("list", { name: "Tasks Progress" });
-    await expect(progress).toBeVisible();
-    await expect(progress.getByRole("listitem").first()).toContainText(/\d+\/\d+/);
-
-    await inFilter(page, async (sheet) => {
-      await sheet.getByRole("checkbox", { name: "Tasks Progress" }).uncheck();
-    });
-    await expect(page.getByRole("list", { name: "Tasks Progress" })).toHaveCount(0);
   });
 
-  test("hiding a Profile takes their progress with their events (SC-908)", async ({ page }) => {
-    await inFilter(page, async (sheet) => {
-      await sheet.getByRole("checkbox", { name: "Tasks Progress" }).check();
-    });
-
-    const progress = page.getByRole("list", { name: "Tasks Progress" });
-    await expect(progress).toContainText("Cleo");
+  test("hiding a Profile takes their count with their events (SC-908)", async ({ page }) => {
+    const chips = page.getByRole("group", { name: "Family" });
+    await expect(chips).toContainText("Cleo");
 
     await inFilter(page, async (sheet) => {
       await sheet.getByRole("checkbox", { name: "Cleo" }).uncheck();
     });
-    await expect(progress).not.toContainText("Cleo");
+    await expect(chips).not.toContainText("Cleo");
 
     await inFilter(page, async (sheet) => {
       await sheet.getByRole("button", { name: "Show all" }).click();
-      await sheet.getByRole("checkbox", { name: "Tasks Progress" }).uncheck();
     });
+    await expect(chips).toContainText("Cleo");
   });
 });
 
@@ -361,12 +362,10 @@ test.describe("the bar at every width", () => {
 
     const title = unique("Phone countdown");
     await createEvent(page, actAsAna, { title, countdown: true });
-    await inFilter(page, async (sheet) => {
-      await sheet.getByRole("checkbox", { name: "Tasks Progress" }).check();
-    });
-
     await expect(previewBar(page)).toBeVisible();
-    await expect(page.getByRole("list", { name: "Tasks Progress" })).toBeVisible();
+    // The counts are in the shell now, not the bar (014), so both rows are on
+    // screen and neither may push the page sideways.
+    await expect(page.getByRole("group", { name: "Family" })).toContainText(/\d+\/\d+/);
 
     // The page itself never scrolls sideways: the bar's own row does (SC-006).
     const overflow = await page.evaluate(
@@ -374,9 +373,6 @@ test.describe("the bar at every width", () => {
     );
     expect(overflow).toBeLessThanOrEqual(1);
 
-    await inFilter(page, async (sheet) => {
-      await sheet.getByRole("checkbox", { name: "Tasks Progress" }).uncheck();
-    });
     await deleteEvent(page, actAsAna, title);
   });
 });
@@ -393,15 +389,8 @@ test.describe("the bar's accessibility (T053)", () => {
 
     const title = unique("A11y countdown");
     await createEvent(page, actAsAna, { title, countdown: true });
-    await inFilter(page, async (sheet) => {
-      await sheet.getByRole("checkbox", { name: "Tasks Progress" }).check();
-    });
-
     await axe("calendar with the preview bar and search");
 
-    await inFilter(page, async (sheet) => {
-      await sheet.getByRole("checkbox", { name: "Tasks Progress" }).uncheck();
-    });
     await deleteEvent(page, actAsAna, title);
   });
 });

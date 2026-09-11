@@ -39,16 +39,16 @@ describe("PreviewBar", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("draws one row carrying both halves, never two rows", () => {
-    render(
-      <PreviewBar
-        progress={<span>Ana 2/5</span>}
-        countdowns={<CountdownChips countdowns={[statusAt(13, "Vacation")]} slots={3} />}
-      />,
-    );
+  /**
+   * 014: the bar used to carry Tasks Progress alongside the countdowns, and
+   * this test asserted the two shared ONE row. The counts moved to the shell's
+   * profile chips, so what is left to assert is that the countdowns get a
+   * named row of their own.
+   */
+  it("draws one named row for the countdowns", () => {
+    render(<PreviewBar countdowns={<CountdownChips countdowns={[statusAt(13, "Vacation")]} slots={3} />} />);
 
     const bar = screen.getByRole("group", { name: "Calendar preview" });
-    expect(bar).toContainElement(screen.getByText("Ana 2/5"));
     expect(bar).toContainElement(screen.getByText("Vacation · 13 days"));
   });
 });

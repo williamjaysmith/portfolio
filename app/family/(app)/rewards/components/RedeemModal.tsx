@@ -7,6 +7,7 @@ import { redemptionCelebration } from "@/lib/family/rewards/celebrations";
 import type { Redemption } from "@/lib/family/types";
 
 import { StarConfetti } from "../../components/celebrations/StarConfetti";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import { rewardCardKeyOf } from "./RewardCard";
 import { useRedeem } from "./useRedeem";
@@ -124,6 +125,7 @@ export function RedeemModal({ redemption, emoji, profileName, onClose }: RedeemM
       }}
       className={`${DIALOG_CLASS} ${showering ? WASH_ON : WASH_OFF}`}
     >
+      <DialogClose onClose={onClose} />
       <motion.div
         initial={reducedMotion ? false : ENTRANCE_FROM}
         animate={ENTRANCE_TO}
@@ -141,7 +143,7 @@ export function RedeemModal({ redemption, emoji, profileName, onClose }: RedeemM
         )}
         <h2
           id="redeem-modal-title"
-          className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title) leading-tight"
+          className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title) leading-tight"
         >
           {title}
         </h2>

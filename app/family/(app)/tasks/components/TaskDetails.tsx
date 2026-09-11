@@ -11,6 +11,7 @@ import type {
   TimeFormat,
 } from "@/lib/family/types";
 
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import { SECTION_LABELS } from "./SectionGroup";
 import { UP_FOR_GRABS_TITLE } from "./UpForGrabsColumn";
@@ -130,7 +131,7 @@ function DetailsTitle({ emoji, summary }: { emoji: string | null; summary: strin
   return (
     <h2
       id="task-details-title"
-      className="flex items-center gap-3 font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+      className="pr-(--fam-touch) flex items-center gap-3 font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
     >
       {emoji === null ? null : (
         <span aria-hidden="true" className="text-(length:--fam-task-emoji) leading-none">
@@ -291,6 +292,7 @@ export function TaskDetails({
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <DetailsTitle emoji={occurrence.emoji} summary={occurrence.summary} />
 
       <p className="mt-2 text-(length:--fam-fs-body) text-(--fam-text-secondary) tabular-nums">

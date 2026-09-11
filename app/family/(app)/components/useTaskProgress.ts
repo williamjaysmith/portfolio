@@ -12,14 +12,18 @@ import {
 import { columnCountersOf, type TaskCounters } from "@/lib/family/tasks/counters";
 import type { WeekStart } from "@/lib/family/types";
 
-import { useTaskDay } from "../../tasks/components/useTaskDay";
+import { useTaskDay } from "../tasks/components/useTaskDay";
 
 /**
- * Tasks Progress for the calendar's preview bar (009 FR-911, FR-912, R905,
- * R906).
+ * Each Profile's completed-of-total for today (009 FR-911, FR-912, R905, R906),
+ * read by the shell's `ProfileChipRow` and drawn on the chips themselves.
  *
  * The reference's Filter toggle "displays the task progress of visible profiles
- * above the events in all calendar views" [VERIFIED](36625171368987).
+ * above the events in all calendar views" [VERIFIED](36625171368987). 014 moved
+ * it: the count belongs on the chip, where the reference itself draws it
+ * ("Dad 1/20"), and the separate row above the calendar is gone — the operator
+ * reported the two as redundant and asked for them combined into one row at the
+ * top.
  *
  * **It defines no counting rule.** `columnCountersOf` in
  * `lib/family/tasks/counters.ts` is FR-305's denominator, fixed once, and its
@@ -28,10 +32,18 @@ import { useTaskDay } from "../../tasks/components/useTaskDay";
  * visible cards, so this hook composes the shipped expansion and the shipped
  * counters and adds nothing.
  *
- * **Mounting is the `enabled`** (`useTaskBox`'s shipped idiom, R905): nothing
- * calls this hook unless `TasksProgressRow` is rendered, and that row is
- * rendered only while the device's Tasks Progress switch is on. Off, the
- * calendar makes no task request at all.
+ * **Mounting is still the `enabled`** (`useTaskBox`'s shipped idiom, R905), but
+ * what mounts it changed. The per-device Tasks Progress switch is gone — a
+ * count the household always wants needs no switch, and the one it had was
+ * flipped on as a side effect of the Filter sheet's "Show all", which is how
+ * the operator met the old row without choosing it. The gate is now the CLOCK:
+ * `ProfileChipRow` renders the counting child only once the household's today
+ * is known, so the server render and the first paint issue no task read. That
+ * is 012's rule, learned from `useTaskReads` fetching an epoch week on every
+ * tab because a placeholder date looked like a real one.
+ *
+ * **The cost is honest and new**: the chip row is in the shell, so these reads
+ * now happen on Lists and Meals too, where they did not before.
  *
  * **The cache is shared, not duplicated.** Three of the four reads are keyed by
  * the household alone (003 R314) and the fourth by the anchored week, so a

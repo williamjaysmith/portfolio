@@ -10,6 +10,7 @@ import { FormFooter } from "../../components/FormFooter";
 import { settleSubmit, toggled, useSubmission, type Settled, type SubmitOutcome } from "../../components/formSubmit";
 import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFields";
 import { useDraft } from "../../components/useDraft";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 
 /**
@@ -128,7 +129,8 @@ export function SectionSheet({ list, mode, items, sections, onSubmit, onClose }:
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
-      <h2 id="section-sheet-title" className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
+      <DialogClose onClose={onClose} />
+      <h2 id="section-sheet-title" className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
         {title}
       </h2>
       <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-4">

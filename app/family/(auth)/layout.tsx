@@ -8,7 +8,7 @@ import type { ReactNode } from "react";
  */
 export default function AuthLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-(--fam-sidebar-bg) p-(--fam-edge-inset)">
+    <main className="flex min-h-dvh items-center justify-center bg-(--fam-door-bg) p-(--fam-edge-inset)">
       <div className="w-full max-w-md rounded-(--fam-radius-modal) bg-(--fam-app-bg) px-8 py-10 shadow-sm">
         {children}
       </div>

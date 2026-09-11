@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useMemo, type ReactNode } from "react";
 
 import type { DateWindow } from "@/lib/family/calendar/dates";
@@ -27,8 +26,6 @@ import { EventSearch } from "./EventSearch";
 import { useCalendarView } from "./useCalendarView";
 import { useCalendarSearch, type CalendarSearch } from "./useEventSearch";
 import { ViewSwitcher } from "./ViewSwitcher";
-import { TasksProgressRow } from "./TasksProgressRow";
-import { useCountdownSwitches } from "./useCountdownSwitches";
 import { MealRow } from "./MealRow";
 import { PreviewBar } from "./PreviewBar";
 import { useCalendarPreview, type CalendarPreview, type CalendarPreviewOptions } from "./useCalendarPreview";
@@ -53,6 +50,7 @@ import { useWeekAnchor } from "./useWeekAnchor";
 import { useWeekOccurrences } from "./useWeekOccurrences";
 import { WeekGrid } from "./WeekGrid";
 import { WeekHeader } from "./WeekHeader";
+import { DayNav } from "../../components/DayNav";
 import { WeekPager } from "./WeekPager";
 
 /**
@@ -143,11 +141,6 @@ const EMPTY_LAYOUT: WeekLayout = {
 };
 
 /** Phase 1's top-bar pill (FilterSheet's idiom) at the FR-263 touch floor. */
-const PILL_CLASS =
-  "flex min-h-(--fam-touch) min-w-(--fam-touch) items-center justify-center gap-2 " +
-  "rounded-full bg-(--fam-pill-btn-bg) px-4 font-medium " +
-  "text-(length:--fam-fs-pill) text-(--fam-text-muted)";
-
 /** Category id → its palette colour — the fills' lookup in draw order (FR-227). */
 function colorMapOf(categories: readonly Category[]): Record<string, PaletteColor> {
   const map: Record<string, PaletteColor> = {};
@@ -300,23 +293,19 @@ function useCalendarFrame(options: {
  * the same reason: they are the chrome the household reads before it reads the
  * week itself.
  *
- * Bundling `tasksProgress` here keeps the mount rule readable at the call site:
- * it is not a flag passed down, it is the condition under which the progress
- * row exists at all (R905).
+ * 014 removed a third member. `tasksProgress` was bundled here so the mount
+ * rule read at the call site; the counts moved to the shell's `ProfileChipRow`
+ * and the switch went with them, so the bar carries countdowns alone.
  */
 interface WeekChrome {
-  preview: CalendarPreview & { tasksProgress: boolean };
+  preview: CalendarPreview;
   search: CalendarSearch;
 }
 
 function useWeekChrome(options: CalendarPreviewOptions): WeekChrome {
   const preview = useCalendarPreview(options);
-  const { switches } = useCountdownSwitches();
   const search = useCalendarSearch(options);
-  return {
-    preview: { ...preview, tasksProgress: switches.tasksProgress },
-    search,
-  };
+  return { preview, search };
 }
 
 /**
@@ -336,6 +325,13 @@ function pageLabelOf(view: CalendarView, columns: number): string {
   return `${columns} days`;
 }
 
+/**
+ * 014: the cluster itself is now the shell's `DayNav`, shared with Meals — the
+ * two tabs had drifted into two shapes and two orders for the same three
+ * controls. What stays here is the only thing that was ever the Calendar's own:
+ * the word for one step, which is "month" in the Month view and a count of days
+ * otherwise, and the view switcher and search box that ride the same row.
+ */
 function WeekNav({
   view,
   columns,
@@ -350,35 +346,10 @@ function WeekNav({
   /** 009 FR-915: the Search control, where the reference puts it on its toolbar. */
   children?: ReactNode;
 }) {
-  const step = pageLabelOf(view, columns);
   return (
-    // 011: the row WRAPS. Phase 8 added a search box and this phase a view
-    // switcher, and five controls do not fit 320px in one line — they
-    // overflowed off the left edge, which is the same class of defect the
-    // household reported on a real iPhone during Phase 7. Wrapping costs a
-    // second line on a phone and nothing at any width that fits.
-    <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 px-(--fam-edge-inset) pt-2 sm:gap-3">
+    <DayNav distance={pageLabelOf(view, columns)} onPage={onPage} onToday={onToday}>
       {children}
-      <button
-        type="button"
-        aria-label={`Previous ${step}`}
-        onClick={() => onPage(-1)}
-        className={PILL_CLASS}
-      >
-        <ChevronLeft size={20} aria-hidden="true" />
-      </button>
-      <button type="button" onClick={onToday} className={PILL_CLASS}>
-        Today
-      </button>
-      <button
-        type="button"
-        aria-label={`Next ${step}`}
-        onClick={() => onPage(1)}
-        className={PILL_CLASS}
-      >
-        <ChevronRight size={20} aria-hidden="true" />
-      </button>
-    </div>
+    </DayNav>
   );
 }
 
@@ -442,14 +413,6 @@ function CalendarPreviewBar({
 }) {
   return (
     <PreviewBar
-      progress={
-        // 009 FR-911 + R905: the switch is the MOUNT. Rendering the row is what
-        // enables the board's four reads, so an `undefined` here means the
-        // calendar issues no task request at all.
-        m.chrome.preview.tasksProgress && m.todayDate !== null ? (
-          <TasksProgressRow todayDate={m.todayDate} zone={m.zone} />
-        ) : undefined
-      }
       countdowns={
         m.chrome.preview.countdowns.length === 0 ? undefined : (
           <CountdownChips

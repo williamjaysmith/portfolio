@@ -12,9 +12,21 @@ import type { CategoryFormState } from "./useCategoryForm";
 
 // An empty input is identified by its outline alone, so the outline is a
 // control boundary and needs 3:1 — the hairline (1.17:1) is decoration.
+// `min-w-0` on the INPUT as well as on its label: a native date or time control
+// carries a UA minimum width of its own, which `w-full` does not override. Safari
+// sizes those controls wider than Chrome, so this is what stops them spilling out
+// of a narrow modal on the phone — the case that cannot be reproduced here.
 export const FIELD =
-  "min-h-[44px] w-full rounded-xl border border-(--fam-control-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-control) text-(--fam-text-primary) disabled:opacity-60";
-export const LABEL = "flex flex-col gap-1 text-(length:--fam-fs-small) text-(--fam-text-muted)";
+  "min-h-[44px] w-full min-w-0 rounded-xl border border-(--fam-control-border) bg-(--fam-app-bg) px-3 text-(length:--fam-fs-control) text-(--fam-text-primary) disabled:opacity-60";
+// `min-w-0` is load-bearing, not tidiness. A flex or grid item defaults to
+// `min-width: auto`, which refuses to shrink below its content's intrinsic
+// width — and a NATIVE date or time input is intrinsically wide (wider still on
+// iOS Safari, where the operator found this). Without it those fields overflow
+// their column and draw on top of the one beside them: "on add event start
+// date/end time selections … the options overlay on mobile", and the same in
+// the meal sheet. With it they shrink to their share of the row.
+export const LABEL =
+  "flex min-w-0 flex-col gap-1 text-(length:--fam-fs-small) text-(--fam-text-muted)";
 
 export function FieldError({ messages }: { messages?: string[] }) {
   if (!messages || messages.length === 0) return null;

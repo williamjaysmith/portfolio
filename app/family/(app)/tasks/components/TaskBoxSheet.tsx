@@ -15,6 +15,7 @@ import type { TaskBoxItem } from "@/lib/family/types";
 
 import { useFamily, type FamilyContextValue } from "../../components/FamilyProvider";
 import { FIELD, LABEL } from "../../components/settings/CategoryFields";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import { StarsField } from "./TaskForm";
 import { starsOf, starsTextOf, type TaskFormSeed } from "./useTaskForm";
@@ -557,9 +558,10 @@ export function TaskBoxSheet({ onChoose, onClose }: TaskBoxSheetProps) {
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <h2
         id="task-box-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         Task Box
       </h2>
