@@ -10,6 +10,7 @@ import { FormFooter } from "../../components/FormFooter";
 import { settleSubmit, useSubmission, type Settled, type SubmitOutcome } from "../../components/formSubmit";
 import { FIELD, FieldError, LABEL } from "../../components/settings/CategoryFields";
 import { useDraft } from "../../components/useDraft";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 
 /**
@@ -116,7 +117,8 @@ export function ItemSheet({
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
-      <h2 id="item-sheet-title" className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
+      <DialogClose onClose={onClose} />
+      <h2 id="item-sheet-title" className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
         {item.text}
       </h2>
       <p className="text-(length:--fam-fs-small) text-(--fam-text-secondary)">{listName}</p>

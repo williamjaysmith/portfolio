@@ -302,15 +302,16 @@ describe("FilterSheet — the Show Meals switch", () => {
 });
 
 /**
- * 009 T031 — the Calendar section (FR-908, FR-911, FR-913): Tasks Progress, the
- * reference's own Filter toggle, and Pause countdowns, which is ours
- * (Assumption 6). Both per device, on their own store, and both reached by the
- * same one **Show all**.
+ * 009 T031 — the Calendar section (FR-908, FR-913): Pause countdowns, which is
+ * ours (Assumption 6), per device, on its own store, reached by the same one
+ * **Show all**.
  *
- * Tasks Progress being OFF by default is the load-bearing default, not a taste:
- * the row's mount is what enables the board's four reads, so on by default
- * would put them on every calendar paint for a household that never asked
- * (R905).
+ * **014 retired Tasks Progress from this sheet.** It gated a row that drew the
+ * family's faces a second time above the calendar; the counts moved onto the
+ * shell's profile chips and are simply always there, so there is nothing left
+ * to switch. The last test here is the one that matters most about its
+ * departure: "Show all" used to turn it ON as a side effect of un-hiding a
+ * Profile, which is how the operator met that row without ever asking for it.
  */
 describe("FilterSheet — the Calendar section", () => {
   beforeEach(() => {
@@ -327,16 +328,15 @@ describe("FilterSheet — the Calendar section", () => {
     fireEvent.click(screen.getByRole("button", { name: "Filter" }));
   }
 
-  it("offers both switches under a Calendar heading", () => {
+  it("offers its one switch under a Calendar heading", () => {
     renderSheet();
     expect(screen.getByRole("heading", { name: "Calendar" })).toBeInTheDocument();
-    expect(screen.getByRole("checkbox", { name: "Tasks Progress" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).toBeInTheDocument();
   });
 
-  it("starts with Tasks Progress OFF, so the calendar asks for no task data", () => {
+  it("no longer offers Tasks Progress at all (014)", () => {
     renderSheet();
-    expect(screen.getByRole("checkbox", { name: "Tasks Progress" })).not.toBeChecked();
+    expect(screen.queryByRole("checkbox", { name: "Tasks Progress" })).toBeNull();
   });
 
   it("starts with the rotation running", () => {
@@ -344,23 +344,28 @@ describe("FilterSheet — the Calendar section", () => {
     expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).not.toBeChecked();
   });
 
-  it("writes both to the preview store", () => {
+  it("writes it to the preview store", () => {
     renderSheet();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Tasks Progress" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Pause countdowns" }));
 
     expect(JSON.parse(localStorage.getItem("family:calendar-preview:v1") ?? "{}")).toEqual({
-      tasksProgress: true,
       pauseRotation: true,
     });
   });
 
-  it("means both by Show all: progress on, rotation running", () => {
+  /**
+   * The side effect that started 014: "Show all" wrote `tasksProgress: true`,
+   * so un-hiding a Profile switched on a whole extra row of faces. It now means
+   * only "nothing held still".
+   */
+  it("means one thing by Show all now: the rotation running, and no extra row", () => {
     renderSheet();
     fireEvent.click(screen.getByRole("checkbox", { name: "Pause countdowns" }));
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
 
-    expect(screen.getByRole("checkbox", { name: "Tasks Progress" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Pause countdowns" })).not.toBeChecked();
+    expect(JSON.parse(localStorage.getItem("family:calendar-preview:v1") ?? "{}")).toEqual({
+      pauseRotation: false,
+    });
   });
 });

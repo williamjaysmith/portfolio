@@ -66,7 +66,7 @@ export function ReminderBanner() {
       // So the card does not take pointer events at all. Its link and its
       // Dismiss button opt back in, and everything else under it stays
       // reachable wherever it happens to land.
-      className="pointer-events-none absolute bottom-3 left-3 right-24 z-30 flex items-start gap-3 rounded-2xl border border-(--fam-hairline) bg-(--fam-surface) p-4 shadow-lg"
+      className="pointer-events-none absolute bottom-3 left-3 right-24 z-30 flex items-start gap-3 rounded-2xl border border-(--fam-hairline) bg-(--fam-notice-bg) p-4 shadow-lg backdrop-blur-md"
     >
       <ul className="flex min-w-0 flex-1 flex-col gap-1">
         {reminders.map((reminder) => (

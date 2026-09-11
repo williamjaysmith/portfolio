@@ -30,6 +30,13 @@ export interface AvatarProps {
   photoUrl?: string;
   /** Draw the profile-coloured ring used on chips. */
   ring?: boolean;
+  /**
+   * Fill the box instead of being a circle inside it — for the chip's cap,
+   * which is a slab the pill itself clips, so the face meets the lighter body
+   * on a STRAIGHT vertical edge (the operator's ask, 2026-09-10) rather than
+   * floating as a circle in a coloured field.
+   */
+  fill?: boolean;
   /** Tailwind sizing that overrides `size` — for a chip cap that scales with the shell. */
   sizeClassName?: string;
 }
@@ -39,11 +46,12 @@ export function Avatar({
   size = 48,
   photoUrl,
   ring = false,
+  fill = false,
   sizeClassName,
 }: AvatarProps) {
-  const className = `shrink-0 rounded-full object-cover${ring ? " fam-ring" : ""}${
-    sizeClassName ? ` ${sizeClassName}` : ""
-  }`;
+  const className = `shrink-0 object-cover${fill ? "" : " rounded-full"}${
+    ring ? " fam-ring" : ""
+  }${sizeClassName ? ` ${sizeClassName}` : ""}`;
 
   if (category.avatarKind === "illustration" && isAvatarId(category.avatarId)) {
     return (
@@ -89,9 +97,9 @@ export function Avatar({
         color: inkOn(category.color),
         fontSize: Math.round(size * 0.4),
       }}
-      className={`fam-profile fam-tint-100 flex shrink-0 items-center justify-center rounded-full font-medium${
-        ring ? " fam-ring" : ""
-      }${sizeClassName ? ` ${sizeClassName}` : ""}`}
+      className={`fam-profile fam-tint-100 flex shrink-0 items-center justify-center font-medium${
+        fill ? "" : " rounded-full"
+      }${ring ? " fam-ring" : ""}${sizeClassName ? ` ${sizeClassName}` : ""}`}
     >
       {glyph}
     </span>

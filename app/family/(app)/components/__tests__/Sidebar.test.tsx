@@ -24,7 +24,7 @@ describe("Sidebar", () => {
     }
 
     // And the rail is wide enough to hold one: 44px + its 6px padding a side.
-    expect(screen.getByRole("navigation", { name: "Primary" })).toHaveClass("min-w-[56px]");
+    expect(screen.getByRole("navigation", { name: "Primary" })).toHaveClass("min-w-[64px]");
   });
 
   it("marks the tab you are on, and only that one", () => {

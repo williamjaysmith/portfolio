@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 
 /**
@@ -50,9 +51,10 @@ export function ListMenu({ title, entries, onClose }: ListMenuProps) {
       }}
       className="m-auto w-[min(92vw,22rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-4 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <h2
         id="list-menu-title"
-        className="px-3 pb-2 font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)"
+        className="pr-(--fam-touch) px-3 pb-2 font-(family-name:--fam-font-serif) text-(length:--fam-fs-section)"
       >
         {title}
       </h2>

@@ -64,3 +64,4 @@ graphify-out/
 /test-results
 /blob-report
 /playwright/.cache
+.scratch/

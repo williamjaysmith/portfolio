@@ -1,6 +1,6 @@
 "use client";
 
-import { EyeOff, Star } from "lucide-react";
+import { Star } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import { adjustStars, createReward, deleteReward, updateReward } from "@/lib/family/actions/rewards";
@@ -553,6 +553,15 @@ function drawnColumnsOf(m: RewardsBoardModel): DrawnColumn[] {
  * FR-426's switch, in the tab's own chrome where the reference photographs it
  * (05 shot13 — a toggle beside Give stars). A real switch to the keyboard and
  * the screen reader, so its state is spoken rather than only coloured.
+ *
+ * **014: it says what it will DO, and drops the eye.** It read "Redeemed" beside
+ * a crossed-out eye, which states a category and leaves the direction to be
+ * inferred from an icon — the operator's call: *"lets make this button 'Show
+ * Redeemed' and 'Hide Redeemed' rather than that icon"*. The label now flips
+ * with the state, so the word alone tells you what the tap does.
+ *
+ * `role="switch"` and `aria-checked` stay: the label describes the ACTION while
+ * the role describes the STATE, and a screen reader wants both.
  */
 function RedeemedSwitch({ filters }: { filters: RewardFilterStore }) {
   const on = filters.filters.redeemed;
@@ -564,8 +573,7 @@ function RedeemedSwitch({ filters }: { filters: RewardFilterStore }) {
       onClick={() => filters.setRedeemed(!on)}
       className={SWITCH_CLASS}
     >
-      <EyeOff size={20} aria-hidden="true" />
-      Redeemed
+      {on ? "Hide Redeemed" : "Show Redeemed"}
     </button>
   );
 }

@@ -10,6 +10,7 @@ import type { ActorSession, Category } from "@/lib/family/types";
 import { Avatar } from "./Avatar";
 import { PinPad } from "./PinPad";
 import { callAction, useSessionRecovery } from "./action-client";
+import { DialogClose } from "./DialogClose";
 import { useModalDialog } from "./useModalDialog";
 
 /**
@@ -91,9 +92,10 @@ export function PunchInSheet({ open, profiles, avatarUrls, onResolve }: PunchInS
       }}
       className="m-auto w-[min(92vw,32rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={cancel} />
       <h2
         id="punch-in-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         {selected ? selected.label : "Who's here?"}
       </h2>

@@ -5,7 +5,6 @@ import { useState } from "react";
 import { weekdayOfDate } from "@/lib/family/calendar/dates";
 import type { DietaryNote } from "@/lib/family/meals/dietary";
 import { activeRecipes } from "@/lib/family/meals/library";
-import { dayWordsOf } from "@/lib/family/meals/week";
 import type { MealCategory, Recipe, Weekday } from "@/lib/family/types";
 
 import { FormDialog } from "../../components/FormDialog";
@@ -37,10 +36,21 @@ export interface MealSheetProps {
   onClose: () => void;
 }
 
+/**
+ * "Add to Breakfast" — the mealtime alone.
+ *
+ * It used to append the day: "Add to Breakfast, Thursday 10 September". On a
+ * phone that wraps to two serif lines, and the sheet's own Date field sits
+ * directly beneath saying the same thing in a control you can actually change.
+ * The operator: *"not sure we need the full date … that gets lengthy on iphone
+ * … otherwise the options spill over beneath my x/cancel button"*.
+ *
+ * Nothing is lost: the date is the first field in the form.
+ */
 function titleOf(mode: MealFormMode, categories: readonly MealCategory[]): string {
   if (mode.kind === "edit") return "Edit meal";
   const mealtime = categories.find((one) => one.id === mode.categoryId)?.name ?? "meal";
-  return `Add to ${mealtime}, ${dayWordsOf(mode.date)}`;
+  return `Add to ${mealtime}`;
 }
 
 function resultOf(draft: MealDraft, mode: MealFormMode): MealFormResult {
@@ -71,8 +81,8 @@ export function MealSheet({ mode, categories, recipes, notes, onSubmit, onClose 
   return (
     <FormDialog titleId="meal-sheet-title" title={titleOf(mode, categories)} onClose={onClose}>
       <form onSubmit={form.handleSubmit} className="mt-4 flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
+        <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-1">
             <label className={LABEL}>
               Date
               <input type="date" value={draft.date} onChange={(event) => set("date", event.target.value)} className={FIELD} />

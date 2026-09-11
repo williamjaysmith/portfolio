@@ -32,13 +32,20 @@ import { Search, X } from "lucide-react";
 
 /** The tab's chrome idiom — the same pill Previous / Today / Next are drawn as. */
 const SHELL =
-  "flex min-h-(--fam-touch) items-center gap-2 rounded-full bg-(--fam-pill-btn-bg) " +
+  // `min-w-0` + a floor: this is the one control on the nav row that gives up
+  // width so the others fit one line (see DayNav). The floor keeps the glyph
+  // and a usable field at 320px.
+  "flex min-h-(--fam-touch) min-w-[6.5rem] shrink items-center gap-2 rounded-full bg-(--fam-field-bg) " +
+  "ring-1 ring-(--fam-field-ring) focus-within:ring-(--fam-field-ring-focus) " +
   "pl-4 pr-1 text-(--fam-text-muted)";
 
 /** Narrow enough to sit beside three pills on a phone, wide enough to read. */
 const INPUT =
-  "min-h-(--fam-touch) w-32 min-w-0 bg-transparent text-(length:--fam-fs-pill) " +
-  "text-(--fam-text-primary) placeholder:text-(--fam-text-muted) sm:w-44";
+  // `fam-field-input` is what suppresses the global 3px focus outline — see
+  // tokens.css, which is un-layered and outranks a Tailwind utility here. The
+  // shell owns the focus state instead: its ring thickens on focus-within.
+  "fam-field-input min-h-(--fam-touch) w-full min-w-0 bg-transparent text-(length:--fam-fs-pill) " +
+  "text-(--fam-text-primary) placeholder:text-(--fam-text-muted)";
 
 const CLEAR =
   "flex min-h-(--fam-touch) min-w-(--fam-touch) shrink-0 items-center justify-center " +

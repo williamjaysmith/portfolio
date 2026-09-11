@@ -83,17 +83,25 @@ export function formatDate(date: Date): string {
 
 export interface ClockProps {
   format: TimeFormat;
+  /**
+   * Overrides the default sizing. The top bar wears the clock as its headline
+   * since 014, at --fam-fs-date, where the household's name used to be.
+   */
+  className?: string;
 }
 
-export function Clock({ format }: ClockProps) {
+const CLOCK_CLASS =
+  "font-medium text-(length:--fam-fs-clock) text-(--fam-text-primary) tabular-nums";
+
+export function Clock({ format, className }: ClockProps) {
   const now = useNow();
   return (
     <span
       // Announcing every minute would be noise; the time is available on demand.
       aria-live="off"
-      className="font-medium text-(length:--fam-fs-clock) text-(--fam-text-primary) tabular-nums"
+      className={className ?? CLOCK_CLASS}
     >
-      {now ? formatTime(now, format) : " "}
+      {now ? formatTime(now, format) : " "}
     </span>
   );
 }

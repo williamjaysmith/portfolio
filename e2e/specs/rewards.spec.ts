@@ -44,7 +44,7 @@ test.describe("the Rewards tab", () => {
 
     // Put the household back: with Redeemed shown, the card says when it went
     // and its details carry the undo.
-    await page.getByRole("switch", { name: "Redeemed" }).click();
+    await page.getByRole("switch", { name: /(Show|Hide) Redeemed/ }).click();
     await column(page, "Cleo").getByRole("button", { name: /Movie night, Redeemed on/ }).click();
     await actAsAna(async () => {
       await page.getByRole("dialog", { name: "Movie night" }).getByRole("button", { name: "Unredeem" }).click();

@@ -164,7 +164,12 @@ describe("RedeemModal", () => {
       expect(frame.className).toContain("p-(--fam-redeem-modal-pad)");
       // The height is a target the content may exceed, so it sits on the body
       // inside the frame as a minimum, never on the frame as a clip.
-      expect(frame.firstElementChild?.className).toContain("min-h-(--fam-redeem-modal-h)");
+      // Not `firstElementChild`: 014's Dismiss (the X) is the frame's first
+      // child now. The body is the element that carries the height minimum.
+      const body = [...frame.children].find((child) =>
+        child.className.includes("min-h-(--fam-redeem-modal-h)"),
+      );
+      expect(body).toBeDefined();
     });
 
     it("offers a primary Done and a secondary Unredeem, each at least 44 points tall", () => {
@@ -178,7 +183,12 @@ describe("RedeemModal", () => {
       expect(unredeem).toHaveClass("min-h-(--fam-redeem-btn-secondary-h)");
       expect(unredeem).toHaveClass("bg-(--fam-btn-secondary-bg)");
       // Done is the primary: it comes first and holds the initial focus.
-      const buttons = screen.getAllByRole("button").map((button) => button.textContent);
+      const buttons = screen
+      .getAllByRole("button")
+      // 014's Dismiss (the X) is dialog chrome, not one of these controls, and
+      // carries its name on `aria-label` rather than in text.
+      .filter((button) => button.getAttribute("aria-label") !== "Dismiss")
+      .map((button) => button.textContent);
       expect(buttons).toEqual(["Done", "Unredeem"]);
       expect(done).toHaveFocus();
     });

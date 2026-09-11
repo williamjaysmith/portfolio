@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { DialogClose } from "./DialogClose";
 import { useModalDialog } from "./useModalDialog";
 
 /**
@@ -36,7 +37,13 @@ export function FormDialog({ titleId, title, onClose, widthClassName = "w-[min(9
       }}
       className={`m-auto ${widthClassName} rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30`}
     >
-      <h2 id={titleId} className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
+      <DialogClose onClose={onClose} />
+      {/* `pr-(--fam-touch)` so a long title wraps BEFORE it reaches the X
+          rather than running under it. */}
+      <h2
+        id={titleId}
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+      >
         {title}
       </h2>
       {subtitle}

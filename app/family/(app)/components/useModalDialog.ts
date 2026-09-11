@@ -27,6 +27,21 @@ function focusTargetOf(dialog: HTMLDialogElement, focus: ModalDialogFocus): HTML
  * free; jsdom does not implement it, so every call is guarded rather than
  * assumed.
  *
+ * **Clicking outside dismisses** (014, the operator's ask: "if user clicks
+ * outside modal it dissapears"). It is wired HERE, once, rather than in each of
+ * the twenty-eight dialogs that mount this hook — and it works by dispatching
+ * the dialog's own `cancel` event, so a click outside travels the exact path
+ * Escape already travels. Every caller's existing `onCancel` handler runs
+ * unchanged; no call site had to be touched, and no dialog can be dismissed a
+ * way its author did not already handle.
+ *
+ * The geometry, and why it is geometry: these dialogs put the panel ON the
+ * `<dialog>` element itself, so a backdrop click and a click on the panel's own
+ * padding BOTH report `event.target === dialog`. Comparing the pointer against
+ * the element's box is the only thing that separates them. A zero-sized box
+ * means no layout — jsdom — and is left alone, so a test that clicks inside a
+ * dialog does not dismiss it.
+ *
  * `initialFocus`, when given, additionally runs the return-focus dance a
  * dialog needs when it is UNMOUNTED rather than closed: nothing hands focus
  * back on its own in that case (Phase 1's SC-009 keyboard guarantee), so
@@ -43,6 +58,29 @@ export function useModalDialog(
   initialFocus?: ModalDialogFocus,
 ): RefObject<HTMLDialogElement | null> {
   const dialogRef = useRef<HTMLDialogElement>(null);
+
+  // Dismiss on a click outside the panel. Its own effect, with no dependency on
+  // `open`: the listener is on the dialog, which only receives clicks while it
+  // is showing anyway.
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    function onClick(event: MouseEvent) {
+      const box = dialog!.getBoundingClientRect();
+      if (box.width === 0 || box.height === 0) return;
+      const inside =
+        event.clientX >= box.left &&
+        event.clientX <= box.right &&
+        event.clientY >= box.top &&
+        event.clientY <= box.bottom;
+      if (inside) return;
+      dialog!.dispatchEvent(new Event("cancel", { cancelable: true }));
+    }
+
+    dialog.addEventListener("click", onClick);
+    return () => dialog.removeEventListener("click", onClick);
+  }, []);
 
   useEffect(() => {
     const dialog = dialogRef.current;

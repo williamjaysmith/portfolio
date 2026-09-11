@@ -15,6 +15,7 @@ import type { Category, ListFilters, TaskFilters } from "@/lib/family/types";
 
 import { Avatar } from "./Avatar";
 import { useFamily } from "./FamilyProvider";
+import { DialogClose } from "./DialogClose";
 import { useModalDialog } from "./useModalDialog";
 
 /**
@@ -182,17 +183,17 @@ function MealFilterSection({ showMeals, setShowMeals }: { showMeals: boolean; se
 }
 
 /**
- * 009's two, per device (FR-908, FR-911, FR-913).
- *
- * **Tasks Progress** is the reference's own toggle, in its own words
- * (36625171368987 — it "displays the task progress of visible profiles above
- * the events"). Off by default: it is the mount that enables the board's four
- * reads, so on by default would put them on every calendar paint for a
- * household that never asked (R905).
+ * 009's one remaining, per device (FR-908, FR-913).
  *
  * **Pause countdowns** is ours. The reference documents that the bar rotates
  * and nothing about stopping it (Assumption 6), and a bar that changes while
  * somebody is reading it is a poor wall display.
+ *
+ * **Tasks Progress used to be here** — the reference's own toggle, in its own
+ * words (36625171368987). 014 retired it: the counts it revealed now live on
+ * the shell's profile chips, always, because the row it gated drew the family's
+ * faces a second time. It is also the toggle "Show all" flipped on as a side
+ * effect, which is how the operator met that row without asking for it.
  */
 function CalendarFilterSection({
   switches,
@@ -203,11 +204,6 @@ function CalendarFilterSection({
 }) {
   return (
     <SheetSection title="Calendar" headingId="filter-calendar">
-      <ToggleRow
-        label="Tasks Progress"
-        checked={switches.tasksProgress}
-        onChange={(on) => set("tasksProgress", on)}
-      />
       <ToggleRow
         label="Pause countdowns"
         checked={switches.pauseRotation}
@@ -259,14 +255,25 @@ export function FilterSheet() {
 
   return (
     <>
+      {/*
+       * A circle carrying the eye, no label — the operator's call, and the same
+       * shape as DayNav's arrows so every icon-only control in the shell is one
+       * round target.
+       *
+       * `aria-label` is now the ONLY thing that names it. The word "Filter" was
+       * the accessible name while it was on screen; dropping the text without
+       * this leaves a button announced as nothing, and the icon is `aria-hidden`
+       * precisely because the text used to carry the name. The browser journeys
+       * find this control by that name too.
+       */}
       <button
         ref={buttonRef}
         type="button"
+        aria-label="Filter"
         onClick={() => setOpen(true)}
-        className="flex min-h-[44px] items-center gap-2 rounded-full bg-(--fam-pill-btn-bg) px-4 text-(length:--fam-fs-pill) font-medium text-(--fam-text-muted)"
+        className="fam-glyph-btn grid h-(--fam-touch) w-(--fam-touch) shrink-0 place-items-center rounded-full bg-(--fam-glyph-bg) text-(--fam-glyph-ink)"
       >
         <EyeOff size={20} strokeWidth={1.5} aria-hidden="true" />
-        Filter
       </button>
 
       <dialog
@@ -278,7 +285,8 @@ export function FilterSheet() {
         }}
         className="m-auto w-[min(92vw,26rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
       >
-        <h2 id="filter-title" className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
+        <DialogClose onClose={close} />
+        <h2 id="filter-title" className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)">
           Show on this device
         </h2>
 

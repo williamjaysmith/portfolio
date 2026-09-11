@@ -7,6 +7,7 @@ import { can } from "@/lib/family/permissions";
 import type { ActorSession, Category, Redemption, Reward } from "@/lib/family/types";
 
 import { DetailRow } from "../../components/DetailRow";
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 import { redeemedOnLabelOf, starsInWords } from "./RewardCard";
 
@@ -57,7 +58,7 @@ function DetailsTitle({ emoji, name }: { emoji: string | null; name: string }) {
   return (
     <h2
       id="reward-details-title"
-      className="flex items-center gap-3 font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+      className="pr-(--fam-touch) flex items-center gap-3 font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
     >
       {emoji === null ? null : (
         <span aria-hidden="true" className="text-(length:--fam-task-emoji) leading-none">
@@ -326,6 +327,7 @@ export function RewardDetails({
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onClose} />
       <DetailsTitle emoji={reward.emoji} name={reward.name} />
       <RewardFacts reward={reward} categories={categories} redemption={redemption} />
 

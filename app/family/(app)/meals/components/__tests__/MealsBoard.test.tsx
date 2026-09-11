@@ -238,7 +238,7 @@ describe("MealsBoard — planning", () => {
     renderBoard();
     fireEvent.click(screen.getByRole("button", { name: "Wednesday 9 September, Lunch, empty" }));
     const sheet = screen.getByRole("dialog", { hidden: true });
-    expect(within(sheet).getByRole("heading", { name: "Add to Lunch, Wednesday 9 September" })).toBeInTheDocument();
+    expect(within(sheet).getByRole("heading", { name: "Add to Lunch" })).toBeInTheDocument();
     fireEvent.click(within(sheet).getByRole("radio", { name: "All" }));
     fireEvent.click(within(sheet).getByRole("radio", { name: "Pancakes" }));
     fireEvent.submit(within(sheet).getByRole("button", { name: "Save" }).closest("form") as HTMLFormElement);
@@ -250,7 +250,7 @@ describe("MealsBoard — planning", () => {
   it("opens the sheet from the shell's control on today and the first shown mealtime", () => {
     renderBoard();
     fireEvent.click(screen.getByRole("button", { name: "Add Meal" }));
-    expect(screen.getByRole("heading", { name: "Add to Breakfast, Wednesday 9 September" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add to Breakfast" })).toBeInTheDocument();
   });
 
   it("opens the popover from a chip, edits a one-off without a scope, and deletes through the confirmation", async () => {
@@ -316,7 +316,7 @@ describe("MealsBoard — planning", () => {
     renderBoard();
     fireEvent.click(screen.getByRole("button", { name: "🍝 Spaghetti" }));
     fireEvent.click(screen.getByRole("button", { name: "Add another meal" }));
-    expect(screen.getByRole("heading", { name: "Add to Dinner, Wednesday 9 September" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add to Dinner" })).toBeInTheDocument();
   });
 });
 
@@ -412,11 +412,87 @@ describe("MealsBoard — recipes", () => {
     fireEvent.click(screen.getByRole("button", { name: "Recipes" }));
     fireEvent.click(within(screen.getByRole("list", { name: "Recipes" })).getByRole("button", { name: /Pancakes/ }));
     fireEvent.click(within(screen.getByRole("article", { name: "Pancakes" })).getByRole("button", { name: "Plan Meal" }));
-    expect(screen.getByRole("heading", { name: "Add to Breakfast, Wednesday 9 September" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Add to Breakfast" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Pancakes" })).toBeChecked();
     fireEvent.submit(screen.getByRole("button", { name: "Save" }).closest("form") as HTMLFormElement);
     await vi.waitFor(() =>
       expect(planMeal).toHaveBeenCalledWith({ date: "2026-09-09", categoryId: BREAKFAST, recipe: { kind: "existing", id: pancakes.id } }),
     );
+  });
+});
+
+/**
+ * 014 — the grid lines the operator asked for: "the same type of light gray
+ * divider lines as the calendar view, so you can visualize across days easier".
+ *
+ * What is worth a test is not that they are pretty but that they are OUT OF
+ * FLOW. The day column's width is measured (013 takes `layout.perRow` from
+ * `--fam-meal-cell-w` against the strip), so a real border on each column is
+ * how a seven-column wall tablet quietly starts drawing six. jsdom does no
+ * layout, so the assertion is on the mechanism rather than on a pixel: the
+ * rule is absolutely positioned inside a positioned column, and it is hidden
+ * from the reader.
+ */
+describe("MealsBoard — the grid lines (014)", () => {
+  it("draws a day divider that cannot affect the measured column width", () => {
+    renderBoard();
+
+    const column = document.querySelector("[data-day]");
+    expect(column).not.toBeNull();
+    // Positioned, so the rules inside it are out of flow rather than borders.
+    expect(column?.className).toContain("relative");
+
+    const rule = column?.querySelector("span[aria-hidden='true'].absolute");
+    expect(rule).not.toBeNull();
+    expect(rule?.className).toContain("bg-(--fam-hairline)");
+    expect(rule?.className).toContain("pointer-events-none");
+  });
+
+  /**
+   * It divides days, so it belongs BETWEEN them. A rule on the leftmost column
+   * would sit against the mealtime rail and fence the grid off from its own row
+   * labels — the operator's call: "dont even need the line on the left where the
+   * pills for breakfast/lunch etc start".
+   */
+  it("leaves the leftmost column undivided", () => {
+    renderBoard();
+
+    const columns = [...document.querySelectorAll("[data-day]")];
+    expect(columns.length).toBeGreaterThan(1);
+
+    const dividerOf = (column: Element) =>
+      column.querySelector(":scope > span[aria-hidden='true'].w-px");
+    expect(dividerOf(columns[0])).toBeNull();
+    for (const column of columns.slice(1)) expect(dividerOf(column)).not.toBeNull();
+  });
+
+  /**
+   * The rules hang off the CELLS, not off the column's top. The first attempt
+   * computed them from `--fam-dayheader-h` as a repeating background and landed
+   * a whole `--fam-meal-gap-y` out, because the header and the first cell are
+   * flex siblings with a gap between them. Anchoring them to their own cell is
+   * what this asserts — one rule per boundary, so N cells give N-1 rules.
+   */
+  it("hangs one mealtime rule under every cell but the last", () => {
+    renderBoard();
+
+    const column = document.querySelector("[data-day]");
+    const cells = column?.querySelectorAll("[data-slot]") ?? [];
+    const rules = column?.querySelectorAll("span[aria-hidden='true'].h-px") ?? [];
+
+    expect(cells.length).toBeGreaterThan(1);
+    expect(rules.length).toBe(cells.length - 1);
+    // Each is anchored to its own cell's box, which is what stops it drifting.
+    for (const rule of rules) expect(rule.parentElement?.className).toContain("relative");
+  });
+
+  it("starts the day divider below the day header, as the calendar does", () => {
+    renderBoard();
+
+    const rule = document.querySelectorAll("[data-day]")[1]?.querySelector(
+      ":scope > span[aria-hidden='true'].w-px",
+    );
+    expect(rule?.className).toContain("top-(--fam-dayheader-h)");
+    expect(rule?.className).not.toContain("inset-y-0");
   });
 });

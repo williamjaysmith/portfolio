@@ -6,6 +6,7 @@ import { useFamily } from "../FamilyProvider";
 import { CategorySection } from "./CategorySection";
 import { HouseholdSection } from "./HouseholdSection";
 import { NotificationsSection } from "./NotificationsSection";
+import { ReloadSection } from "./ReloadSection";
 
 /**
  * Settings (FR-043).
@@ -23,6 +24,8 @@ export function SettingsScreen() {
       <NotificationsSection />
       <CategorySection kind="profile" />
       <CategorySection kind="label" />
+
+      <ReloadSection />
 
       <section aria-labelledby="account-heading" className="flex flex-col gap-3">
         <h2

@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { TaskScope } from "@/lib/family/types";
 
+import { DialogClose } from "../../components/DialogClose";
 import { useModalDialog } from "../../components/useModalDialog";
 
 /**
@@ -85,16 +86,17 @@ export function DeleteScopeDialog({
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onCancel} />
       <h2
         id="task-scope-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         Delete &ldquo;{summary}&rdquo;?
       </h2>
 
       <p
         id="task-scope-question"
-        className="mt-3 text-(length:--fam-fs-body) text-(--fam-text-secondary)"
+        className="pr-(--fam-touch) mt-3 text-(length:--fam-fs-body) text-(--fam-text-secondary)"
       >
         Which of these should this apply to?
       </p>

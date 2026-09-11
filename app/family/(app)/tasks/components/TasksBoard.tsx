@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import { reorderCategories } from "@/lib/family/actions/categories";
@@ -39,6 +38,7 @@ import { TaskBoxSheet } from "./TaskBoxSheet";
 import { occurrenceKeyOf } from "./TaskCard";
 import { dayInWords, TaskDetails } from "./TaskDetails";
 import { TaskForm } from "./TaskForm";
+import { DayNav } from "../../components/DayNav";
 import { TaskSearch } from "./TaskSearch";
 import {
   UP_FOR_GRABS_COLUMN_ID,
@@ -137,10 +137,6 @@ const READ_FAILED = "Today's tasks could not be loaded.";
 const GONE_MESSAGE = "That task is no longer here.";
 
 /** Phase 1's top-bar pill (the calendar's idiom) at the FR-397 touch floor. */
-const PILL_CLASS =
-  "flex min-h-(--fam-touch) min-w-(--fam-touch) items-center justify-center gap-2 " +
-  "rounded-full bg-(--fam-pill-btn-bg) px-4 font-medium " +
-  "text-(length:--fam-fs-pill) text-(--fam-text-muted)";
 
 /* ------------------------------------------------------------------ pure -- */
 
@@ -648,6 +644,13 @@ function useOccurrenceSurface(occurrences: readonly BoardOccurrence[]): Occurren
 
 /* ------------------------------------------------------------------ view -- */
 
+/**
+ * 014: the cluster is the shell's `DayNav` now, shared with the Calendar and
+ * Meals. This board had the third copy of the same three controls — pill
+ * arrows, `justify-between`, and a larger serif label. The label's
+ * `aria-current` survived the move (FR-315); its size did not, which is the
+ * point of sharing one row.
+ */
 function BoardNav({
   date,
   isToday,
@@ -665,44 +668,17 @@ function BoardNav({
   onToday: () => void;
 }) {
   return (
-    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-(--fam-edge-inset) pt-2">
-      <p
-        // The date is the only thing that says which day is on screen, so it
-        // is what shows the midnight rollover happening (FR-315, SC-314).
-        aria-current={isToday ? "date" : undefined}
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
-      >
-        {dayInWords(date)}
-      </p>
-      <div className="flex flex-wrap items-center gap-3">
-        {/* FR-386, Assumption 27: the search sits in the tab's own chrome,
-            beside Previous / Today / Next, and filters the board in place. */}
-        <TaskSearch value={query} onChange={onQuery} />
-        {/* The three day controls wrap as one unit, so a phone never strands
-            the Next arrow on a line of its own under the search. */}
-        <div className="flex shrink-0 items-center gap-3">
-          <button
-            type="button"
-            aria-label="Previous day"
-            onClick={() => onStep(-1)}
-            className={PILL_CLASS}
-          >
-            <ChevronLeft size={20} aria-hidden="true" />
-          </button>
-          <button type="button" onClick={onToday} className={PILL_CLASS}>
-            Today
-          </button>
-          <button
-            type="button"
-            aria-label="Next day"
-            onClick={() => onStep(1)}
-            className={PILL_CLASS}
-          >
-            <ChevronRight size={20} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-    </div>
+    <DayNav
+      distance="day"
+      label={dayInWords(date)}
+      labelIsToday={isToday}
+      onPage={onStep}
+      onToday={onToday}
+    >
+      {/* FR-386, Assumption 27: the search sits in the tab's own chrome,
+          beside Previous / Today / Next, and filters the board in place. */}
+      <TaskSearch value={query} onChange={onQuery} />
+    </DayNav>
   );
 }
 

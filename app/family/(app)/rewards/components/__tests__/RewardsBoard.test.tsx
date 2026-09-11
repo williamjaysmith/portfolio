@@ -441,7 +441,7 @@ describe("RewardsBoard", () => {
     it("starts off, and brings in the muted cards when turned on", async () => {
       renderBoard();
 
-      const toggle = screen.getByRole("switch", { name: "Redeemed" });
+      const toggle = screen.getByRole("switch", { name: /(Show|Hide) Redeemed/ });
       expect(toggle).toHaveAttribute("aria-checked", "false");
       expect(within(column("Cleo")).queryByText("Redeemed on Sep 27")).not.toBeInTheDocument();
 
@@ -449,7 +449,7 @@ describe("RewardsBoard", () => {
         fireEvent.click(toggle);
       });
 
-      expect(screen.getByRole("switch", { name: "Redeemed" })).toHaveAttribute(
+      expect(screen.getByRole("switch", { name: /(Show|Hide) Redeemed/ })).toHaveAttribute(
         "aria-checked",
         "true",
       );
@@ -464,7 +464,7 @@ describe("RewardsBoard", () => {
       renderBoard();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("switch", { name: "Redeemed" }));
+        fireEvent.click(screen.getByRole("switch", { name: /(Show|Hide) Redeemed/ }));
       });
 
       expect(JSON.parse(localStorage.getItem("family:reward-filters:v1") ?? "{}")).toEqual({
@@ -480,7 +480,7 @@ describe("RewardsBoard", () => {
       renderBoard();
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("switch", { name: "Redeemed" }));
+        fireEvent.click(screen.getByRole("switch", { name: /(Show|Hide) Redeemed/ }));
       });
 
       // The switch still works for the session…
@@ -772,7 +772,7 @@ describe("RewardsBoard", () => {
       expect(cardTitlesIn("Cleo")).toEqual(["Movie night", "Bake cookies"]);
 
       await act(async () => {
-        fireEvent.click(screen.getByRole("switch", { name: "Redeemed" }));
+        fireEvent.click(screen.getByRole("switch", { name: /(Show|Hide) Redeemed/ }));
       });
       expect(cardTitlesIn("Ben")).toEqual(["Ice cream", "Movie night"]);
       expect(within(column("Ben")).getByText("Redeemed on Sep 5")).toBeInTheDocument();
@@ -787,7 +787,7 @@ describe("RewardsBoard", () => {
         },
       });
       await act(async () => {
-        fireEvent.click(screen.getByRole("switch", { name: "Redeemed" }));
+        fireEvent.click(screen.getByRole("switch", { name: /(Show|Hide) Redeemed/ }));
       });
 
       await press(/^Ice cream, Redeemed on/, within(column("Cleo")));
@@ -807,7 +807,7 @@ describe("RewardsBoard", () => {
       unredeemMock.mockResolvedValue(fail("FORBIDDEN", refusal));
       renderBoard({ context: { actor: makeActor("member", { profileId: BEN, label: "Ben" }) } });
       await act(async () => {
-        fireEvent.click(screen.getByRole("switch", { name: "Redeemed" }));
+        fireEvent.click(screen.getByRole("switch", { name: /(Show|Hide) Redeemed/ }));
       });
       await press(/^Ice cream, Redeemed on/, within(column("Cleo")));
 
@@ -849,7 +849,7 @@ describe("RewardsBoard", () => {
 
       const control = giveStarsControl();
       expect(control).not.toBeNull();
-      const toggle = screen.getByRole("switch", { name: "Redeemed" });
+      const toggle = screen.getByRole("switch", { name: /(Show|Hide) Redeemed/ });
       // FR-434 as photographed (05 shot13): the control, then the switch.
       expect(control?.compareDocumentPosition(toggle)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
       expect(control?.parentElement).toBe(toggle.parentElement);

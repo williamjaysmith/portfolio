@@ -94,3 +94,22 @@ export function windowLabelOf(dates: readonly string[]): string {
   if (first.month !== last.month) return `${first.day} ${first.month} – ${last.day} ${last.month}`;
   return `${first.day}–${last.day} ${first.month}`;
 }
+
+/**
+ * The arrows' step in words: "week" for seven days, "day" for one, "N days"
+ * otherwise (013 FR-1306).
+ *
+ * It lived in the Meals tab's own `WeekNav` until 014 replaced that with the
+ * shared `DayNav`. It did NOT move into the shared component: the Calendar
+ * names its own step (it has a Month view, which is not a count of days), so
+ * the word is the caller's and this is the Meals caller's rule.
+ *
+ * "day" rather than "1 days" is the whole reason this is a function — a week is
+ * not a special case, it is what seven days is called, and one day is what one
+ * day is called.
+ */
+export function distanceInWords(columns: number): string {
+  if (columns === 7) return "week";
+  if (columns === 1) return "day";
+  return `${columns} days`;
+}

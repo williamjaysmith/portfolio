@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import type { Scope } from "@/lib/family/types";
 
+import { DialogClose } from "./DialogClose";
 import { useModalDialog } from "./useModalDialog";
 
 /**
@@ -105,16 +106,17 @@ export function ScopeDialog({
       }}
       className="m-auto w-[min(92vw,30rem)] rounded-(--fam-radius-modal) bg-(--fam-app-bg) p-6 text-(--fam-text-primary) backdrop:bg-black/30"
     >
+      <DialogClose onClose={onCancel} />
       <h2
         id="scope-dialog-title"
-        className="font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
+        className="pr-(--fam-touch) font-(family-name:--fam-font-serif) text-(length:--fam-fs-title)"
       >
         {words.title}
       </h2>
 
       <p
         id="scope-dialog-question"
-        className="mt-3 text-(length:--fam-fs-body) text-(--fam-text-secondary)"
+        className="pr-(--fam-touch) mt-3 text-(length:--fam-fs-body) text-(--fam-text-secondary)"
       >
         {words.question}
       </p>
