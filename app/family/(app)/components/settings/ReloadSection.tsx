@@ -1,5 +1,7 @@
 "use client";
 
+import { cacheBustedUrl } from "@/lib/family/recovery";
+
 import { SectionHeading } from "./SectionHeading";
 
 /**
@@ -22,12 +24,15 @@ import { SectionHeading } from "./SectionHeading";
  * The query parameter is stripped from what the user sees by navigating to the
  * bare path afterwards being unnecessary — `?reload=` is harmless and the app
  * reads no query parameters on this route.
+ *
+ * The navigation itself moved to `cacheBustedUrl` in `lib/family/recovery.ts`
+ * when `app/family/error.tsx` needed the same thing: two hand-rolled copies of
+ * "reload in a way the cache cannot satisfy" would be two places to get it
+ * wrong.
  */
 export function ReloadSection() {
   function reload() {
-    const url = new URL(window.location.href);
-    url.searchParams.set("reload", String(Date.now()));
-    window.location.replace(url.toString());
+    window.location.replace(cacheBustedUrl(window.location.href, Date.now()));
   }
 
   return (
